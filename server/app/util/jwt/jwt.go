@@ -6,6 +6,7 @@ import (
 	"server/app/constant"
 	"server/app/util/str"
 	"time"
+	"unicode/utf8"
 )
 
 // MyClaims jwt载体
@@ -16,16 +17,10 @@ type MyClaims struct {
 
 // User 会员用户表
 type User struct {
-	Id         int          `gorm:"column:id;PRIMARY_KEY" json:"id"`
-	LoginToken string       `gorm:"column:login_token" json:"login_token"`
-	LoginIp    string       `gorm:"column:login_ip" json:"login_ip"`
-	LoginTime  str.DateTime `gorm:"column:login_time" json:"login_time"`
-	Status     int          `gorm:"column:status" json:"status"`
-}
-
-// getKey 获取加密key
-func getKey() []byte {
-	return []byte(constant.JwtKey)
+	Id         int          ` json:"id"`
+	LoginToken string       ` json:"login_token"`
+	LoginIp    string       ` json:"login_ip"`
+	LoginTime  str.DateTime ` json:"login_time"`
 }
 
 // GetLoginToken 获取token
@@ -33,6 +28,21 @@ func GetLoginToken(token string) map[string]string {
 	temp := make(map[string]string)
 	_ = json.Unmarshal([]byte(token), &temp)
 	return temp
+}
+
+// getKey 获取加密key
+func getKey() []byte {
+	key := constant.JwtKey
+	length := utf8.RuneCountInString(key)
+	if length != 16 {
+		if length > 8 {
+			key = constant.JwtKey[:8]
+		}
+		if length < 8 {
+			key = str.NewStringTool(constant.JwtKey).Md5()[:8]
+		}
+	}
+	return []byte(key)
 }
 
 // GetToken 生成token user 用户信息

@@ -4,7 +4,6 @@ import (
 	"github.com/SinKingCloud/sinking-go/sinking-web"
 	"server/app/constant"
 	"server/app/service"
-	"server/app/util"
 	"server/app/util/jwt"
 	"server/app/util/server"
 	"time"
@@ -26,44 +25,19 @@ func CheckLogin() sinking_web.HandlerFunc {
 			c.Abort()
 			return
 		}
-		//获取用户最新信息
-		user, err := service.User.FindByIdWithCache(key.User.Id, false)
-		if err != nil || user == nil {
-			c.TokenError("登陆超时,请重新登陆", nil)
-			c.Abort()
-			return
-		}
-		webToken := jwt.GetLoginToken(user.LoginToken)
-		//判断用户token一致性
-		if webToken[types] == "" {
+		loginToken := service.Config.Get(constant.LoginGroup, constant.LoginToken)
+		if loginToken == "" {
 			c.TokenError("您的账户已注销登陆,请重新登陆", nil)
 			c.Abort()
 			return
 		}
 		jwtToken := jwt.GetLoginToken(key.User.LoginToken)
-		if jwtToken[types] != webToken[types] && util.Conf.GetString(constant.ServerMode) != "dev" {
+		if jwtToken[types] != loginToken {
 			c.TokenError("您的账户已在其他设备登陆,请重新登陆", nil)
 			c.Abort()
 			return
 		}
-		if !service.User.CheckAdmin(user.Id) && user.Status != 0 {
-			c.TokenError("您的账户已被禁止登陆,请联系管理员", nil)
-			c.Abort()
-			return
-		}
 		c.SetUserInfo(key.User)
-		c.Next()
-	})
-}
-
-// CheckAdmin 判断是否管理员
-func CheckAdmin() sinking_web.HandlerFunc {
-	return server.HandleFunc(func(c *server.Context) {
-		if !c.IsAdmin() {
-			c.NotAllow("您的账户权限不足", nil)
-			c.Abort()
-			return
-		}
 		c.Next()
 	})
 }

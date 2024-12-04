@@ -2,10 +2,8 @@ package route
 
 import (
 	"github.com/SinKingCloud/sinking-go/sinking-web"
-	"net/http"
 	"server/app/constant"
 	"server/app/util"
-	"time"
 )
 
 // loadErrorHandle 设置错误回调
@@ -28,8 +26,7 @@ func Init() {
 	//设置是否以debug模式运行
 	sinking_web.SetDebugMode(util.Conf.GetString(constant.ServerMode) == "dev")
 	//实例化一个http server
-	r := sinking_web.New()
-	r.Use(sinking_web.Recovery())
+	r := sinking_web.Default()
 	//加载错误handle
 	loadErrorHandle(r)
 	//加载app
@@ -43,14 +40,7 @@ func Init() {
 	if port == "" {
 		port = "5678"
 	}
-	server := &http.Server{
-		ReadTimeout:  600 * time.Second,
-		WriteTimeout: 600 * time.Second,
-		Addr:         host + ":" + port,
-		Handler:      r,
-	}
-	util.Log.Println("服务端启动成功", host+":"+port)
-	err := server.ListenAndServe()
+	err := r.Run(host + ":" + port)
 	if err != nil {
 		panic(err)
 		return

@@ -9,9 +9,7 @@ var (
 	//go:embed dist/*
 	Static embed.FS
 	//go:embed sql/*
-	sql embed.FS
-	//go:embed captcha/*
-	captcha    embed.FS
+	sql        embed.FS
 	FileServer = http.FileServer(http.FS(Static))
 )
 
@@ -33,12 +31,4 @@ func Sql() string {
 		return ""
 	}
 	return string(bytes)
-}
-
-func Captcha() []byte {
-	bytes, err := captcha.ReadFile("captcha/tencent.js")
-	if err != nil || bytes == nil {
-		return nil
-	}
-	return bytes
 }

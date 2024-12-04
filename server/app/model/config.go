@@ -8,8 +8,6 @@ import (
 
 // Config 配置表
 type Config struct {
-	Id         int          `gorm:"column:id;PRIMARY_KEY" json:"id"`
-	IdentId    string       `gorm:"column:ident_id" json:"ident_id"`
 	Key        string       `gorm:"column:key" json:"key"`
 	Value      string       `gorm:"column:value" json:"value"`
 	CreateTime str.DateTime `gorm:"column:create_time" json:"create_time"`

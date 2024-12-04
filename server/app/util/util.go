@@ -10,6 +10,6 @@ import (
 var (
 	Database *database.Database //数据库
 	Conf     *viper.Viper       //文件配置
-	Cache    cache.Cache
+	Cache    *cache.Cache
 	Log      *log.Logger
 )
