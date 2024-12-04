@@ -12,10 +12,10 @@ func (ControllerWeb) Info(c *server.Context) {
 }
 
 func (ControllerWeb) Login(c *server.Context) {
-	c.Success("success")
+	c.Success("请求成功")
 }
 
 // OutLogin 退出登录
 func (ControllerWeb) OutLogin(c *server.Context) {
-	c.Success("success")
+	c.Success("请求成功")
 }
