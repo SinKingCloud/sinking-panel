@@ -45,7 +45,7 @@ func (s *Service) Set(group string, key string, value string) error {
 	}
 	defer util.Cache.UnLock(lock)
 	defer util.Cache.Delete(group)
-	if s.CountByKey(key) > 0 {
+	if n, e := s.CountByKey(key); e == nil && n > 0 {
 		return s.UpdateByKey(key, value)
 	}
 	return s.Create(key, value)

@@ -1,7 +1,6 @@
 package jwt
 
 import (
-	"encoding/json"
 	"github.com/golang-jwt/jwt"
 	"server/app/constant"
 	"server/app/util/str"
@@ -17,17 +16,9 @@ type MyClaims struct {
 
 // User 会员用户表
 type User struct {
-	Id         int          ` json:"id"`
 	LoginToken string       ` json:"login_token"`
 	LoginIp    string       ` json:"login_ip"`
 	LoginTime  str.DateTime ` json:"login_time"`
-}
-
-// GetLoginToken 获取token
-func GetLoginToken(token string) map[string]string {
-	temp := make(map[string]string)
-	_ = json.Unmarshal([]byte(token), &temp)
-	return temp
 }
 
 // getKey 获取加密key

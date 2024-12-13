@@ -20,7 +20,7 @@ func getIns() *captcha.Captcha {
 		}
 		c.SetSize(256, 128)
 		c.SetDisturbance(64)
-		c.SetFrontColor(color.RGBA{R: 0, G: 89, B: 155, A: 235})
+		c.SetFrontColor(color.RGBA{R: 0, G: 81, B: 235, A: 255})
 	})
 	return c
 }

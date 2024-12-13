@@ -8,8 +8,10 @@ import (
 var (
 	//go:embed dist/*
 	Static embed.FS
-	//go:embed sql/*
-	sql        embed.FS
+	//go:embed sql/install.sql
+	Sql string
+	//go:embed ip/*
+	Ip         embed.FS
 	FileServer = http.FileServer(http.FS(Static))
 )
 
@@ -17,18 +19,10 @@ func Path() string {
 	return "/dist"
 }
 
-func Index() []byte {
-	bytes, err := Static.ReadFile("dist/index.html")
+func ReadDistFile(file string) []byte {
+	bytes, err := Static.ReadFile("dist/" + file)
 	if err != nil || bytes == nil {
 		return nil
 	}
 	return bytes
-}
-
-func Sql() string {
-	bytes, err := sql.ReadFile("sql/install.sql")
-	if err != nil || bytes == nil {
-		return ""
-	}
-	return string(bytes)
 }

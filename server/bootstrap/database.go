@@ -33,7 +33,7 @@ func checkDatabaseInit() error {
 	if err != nil {
 		return err
 	}
-	sql := public.Sql()
+	sql := public.Sql
 	if len(tables) >= strings.Count(sql, "create table") {
 		if checkContainsAllElements(tables, getSqlCreateTables(sql)) {
 			return nil
@@ -46,7 +46,7 @@ func checkDatabaseInit() error {
 		return util.Database.DbError
 	}
 	//新建数据表
-	lines := strings.Split(public.Sql(), "\n")
+	lines := strings.Split(public.Sql, "\n")
 	sqlStmt := ""
 	successCount := 0
 	errorCount := 0

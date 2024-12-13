@@ -8,4 +8,5 @@ const (
 	LoginAccount  = LoginGroup + ".account"  //登录账号
 	LoginPassword = LoginGroup + ".password" //登录密码
 	LoginToken    = LoginGroup + ".token"    //登录token
+	LoginExpire   = LoginGroup + ".expire"   //登录token过期时间
 )
