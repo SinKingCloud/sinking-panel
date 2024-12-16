@@ -101,13 +101,17 @@ func initIPFile(name string) (string, error) {
 	_ = file.EnsureDirectory(path, 0777)
 	if !file.Has(name) {
 		open, err := public.Ip.Open("ip/" + name)
+		if err == nil {
+			defer func() {
+				_ = open.Close()
+			}()
+			_, err = file.WriteStream(name, open, 0777)
+		} else {
+			_, err = file.Write(name, "", 0777)
+		}
 		if err != nil {
 			return "", err
 		}
-		defer func() {
-			_ = open.Close()
-		}()
-		_, err = file.WriteStream(name, open, 0777)
 	}
 	return strings.ReplaceAll(path+name, "//", ""), nil
 }

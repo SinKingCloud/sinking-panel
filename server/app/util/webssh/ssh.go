@@ -84,7 +84,7 @@ func (s *SshClient) Auth(user string, method ssh.AuthMethod) error {
 }
 
 // Session 获取一个session
-func (s *SshClient) Session(sessionID string) (*SshSession, error) {
+func (s *SshClient) Session(sessionID string, height int, width int) (*SshSession, error) {
 	if s.sessionMap == nil {
 		s.sessionMap = &sync.Map{}
 	}
@@ -93,7 +93,7 @@ func (s *SshClient) Session(sessionID string) (*SshSession, error) {
 	if values, ok := s.sessionMap.Load(sessionID); ok {
 		session = values.(*SshSession)
 	} else {
-		session, err = s.NewSession()
+		session, err = s.NewSession(height, width)
 		if err != nil {
 			return nil, err
 		}
@@ -103,7 +103,7 @@ func (s *SshClient) Session(sessionID string) (*SshSession, error) {
 }
 
 // NewSession 新建session
-func (s *SshClient) NewSession() (*SshSession, error) {
+func (s *SshClient) NewSession(height int, width int) (*SshSession, error) {
 	temp, err := s.client.NewSession()
 	if err != nil {
 		return nil, err
@@ -117,7 +117,7 @@ func (s *SshClient) NewSession() (*SshSession, error) {
 		ssh.TTY_OP_ISPEED: 14400,
 		ssh.TTY_OP_OSPEED: 14400,
 	}
-	if err = temp.RequestPty("xterm", 120, 200, modes); err != nil {
+	if err = temp.RequestPty("xterm", height, width, modes); err != nil {
 		return nil, err
 	}
 	if err = temp.Shell(); err != nil {
@@ -179,6 +179,19 @@ func (s *SshSession) Read() []byte {
 func (s *SshSession) Wait() error {
 	err := s.Session.Wait()
 	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// Resize 重置大小
+func (s *SshSession) Resize(height int, width int) error {
+	modes := ssh.TerminalModes{
+		ssh.ECHO:          1,
+		ssh.TTY_OP_ISPEED: 14400,
+		ssh.TTY_OP_OSPEED: 14400,
+	}
+	if err := s.Session.RequestPty("xterm", height, width, modes); err != nil {
 		return err
 	}
 	return nil

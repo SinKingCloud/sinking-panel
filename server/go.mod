@@ -16,7 +16,6 @@ require (
 	github.com/sevlyar/go-daemon v0.1.6
 	github.com/spf13/viper v1.19.0
 	golang.org/x/crypto v0.31.0
-	golang.org/x/text v0.21.0
 	gorm.io/driver/mysql v1.5.7
 	gorm.io/driver/sqlite v1.5.6
 	gorm.io/gorm v1.25.12
