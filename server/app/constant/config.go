@@ -1,6 +1,8 @@
 package constant
 
 const (
+	TempPath = "./temp" //缓存目录
+
 	DBPath = "./config"  //数据库文件目录
 	DBFile = "server.db" //数据库文件
 

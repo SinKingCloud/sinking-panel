@@ -4,599 +4,472 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net/http"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
+	"sync/atomic"
+	"time"
 )
 
-// New 本地文件适配器
-func New(root string) *File {
-	local := &File{}
-	local.SetPathPrefix(root)
-	return local
+// Disk 封装文件系统操作，限定在指定根目录下进行
+type Disk struct {
+	root string // 经过标准化的基准根目录
 }
 
+// File 描述文件系统对象的元数据信息
 type File struct {
-	pathPrefix    string // 前缀
-	pathSeparator string // 分割符
+	Name       string  // 文件/目录名称（不含路径）
+	Size       int64   // 文件大小（字节），目录为0
+	Mode       uint32  // 权限模式（八进制表示，例如 0644）
+	IsDir      bool    // 是否为目录类型
+	UpdateTime int64   // 最后修改时间（Unix时间戳）
+	Child      []*File // 子文件列表（仅当IsDir为true时有效）
 }
 
-// SetPathPrefix 设置前缀
-func (f *File) SetPathPrefix(prefix string) {
-	if prefix == "" {
-		f.pathPrefix = ""
-		return
-	}
-	// 只在传入的前缀不以'/'结尾时添加'/'，以保持灵活性
-	if !strings.HasSuffix(prefix, "/") {
-		f.pathSeparator = "/"
-		f.pathPrefix = prefix + f.pathSeparator
-	} else {
-		f.pathSeparator = "/"
-		f.pathPrefix = strings.TrimSuffix(prefix, "/") + f.pathSeparator
-	}
+const (
+	bufferSize   = 32 << 10 // 32KB缓冲区，使用位运算优化
+	progressUnit = 1 << 20  // 进度回调触发单位（1MB）
+)
+
+// NewDisk 创建新的Disk实例
+// root: 基准根目录路径，所有操作将被限制在此目录下
+func NewDisk(root string) *Disk {
+	return &Disk{root: filepath.Clean(root)}
 }
 
-// EnsureDirectory 确认文件夹
-func (f *File) EnsureDirectory(root string, access uint32) error {
-	// 先判断目录是否已存在
-	_, err := os.Stat(root)
-	if err == nil {
+// AutoCreate 智能创建文件或目录
+// name: 相对路径，以路径分隔符结尾时自动创建目录
+func (d *Disk) AutoCreate(name string) error {
+	fullPath := d.fullPath(name)
+	if d.isDirPath(name) {
+		return os.MkdirAll(fullPath, 0755)
+	}
+	if err := os.MkdirAll(filepath.Dir(fullPath), 0755); err != nil {
+		return err
+	}
+	return d.createFileIfNotExist(fullPath)
+}
+
+// OpenFile 获取file对象
+// name: 相对路径，以路径分隔符结尾时自动创建目录
+func (d *Disk) OpenFile(name string, flag int, perm int) (*os.File, error) {
+	return os.OpenFile(d.fullPath(name), flag, os.FileMode(perm))
+}
+
+// CreateFile 创建新文件（排他模式）
+// fileName: 需要创建的相对路径，父目录必须已存在
+func (d *Disk) CreateFile(fileName string) error {
+	fullPath := d.fullPath(fileName)
+	if !d.dirExists(filepath.Dir(fullPath)) {
+		return errors.New("parent directory does not exist")
+	}
+	file, err := os.OpenFile(fullPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0666)
+	if err != nil {
+		return fmt.Errorf("file creation failed: %w", err)
+	}
+	return file.Close()
+}
+
+// CreateDir 递归创建目录结构
+// dirName: 需要创建的目录相对路径
+func (d *Disk) CreateDir(dirName string) error {
+	return os.MkdirAll(d.fullPath(dirName), 0755)
+}
+
+// SetFileMode 设置文件/目录权限模式
+// name: 存在的相对路径
+// mode: Unix风格权限位（例如 0644）
+func (d *Disk) SetFileMode(name string, mode uint32) error {
+	return os.Chmod(d.fullPath(name), os.FileMode(mode))
+}
+
+// GetFileMode 获取当前权限模式
+// 返回值：权限位模式，路径不存在时返回0
+func (d *Disk) GetFileMode(name string) uint32 {
+	info, err := os.Stat(d.fullPath(name))
+	if err != nil {
+		return 0
+	}
+	return uint32(info.Mode().Perm())
+}
+
+// Delete 递归删除文件或目录
+// name: 需要删除的相对路径
+func (d *Disk) Delete(name string) error {
+	return os.RemoveAll(d.fullPath(name))
+}
+
+// Move 移动文件/目录到目标目录
+// src: 需要移动的源路径（文件或目录）
+// destDir: 目标目录的相对路径
+func (d *Disk) Move(src, destDir string) error {
+	srcPath := d.fullPath(src)
+	destPath := d.fullPath(destDir)
+	baseName := filepath.Base(srcPath)
+	finalDest := filepath.Join(destPath, baseName)
+
+	if err := d.prepareDestination(finalDest); err != nil {
+		return fmt.Errorf("prepare destination failed: %w", err)
+	}
+
+	if err := os.Rename(srcPath, finalDest); err == nil {
 		return nil
 	}
 
-	err = os.MkdirAll(root, f.FormatPerm(access))
+	if err := d.copyTree(srcPath, finalDest); err != nil {
+		return fmt.Errorf("cross-device copy failed: %w", err)
+	}
+	return os.RemoveAll(srcPath)
+}
+
+// Copy 复制文件/目录到目标目录
+// src: 需要复制的源路径（文件或目录）
+// destDir: 目标目录的相对路径
+func (d *Disk) Copy(src, destDir string) error {
+	srcPath := d.fullPath(src)
+	destPath := d.fullPath(destDir)
+	baseName := filepath.Base(srcPath)
+	finalDest := filepath.Join(destPath, baseName)
+
+	if err := d.prepareDestination(finalDest); err != nil {
+		return fmt.Errorf("prepare destination failed: %w", err)
+	}
+	return d.copyTree(srcPath, finalDest)
+}
+
+// CopyWithProcess 带进度回调的文件/目录复制
+// src: 源路径（文件或目录）
+// destDir: 目标目录路径
+// callback: 进度回调函数，参数分别为：
+//
+//	current - 已复制字节数
+//	total - 总字节数
+//	currentFile - 当前正在处理的文件名
+//	totalFiles - 总文件数量
+//	currentIndex - 当前文件序号（从0开始）
+func (d *Disk) CopyWithProcess(src, destDir string, callback func(int64, int64, string, int64, int64)) error {
+	srcPath := d.fullPath(src)
+	destPath := d.fullPath(destDir)
+	baseName := filepath.Base(srcPath)
+	finalDest := filepath.Join(destPath, baseName)
+
+	totalSize, fileCount, err := d.calculateTotal(srcPath)
 	if err != nil {
-		return errors.New("创建文件夹失败," + err.Error())
+		return fmt.Errorf("calculate total failed: %w", err)
 	}
 
-	// 确认创建后是目录
-	if !f.IsDir(root) {
-		return errors.New("创建根目录文件夹失败")
+	if err := d.prepareDestination(finalDest); err != nil {
+		return err
 	}
-	return nil
+
+	var copied atomic.Int64
+	return d.copyTreeWithProgress(srcPath, finalDest, totalSize, fileCount, &copied, callback)
 }
 
-// GetPathPrefix 获取前缀
-func (f *File) GetPathPrefix() string {
-	return f.pathPrefix
-}
+// MoveWithProcess 带进度回调的文件/目录移动
+// 参数说明同CopyWithProcess
+func (d *Disk) MoveWithProcess(src, destDir string, callback func(int64, int64, string, int64, int64)) error {
+	srcPath := d.fullPath(src)
+	destPath := d.fullPath(destDir)
+	baseName := filepath.Base(srcPath)
+	finalDest := filepath.Join(destPath, baseName)
 
-// ApplyPathPrefix 添加前缀
-func (f *File) ApplyPathPrefix(path string) string {
-	return f.GetPathPrefix() + strings.TrimPrefix(path, "/")
-}
-
-// RemovePathPrefix 移除前缀
-func (f *File) RemovePathPrefix(path string) string {
-	prefix := f.GetPathPrefix()
-	return strings.TrimPrefix(path, prefix)
-}
-
-// Has 是否存在
-func (f *File) Has(path string) bool {
-	location := f.ApplyPathPrefix(path)
-	_, err := os.Stat(location)
-	return err == nil || os.IsExist(err)
-}
-
-// Write 上传
-func (f *File) Write(path string, contents string, access uint32) (map[string]any, error) {
-	location := f.ApplyPathPrefix(path)
-	out, createErr := os.Create(location)
-	if createErr != nil {
-		return nil, errors.New("创建文件失败," + createErr.Error())
-	}
-	defer func() {
-		_ = out.Close()
-	}()
-	_, writeErr := out.WriteString(contents)
-	if writeErr != nil {
-		return nil, errors.New("修改文件失败," + writeErr.Error())
-	}
-	size, sizeErr := f.FileSize(location)
-	if sizeErr != nil {
-		return nil, errors.New("获取文件信息失败," + sizeErr.Error())
-	}
-	result := map[string]any{
-		"type":     "file",
-		"size":     size,
-		"path":     path,
-		"contents": contents,
-	}
-	if access > 0 {
-		_, _ = f.SetVisibility(location, access)
-	}
-	return result, nil
-}
-
-// WriteStream 上传 Stream 文件类型
-func (f *File) WriteStream(path string, stream io.Reader, access uint32) (map[string]any, error) {
-	// 对传入的流进行有效性校验
-	if stream == nil {
-		return nil, errors.New("传入的文件流不能为空")
-	}
-	location := f.ApplyPathPrefix(path)
-	newFile, createErr := os.Create(location)
-	if createErr != nil {
-		return nil, errors.New("创建文件失败," + createErr.Error())
-	}
-	defer func() {
-		_ = newFile.Close()
-	}()
-	_, copyErr := io.Copy(newFile, stream)
-	if copyErr != nil {
-		return nil, errors.New("写入文件流失败, " + copyErr.Error())
-	}
-	result := map[string]any{
-		"type": "file",
-		"path": path,
-	}
-	_, _ = f.SetVisibility(location, access)
-	return result, nil
-}
-
-// Update 更新
-func (f *File) Update(path string, contents string) (map[string]any, error) {
-	location := f.ApplyPathPrefix(path)
-	out, createErr := os.Create(location)
-	if createErr != nil {
-		return nil, errors.New("创建文件失败," + createErr.Error())
-	}
-	defer func() {
-		_ = out.Close()
-	}()
-	_, writeErr := out.WriteString(contents)
-	if writeErr != nil {
-		return nil, errors.New("写入文件失败," + writeErr.Error())
-	}
-	size, sizeErr := f.FileSize(location)
-	if sizeErr != nil {
-		return nil, errors.New("获取文件信息失败," + sizeErr.Error())
-	}
-	result := map[string]any{
-		"type":     "file",
-		"size":     size,
-		"path":     path,
-		"contents": contents,
-	}
-	return result, nil
-}
-
-// UpdateStream 更新
-func (f *File) UpdateStream(path string, stream io.Reader, access uint32) (map[string]any, error) {
-	return f.WriteStream(path, stream, access)
-}
-
-// Read 读取
-func (f *File) Read(path string) (map[string]any, error) {
-	location := f.ApplyPathPrefix(path)
-	file, openErr := os.Open(location)
-	if openErr != nil {
-		return nil, errors.New("打开文件失败," + openErr.Error())
-	}
-	defer func() {
-		_ = file.Close()
-	}()
-	data, readAllErr := io.ReadAll(file)
-	if readAllErr != nil {
-		// 对读取错误进行更细致的处理，这里只是简单示例
-		switch readAllErr {
-		case io.EOF:
-			return nil, errors.New("读取到文件末尾")
-		default:
-			return nil, errors.New("读取文件失败," + readAllErr.Error())
+	if err := os.Rename(srcPath, finalDest); err == nil {
+		if callback != nil {
+			info, _ := os.Stat(finalDest)
+			callback(info.Size(), info.Size(), baseName, 1, 0)
 		}
+		return nil
 	}
-	contents := fmt.Sprintf("%s", data)
-	return map[string]any{
-		"type":     "file",
-		"path":     path,
-		"contents": contents,
+
+	totalSize, fileCount, err := d.calculateTotal(srcPath)
+	if err != nil {
+		return fmt.Errorf("calculate total failed: %w", err)
+	}
+
+	var copied atomic.Int64
+	if err := d.copyTreeWithProgress(srcPath, finalDest, totalSize, fileCount, &copied, callback); err != nil {
+		return fmt.Errorf("copy failed: %w", err)
+	}
+	return os.RemoveAll(srcPath)
+}
+
+// IsFile 检查路径是否为文件
+// 返回值：true表示是文件，false表示不存在或为目录
+func (d *Disk) IsFile(name string) bool {
+	info, err := os.Stat(d.fullPath(name))
+	return err == nil && !info.IsDir()
+}
+
+// IsDir 检查路径是否为目录
+// 返回值：true表示是目录，false表示不存在或为文件
+func (d *Disk) IsDir(name string) bool {
+	info, err := os.Stat(d.fullPath(name))
+	return err == nil && info.IsDir()
+}
+
+// Exists 检查路径是否存在
+// 返回值：true表示存在，false表示不存在
+func (d *Disk) Exists(name string) bool {
+	_, err := os.Stat(d.fullPath(name))
+	return !os.IsNotExist(err)
+}
+
+// FileInfo 获取文件/目录元信息
+// 返回值：File结构指针和可能的错误信息
+func (d *Disk) FileInfo(name string) (*File, error) {
+	fullPath := d.fullPath(name)
+	info, err := os.Stat(fullPath)
+	if err != nil {
+		return nil, err
+	}
+	return &File{
+		Name:       filepath.Base(fullPath),
+		Size:       info.Size(),
+		Mode:       uint32(info.Mode().Perm()),
+		IsDir:      info.IsDir(),
+		UpdateTime: info.ModTime().Unix(),
 	}, nil
 }
 
-// ReadStream 读取成文件流
-// 打开文件需要手动关闭
-func (f *File) ReadStream(path string) (map[string]any, error) {
-	location := f.ApplyPathPrefix(path)
-	stream, err := os.Open(location)
-	if err != nil {
-		return nil, errors.New("打开文件失败," + err.Error())
-	}
-	return map[string]any{
-		"type":   "file",
-		"path":   path,
-		"stream": stream,
-	}, nil
+// FileList 递归获取目录结构信息
+// dir: 需要遍历的目录相对路径
+// 返回值：包含完整目录结构的File切片
+func (d *Disk) FileList(dir string) ([]*File, error) {
+	return d.buildFileTree(d.fullPath(dir), true)
 }
 
-// Rename 重命名
-func (f *File) Rename(path string, newpath string) error {
-	// 对源文件和目标文件路径进行有效性校验
-	if !f.Has(path) {
-		return errors.New("源文件不存在")
+/******************** 内部辅助方法 ********************/
+
+func (d *Disk) fullPath(name string) string {
+	cleanPath := filepath.Clean(name)
+	if filepath.IsAbs(cleanPath) {
+		return filepath.Join(d.root, filepath.Base(cleanPath))
 	}
-	if f.Has(newpath) {
-		return errors.New("目标文件已存在")
-	}
-	location := f.ApplyPathPrefix(path)
-	destination := f.ApplyPathPrefix(newpath)
-	err := os.Rename(location, destination)
-	if err != nil {
-		return errors.New("重命名文件失败," + err.Error())
-	}
-	return nil
+	return filepath.Join(d.root, cleanPath)
 }
 
-// Copy 复制
-func (f *File) Copy(path string, newpath string) error {
-	// 对源文件和目标文件路径进行有效性校验
-	if !f.Has(path) {
-		return errors.New("源文件不存在")
-	}
-	location := f.ApplyPathPrefix(path)
-	destination := f.ApplyPathPrefix(newpath)
-	locationStat, e := os.Stat(location)
-	if e != nil {
-		return e
-	}
-	if !locationStat.Mode().IsRegular() {
-		return fmt.Errorf("%s 不是一个正常的文件", path)
-	}
-	src, openErr := os.Open(location)
-	if openErr != nil {
-		return openErr
-	}
-	defer func() {
-		_ = src.Close()
-	}()
-	// 确保目标文件所在目录存在
-	dir := filepath.Dir(destination)
-	_, err := os.Stat(dir)
-	if err != nil && os.IsNotExist(err) {
-		err = os.MkdirAll(dir, 0755)
+func (d *Disk) isDirPath(name string) bool {
+	return strings.HasSuffix(name, string(filepath.Separator)) || filepath.Base(name) == ""
+}
+
+func (d *Disk) createFileIfNotExist(path string) error {
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		file, err := os.Create(path)
 		if err != nil {
-			return errors.New("创建目标文件所在目录失败")
+			return err
 		}
-	}
-	dsc, createErr := os.Create(destination)
-	if createErr != nil {
-		return createErr
-	}
-	defer func() {
-		_ = dsc.Close()
-	}()
-	_, copyErr := io.Copy(dsc, src)
-	if copyErr != nil {
-		return errors.New("复制失败," + copyErr.Error())
+		return file.Close()
 	}
 	return nil
 }
 
-// Delete 删除
-func (f *File) Delete(path string) error {
-	location := f.ApplyPathPrefix(path)
-	// 先判断文件是否存在
-	_, err := os.Stat(location)
-	if err != nil {
-		return errors.New("文件不存在")
-	}
-	// 再判断是否为文件类型
-	if !f.IsFile(location) {
-		return errors.New("文件删除失败")
-	}
-	if err := os.Remove(location); err != nil {
-		return errors.New("文件删除失败," + err.Error())
-	}
-	return nil
+func (d *Disk) dirExists(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && info.IsDir()
 }
 
-// DeleteDir 删除文件夹
-func (f *File) DeleteDir(dirname string) error {
-	location := f.ApplyPathPrefix(dirname)
-	// 先判断文件夹是否存在
-	_, err := os.Stat(location)
-	if err != nil {
-		return errors.New("文件夹不存在")
-	}
-	// 再判断是否为文件夹类型
-	if !f.IsDir(location) {
-		return errors.New("文件夹删除失败")
-	}
-	if err := os.RemoveAll(location); err != nil {
-		return errors.New("文件夹删除失败," + err.Error())
-	}
-	return nil
-}
+/******************** 核心复制逻辑 ********************/
 
-// CreateDir 创建文件夹
-func (f *File) CreateDir(dirname string, access uint32) (map[string]string, error) {
-	location := f.ApplyPathPrefix(dirname)
-	err := os.MkdirAll(location, f.FormatPerm(access))
-	if err != nil {
-		return nil, errors.New("创建文件夹失败," + err.Error())
-	}
-	// 确认创建后是目录
-	if !f.IsDir(location) {
-		return nil, errors.New("文件夹创建失败")
-	}
-	data := map[string]string{
-		"path": dirname,
-		"type": "dir",
-	}
-	return data, nil
-}
-
-// ListContents 列出内容
-func (f *File) ListContents(directory string, recursive ...bool) ([]map[string]any, error) {
-	location := f.ApplyPathPrefix(directory)
-	// 先判断目录是否存在
-	_, err := os.Stat(location)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return []map[string]any{}, errors.New("指定目录不存在")
-		}
-		return []map[string]any{}, errors.New("获取目录信息失败")
-	}
-	var iterator []map[string]any
-	if len(recursive) > 0 && recursive[0] {
-		iterator, _ = f.GetRecursiveDirectoryIterator(location)
-	} else {
-		iterator, _ = f.GetDirectoryIterator(location)
-	}
-	var result []map[string]any
-	for _, file := range iterator {
-		path, _ := f.NormalizeFileInfo(file)
-
-		result = append(result, path)
-	}
-	return result, nil
-}
-
-func (f *File) GetMetadata(path string) (map[string]any, error) {
-	location := f.ApplyPathPrefix(path)
-	info := f.FileInfo(location)
-	return f.NormalizeFileInfo(info)
-}
-
-func (f *File) GetSize(path string) (map[string]any, error) {
-	return f.GetMetadata(path)
-}
-
-func (f *File) GetMimetype(path string) (map[string]any, error) {
-	location := f.ApplyPathPrefix(path)
-	f2, err := os.Open(location)
-	if err != nil {
-		return nil, err
-	}
-	defer func() {
-		_ = f2.Close()
-	}()
-	// 头部字节
-	buffer := make([]byte, 32)
-	if _, err := f2.Read(buffer); err != nil {
-		return nil, err
-	}
-	mimetype := http.DetectContentType(buffer)
-	return map[string]any{
-		"path":     path,
-		"type":     "file",
-		"mimetype": mimetype,
-	}, nil
-}
-
-func (f *File) GetTimestamp(path string) (map[string]any, error) {
-	return f.GetMetadata(path)
-}
-
-// GetVisibility 设置文件的权限
-func (f *File) GetVisibility(path string) (map[string]string, error) {
-	location := f.ApplyPathPrefix(path)
-	permissions, _ := f.FileMode(location)
-	permission := fmt.Sprintf("%o", permissions)
-	data := map[string]string{
-		"path":       path,
-		"visibility": permission,
-	}
-	return data, nil
-}
-
-// SetVisibility 设置文件的权限
-func (f *File) SetVisibility(path string, access uint32) (map[string]string, error) {
-	location := f.ApplyPathPrefix(path)
-	// 对传入的权限值进行有效性校验
-	if access < 0 {
-		return nil, errors.New("权限值不能为负数")
-	}
-	e := os.Chmod(location, f.FormatPerm(access))
-	if e != nil {
-		return nil, errors.New("设置文件权限失败")
-	}
-	data := map[string]string{
-		"path":       path,
-		"visibility": strconv.Itoa(int(access)),
-	}
-	return data, nil
-}
-
-// NormalizeFileInfo NormalizeFileInfo
-func (f *File) NormalizeFileInfo(file map[string]any) (map[string]any, error) {
-	return f.MapFileInfo(file)
-}
-
-// GuardAgainstUnreadableFileInfo 是否可读
-func (f *File) GuardAgainstUnreadableFileInfo(fp string) error {
-	_, err := os.ReadFile(fp)
+func (d *Disk) copyTree(src, dest string) error {
+	srcInfo, err := os.Stat(src)
 	if err != nil {
 		return err
 	}
+
+	if srcInfo.IsDir() {
+		if err := os.MkdirAll(dest, srcInfo.Mode()); err != nil {
+			return err
+		}
+
+		return filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+
+			relPath, _ := filepath.Rel(src, path)
+			targetPath := filepath.Join(dest, relPath)
+
+			if path == src {
+				return nil
+			}
+
+			if info.IsDir() {
+				return os.Mkdir(targetPath, info.Mode())
+			}
+
+			return d.copyFile(path, targetPath)
+		})
+	}
+	return d.copyFile(src, dest)
+}
+
+func (d *Disk) copyFile(src, dest string) error {
+	srcFile, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer srcFile.Close()
+
+	destFile, err := os.Create(dest)
+	if err != nil {
+		return err
+	}
+	defer destFile.Close()
+
+	if _, err = io.CopyBuffer(destFile, srcFile, make([]byte, bufferSize)); err != nil {
+		return err
+	}
+
+	srcInfo, _ := os.Stat(src)
+	return os.Chtimes(dest, time.Now(), srcInfo.ModTime())
+}
+
+/******************** 进度跟踪逻辑 ********************/
+
+func (d *Disk) calculateTotal(path string) (int64, int64, error) {
+	var totalSize, fileCount int64
+	err := filepath.Walk(path, func(p string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() {
+			atomic.AddInt64(&totalSize, info.Size())
+			atomic.AddInt64(&fileCount, 1)
+		}
+		return nil
+	})
+	return totalSize, fileCount, err
+}
+
+func (d *Disk) copyTreeWithProgress(src, dest string, totalSize, totalFiles int64, copied *atomic.Int64, callback func(int64, int64, string, int64, int64)) error {
+	srcInfo, err := os.Stat(src)
+	if err != nil {
+		return err
+	}
+
+	var fileIndex atomic.Int64
+	if srcInfo.IsDir() {
+		if err := os.MkdirAll(dest, srcInfo.Mode()); err != nil {
+			return err
+		}
+
+		return filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+
+			relPath, _ := filepath.Rel(src, path)
+			targetPath := filepath.Join(dest, relPath)
+
+			if path == src {
+				return nil
+			}
+
+			if info.IsDir() {
+				return os.Mkdir(targetPath, info.Mode())
+			}
+
+			currentIndex := fileIndex.Add(1) - 1
+			if callback != nil {
+				callback(copied.Load(), totalSize, info.Name(), totalFiles, currentIndex)
+			}
+			return d.copyFileWithProgress(path, targetPath, totalSize, copied, callback, totalFiles, currentIndex)
+		})
+	}
+	return d.copyFileWithProgress(src, dest, totalSize, copied, callback, totalFiles, 0)
+}
+
+func (d *Disk) copyFileWithProgress(src, dest string, totalSize int64, copied *atomic.Int64, callback func(int64, int64, string, int64, int64), totalFiles, currentIndex int64) error {
+	srcFile, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer srcFile.Close()
+
+	destFile, err := os.Create(dest)
+	if err != nil {
+		return err
+	}
+	defer destFile.Close()
+
+	var (
+		buf       = make([]byte, bufferSize)
+		lastFlush int64
+	)
+
+	for {
+		n, err := srcFile.Read(buf)
+		if n > 0 {
+			if _, wErr := destFile.Write(buf[:n]); wErr != nil {
+				return wErr
+			}
+
+			newCopied := copied.Add(int64(n))
+			if newCopied-lastFlush >= progressUnit || err == io.EOF {
+				if callback != nil {
+					callback(newCopied, totalSize, filepath.Base(src), totalFiles, currentIndex)
+				}
+				lastFlush = newCopied / progressUnit * progressUnit
+			}
+		}
+
+		if err == io.EOF {
+			if callback != nil {
+				callback(copied.Load(), totalSize, filepath.Base(src), totalFiles, currentIndex)
+			}
+			break
+		}
+		if err != nil {
+			return err
+		}
+	}
+
+	if info, err := os.Stat(src); err == nil {
+		_ = os.Chtimes(dest, time.Now(), info.ModTime())
+		_ = os.Chmod(dest, info.Mode())
+	}
+
 	return nil
 }
 
-// GetRecursiveDirectoryIterator 获取全部文件
-func (f *File) GetRecursiveDirectoryIterator(path string) ([]map[string]any, error) {
-	var files []map[string]any
-	err := filepath.Walk(path, func(wPath string, info os.FileInfo, err error) error {
-		var fileType string
-		if info.IsDir() {
-			fileType = "dir"
-		} else {
-			fileType = "file"
-		}
-		files = append(files, map[string]any{
-			"type":      fileType,
-			"path":      path,
-			"filename":  info.Name(),
-			"pathname":  path + "/" + info.Name(),
-			"timestamp": info.ModTime().Unix(),
-			"info":      info,
-		})
-		return nil
-	})
+/******************** 其他辅助方法 ********************/
+
+func (d *Disk) prepareDestination(dest string) error {
+	if err := os.RemoveAll(dest); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("clean destination failed: %w", err)
+	}
+	return os.MkdirAll(filepath.Dir(dest), 0755)
+}
+
+func (d *Disk) buildFileTree(root string, recursive bool) ([]*File, error) {
+	entries, err := os.ReadDir(root)
 	if err != nil {
-		return nil, errors.New("获取文件夹列表失败")
+		return nil, err
+	}
+
+	var files []*File
+	for _, entry := range entries {
+		fullPath := filepath.Join(root, entry.Name())
+		info, err := entry.Info()
+		if err != nil {
+			continue
+		}
+
+		file := &File{
+			Name:       entry.Name(),
+			Size:       info.Size(),
+			Mode:       uint32(info.Mode().Perm()),
+			IsDir:      entry.IsDir(),
+			UpdateTime: info.ModTime().Unix(),
+		}
+
+		if recursive && entry.IsDir() {
+			children, _ := d.buildFileTree(fullPath, true)
+			file.Child = children
+		}
+
+		files = append(files, file)
 	}
 	return files, nil
-}
-
-// GetDirectoryIterator 一级目录索引
-func (f *File) GetDirectoryIterator(path string) ([]map[string]any, error) {
-	fs, err := os.ReadDir(path)
-	if err != nil {
-		return []map[string]any{}, err
-	}
-	sz := len(fs)
-	if sz == 0 {
-		return []map[string]any{}, nil
-	}
-	ret := make([]map[string]any, 0, sz)
-	for i := 0; i < sz; i++ {
-		info := fs[i]
-		name := info.Name()
-		stat, _ := info.Info()
-		if name != "." && name != ".." {
-			var fileType string
-			if info.IsDir() {
-				fileType = "dir"
-			} else {
-				fileType = "file"
-			}
-			ret = append(ret, map[string]any{
-				"type":      fileType,
-				"path":      path,
-				"filename":  name,
-				"pathname":  path + "/" + name,
-				"timestamp": stat.ModTime().Unix(),
-				"info":      info,
-			})
-		}
-	}
-	return ret, nil
-}
-
-func (f *File) FileInfo(path string) map[string]any {
-	info, e := os.Stat(path)
-	if e != nil {
-		return nil
-	}
-	var fileType string
-	if info.IsDir() {
-		fileType = "dir"
-	} else {
-		fileType = "file"
-	}
-	return map[string]any{
-		"type":      fileType,
-		"path":      filepath.Dir(path),
-		"filename":  info.Name(),
-		"pathname":  path,
-		"timestamp": info.ModTime().Unix(),
-		"info":      info,
-	}
-}
-
-func (f *File) GetFilePath(file map[string]any) string {
-	location := file["pathname"].(string)
-	path := f.RemovePathPrefix(location)
-	return strings.Trim(strings.Replace(path, "\\", "/", -1), "/")
-}
-
-// MapFileInfo 获取全部文件
-func (f *File) MapFileInfo(data map[string]any) (map[string]any, error) {
-	// 对传入的data中的type字段进行有效性校验
-	if _, ok := data["type"]; !ok {
-		return nil, errors.New("传入的文件信息缺少type字段")
-	}
-	normalized := map[string]any{
-		"type":      data["type"],
-		"path":      f.GetFilePath(data),
-		"timestamp": data["timestamp"],
-	}
-	if data["type"] == "file" {
-		normalized["size"] = data["info"].(os.FileInfo).Size()
-	}
-	return normalized, nil
-}
-
-// IsFile 是否为文件
-func (f *File) IsFile(fp string) bool {
-	return !f.IsDir(fp)
-}
-
-// IsDir 是否为目录
-func (f *File) IsDir(fp string) bool {
-	f2, e := os.Stat(fp)
-	if e != nil {
-		return false
-	}
-	return f2.IsDir()
-}
-
-// FileSize 文件大小
-func (f *File) FileSize(fp string) (int64, error) {
-	f2, e := os.Stat(fp)
-	if e != nil {
-		return 0, e
-	}
-	return f2.Size(), nil
-}
-
-// FileMode 文件权限
-func (f *File) FileMode(fp string) (uint32, error) {
-	f2, e := os.Stat(fp)
-	if e != nil {
-		return 0, e
-	}
-	perm := f2.Mode().Perm()
-	return uint32(perm), nil
-}
-
-// FormatPerm 转换
-func (f *File) FormatPerm(i uint32) os.FileMode {
-	return os.FileMode(i)
-}
-
-// Symlink 软链接
-func (f *File) Symlink(target, link string) error {
-	// 对传入的目标路径和链接路径进行有效性校验
-	if target == "" {
-		return errors.New("目标路径不能为空")
-	}
-	if link == "" {
-		return errors.New("链接路径不能为空")
-	}
-	return os.Symlink(target, link)
-}
-
-// Readlink 读取链接
-func (f *File) Readlink(link string) (string, error) {
-	return os.Readlink(link)
-}
-
-// IsSymlink 是否为软链接
-func (f *File) IsSymlink(m os.FileMode) bool {
-	return m&os.ModeSymlink != 0
 }

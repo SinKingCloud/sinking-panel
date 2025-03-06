@@ -32,7 +32,7 @@ func (s *Service) Group(group string) map[string]string {
 	if value != nil {
 		return value.(map[string]string)
 	}
-	temp := s.SelectByGroup(group)
+	temp := s.selectByGroup(group)
 	util.Cache.SetWithExpire(key, temp, constant.CacheTimeWithSysConfig)
 	return temp
 }
@@ -45,10 +45,10 @@ func (s *Service) Set(group string, key string, value string) error {
 	}
 	defer util.Cache.UnLock(lock)
 	defer util.Cache.Delete(group)
-	if n, e := s.CountByKey(key); e == nil && n > 0 {
-		return s.UpdateByKey(key, value)
+	if n, e := s.countByKey(key); e == nil && n > 0 {
+		return s.updateByKey(key, value)
 	}
-	return s.Create(key, value)
+	return s.create(key, value)
 }
 
 // Get 获取数据

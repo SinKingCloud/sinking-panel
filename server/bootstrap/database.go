@@ -7,7 +7,7 @@ import (
 	"server/app/constant"
 	"server/app/util"
 	"server/app/util/database"
-	file2 "server/app/util/file"
+	"server/app/util/file"
 	"server/public"
 	"strings"
 )
@@ -78,18 +78,15 @@ func getDbFile() string {
 	if !strings.HasSuffix(path, "/") {
 		path += "/"
 	}
-	file := file2.New(path)
-	_ = file.EnsureDirectory(path, 0777)
-	if !file.Has(constant.DBFile) {
-		_, _ = file.Write(constant.DBFile, "", 0777)
-	}
+	f := file.NewDisk(path)
+	_ = f.AutoCreate(constant.DBFile)
 	return strings.ReplaceAll(path+constant.DBFile, "//", "")
 }
 
 // deleteDbFile 删除db文件
 func deleteDbFile() {
-	file := getDbFile()
-	_ = os.Remove(file)
+	f := getDbFile()
+	_ = os.Remove(f)
 }
 
 // getSqlCreateTables 获取建表语句中的表

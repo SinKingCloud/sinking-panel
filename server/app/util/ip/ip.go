@@ -2,9 +2,11 @@ package ip
 
 import (
 	"errors"
+	"io"
 	"net"
+	"os"
 	"server/app/constant"
-	file2 "server/app/util/file"
+	"server/app/util/file"
 	"server/app/util/ip/czdb"
 	"server/public"
 	"strings"
@@ -81,11 +83,11 @@ var (
 const key = "SFdbti7sFbLvmjxB/W179A==" //纯真IP库key
 
 func init() {
-	v4, err := initIPFile("cz88_public_v4.czdb")
+	v4, err := initIPFile("ipv4")
 	if err == nil && v4 != "" {
 		v4Search, err = czdb.NewDbSearcher(v4, "MEMORY", key)
 	}
-	v6, err := initIPFile("cz88_public_v6.czdb")
+	v6, err := initIPFile("ipv4")
 	if err == nil && v6 != "" {
 		v6Search, err = czdb.NewDbSearcher(v6, "MEMORY", key)
 	}
@@ -93,21 +95,29 @@ func init() {
 
 // initIPFile 初始化ip文件
 func initIPFile(name string) (string, error) {
-	path := constant.DBPath
+	path := constant.TempPath + "/ip"
 	if !strings.HasSuffix(path, "/") {
 		path += "/"
 	}
-	file := file2.New(path)
-	_ = file.EnsureDirectory(path, 0777)
-	if !file.Has(name) {
+	f := file.NewDisk(path)
+	if !f.Exists(name) {
+		_ = f.AutoCreate(name)
 		open, err := public.Ip.Open("ip/" + name)
 		if err == nil {
 			defer func() {
 				_ = open.Close()
 			}()
-			_, err = file.WriteStream(name, open, 0777)
+			newFile, err2 := f.OpenFile(name, os.O_WRONLY|os.O_TRUNC|os.O_CREATE, 0755)
+			if err2 != nil {
+				err = err2
+			} else {
+				defer func() {
+					_ = newFile.Close()
+				}()
+				_, err = io.Copy(newFile, open)
+			}
 		} else {
-			_, err = file.Write(name, "", 0777)
+			err = f.AutoCreate(name)
 		}
 		if err != nil {
 			return "", err

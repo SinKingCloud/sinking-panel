@@ -5,8 +5,8 @@ import (
 	"server/app/util"
 )
 
-// SelectByGroup 查看配置数据
-func (*Service) SelectByGroup(group string) map[string]string {
+// selectByGroup 查看配置数据
+func (*Service) selectByGroup(group string) map[string]string {
 	var configs []*model.Config
 	temp := make(map[string]string)
 	query := util.Database.Db.Model(&model.Config{})

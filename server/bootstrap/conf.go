@@ -4,7 +4,7 @@ import (
 	"github.com/spf13/viper"
 	"server/app/constant"
 	"server/app/util"
-	file2 "server/app/util/file"
+	"server/app/util/file"
 	"strings"
 )
 
@@ -15,11 +15,8 @@ func LoadConf() {
 		path += "/"
 	}
 	fileName := constant.ConfFile
-	file := file2.New(path)
-	_ = file.EnsureDirectory(path, 0777)
-	if !file.Has(fileName) {
-		_, _ = file.Write(fileName, "", 0)
-	}
+	disk := file.NewDisk(path)
+	_ = disk.AutoCreate(fileName)
 	config := viper.New()
 	config.AutomaticEnv() //读取环境变量
 	config.AddConfigPath(path)

@@ -36,6 +36,9 @@ func (t *DateTime) Scan(v interface{}) error {
 	switch vt := v.(type) {
 	case time.Time:
 		*t = DateTime(vt)
+	case string:
+		parsedTime, _ := time.Parse("2006-01-02 15:04:05", vt)
+		*t = DateTime(parsedTime)
 	default:
 		return errors.New("类型处理错误")
 	}
