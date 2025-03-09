@@ -80,7 +80,7 @@ func loadFileRoute(s *sinking_web.Engine) {
 	g := s.Group("/file")
 	g.Use(server.HandleFunc(middleware.CheckLogin))
 	g.ANY("/disk", server.HandleFunc(file.Disk)) //分区信息
-	g.ANY("/list", server.HandleFunc(file.List))
+	g.ANY("/list", server.HandleFunc(file.List)) //文件列表
 	g.ANY("/info", nil)
 	g.ANY("/create", nil)
 	g.ANY("/update", nil)
