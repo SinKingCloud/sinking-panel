@@ -5,6 +5,7 @@ import (
 	"server/app/http/controller/auth"
 	"server/app/http/controller/config"
 	"server/app/http/controller/cron"
+	"server/app/http/controller/file"
 	server2 "server/app/http/controller/server"
 	"server/app/http/controller/system"
 	"server/app/http/middleware"
@@ -78,8 +79,8 @@ func loadCronRoute(s *sinking_web.Engine) {
 func loadFileRoute(s *sinking_web.Engine) {
 	g := s.Group("/file")
 	g.Use(server.HandleFunc(middleware.CheckLogin))
-	g.ANY("/disk", nil)
-	g.ANY("/list", nil)
+	g.ANY("/disk", server.HandleFunc(file.Disk)) //分区信息
+	g.ANY("/list", server.HandleFunc(file.List))
 	g.ANY("/info", nil)
 	g.ANY("/create", nil)
 	g.ANY("/update", nil)
