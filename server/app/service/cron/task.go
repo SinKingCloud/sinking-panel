@@ -174,12 +174,14 @@ func (s *Service) getTaskLogFile(id int) string {
 
 // GetLog 获取log信息
 func (s *Service) getLines(filename string, page int, pageSize int) ([]string, error) {
-	file, err := os.Open(filename)
+	f, err := os.Open(filename)
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
-	scanner := bufio.NewScanner(file)
+	defer func() {
+		_ = f.Close()
+	}()
+	scanner := bufio.NewScanner(f)
 	skipLines := (page - 1) * pageSize
 	for i := 0; i < skipLines; i++ {
 		if !scanner.Scan() {
@@ -193,7 +195,7 @@ func (s *Service) getLines(filename string, page int, pageSize int) ([]string, e
 		}
 		lines = append(lines, scanner.Text())
 	}
-	if err := scanner.Err(); err != nil {
+	if err = scanner.Err(); err != nil {
 		return nil, err
 	}
 	return lines, nil

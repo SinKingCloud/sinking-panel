@@ -1,6 +1,7 @@
 package file
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
 	"io"
@@ -18,12 +19,12 @@ type Disk struct {
 
 // File 描述文件系统对象的元数据信息
 type File struct {
-	Name       string  // 文件/目录名称（不含路径）
-	Size       int64   // 文件大小（字节），目录为0
-	Mode       uint32  // 权限模式（八进制表示，例如 0644）
-	IsDir      bool    // 是否为目录类型
-	UpdateTime int64   // 最后修改时间（Unix时间戳）
-	Child      []*File // 子文件列表（仅当IsDir为true时有效）
+	Name       string  `json:"name"`        // 文件/目录名称（不含路径）
+	Size       int64   `json:"size"`        // 文件大小（字节），目录为0
+	Mode       uint32  `json:"mode"`        // 权限模式（八进制表示，例如 0644）
+	IsDir      bool    `json:"is_dir"`      // 是否为目录类型
+	UpdateTime int64   `json:"update_time"` // 最后修改时间（Unix时间戳）
+	Child      []*File `json:"child"`       // 子文件列表（仅当IsDir为true时有效）
 }
 
 const (
@@ -34,6 +35,9 @@ const (
 // NewDisk 创建新的Disk实例
 // root: 基准根目录路径，所有操作将被限制在此目录下
 func NewDisk(root string) *Disk {
+	if root == "" {
+		root = "/"
+	}
 	return &Disk{root: filepath.Clean(root)}
 }
 
@@ -48,6 +52,26 @@ func (d *Disk) AutoCreate(name string) error {
 		return err
 	}
 	return d.createFileIfNotExist(fullPath)
+}
+
+// Count 统计文件或目录信息
+// name: 文件或目录
+// totalSize: 共计大小
+// fileCount: 文件数量
+// err: 错误信息
+func (d *Disk) Count(name string) (totalSize int64, fileCount int64, err error) {
+	if d.IsFile(name) {
+		info, err := d.FileInfo(name)
+		if err != nil {
+			return 0, 0, err
+		}
+		return info.Size, 1, nil
+	}
+	totalSize, fileCount, err = d.calculateTotal(d.fullPath(name))
+	if err != nil {
+		return 0, 0, fmt.Errorf("统计信息失败: %w", err)
+	}
+	return totalSize, fileCount, err
 }
 
 // OpenFile 获取file对象
@@ -91,6 +115,42 @@ func (d *Disk) GetFileMode(name string) uint32 {
 		return 0
 	}
 	return uint32(info.Mode().Perm())
+}
+
+// GetFileContent 获取文件内容
+// name: 存在的相对路径
+// page: 分页页码
+// pageSize: 分页容量
+func (d *Disk) GetFileContent(name string, page int, pageSize int) (string, error) {
+	if page <= 0 || pageSize <= 0 {
+		return "", errors.New("参数不合法")
+	}
+	f, err := os.Open(d.fullPath(name))
+	if err != nil {
+		return "", err
+	}
+	defer func() {
+		_ = f.Close()
+	}()
+	scanner := bufio.NewScanner(f)
+	skipLines := (page - 1) * pageSize
+	for i := 0; i < skipLines; i++ {
+		if !scanner.Scan() {
+			return "", nil // 没有更多行可读取
+		}
+	}
+	var builder strings.Builder
+	for i := 0; i < pageSize; i++ {
+		if !scanner.Scan() {
+			break
+		}
+		builder.WriteString(scanner.Text())
+		builder.WriteByte('\n')
+	}
+	if err = scanner.Err(); err != nil {
+		return "", err
+	}
+	return builder.String(), nil
 }
 
 // Delete 递归删除文件或目录
@@ -233,9 +293,16 @@ func (d *Disk) FileInfo(name string) (*File, error) {
 }
 
 // FileList 递归获取目录结构信息
+// dir: 需要查看的目录相对路径
+// 返回值：目录结构的File切片
+func (d *Disk) FileList(dir string) ([]*File, error) {
+	return d.buildFileTree(d.fullPath(dir), false)
+}
+
+// FileTree 递归获取目录结构信息
 // dir: 需要遍历的目录相对路径
 // 返回值：包含完整目录结构的File切片
-func (d *Disk) FileList(dir string) ([]*File, error) {
+func (d *Disk) FileTree(dir string) ([]*File, error) {
 	return d.buildFileTree(d.fullPath(dir), true)
 }
 
@@ -309,13 +376,17 @@ func (d *Disk) copyFile(src, dest string) error {
 	if err != nil {
 		return err
 	}
-	defer srcFile.Close()
+	defer func() {
+		_ = srcFile.Close()
+	}()
 
 	destFile, err := os.Create(dest)
 	if err != nil {
 		return err
 	}
-	defer destFile.Close()
+	defer func() {
+		_ = destFile.Close()
+	}()
 
 	if _, err = io.CopyBuffer(destFile, srcFile, make([]byte, bufferSize)); err != nil {
 		return err
@@ -385,19 +456,21 @@ func (d *Disk) copyFileWithProgress(src, dest string, totalSize int64, copied *a
 	if err != nil {
 		return err
 	}
-	defer srcFile.Close()
+	defer func() {
+		_ = srcFile.Close()
+	}()
 
 	destFile, err := os.Create(dest)
 	if err != nil {
 		return err
 	}
-	defer destFile.Close()
-
+	defer func() {
+		_ = destFile.Close()
+	}()
 	var (
 		buf       = make([]byte, bufferSize)
 		lastFlush int64
 	)
-
 	for {
 		n, err := srcFile.Read(buf)
 		if n > 0 {

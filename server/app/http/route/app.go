@@ -79,12 +79,13 @@ func loadCronRoute(s *sinking_web.Engine) {
 func loadFileRoute(s *sinking_web.Engine) {
 	g := s.Group("/file")
 	g.Use(server.HandleFunc(middleware.CheckLogin))
-	g.ANY("/disk", server.HandleFunc(file.Disk)) //分区信息
-	g.ANY("/list", server.HandleFunc(file.List)) //文件列表
-	g.ANY("/info", nil)
-	g.ANY("/create", nil)
-	g.ANY("/update", nil)
+	g.ANY("/disk", server.HandleFunc(file.Disk))     //分区信息
+	g.ANY("/list", server.HandleFunc(file.List))     //文件列表
+	g.ANY("/info", server.HandleFunc(file.Info))     //文件信息
+	g.ANY("/create", server.HandleFunc(file.Create)) //创建文件
+	g.ANY("/count", server.HandleFunc(file.Count))   //统计信息
 	g.ANY("/delete", nil)
+	g.ANY("/update", nil)
 	g.ANY("/copy", nil)
 	g.ANY("/cut", nil)
 	g.ANY("/upload", nil)
