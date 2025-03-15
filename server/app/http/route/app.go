@@ -84,7 +84,7 @@ func loadFileRoute(s *sinking_web.Engine) {
 	g.ANY("/info", server.HandleFunc(file.Info))     //文件信息
 	g.ANY("/create", server.HandleFunc(file.Create)) //创建文件
 	g.ANY("/count", server.HandleFunc(file.Count))   //统计信息
-	g.ANY("/delete", nil)
+	g.ANY("/delete", server.HandleFunc(file.Delete)) //删除文件
 	g.ANY("/update", nil)
 	g.ANY("/copy", nil)
 	g.ANY("/cut", nil)

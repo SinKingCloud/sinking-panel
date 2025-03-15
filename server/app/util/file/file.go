@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -233,7 +234,6 @@ func (d *Disk) MoveWithProcess(src, destDir string, callback func(int64, int64, 
 	destPath := d.fullPath(destDir)
 	baseName := filepath.Base(srcPath)
 	finalDest := filepath.Join(destPath, baseName)
-
 	if err := os.Rename(srcPath, finalDest); err == nil {
 		if callback != nil {
 			info, _ := os.Stat(finalDest)
@@ -241,12 +241,13 @@ func (d *Disk) MoveWithProcess(src, destDir string, callback func(int64, int64, 
 		}
 		return nil
 	}
-
 	totalSize, fileCount, err := d.calculateTotal(srcPath)
 	if err != nil {
 		return fmt.Errorf("calculate total failed: %w", err)
 	}
-
+	if err := d.prepareDestination(finalDest); err != nil {
+		return err
+	}
 	var copied atomic.Int64
 	if err := d.copyTreeWithProgress(srcPath, finalDest, totalSize, fileCount, &copied, callback); err != nil {
 		return fmt.Errorf("copy failed: %w", err)
@@ -297,6 +298,84 @@ func (d *Disk) FileInfo(name string) (*File, error) {
 // 返回值：目录结构的File切片
 func (d *Disk) FileList(dir string) ([]*File, error) {
 	return d.buildFileTree(d.fullPath(dir), false)
+}
+
+// FileListWithPage 分页获取指定目录下的文件或目录列表（非递归），
+// 同时返回该目录下的总项数，支持排序：
+// orderByField：排序字段，支持 "name", "size", "update_time"
+// orderByType：排序类型，支持 "asc"（升序）和 "desc"（降序）
+func (d *Disk) FileListWithPage(dir string, page, pageSize int, orderByField, orderByType string) ([]*File, int64, error) {
+	if page <= 0 || pageSize <= 0 {
+		return nil, 0, errors.New("无效的分页参数")
+	}
+
+	fullPath := d.fullPath(dir)
+	entries, err := os.ReadDir(fullPath)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	total := int64(len(entries))
+	var files []*File
+	for _, entry := range entries {
+		info, err := entry.Info()
+		if err != nil {
+			continue // 跳过获取信息失败的项
+		}
+		file := &File{
+			Name:       entry.Name(),
+			Size:       info.Size(),
+			Mode:       uint32(info.Mode().Perm()),
+			IsDir:      entry.IsDir(),
+			UpdateTime: info.ModTime().Unix(),
+		}
+		files = append(files, file)
+	}
+
+	// 排序：先将排序类型转换为小写，方便比较
+	orderByType = strings.ToLower(orderByType)
+	switch orderByField {
+	case "name":
+		sort.Slice(files, func(i, j int) bool {
+			if orderByType == "desc" {
+				return files[i].Name > files[j].Name
+			}
+			return files[i].Name < files[j].Name
+		})
+	case "size":
+		sort.Slice(files, func(i, j int) bool {
+			if orderByType == "desc" {
+				return files[i].Size > files[j].Size
+			}
+			return files[i].Size < files[j].Size
+		})
+	case "update_time":
+		sort.Slice(files, func(i, j int) bool {
+			if orderByType == "desc" {
+				return files[i].UpdateTime > files[j].UpdateTime
+			}
+			return files[i].UpdateTime < files[j].UpdateTime
+		})
+	default:
+		// 默认按名称排序
+		sort.Slice(files, func(i, j int) bool {
+			if orderByType == "desc" {
+				return files[i].Name > files[j].Name
+			}
+			return files[i].Name < files[j].Name
+		})
+	}
+	// 分页处理
+	start := int64((page - 1) * pageSize)
+	if start >= total {
+		// 分页起始位置超出总数，返回空列表
+		return []*File{}, total, nil
+	}
+	end := start + int64(pageSize)
+	if end > total {
+		end = total
+	}
+	return files[start:end], total, nil
 }
 
 // FileTree 递归获取目录结构信息
