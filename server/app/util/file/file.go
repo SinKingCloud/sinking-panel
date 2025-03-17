@@ -342,6 +342,7 @@ func (d *Disk) FileListWithPage(dir string, page, pageSize int, orderByField, or
 			}
 			return files[i].Name < files[j].Name
 		})
+		break
 	case "size":
 		sort.Slice(files, func(i, j int) bool {
 			if orderByType == "desc" {
@@ -349,6 +350,7 @@ func (d *Disk) FileListWithPage(dir string, page, pageSize int, orderByField, or
 			}
 			return files[i].Size < files[j].Size
 		})
+		break
 	case "update_time":
 		sort.Slice(files, func(i, j int) bool {
 			if orderByType == "desc" {
@@ -356,14 +358,7 @@ func (d *Disk) FileListWithPage(dir string, page, pageSize int, orderByField, or
 			}
 			return files[i].UpdateTime < files[j].UpdateTime
 		})
-	default:
-		// 默认按名称排序
-		sort.Slice(files, func(i, j int) bool {
-			if orderByType == "desc" {
-				return files[i].Name > files[j].Name
-			}
-			return files[i].Name < files[j].Name
-		})
+		break
 	}
 	// 分页处理
 	start := int64((page - 1) * pageSize)
