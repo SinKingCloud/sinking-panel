@@ -6,6 +6,7 @@ import (
 	"server/app/http/controller/config"
 	"server/app/http/controller/cron"
 	"server/app/http/controller/file"
+	"server/app/http/controller/recycle"
 	server2 "server/app/http/controller/server"
 	"server/app/http/controller/system"
 	"server/app/http/middleware"
@@ -77,6 +78,17 @@ func loadCronRoute(s *sinking_web.Engine) {
 	g.ANY("/log", server.HandleFunc(cron.Log))         //任务日志
 }
 
+func loadRecycleRoute(s *sinking_web.Engine) {
+	g := s.Group("/recycle")
+	g.Use(server.HandleFunc(middleware.CheckLogin))
+	g.ANY("/list", server.HandleFunc(recycle.List))       //回收站列表
+	g.ANY("/count", server.HandleFunc(recycle.Count))     //数据统计
+	g.ANY("/clear", server.HandleFunc(recycle.Clear))     //清空回收站
+	g.ANY("/create", server.HandleFunc(recycle.Create))   //添加文件
+	g.ANY("/delete", server.HandleFunc(recycle.Delete))   //删除文件
+	g.ANY("/restore", server.HandleFunc(recycle.Restore)) //恢复文件
+}
+
 func loadFileRoute(s *sinking_web.Engine) {
 	g := s.Group("/file")
 	g.Use(server.HandleFunc(middleware.CheckLogin))
@@ -94,15 +106,6 @@ func loadFileRoute(s *sinking_web.Engine) {
 	g.ANY("/move", nil)                              //移动文件
 	g.ANY("/upload", nil)                            //上传文件
 	g.ANY("/download", nil)                          //下载文件
-}
-
-func loadRecycleRoute(s *sinking_web.Engine) {
-	g := s.Group("/recycle")
-	g.Use(server.HandleFunc(middleware.CheckLogin))
-	g.ANY("/list", nil)    //回收站列表
-	g.ANY("/clear", nil)   //清空回收站
-	g.ANY("/delete", nil)  //删除文件
-	g.ANY("/restore", nil) //恢复文件
 }
 
 func loadSystemRoute(s *sinking_web.Engine) {

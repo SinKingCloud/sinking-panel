@@ -42,6 +42,57 @@ func NewDisk(root string) *Disk {
 	return &Disk{root: filepath.Clean(root)}
 }
 
+// Path 获取文件或目录路径
+// name: 路径
+func (d *Disk) Path(name string, hasFile bool, full bool) string {
+	var fullPath string
+	if full {
+		fullPath, _ = filepath.Abs(d.fullPath(name))
+	} else {
+		fullPath = d.fullPath(name)
+	}
+	if hasFile {
+		return fullPath
+	}
+	return filepath.Dir(fullPath)
+}
+
+// Rename 重命名文件或目录
+// oldName: 原始相对路径
+// newName: 新的相对路径
+func (d *Disk) Rename(oldName, newName string) error {
+	srcPath := d.fullPath(oldName)
+	destPath := d.fullPath(newName)
+	// 检查源路径是否存在
+	if !d.Exists(oldName) {
+		return fmt.Errorf("源路径不存在: %s", srcPath)
+	}
+	// 准备目标路径：如果目标已存在则删除，并确保目标父目录存在
+	if err := d.prepareDestination(destPath); err != nil {
+		return fmt.Errorf("准备目标路径失败: %w", err)
+	}
+	// 尝试直接重命名
+	if err := os.Rename(srcPath, destPath); err == nil {
+		return nil
+	}
+	// 如果 os.Rename 失败，则回退为复制和删除操作
+	srcInfo, err := os.Stat(srcPath)
+	if err != nil {
+		return err
+	}
+	if srcInfo.IsDir() {
+		if err := d.copyTree(srcPath, destPath); err != nil {
+			return fmt.Errorf("回退复制目录失败: %w", err)
+		}
+		return os.RemoveAll(srcPath)
+	} else {
+		if err := d.copyFile(srcPath, destPath); err != nil {
+			return fmt.Errorf("回退复制文件失败: %w", err)
+		}
+		return os.Remove(srcPath)
+	}
+}
+
 // AutoCreate 智能创建文件或目录
 // name: 相对路径，以路径分隔符结尾时自动创建目录
 func (d *Disk) AutoCreate(name string) error {
@@ -60,19 +111,19 @@ func (d *Disk) AutoCreate(name string) error {
 // totalSize: 共计大小
 // fileCount: 文件数量
 // err: 错误信息
-func (d *Disk) Count(name string) (totalSize int64, fileCount int64, err error) {
+func (d *Disk) Count(name string) (totalSize int64, fileCount int64, dirCount int64, err error) {
 	if d.IsFile(name) {
 		info, err := d.FileInfo(name)
 		if err != nil {
-			return 0, 0, err
+			return 0, 0, 0, err
 		}
-		return info.Size, 1, nil
+		return info.Size, 1, 0, nil
 	}
-	totalSize, fileCount, err = d.calculateTotal(d.fullPath(name))
+	totalSize, fileCount, dirCount, err = d.calculateTotal(d.fullPath(name))
 	if err != nil {
-		return 0, 0, fmt.Errorf("统计信息失败: %w", err)
+		return 0, 0, 0, fmt.Errorf("统计信息失败: %w", err)
 	}
-	return totalSize, fileCount, err
+	return totalSize, fileCount, dirCount, err
 }
 
 // OpenFile 获取file对象
@@ -214,7 +265,7 @@ func (d *Disk) CopyWithProcess(src, destDir string, callback func(int64, int64, 
 	baseName := filepath.Base(srcPath)
 	finalDest := filepath.Join(destPath, baseName)
 
-	totalSize, fileCount, err := d.calculateTotal(srcPath)
+	totalSize, fileCount, _, err := d.calculateTotal(srcPath)
 	if err != nil {
 		return fmt.Errorf("calculate total failed: %w", err)
 	}
@@ -241,7 +292,7 @@ func (d *Disk) MoveWithProcess(src, destDir string, callback func(int64, int64, 
 		}
 		return nil
 	}
-	totalSize, fileCount, err := d.calculateTotal(srcPath)
+	totalSize, fileCount, _, err := d.calculateTotal(srcPath)
 	if err != nil {
 		return fmt.Errorf("calculate total failed: %w", err)
 	}
@@ -472,8 +523,8 @@ func (d *Disk) copyFile(src, dest string) error {
 
 /******************** 进度跟踪逻辑 ********************/
 
-func (d *Disk) calculateTotal(path string) (int64, int64, error) {
-	var totalSize, fileCount int64
+func (d *Disk) calculateTotal(path string) (int64, int64, int64, error) {
+	var totalSize, fileCount, dirCount int64
 	err := filepath.Walk(path, func(p string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -481,10 +532,12 @@ func (d *Disk) calculateTotal(path string) (int64, int64, error) {
 		if !info.IsDir() {
 			atomic.AddInt64(&totalSize, info.Size())
 			atomic.AddInt64(&fileCount, 1)
+		} else {
+			atomic.AddInt64(&dirCount, 1)
 		}
 		return nil
 	})
-	return totalSize, fileCount, err
+	return totalSize, fileCount, dirCount, err
 }
 
 func (d *Disk) copyTreeWithProgress(src, dest string, totalSize, totalFiles int64, copied *atomic.Int64, callback func(int64, int64, string, int64, int64)) error {

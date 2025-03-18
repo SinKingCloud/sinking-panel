@@ -20,13 +20,14 @@ func Count(c *server.Context) {
 		c.Error("该目录或文件不存在")
 		return
 	}
-	totalSize, totalFile, err := f.Count(form.Path)
+	totalSize, fileCount, dirCount, err := f.Count(form.Path)
 	if err != nil {
 		c.Error("获取失败")
 		return
 	}
 	c.SuccessWithData("获取成功", map[string]int64{
 		"size": totalSize,
-		"file": totalFile,
+		"file": fileCount,
+		"dir":  dirCount,
 	})
 }

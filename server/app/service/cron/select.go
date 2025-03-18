@@ -7,7 +7,7 @@ import (
 
 // SelectAll 获取所有数据
 func (s *Service) selectAll() (list []*model.Task, err error) {
-	err = util.Database.Db.Debug().Find(&list).Error
+	err = util.Database.Db.Find(&list).Error
 	return
 }
 
