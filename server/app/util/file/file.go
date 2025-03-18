@@ -37,7 +37,7 @@ const (
 // root: 基准根目录路径，所有操作将被限制在此目录下
 func NewDisk(root string) *Disk {
 	if root == "" {
-		root = "/"
+		root = "./"
 	}
 	return &Disk{root: filepath.Clean(root)}
 }
@@ -385,7 +385,7 @@ func (d *Disk) FileTree(dir string) ([]*File, error) {
 func (d *Disk) fullPath(name string) string {
 	cleanPath := filepath.Clean(name)
 	if filepath.IsAbs(cleanPath) {
-		return filepath.Join(d.root, filepath.Base(cleanPath))
+		return cleanPath
 	}
 	return filepath.Join(d.root, cleanPath)
 }

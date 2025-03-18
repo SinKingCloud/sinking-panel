@@ -30,7 +30,7 @@ func Delete(c *server.Context) {
 			c.Success("删除成功")
 		}
 	} else {
-		err := service.File.RecycleAdd(form.Path)
+		err := service.Recycle.Create(form.Path)
 		if err != nil {
 			c.Error("移动至回收站失败")
 		} else {

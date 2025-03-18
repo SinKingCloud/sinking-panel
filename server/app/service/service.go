@@ -6,17 +6,19 @@ import (
 	"server/app/service/cron"
 	"server/app/service/file"
 	"server/app/service/log"
+	"server/app/service/recycle"
 	"server/app/service/server"
 )
 
 // service实例
 var (
-	Config = config.GetIns()
-	Auth   = auth.GetIns()
-	Server = server.GetIns()
-	Log    = log.GetIns()
-	Cron   = cron.GetIns()
-	File   = file.GetIns()
+	Config  = config.GetIns()
+	Auth    = auth.GetIns()
+	Server  = server.GetIns()
+	Log     = log.GetIns()
+	Cron    = cron.GetIns()
+	File    = file.GetIns()
+	Recycle = recycle.GetIns()
 )
 
 // Enum 枚举信息

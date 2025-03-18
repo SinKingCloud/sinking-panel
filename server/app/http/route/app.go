@@ -20,6 +20,7 @@ func loadApp(s *sinking_web.Engine) {
 	}
 	loadAuthRoute(s)
 	loadFileRoute(s)
+	loadRecycleRoute(s)
 	loadServerRoute(s)
 	loadConfigRoute(s)
 	loadSystemRoute(s)
@@ -85,19 +86,31 @@ func loadFileRoute(s *sinking_web.Engine) {
 	g.ANY("/create", server.HandleFunc(file.Create)) //创建文件
 	g.ANY("/count", server.HandleFunc(file.Count))   //统计信息
 	g.ANY("/delete", server.HandleFunc(file.Delete)) //删除文件
-	g.ANY("/update", nil)
-	g.ANY("/copy", nil)
-	g.ANY("/cut", nil)
-	g.ANY("/upload", nil)
-	g.ANY("/download", nil)
+	g.ANY("/extract", nil)                           //解压文件
+	g.ANY("/compress", nil)                          //压缩文件
+	g.ANY("/preview", nil)                           //预览文件
+	g.ANY("/update", nil)                            //更新信息
+	g.ANY("/copy", nil)                              //复制文件
+	g.ANY("/move", nil)                              //移动文件
+	g.ANY("/upload", nil)                            //上传文件
+	g.ANY("/download", nil)                          //下载文件
+}
+
+func loadRecycleRoute(s *sinking_web.Engine) {
+	g := s.Group("/recycle")
+	g.Use(server.HandleFunc(middleware.CheckLogin))
+	g.ANY("/list", nil)    //回收站列表
+	g.ANY("/clear", nil)   //清空回收站
+	g.ANY("/delete", nil)  //删除文件
+	g.ANY("/restore", nil) //恢复文件
 }
 
 func loadSystemRoute(s *sinking_web.Engine) {
 	g := s.Group("/system")
 	g.Use(server.HandleFunc(middleware.CheckLogin))
-	g.ANY("/info", nil)
-	g.ANY("/status", nil)
-	g.ANY("/task", nil)
-	g.ANY("/log", server.HandleFunc(system.Log))
-	g.ANY("/enum", server.HandleFunc(system.Enum))
+	g.ANY("/info", nil)                            //系统信息
+	g.ANY("/status", nil)                          //系统状态
+	g.ANY("/task", nil)                            //系统任务
+	g.ANY("/log", server.HandleFunc(system.Log))   //系统日志
+	g.ANY("/enum", server.HandleFunc(system.Enum)) //枚举类型
 }
