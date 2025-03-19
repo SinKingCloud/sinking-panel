@@ -98,12 +98,12 @@ func loadFileRoute(s *sinking_web.Engine) {
 	g.ANY("/create", server.HandleFunc(file.Create)) //创建文件
 	g.ANY("/count", server.HandleFunc(file.Count))   //统计信息
 	g.ANY("/delete", server.HandleFunc(file.Delete)) //删除文件
-	g.ANY("/extract", nil)                           //解压文件
-	g.ANY("/compress", nil)                          //压缩文件
-	g.ANY("/preview", nil)                           //预览文件
 	g.ANY("/update", nil)                            //更新信息
+	g.ANY("/preview", nil)                           //预览文件
 	g.ANY("/copy", nil)                              //复制文件
 	g.ANY("/move", nil)                              //移动文件
+	g.ANY("/extract", nil)                           //解压文件
+	g.ANY("/compress", nil)                          //压缩文件
 	g.ANY("/upload", nil)                            //上传文件
 	g.ANY("/download", nil)                          //下载文件
 }
