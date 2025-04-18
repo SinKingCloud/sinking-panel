@@ -23,6 +23,5 @@ func (s *Service) Cancel(id string) bool {
 	task.Message = "任务已取消"
 	task.UpdateTime = time.Now().Unix()
 	task.EndTime = task.UpdateTime
-
 	return true
 }

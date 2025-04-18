@@ -7,6 +7,7 @@ import (
 	"server/app/util/server"
 	"server/app/util/str"
 	"sync/atomic"
+	"time"
 )
 
 func Move(c *server.Context) {
@@ -36,6 +37,10 @@ func Move(c *server.Context) {
 		canceled.Store(true)
 	})
 	go func() {
+		defer func() {
+			time.Sleep(3 * time.Second)
+			service.Task.Delete(taskID)
+		}()
 		taskInfo := service.Task.Get(taskID)
 		if taskInfo == nil || taskInfo.Context == nil {
 			return
