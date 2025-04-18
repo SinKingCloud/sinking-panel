@@ -92,20 +92,20 @@ func loadRecycleRoute(s *sinking_web.Engine) {
 func loadFileRoute(s *sinking_web.Engine) {
 	g := s.Group("/file")
 	g.Use(server.HandleFunc(middleware.CheckLogin))
-	g.ANY("/disk", server.HandleFunc(file.Disk))     //分区信息
-	g.ANY("/list", server.HandleFunc(file.List))     //文件列表
-	g.ANY("/info", server.HandleFunc(file.Info))     //文件信息
-	g.ANY("/create", server.HandleFunc(file.Create)) //创建文件
-	g.ANY("/count", server.HandleFunc(file.Count))   //统计信息
-	g.ANY("/delete", server.HandleFunc(file.Delete)) //删除文件
-	g.ANY("/update", nil)                            //更新信息
-	g.ANY("/preview", nil)                           //预览文件
-	g.ANY("/copy", nil)                              //复制文件
-	g.ANY("/move", nil)                              //移动文件
-	g.ANY("/extract", nil)                           //解压文件
-	g.ANY("/compress", nil)                          //压缩文件
-	g.ANY("/upload", nil)                            //上传文件
-	g.ANY("/download", nil)                          //下载文件
+	g.ANY("/disk", server.HandleFunc(file.Disk))       //分区信息
+	g.ANY("/list", server.HandleFunc(file.List))       //文件列表
+	g.ANY("/info", server.HandleFunc(file.Info))       //文件信息
+	g.ANY("/create", server.HandleFunc(file.Create))   //创建文件
+	g.ANY("/count", server.HandleFunc(file.Count))     //统计信息
+	g.ANY("/delete", server.HandleFunc(file.Delete))   //删除文件
+	g.ANY("/update", server.HandleFunc(file.Update))   //更新信息
+	g.ANY("/preview", server.HandleFunc(file.Preview)) //预览文件
+	g.ANY("/copy", server.HandleFunc(file.Copy))       //复制文件
+	g.ANY("/move", server.HandleFunc(file.Move))       //移动文件
+	g.ANY("/extract", nil)                             //解压文件
+	g.ANY("/compress", nil)                            //压缩文件
+	g.ANY("/upload", nil)                              //上传文件
+	g.ANY("/download", nil)                            //下载文件
 }
 
 func loadSystemRoute(s *sinking_web.Engine) {
@@ -113,7 +113,7 @@ func loadSystemRoute(s *sinking_web.Engine) {
 	g.Use(server.HandleFunc(middleware.CheckLogin))
 	g.ANY("/info", nil)                            //系统信息
 	g.ANY("/status", nil)                          //系统状态
-	g.ANY("/task", nil)                            //系统任务
+	g.ANY("/task", server.HandleFunc(system.Task)) //系统任务
 	g.ANY("/log", server.HandleFunc(system.Log))   //系统日志
 	g.ANY("/enum", server.HandleFunc(system.Enum)) //枚举类型
 }

@@ -8,6 +8,7 @@ import (
 	"server/app/service/log"
 	"server/app/service/recycle"
 	"server/app/service/server"
+	"server/app/service/task"
 )
 
 // service实例
@@ -19,6 +20,7 @@ var (
 	Cron    = cron.GetIns()
 	File    = file.GetIns()
 	Recycle = recycle.GetIns()
+	Task    = task.GetIns()
 )
 
 // Enum 枚举信息
@@ -32,5 +34,8 @@ var Enum = map[string]interface{}{
 	"cron": map[string]interface{}{
 		"type":   Cron.Types(),  //计划任务类型
 		"status": Cron.Status(), //计划任务状态
+	},
+	"task": map[string]interface{}{
+		"status": Task.Status(), //任务状态
 	},
 }
