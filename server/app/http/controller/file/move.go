@@ -51,13 +51,13 @@ func Move(c *server.Context) {
 			service.Task.Update(taskID, task.StatusFailed, 0, "计算文件大小失败: "+err.Error())
 			return
 		}
-		err = f.MoveWithProcess(form.SourcePath, form.TargetPath, func(current, total int64, currentFile string, totalFiles, currentIndex int64) {
+		err = f.MoveWithProcess(form.SourcePath, form.TargetPath, func(current, total int64, currentFile string, totalFiles, currentIndex int64) bool {
 			select {
 			case <-taskInfo.Context.Done():
-				return
+				return false
 			default:
 				if canceled.Load() {
-					return
+					return false
 				}
 				progress := float64(0)
 				if total > 0 {
@@ -65,6 +65,7 @@ func Move(c *server.Context) {
 				}
 				message := "正在移动: " + currentFile
 				service.Task.Update(taskID, task.StatusRunning, progress, message)
+				return true
 			}
 		})
 		select {

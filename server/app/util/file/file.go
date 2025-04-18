@@ -259,7 +259,7 @@ func (d *Disk) Copy(src, destDir string) error {
 //	currentFile - 当前正在处理的文件名
 //	totalFiles - 总文件数量
 //	currentIndex - 当前文件序号（从0开始）
-func (d *Disk) CopyWithProcess(src, destDir string, callback func(int64, int64, string, int64, int64)) error {
+func (d *Disk) CopyWithProcess(src, destDir string, callback func(int64, int64, string, int64, int64) bool) error {
 	srcPath := d.fullPath(src)
 	destPath := d.fullPath(destDir)
 	baseName := filepath.Base(srcPath)
@@ -280,7 +280,7 @@ func (d *Disk) CopyWithProcess(src, destDir string, callback func(int64, int64, 
 
 // MoveWithProcess 带进度回调的文件/目录移动
 // 参数说明同CopyWithProcess
-func (d *Disk) MoveWithProcess(src, destDir string, callback func(int64, int64, string, int64, int64)) error {
+func (d *Disk) MoveWithProcess(src, destDir string, callback func(int64, int64, string, int64, int64) bool) error {
 	srcPath := d.fullPath(src)
 	destPath := d.fullPath(destDir)
 	baseName := filepath.Base(srcPath)
@@ -540,7 +540,7 @@ func (d *Disk) calculateTotal(path string) (int64, int64, int64, error) {
 	return totalSize, fileCount, dirCount, err
 }
 
-func (d *Disk) copyTreeWithProgress(src, dest string, totalSize, totalFiles int64, copied *atomic.Int64, callback func(int64, int64, string, int64, int64)) error {
+func (d *Disk) copyTreeWithProgress(src, dest string, totalSize, totalFiles int64, copied *atomic.Int64, callback func(int64, int64, string, int64, int64) bool) error {
 	srcInfo, err := os.Stat(src)
 	if err != nil {
 		return err
@@ -569,8 +569,14 @@ func (d *Disk) copyTreeWithProgress(src, dest string, totalSize, totalFiles int6
 			}
 
 			currentIndex := fileIndex.Add(1) - 1
+			ret := false
 			if callback != nil {
-				callback(copied.Load(), totalSize, info.Name(), totalFiles, currentIndex)
+				if callback(copied.Load(), totalSize, info.Name(), totalFiles, currentIndex) == false {
+					ret = true
+				}
+			}
+			if ret {
+				return nil
 			}
 			return d.copyFileWithProgress(path, targetPath, totalSize, copied, callback, totalFiles, currentIndex)
 		})
@@ -578,7 +584,7 @@ func (d *Disk) copyTreeWithProgress(src, dest string, totalSize, totalFiles int6
 	return d.copyFileWithProgress(src, dest, totalSize, copied, callback, totalFiles, 0)
 }
 
-func (d *Disk) copyFileWithProgress(src, dest string, totalSize int64, copied *atomic.Int64, callback func(int64, int64, string, int64, int64), totalFiles, currentIndex int64) error {
+func (d *Disk) copyFileWithProgress(src, dest string, totalSize int64, copied *atomic.Int64, callback func(int64, int64, string, int64, int64) bool, totalFiles, currentIndex int64) error {
 	srcFile, err := os.Open(src)
 	if err != nil {
 		return err
