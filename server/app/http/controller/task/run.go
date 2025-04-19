@@ -1,12 +1,12 @@
-package cron
+package task
 
 import (
 	"server/app/service"
 	"server/app/util/server"
 )
 
-// Restore 恢复任务
-func Restore(c *server.Context) {
+// Run 执行任务
+func Run(c *server.Context) {
 	type Form struct {
 		Ids []int `json:"ids" default:"" validate:"required,min=1,max=1000,unique" label:"ID列表"`
 	}
@@ -16,7 +16,7 @@ func Restore(c *server.Context) {
 		return
 	}
 	for _, v := range form.Ids {
-		_ = service.Cron.Restore(v)
+		_ = service.Task.Run(v)
 	}
-	c.Success("操作成功")
+	c.Success("执行成功")
 }

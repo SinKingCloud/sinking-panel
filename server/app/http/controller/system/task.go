@@ -19,7 +19,7 @@ func Task(c *server.Context) {
 		return
 	}
 	if form.ID != "" && form.Action == "cancel" {
-		success := service.Task.Cancel(form.ID)
+		success := service.System.TaskCancel(form.ID)
 		if !success {
 			c.Error("取消任务失败，任务可能不存在或已结束")
 			return
@@ -28,7 +28,7 @@ func Task(c *server.Context) {
 		return
 	}
 	if form.ID != "" {
-		task := service.Task.Get(form.ID)
+		task := service.System.GetTask(form.ID)
 		if task == nil {
 			c.Error("任务不存在")
 			return
@@ -36,7 +36,7 @@ func Task(c *server.Context) {
 		c.SuccessWithData("获取成功", task)
 		return
 	}
-	tasks := service.Task.List()
+	tasks := service.System.TaskList()
 	if form.Status != "" {
 		filteredTasks := make([]interface{}, 0)
 		for _, task := range tasks {

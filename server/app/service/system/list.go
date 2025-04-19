@@ -1,7 +1,7 @@
-package task
+package system
 
-// List 获取任务列表
-func (s *Service) List() []*Task {
+// TaskList 获取任务列表
+func (s *Service) TaskList() []*Task {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	tasks := make([]*Task, 0, len(s.tasks))

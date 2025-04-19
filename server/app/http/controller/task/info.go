@@ -1,4 +1,4 @@
-package cron
+package task
 
 import (
 	"server/app/service"
@@ -15,7 +15,7 @@ func Info(c *server.Context) {
 		c.Error(msg)
 		return
 	}
-	data, err := service.Cron.FindById(form.Id)
+	data, err := service.Task.FindById(form.Id)
 	if err == nil && data != nil {
 		c.SuccessWithData("获取成功", data)
 	} else {

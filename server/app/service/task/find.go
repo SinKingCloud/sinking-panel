@@ -1,4 +1,4 @@
-package cron
+package task
 
 import (
 	"server/app/model"

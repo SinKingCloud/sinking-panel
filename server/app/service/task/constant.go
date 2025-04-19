@@ -1,23 +1,29 @@
 package task
 
-// Status 任务状态
+type Type int //日志类型
+
+const (
+	Script Type = iota //用户操作
+)
+
+// Types 类型数据
+func (s *Service) Types() map[Type]string {
+	return map[Type]string{
+		Script: "系统脚本",
+	}
+}
+
 type Status int
 
 const (
-	StatusPending   Status = iota // 等待中
-	StatusRunning                 // 运行中
-	StatusCompleted               // 已完成
-	StatusFailed                  // 失败
-	StatusCanceled                // 已取消
+	Running Status = iota //运行
+	Stop                  //暂停
 )
 
-// Status 获取所有任务状态
+// Status 状态数据
 func (s *Service) Status() map[Status]string {
 	return map[Status]string{
-		StatusPending:   "等待中",
-		StatusRunning:   "运行中",
-		StatusCompleted: "已完成",
-		StatusFailed:    "失败",
-		StatusCanceled:  "已取消",
+		Running: "运行",
+		Stop:    "暂停",
 	}
 }

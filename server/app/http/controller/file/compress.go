@@ -2,7 +2,7 @@ package file
 
 import (
 	"server/app/service"
-	"server/app/service/task"
+	"server/app/service/system"
 	"server/app/util/file"
 	"server/app/util/server"
 	"server/app/util/str"
@@ -63,21 +63,21 @@ func Compress(c *server.Context) {
 		"dest_path": destPath,
 		"format":    form.Format,
 	}
-	_ = service.Task.Create(taskID, taskName, taskData)
+	_ = service.System.TaskCreate(taskID, taskName, taskData)
 	var canceled atomic.Bool
-	service.Task.SetCancelFunc(taskID, func() {
+	service.System.SetTaskCancelFunc(taskID, func() {
 		canceled.Store(true)
 	})
 	go func() {
 		defer func() {
 			time.Sleep(3 * time.Second)
-			service.Task.Delete(taskID)
+			service.System.TaskDelete(taskID)
 		}()
-		taskInfo := service.Task.Get(taskID)
+		taskInfo := service.System.GetTask(taskID)
 		if taskInfo == nil || taskInfo.Context == nil {
 			return
 		}
-		service.Task.Update(taskID, task.StatusRunning, 0, "开始压缩")
+		service.System.TaskUpdate(taskID, system.TaskStatusRunning, 0, "开始压缩")
 		err := service.File.CompressFiles(taskInfo.Context, form.Paths, destPath, form.Format, func(current, total int64, currentFile string, totalFiles, currentIndex int64) bool {
 			if canceled.Load() {
 				return false
@@ -87,26 +87,26 @@ func Compress(c *server.Context) {
 				progress = float64(current) / float64(total) * 100
 			}
 			message := "正在压缩: " + currentFile
-			service.Task.Update(taskID, task.StatusRunning, progress, message)
+			service.System.TaskUpdate(taskID, system.TaskStatusRunning, progress, message)
 			return true
 		})
 		select {
 		case <-taskInfo.Context.Done():
-			service.Task.Update(taskID, task.StatusCanceled, 0, "任务已取消")
+			service.System.TaskUpdate(taskID, system.TaskStatusCanceled, 0, "任务已取消")
 			_ = f.Delete(destPath)
 			return
 		default:
 			if canceled.Load() {
-				service.Task.Update(taskID, task.StatusCanceled, 0, "任务已取消")
+				service.System.TaskUpdate(taskID, system.TaskStatusCanceled, 0, "任务已取消")
 				_ = f.Delete(destPath)
 				return
 			}
 			if err != nil {
-				service.Task.Update(taskID, task.StatusFailed, 0, "压缩失败: "+err.Error())
+				service.System.TaskUpdate(taskID, system.TaskStatusFailed, 0, "压缩失败: "+err.Error())
 				_ = f.Delete(destPath)
 				return
 			}
-			service.Task.Update(taskID, task.StatusCompleted, 100, "压缩完成")
+			service.System.TaskUpdate(taskID, system.TaskStatusCompleted, 100, "压缩完成")
 		}
 	}()
 	c.SuccessWithData("创建压缩任务成功", taskID)

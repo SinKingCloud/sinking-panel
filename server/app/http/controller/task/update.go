@@ -1,4 +1,4 @@
-package cron
+package task
 
 import (
 	"server/app/service"
@@ -28,7 +28,7 @@ func Update(c *server.Context) {
 		data["type"] = form.Type
 	}
 	if form.Spec != "" {
-		if service.Cron.ValidateCron(form.Spec) {
+		if service.Task.ValidateCron(form.Spec) {
 			c.Error("任务表达式不正确")
 			return
 		}
@@ -40,7 +40,7 @@ func Update(c *server.Context) {
 	if form.Status != "" {
 		data["status"] = form.Status
 	}
-	err := service.Cron.UpdateByIds(form.Ids, data)
+	err := service.Task.UpdateByIds(form.Ids, data)
 	if err == nil {
 		c.Success("修改成功")
 	} else {

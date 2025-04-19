@@ -1,9 +1,9 @@
-package task
+package system
 
 import "time"
 
-// Cancel 取消任务
-func (s *Service) Cancel(id string) bool {
+// TaskCancel 取消任务
+func (s *Service) TaskCancel(id string) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	task, ok := s.tasks[id]
@@ -11,7 +11,7 @@ func (s *Service) Cancel(id string) bool {
 		return false
 	}
 	// 只有运行中的任务才能取消
-	if task.Status != StatusRunning {
+	if task.Status != TaskStatusRunning {
 		return false
 	}
 	// 执行取消函数
@@ -19,7 +19,7 @@ func (s *Service) Cancel(id string) bool {
 		task.CancelFunc()
 	}
 	// 更新任务状态
-	task.Status = StatusCanceled
+	task.Status = TaskStatusCanceled
 	task.Message = "任务已取消"
 	task.UpdateTime = time.Now().Unix()
 	task.EndTime = task.UpdateTime

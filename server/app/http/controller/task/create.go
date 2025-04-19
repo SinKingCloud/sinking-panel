@@ -1,4 +1,4 @@
-package cron
+package task
 
 import (
 	"server/app/model"
@@ -20,11 +20,11 @@ func Create(c *server.Context) {
 		c.Error(msg)
 		return
 	}
-	if service.Cron.ValidateCron(form.Spec) {
+	if service.Task.ValidateCron(form.Spec) {
 		c.Error("任务表达式不正确")
 		return
 	}
-	err := service.Cron.Add(&model.Task{
+	err := service.Task.Add(&model.Task{
 		Type:   form.Type,
 		Name:   form.Name,
 		Spec:   form.Spec,

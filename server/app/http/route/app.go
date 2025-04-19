@@ -4,11 +4,11 @@ import (
 	"github.com/SinKingCloud/sinking-go/sinking-web"
 	"server/app/http/controller/auth"
 	"server/app/http/controller/config"
-	"server/app/http/controller/cron"
 	"server/app/http/controller/file"
 	"server/app/http/controller/recycle"
 	server2 "server/app/http/controller/server"
 	"server/app/http/controller/system"
+	"server/app/http/controller/task"
 	"server/app/http/middleware"
 	"server/app/util"
 	"server/app/util/server"
@@ -25,7 +25,7 @@ func loadApp(s *sinking_web.Engine) {
 	loadServerRoute(s)
 	loadConfigRoute(s)
 	loadSystemRoute(s)
-	loadCronRoute(s)
+	loadTaskRoute(s)
 	loadStaticRoute(s)
 }
 
@@ -64,18 +64,18 @@ func loadServerRoute(s *sinking_web.Engine) {
 	g.ANY("/delete", server.HandleFunc(server2.Delete)) //删除服务器
 }
 
-func loadCronRoute(s *sinking_web.Engine) {
-	g := s.Group("/cron")
+func loadTaskRoute(s *sinking_web.Engine) {
+	g := s.Group("/task")
 	g.Use(server.HandleFunc(middleware.CheckLogin))
-	g.ANY("/list", server.HandleFunc(cron.List))       //任务列表
-	g.ANY("/info", server.HandleFunc(cron.Info))       //任务详情
-	g.ANY("/create", server.HandleFunc(cron.Create))   //创建任务
-	g.ANY("/delete", server.HandleFunc(cron.Delete))   //删除任务
-	g.ANY("/update", server.HandleFunc(cron.Update))   //更新任务
-	g.ANY("/run", server.HandleFunc(cron.Run))         //执行任务
-	g.ANY("/stop", server.HandleFunc(cron.Stop))       //暂停任务
-	g.ANY("/restore", server.HandleFunc(cron.Restore)) //恢复任务
-	g.ANY("/log", server.HandleFunc(cron.Log))         //任务日志
+	g.ANY("/list", server.HandleFunc(task.List))       //任务列表
+	g.ANY("/info", server.HandleFunc(task.Info))       //任务详情
+	g.ANY("/create", server.HandleFunc(task.Create))   //创建任务
+	g.ANY("/delete", server.HandleFunc(task.Delete))   //删除任务
+	g.ANY("/update", server.HandleFunc(task.Update))   //更新任务
+	g.ANY("/run", server.HandleFunc(task.Run))         //执行任务
+	g.ANY("/stop", server.HandleFunc(task.Stop))       //暂停任务
+	g.ANY("/restore", server.HandleFunc(task.Restore)) //恢复任务
+	g.ANY("/log", server.HandleFunc(task.Log))         //任务日志
 }
 
 func loadRecycleRoute(s *sinking_web.Engine) {

@@ -1,12 +1,12 @@
-package cron
+package task
 
 import (
 	"server/app/service"
 	"server/app/util/server"
 )
 
-// Run 执行任务
-func Run(c *server.Context) {
+// Delete 删除信息
+func Delete(c *server.Context) {
 	type Form struct {
 		Ids []int `json:"ids" default:"" validate:"required,min=1,max=1000,unique" label:"ID列表"`
 	}
@@ -16,7 +16,7 @@ func Run(c *server.Context) {
 		return
 	}
 	for _, v := range form.Ids {
-		_ = service.Cron.Run(v)
+		_ = service.Task.Remove(v)
 	}
-	c.Success("执行成功")
+	c.Success("删除成功")
 }

@@ -1,4 +1,4 @@
-package cron
+package task
 
 import (
 	"server/app/service"
@@ -55,7 +55,7 @@ func List(c *server.Context) {
 	if form.UpdateTimeEnd != "" {
 		where["update_time_end"] = form.UpdateTimeEnd
 	}
-	data, total, err := service.Cron.Select(where, form.OrderByField, form.OrderByType, pageInfo.Page, pageInfo.PageSize)
+	data, total, err := service.Task.Select(where, form.OrderByField, form.OrderByType, pageInfo.Page, pageInfo.PageSize)
 	if err != nil {
 		c.Error("获取失败")
 	} else {

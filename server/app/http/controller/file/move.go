@@ -2,7 +2,7 @@ package file
 
 import (
 	"server/app/service"
-	"server/app/service/task"
+	"server/app/service/system"
 	"server/app/util/file"
 	"server/app/util/server"
 	"server/app/util/str"
@@ -31,24 +31,24 @@ func Move(c *server.Context) {
 		"source_path": form.SourcePath,
 		"target_path": form.TargetPath,
 	}
-	_ = service.Task.Create(taskID, taskName, taskData)
+	_ = service.System.TaskCreate(taskID, taskName, taskData)
 	var canceled atomic.Bool
-	service.Task.SetCancelFunc(taskID, func() {
+	service.System.SetTaskCancelFunc(taskID, func() {
 		canceled.Store(true)
 	})
 	go func() {
 		defer func() {
 			time.Sleep(3 * time.Second)
-			service.Task.Delete(taskID)
+			service.System.TaskDelete(taskID)
 		}()
-		taskInfo := service.Task.Get(taskID)
+		taskInfo := service.System.GetTask(taskID)
 		if taskInfo == nil || taskInfo.Context == nil {
 			return
 		}
-		service.Task.Update(taskID, task.StatusRunning, 0, "开始移动")
+		service.System.TaskUpdate(taskID, system.TaskStatusRunning, 0, "开始移动")
 		_, _, _, err := f.Count(form.SourcePath)
 		if err != nil {
-			service.Task.Update(taskID, task.StatusFailed, 0, "计算文件大小失败: "+err.Error())
+			service.System.TaskUpdate(taskID, system.TaskStatusFailed, 0, "计算文件大小失败: "+err.Error())
 			return
 		}
 		err = service.File.MoveWithContext(taskInfo.Context, form.SourcePath, form.TargetPath, func(current, total int64, currentFile string, totalFiles, currentIndex int64) bool {
@@ -60,23 +60,23 @@ func Move(c *server.Context) {
 				progress = float64(current) / float64(total) * 100
 			}
 			message := "正在移动: " + currentFile
-			service.Task.Update(taskID, task.StatusRunning, progress, message)
+			service.System.TaskUpdate(taskID, system.TaskStatusRunning, progress, message)
 			return true
 		})
 		select {
 		case <-taskInfo.Context.Done():
-			service.Task.Update(taskID, task.StatusCanceled, 0, "任务已取消")
+			service.System.TaskUpdate(taskID, system.TaskStatusCanceled, 0, "任务已取消")
 			return
 		default:
 			if canceled.Load() {
-				service.Task.Update(taskID, task.StatusCanceled, 0, "任务已取消")
+				service.System.TaskUpdate(taskID, system.TaskStatusCanceled, 0, "任务已取消")
 				return
 			}
 			if err != nil {
-				service.Task.Update(taskID, task.StatusFailed, 0, "移动失败: "+err.Error())
+				service.System.TaskUpdate(taskID, system.TaskStatusFailed, 0, "移动失败: "+err.Error())
 				return
 			}
-			service.Task.Update(taskID, task.StatusCompleted, 100, "移动完成")
+			service.System.TaskUpdate(taskID, system.TaskStatusCompleted, 100, "移动完成")
 		}
 	}()
 	c.SuccessWithData("创建移动任务成功", taskID)

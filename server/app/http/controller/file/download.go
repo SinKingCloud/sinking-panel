@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"server/app/service"
-	"server/app/service/task"
+	"server/app/service/system"
 	"server/app/util/file"
 	"server/app/util/server"
 	"server/app/util/str"
@@ -63,24 +63,24 @@ func Download(c *server.Context) {
 		"url":         form.URL,
 		"target_path": targetFilePath,
 	}
-	_ = service.Task.Create(taskID, taskName, taskData)
+	_ = service.System.TaskCreate(taskID, taskName, taskData)
 
 	// 设置取消功能
 	var canceled atomic.Bool
-	service.Task.SetCancelFunc(taskID, func() {
+	service.System.SetTaskCancelFunc(taskID, func() {
 		canceled.Store(true)
 	})
 	// 异步执行下载任务
 	go func() {
 		defer func() {
 			time.Sleep(3 * time.Second)
-			service.Task.Delete(taskID)
+			service.System.TaskDelete(taskID)
 		}()
-		taskInfo := service.Task.Get(taskID)
+		taskInfo := service.System.GetTask(taskID)
 		if taskInfo == nil || taskInfo.Context == nil {
 			return
 		}
-		service.Task.Update(taskID, task.StatusRunning, 0, "开始下载")
+		service.System.TaskUpdate(taskID, system.TaskStatusRunning, 0, "开始下载")
 		err := service.File.DownloadWithProgress(taskInfo.Context, form.URL, targetFilePath, func(current, total int64, speed float64) bool {
 			if canceled.Load() {
 				return false
@@ -98,24 +98,24 @@ func Download(c *server.Context) {
 				service.File.FormatSize(total),
 				speedStr)
 
-			service.Task.Update(taskID, task.StatusRunning, progress, message)
+			service.System.TaskUpdate(taskID, system.TaskStatusRunning, progress, message)
 			return true
 		})
 		// 处理下载结果
 		select {
 		case <-taskInfo.Context.Done():
-			service.Task.Update(taskID, task.StatusCanceled, 0, "任务已取消")
+			service.System.TaskUpdate(taskID, system.TaskStatusCanceled, 0, "任务已取消")
 			return
 		default:
 			if canceled.Load() {
-				service.Task.Update(taskID, task.StatusCanceled, 0, "任务已取消")
+				service.System.TaskUpdate(taskID, system.TaskStatusCanceled, 0, "任务已取消")
 				return
 			}
 			if err != nil {
-				service.Task.Update(taskID, task.StatusFailed, 0, "下载失败: "+err.Error())
+				service.System.TaskUpdate(taskID, system.TaskStatusFailed, 0, "下载失败: "+err.Error())
 				return
 			}
-			service.Task.Update(taskID, task.StatusCompleted, 100, "下载完成")
+			service.System.TaskUpdate(taskID, system.TaskStatusCompleted, 100, "下载完成")
 		}
 	}()
 

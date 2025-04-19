@@ -1,12 +1,12 @@
-package cron
+package task
 
 import (
 	"server/app/service"
 	"server/app/util/server"
 )
 
-// Stop 暂停任务
-func Stop(c *server.Context) {
+// Restore 恢复任务
+func Restore(c *server.Context) {
 	type Form struct {
 		Ids []int `json:"ids" default:"" validate:"required,min=1,max=1000,unique" label:"ID列表"`
 	}
@@ -16,7 +16,7 @@ func Stop(c *server.Context) {
 		return
 	}
 	for _, v := range form.Ids {
-		_ = service.Cron.Stop(v)
+		_ = service.Task.Restore(v)
 	}
 	c.Success("操作成功")
 }
