@@ -104,7 +104,7 @@ func loadFileRoute(s *sinking_web.Engine) {
 	g.ANY("/move", server.HandleFunc(file.Move))         //移动文件
 	g.ANY("/extract", server.HandleFunc(file.Extract))   //解压文件
 	g.ANY("/compress", server.HandleFunc(file.Compress)) //压缩文件
-	g.ANY("/upload", nil)                                //上传文件
+	g.ANY("/upload", server.HandleFunc(file.Upload))     //上传文件
 	g.ANY("/download", server.HandleFunc(file.Download)) //下载文件
 }
 
