@@ -114,8 +114,6 @@ func (s *Service) GetDiskPaths() ([]string, error) {
 // callback: 进度回调函数
 func (s *Service) CopyWithContext(ctx context.Context, src, destDir string, callback func(current, total int64, currentFile string, totalFiles, currentIndex int64) bool) error {
 	f := file.NewDisk("")
-
-	// 创建一个包装回调函数，检查上下文是否已取消
 	wrappedCallback := func(current, total int64, currentFile string, totalFiles, currentIndex int64) bool {
 		select {
 		case <-ctx.Done():
@@ -127,18 +125,7 @@ func (s *Service) CopyWithContext(ctx context.Context, src, destDir string, call
 			return true
 		}
 	}
-
-	// 使用普通的 CopyWithProcess，但通过包装的回调函数检查上下文取消
-	err := f.CopyWithProcess(src, destDir, wrappedCallback)
-
-	// 检查上下文是否已取消
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	default:
-	}
-
-	return err
+	return f.CopyWithProcess(ctx, src, destDir, wrappedCallback)
 }
 
 // MoveWithContext 带上下文控制的文件移动
@@ -148,8 +135,6 @@ func (s *Service) CopyWithContext(ctx context.Context, src, destDir string, call
 // callback: 进度回调函数
 func (s *Service) MoveWithContext(ctx context.Context, src, destDir string, callback func(current, total int64, currentFile string, totalFiles, currentIndex int64) bool) error {
 	f := file.NewDisk("")
-
-	// 创建一个包装回调函数，检查上下文是否已取消
 	wrappedCallback := func(current, total int64, currentFile string, totalFiles, currentIndex int64) bool {
 		select {
 		case <-ctx.Done():
@@ -161,16 +146,5 @@ func (s *Service) MoveWithContext(ctx context.Context, src, destDir string, call
 			return true
 		}
 	}
-
-	// 使用普通的 MoveWithProcess，但通过包装的回调函数检查上下文取消
-	err := f.MoveWithProcess(src, destDir, wrappedCallback)
-
-	// 检查上下文是否已取消
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	default:
-	}
-
-	return err
+	return f.MoveWithProcess(ctx, src, destDir, wrappedCallback)
 }

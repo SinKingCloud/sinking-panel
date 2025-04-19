@@ -81,16 +81,13 @@ func (s *Service) DownloadWithProgress(ctx context.Context, url string, destPath
 		if ctx.Err() != nil {
 			return errors.New("下载被取消")
 		}
-
 		readDone := make(chan struct{})
 		var n int
 		var readErr error
-
 		go func() {
 			n, readErr = resp.Body.Read(buffer)
 			close(readDone)
 		}()
-
 		select {
 		case <-readDone:
 			// 读取操作完成
@@ -98,40 +95,33 @@ func (s *Service) DownloadWithProgress(ctx context.Context, url string, destPath
 			// 如果上下文被取消，我们立即返回错误
 			return errors.New("下载被取消")
 		}
-
 		if n > 0 {
 			_, writeErr := file.Write(buffer[:n])
 			if writeErr != nil {
 				return writeErr
 			}
-
 			// 更新进度
 			downloaded += int64(n)
-
 			// 计算下载速度
 			now := time.Now()
 			elapsed := now.Sub(lastUpdate)
 			if elapsed >= updateInterval {
 				bytesInPeriod := downloaded - lastBytes
 				currentSpeed = float64(bytesInPeriod) / elapsed.Seconds()
-
 				lastUpdate = now
 				lastBytes = downloaded
-
 				// 回调进度，同时检查是否应该继续
 				if progressCallback != nil {
 					if !progressCallback(downloaded, contentLength, currentSpeed) {
 						return errors.New("下载被取消")
 					}
 				}
-
 				// 再次检查上下文是否已取消
 				if ctx.Err() != nil {
 					return errors.New("下载被取消")
 				}
 			}
 		}
-
 		// 处理错误
 		if readErr != nil {
 			if readErr == io.EOF {
@@ -140,7 +130,6 @@ func (s *Service) DownloadWithProgress(ctx context.Context, url string, destPath
 			return readErr // 其他错误
 		}
 	}
-
 	if ctx.Err() != nil {
 		return errors.New("下载被取消")
 	}
@@ -174,27 +163,4 @@ func (s *Service) FormatSize(bytes int64) string {
 	}
 
 	return size
-}
-
-// FormatSpeed 格式化下载速度
-func (s *Service) FormatSpeed(bytesPerSecond float64) string {
-	const (
-		KB = 1024
-		MB = 1024 * KB
-		GB = 1024 * MB
-	)
-
-	var speed string
-	switch {
-	case bytesPerSecond < KB:
-		speed = fmt.Sprintf("%.0f B", bytesPerSecond)
-	case bytesPerSecond < MB:
-		speed = fmt.Sprintf("%.2f KB", bytesPerSecond/KB)
-	case bytesPerSecond < GB:
-		speed = fmt.Sprintf("%.2f MB", bytesPerSecond/MB)
-	default:
-		speed = fmt.Sprintf("%.2f GB", bytesPerSecond/GB)
-	}
-
-	return speed
 }

@@ -81,9 +81,7 @@ func Download(c *server.Context) {
 			return
 		}
 		service.Task.Update(taskID, task.StatusRunning, 0, "开始下载")
-		// 下载文件 - 传递任务上下文，确保任务取消时下载也能停止
 		err := service.File.DownloadWithProgress(taskInfo.Context, form.URL, targetFilePath, func(current, total int64, speed float64) bool {
-			// 由于已经在DownloadWithProgress中处理了上下文取消，这里可以简化
 			if canceled.Load() {
 				return false
 			}
@@ -93,7 +91,7 @@ func Download(c *server.Context) {
 			}
 			speedStr := "未知"
 			if speed > 0 {
-				speedStr = service.File.FormatSpeed(speed)
+				speedStr = service.File.FormatSize(int64(speed))
 			}
 			message := fmt.Sprintf("正在下载: %s / %s - %s/s",
 				service.File.FormatSize(current),
