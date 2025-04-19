@@ -8,6 +8,7 @@ import (
 	"server/app/service/log"
 	"server/app/service/recycle"
 	"server/app/service/server"
+	"server/app/service/system"
 	"server/app/service/task"
 )
 
@@ -21,6 +22,7 @@ var (
 	File    = file.GetIns()
 	Recycle = recycle.GetIns()
 	Task    = task.GetIns()
+	System  = system.GetIns()
 )
 
 // Enum 枚举信息
