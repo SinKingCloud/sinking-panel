@@ -1,8 +1,10 @@
 package file
 
 import (
+	"context"
 	"github.com/shirou/gopsutil/v4/disk"
 	"runtime"
+	"server/app/util/file"
 	"strings"
 )
 
@@ -103,4 +105,72 @@ func (s *Service) GetDiskPaths() ([]string, error) {
 		paths = append(paths, p.Path)
 	}
 	return paths, nil
+}
+
+// CopyWithContext 带上下文控制的文件复制
+// ctx: 上下文，用于取消操作
+// src: 源路径
+// destDir: 目标目录
+// callback: 进度回调函数
+func (s *Service) CopyWithContext(ctx context.Context, src, destDir string, callback func(current, total int64, currentFile string, totalFiles, currentIndex int64) bool) error {
+	f := file.NewDisk("")
+
+	// 创建一个包装回调函数，检查上下文是否已取消
+	wrappedCallback := func(current, total int64, currentFile string, totalFiles, currentIndex int64) bool {
+		select {
+		case <-ctx.Done():
+			return false
+		default:
+			if callback != nil {
+				return callback(current, total, currentFile, totalFiles, currentIndex)
+			}
+			return true
+		}
+	}
+
+	// 使用普通的 CopyWithProcess，但通过包装的回调函数检查上下文取消
+	err := f.CopyWithProcess(src, destDir, wrappedCallback)
+
+	// 检查上下文是否已取消
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
+
+	return err
+}
+
+// MoveWithContext 带上下文控制的文件移动
+// ctx: 上下文，用于取消操作
+// src: 源路径
+// destDir: 目标目录
+// callback: 进度回调函数
+func (s *Service) MoveWithContext(ctx context.Context, src, destDir string, callback func(current, total int64, currentFile string, totalFiles, currentIndex int64) bool) error {
+	f := file.NewDisk("")
+
+	// 创建一个包装回调函数，检查上下文是否已取消
+	wrappedCallback := func(current, total int64, currentFile string, totalFiles, currentIndex int64) bool {
+		select {
+		case <-ctx.Done():
+			return false
+		default:
+			if callback != nil {
+				return callback(current, total, currentFile, totalFiles, currentIndex)
+			}
+			return true
+		}
+	}
+
+	// 使用普通的 MoveWithProcess，但通过包装的回调函数检查上下文取消
+	err := f.MoveWithProcess(src, destDir, wrappedCallback)
+
+	// 检查上下文是否已取消
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
+
+	return err
 }

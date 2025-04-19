@@ -51,22 +51,17 @@ func Copy(c *server.Context) {
 			service.Task.Update(taskID, task.StatusFailed, 0, "计算文件大小失败: "+err.Error())
 			return
 		}
-		err = f.CopyWithProcess(form.SourcePath, form.TargetPath, func(current, total int64, currentFile string, totalFiles, currentIndex int64) bool {
-			select {
-			case <-taskInfo.Context.Done():
+		err = service.File.CopyWithContext(taskInfo.Context, form.SourcePath, form.TargetPath, func(current, total int64, currentFile string, totalFiles, currentIndex int64) bool {
+			if canceled.Load() {
 				return false
-			default:
-				if canceled.Load() {
-					return false
-				}
-				progress := float64(0)
-				if total > 0 {
-					progress = float64(current) / float64(total) * 100
-				}
-				message := "正在复制: " + currentFile
-				service.Task.Update(taskID, task.StatusRunning, progress, message)
-				return true
 			}
+			progress := float64(0)
+			if total > 0 {
+				progress = float64(current) / float64(total) * 100
+			}
+			message := "正在复制: " + currentFile
+			service.Task.Update(taskID, task.StatusRunning, progress, message)
+			return true
 		})
 		select {
 		case <-taskInfo.Context.Done():
@@ -84,5 +79,5 @@ func Copy(c *server.Context) {
 			service.Task.Update(taskID, task.StatusCompleted, 100, "复制完成")
 		}
 	}()
-	c.SuccessWithData("创建任务成功", taskID)
+	c.SuccessWithData("创建复制任务成功", taskID)
 }

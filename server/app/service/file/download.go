@@ -1,0 +1,200 @@
+package file
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"time"
+)
+
+// DownloadWithProgress 带进度的文件下载，支持断点续传
+func (s *Service) DownloadWithProgress(ctx context.Context, url string, destPath string, progressCallback func(current, total int64, speed float64) bool) error {
+	tempPath := destPath + ".download"
+	dir := filepath.Dir(destPath)
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return err
+		}
+	}
+	var resumeOffset int64 = 0
+	fileInfo, err := os.Stat(tempPath)
+	if err == nil && fileInfo.Size() > 0 {
+		resumeOffset = fileInfo.Size()
+	}
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return err
+	}
+	req = req.WithContext(ctx)
+	if resumeOffset > 0 {
+		req.Header.Set("Range", fmt.Sprintf("bytes=%d-", resumeOffset))
+	}
+	client := &http.Client{
+		Timeout: 0,
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 400 {
+		return fmt.Errorf("HTTP错误: %s", resp.Status)
+	}
+	var contentLength int64 = -1
+	if resp.StatusCode == http.StatusOK {
+		contentLength = resp.ContentLength
+	} else if resp.StatusCode == http.StatusPartialContent {
+		contentRange := resp.Header.Get("Content-Range")
+		if contentRange != "" {
+			parts := strings.Split(contentRange, "/")
+			if len(parts) == 2 {
+				contentLength, _ = strconv.ParseInt(parts[1], 10, 64)
+			}
+		}
+	} else {
+		return fmt.Errorf("意外的HTTP状态: %s", resp.Status)
+	}
+	var file *os.File
+	if resumeOffset > 0 && resp.StatusCode == http.StatusPartialContent {
+		file, err = os.OpenFile(tempPath, os.O_APPEND|os.O_WRONLY, 0644)
+	} else {
+		file, err = os.Create(tempPath)
+		resumeOffset = 0
+	}
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	buffer := make([]byte, 32*1024) // 32KB缓冲区
+	var lastUpdate = time.Now()
+	var lastBytes = resumeOffset
+	var currentSpeed float64 = 0
+	var updateInterval = time.Second
+	var downloaded = resumeOffset
+	for {
+		if ctx.Err() != nil {
+			return errors.New("下载被取消")
+		}
+
+		readDone := make(chan struct{})
+		var n int
+		var readErr error
+
+		go func() {
+			n, readErr = resp.Body.Read(buffer)
+			close(readDone)
+		}()
+
+		select {
+		case <-readDone:
+			// 读取操作完成
+		case <-ctx.Done():
+			// 如果上下文被取消，我们立即返回错误
+			return errors.New("下载被取消")
+		}
+
+		if n > 0 {
+			_, writeErr := file.Write(buffer[:n])
+			if writeErr != nil {
+				return writeErr
+			}
+
+			// 更新进度
+			downloaded += int64(n)
+
+			// 计算下载速度
+			now := time.Now()
+			elapsed := now.Sub(lastUpdate)
+			if elapsed >= updateInterval {
+				bytesInPeriod := downloaded - lastBytes
+				currentSpeed = float64(bytesInPeriod) / elapsed.Seconds()
+
+				lastUpdate = now
+				lastBytes = downloaded
+
+				// 回调进度，同时检查是否应该继续
+				if progressCallback != nil {
+					if !progressCallback(downloaded, contentLength, currentSpeed) {
+						return errors.New("下载被取消")
+					}
+				}
+
+				// 再次检查上下文是否已取消
+				if ctx.Err() != nil {
+					return errors.New("下载被取消")
+				}
+			}
+		}
+
+		// 处理错误
+		if readErr != nil {
+			if readErr == io.EOF {
+				break // 正常结束
+			}
+			return readErr // 其他错误
+		}
+	}
+
+	if ctx.Err() != nil {
+		return errors.New("下载被取消")
+	}
+	if err := os.Rename(tempPath, destPath); err != nil {
+		return err
+	}
+	return nil
+}
+
+// FormatSize 格式化文件大小
+func (s *Service) FormatSize(bytes int64) string {
+	const (
+		KB = 1024
+		MB = 1024 * KB
+		GB = 1024 * MB
+		TB = 1024 * GB
+	)
+
+	var size string
+	switch {
+	case bytes < KB:
+		size = fmt.Sprintf("%d B", bytes)
+	case bytes < MB:
+		size = fmt.Sprintf("%.2f KB", float64(bytes)/KB)
+	case bytes < GB:
+		size = fmt.Sprintf("%.2f MB", float64(bytes)/MB)
+	case bytes < TB:
+		size = fmt.Sprintf("%.2f GB", float64(bytes)/GB)
+	default:
+		size = fmt.Sprintf("%.2f TB", float64(bytes)/TB)
+	}
+
+	return size
+}
+
+// FormatSpeed 格式化下载速度
+func (s *Service) FormatSpeed(bytesPerSecond float64) string {
+	const (
+		KB = 1024
+		MB = 1024 * KB
+		GB = 1024 * MB
+	)
+
+	var speed string
+	switch {
+	case bytesPerSecond < KB:
+		speed = fmt.Sprintf("%.0f B", bytesPerSecond)
+	case bytesPerSecond < MB:
+		speed = fmt.Sprintf("%.2f KB", bytesPerSecond/KB)
+	case bytesPerSecond < GB:
+		speed = fmt.Sprintf("%.2f MB", bytesPerSecond/MB)
+	default:
+		speed = fmt.Sprintf("%.2f GB", bytesPerSecond/GB)
+	}
+
+	return speed
+}

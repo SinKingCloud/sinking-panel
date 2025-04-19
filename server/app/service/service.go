@@ -38,4 +38,7 @@ var Enum = map[string]interface{}{
 	"task": map[string]interface{}{
 		"status": Task.Status(), //任务状态
 	},
+	"file": map[string]interface{}{
+		"formats": File.Formats(), //支持的压缩格式
+	},
 }

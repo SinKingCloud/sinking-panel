@@ -10,10 +10,10 @@ import (
 	"time"
 )
 
-func Move(c *server.Context) {
+func Extract(c *server.Context) {
 	type Form struct {
-		SourcePath string `json:"source_path" default:"" validate:"required" label:"源文件路径"`
-		TargetPath string `json:"target_path" default:"" validate:"required" label:"目标路径"`
+		Path string `json:"path" default:"" validate:"required" label:"压缩文件路径"`
+		Dir  string `json:"dir" default:"" validate:"required" label:"解压目标目录"`
 	}
 	form := &Form{}
 	if ok, msg := c.ValidatorAll(form); !ok {
@@ -21,15 +21,32 @@ func Move(c *server.Context) {
 		return
 	}
 	f := file.NewDisk("")
-	if !f.Exists(form.SourcePath) {
-		c.Error("源文件或目录不存在")
+	if !f.Exists(form.Path) {
+		c.Error("压缩文件不存在")
 		return
 	}
+	if f.IsDir(form.Path) {
+		c.Error("不能解压目录，请选择压缩文件")
+		return
+	}
+	format := service.File.GetFormatByExt(form.Path)
+	if !service.File.IsSupportedFormat(format) {
+		c.Error("不支持的压缩格式或不是有效的压缩文件")
+		return
+	}
+	if !f.Exists(form.Dir) {
+		err := f.CreateDir(form.Dir)
+		if err != nil {
+			c.Error("创建目标目录失败: " + err.Error())
+			return
+		}
+	}
 	taskID := str.GetSnowWorkIns().GetUuid()
-	taskName := "移动文件: " + form.SourcePath + " -> " + form.TargetPath
+	taskName := "解压文件: " + form.Path
 	taskData := map[string]interface{}{
-		"source_path": form.SourcePath,
-		"target_path": form.TargetPath,
+		"path":     form.Path,
+		"dest_dir": form.Dir,
+		"format":   format,
 	}
 	_ = service.Task.Create(taskID, taskName, taskData)
 	var canceled atomic.Bool
@@ -45,13 +62,8 @@ func Move(c *server.Context) {
 		if taskInfo == nil || taskInfo.Context == nil {
 			return
 		}
-		service.Task.Update(taskID, task.StatusRunning, 0, "开始移动")
-		_, _, _, err := f.Count(form.SourcePath)
-		if err != nil {
-			service.Task.Update(taskID, task.StatusFailed, 0, "计算文件大小失败: "+err.Error())
-			return
-		}
-		err = service.File.MoveWithContext(taskInfo.Context, form.SourcePath, form.TargetPath, func(current, total int64, currentFile string, totalFiles, currentIndex int64) bool {
+		service.Task.Update(taskID, task.StatusRunning, 0, "开始解压")
+		err := service.File.Extract(taskInfo.Context, form.Path, form.Dir, func(current, total int64, currentFile string, totalFiles, currentIndex int64) bool {
 			if canceled.Load() {
 				return false
 			}
@@ -59,7 +71,7 @@ func Move(c *server.Context) {
 			if total > 0 {
 				progress = float64(current) / float64(total) * 100
 			}
-			message := "正在移动: " + currentFile
+			message := "正在解压: " + currentFile
 			service.Task.Update(taskID, task.StatusRunning, progress, message)
 			return true
 		})
@@ -73,11 +85,11 @@ func Move(c *server.Context) {
 				return
 			}
 			if err != nil {
-				service.Task.Update(taskID, task.StatusFailed, 0, "移动失败: "+err.Error())
+				service.Task.Update(taskID, task.StatusFailed, 0, "解压失败: "+err.Error())
 				return
 			}
-			service.Task.Update(taskID, task.StatusCompleted, 100, "移动完成")
+			service.Task.Update(taskID, task.StatusCompleted, 100, "解压完成")
 		}
 	}()
-	c.SuccessWithData("创建移动任务成功", taskID)
+	c.SuccessWithData("创建解压任务成功", taskID)
 }
