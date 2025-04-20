@@ -21,12 +21,21 @@ type Disk struct {
 
 // File 描述文件系统对象的元数据信息
 type File struct {
-	Name       string  `json:"name"`        // 文件/目录名称（不含路径）
-	Size       int64   `json:"size"`        // 文件大小（字节），目录为0
-	Mode       uint32  `json:"mode"`        // 权限模式（八进制表示，例如 0644）
-	IsDir      bool    `json:"is_dir"`      // 是否为目录类型
-	UpdateTime int64   `json:"update_time"` // 最后修改时间（Unix时间戳）
-	Child      []*File `json:"child"`       // 子文件列表（仅当IsDir为true时有效）
+	Name       string `json:"name"`        // 文件/目录名称（不含路径）
+	Size       int64  `json:"size"`        // 文件大小（字节），目录为0
+	Mode       uint32 `json:"mode"`        // 权限模式（八进制表示，例如 0644）
+	IsDir      bool   `json:"is_dir"`      // 是否为目录类型
+	UpdateTime int64  `json:"update_time"` // 最后修改时间（Unix时间戳）
+}
+
+// FilesTree 描述文件系统对象的元数据信息
+type FilesTree struct {
+	Name       string       `json:"name"`        // 文件/目录名称（不含路径）
+	Size       int64        `json:"size"`        // 文件大小（字节），目录为0
+	Mode       uint32       `json:"mode"`        // 权限模式（八进制表示，例如 0644）
+	IsDir      bool         `json:"is_dir"`      // 是否为目录类型
+	UpdateTime int64        `json:"update_time"` // 最后修改时间（Unix时间戳）
+	Child      []*FilesTree `json:"child"`       // 子文件列表（仅当IsDir为true时有效）
 }
 
 const (
@@ -389,7 +398,7 @@ func (d *Disk) FileInfo(name string) (*File, error) {
 // FileList 递归获取目录结构信息
 // dir: 需要查看的目录相对路径
 // 返回值：目录结构的File切片
-func (d *Disk) FileList(dir string) ([]*File, error) {
+func (d *Disk) FileList(dir string) ([]*FilesTree, error) {
 	return d.buildFileTree(d.fullPath(dir), false)
 }
 
@@ -466,7 +475,7 @@ func (d *Disk) FileListWithPage(dir string, page, pageSize int, orderByField, or
 // FileTree 递归获取目录结构信息
 // dir: 需要遍历的目录相对路径
 // 返回值：包含完整目录结构的File切片
-func (d *Disk) FileTree(dir string) ([]*File, error) {
+func (d *Disk) FileTree(dir string) ([]*FilesTree, error) {
 	return d.buildFileTree(d.fullPath(dir), true)
 }
 
@@ -728,13 +737,13 @@ func (d *Disk) prepareDestination(dest string) error {
 	return os.MkdirAll(filepath.Dir(dest), 0755)
 }
 
-func (d *Disk) buildFileTree(root string, recursive bool) ([]*File, error) {
+func (d *Disk) buildFileTree(root string, recursive bool) ([]*FilesTree, error) {
 	entries, err := os.ReadDir(root)
 	if err != nil {
 		return nil, err
 	}
 
-	var files []*File
+	var files []*FilesTree
 	for _, entry := range entries {
 		fullPath := filepath.Join(root, entry.Name())
 		info, err := entry.Info()
@@ -742,7 +751,7 @@ func (d *Disk) buildFileTree(root string, recursive bool) ([]*File, error) {
 			continue
 		}
 
-		file := &File{
+		file := &FilesTree{
 			Name:       entry.Name(),
 			Size:       info.Size(),
 			Mode:       uint32(info.Mode().Perm()),

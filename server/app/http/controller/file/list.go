@@ -9,7 +9,7 @@ import (
 func List(c *server.Context) {
 	pageInfo := page.ValidatePageDefault(c)
 	type Form struct {
-		OrderByField string `json:"order_by_field" default:"sort" validate:"oneof=name size update_time" label:"排序字段"`
+		OrderByField string `json:"order_by_field" default:"name" validate:"oneof=name size update_time" label:"排序字段"`
 		OrderByType  string `json:"order_by_type" default:"asc" validate:"oneof=desc asc" label:"排序类型"`
 		Path         string `json:"path" default:"/" validate:"required" label:"目录"`
 	}
