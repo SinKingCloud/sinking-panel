@@ -155,13 +155,13 @@ func (s *Service) updateSystemMonitor() {
 
 	// 构建并更新系统信息缓存
 	systemInfoData := map[string]interface{}{
-		"system":  systemBase,  // 系统基本信息
-		"cpu":     cpuInfo,     // CPU信息
-		"memory":  memoryInfo,  // 内存信息
-		"disks":   disksInfo,   // 磁盘信息
-		"load":    loadInfo,    // 系统负载信息
-		"runtime": runtimeInfo, // 运行时信息
-		"network": networkInfo, // 网卡信息
+		"system":  systemBase,       // 系统基本信息
+		"cpu":     cpuInfo,          // CPU信息
+		"memory":  memoryInfo,       // 内存信息
+		"disks":   disksInfo,        // 磁盘信息
+		"load":    loadInfo,         // 系统负载信息
+		"runtime": runtimeInfo,      // 运行时信息
+		"network": networkInfoCache, // 网卡信息
 	}
 
 	systemInfoCacheLock.Lock()
