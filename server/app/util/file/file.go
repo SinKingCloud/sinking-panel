@@ -413,7 +413,7 @@ func (d *Disk) FileListWithPage(dir string, page, pageSize int, orderByField, or
 	fullPath := d.fullPath(dir)
 	entries, err := os.ReadDir(fullPath)
 	if err != nil {
-		return nil, 0, err
+		return []*File{}, 0, nil
 	}
 	total := int64(len(entries))
 	var files []*File

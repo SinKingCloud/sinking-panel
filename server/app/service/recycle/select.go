@@ -24,6 +24,7 @@ func (s *Service) Select(page int, pageSize int, orderByField string, orderByTyp
 	if err != nil {
 		return nil, 0, err
 	}
+	list = []*File{}
 	for _, v := range l {
 		old, deleteTime, _ := s.decodeName(v.Name)
 		list = append(list, &File{
