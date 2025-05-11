@@ -8,6 +8,7 @@ import (
 	"github.com/shirou/gopsutil/v4/mem"
 	"github.com/shirou/gopsutil/v4/net"
 	"runtime"
+	"server/app/constant"
 	"server/app/service/file"
 	"sync"
 	"time"
@@ -90,7 +91,7 @@ func init() {
 	// 启动后台goroutine定期更新系统数据
 	go func() {
 		// 统一使用3秒的更新频率
-		ticker := time.NewTicker(1 * time.Second)
+		ticker := time.NewTicker(3 * time.Second)
 		defer ticker.Stop()
 
 		// 监控更新循环
@@ -355,6 +356,7 @@ func (s *Service) getSystemBaseInfo() map[string]interface{} {
 		"kernel_arch":      runtime.GOARCH, // 内核架构(如x86_64、arm64等)
 		"uptime":           uint64(0),      // 系统运行时间(单位:秒)
 		"boot_time":        uint64(0),      // 系统启动时间(时间戳)
+		"version":          "Unknown",      // 系统版本
 	}
 
 	// 获取系统信息（错误处理）
@@ -368,6 +370,7 @@ func (s *Service) getSystemBaseInfo() map[string]interface{} {
 			"kernel_arch":      hostInfo.KernelArch,      // 内核架构(如x86_64、arm64等)
 			"uptime":           hostInfo.Uptime,          // 系统运行时间(单位:秒)
 			"boot_time":        hostInfo.BootTime,        // 系统启动时间(时间戳)
+			"version":          constant.Version,         // 系统版本
 		}
 	}
 
