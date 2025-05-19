@@ -103,10 +103,7 @@ func (s *Service) CompressFiles(ctx context.Context, srcPaths []string, destPath
 	defer func() {
 		// 如果发生错误，清理可能部分创建的目标文件
 		if err != nil {
-			if removeErr := os.Remove(destPath); removeErr != nil && !os.IsNotExist(removeErr) {
-				// 日志记录清理错误，但不覆盖原始错误
-				fmt.Printf("清理失败的压缩文件时出错: %v\n", removeErr)
-			}
+			_ = os.Remove(destPath)
 		}
 	}()
 
@@ -185,7 +182,7 @@ func (s *Service) Extract(ctx context.Context, srcPath, destPath string, callbac
 	if err != nil && !errors.Is(err, ctx.Err()) {
 		// 解压失败但非上下文取消错误，尝试清理部分创建的文件
 		// 注意：我们不删除整个目录，因为目标目录可能包含其他文件
-		fmt.Printf("解压失败，错误: %v\n", err)
+		_ = os.Remove(destPath)
 	}
 
 	return err
@@ -854,9 +851,7 @@ func (s *Service) compressGzip(ctx context.Context, srcPath string, destPath str
 		return err
 	}
 	defer func() {
-		if closeErr := srcFile.Close(); closeErr != nil {
-			fmt.Printf("关闭源文件时出错: %v\n", closeErr)
-		}
+		_ = srcFile.Close()
 	}()
 
 	// 创建目标文件
@@ -868,24 +863,18 @@ func (s *Service) compressGzip(ctx context.Context, srcPath string, destPath str
 	// 使用defer处理清理逻辑
 	success := false
 	defer func() {
-		if closeErr := destFile.Close(); closeErr != nil {
-			fmt.Printf("关闭目标文件时出错: %v\n", closeErr)
-		}
+		_ = destFile.Close()
 
 		// 如果操作未成功完成，删除部分创建的文件
 		if !success {
-			if removeErr := os.Remove(destPath); removeErr != nil && !os.IsNotExist(removeErr) {
-				fmt.Printf("清理失败的压缩文件时出错: %v\n", removeErr)
-			}
+			_ = os.Remove(destPath)
 		}
 	}()
 
 	// 创建gzip写入器
 	gzipWriter := gzip.NewWriter(destFile)
 	defer func() {
-		if closeErr := gzipWriter.Close(); closeErr != nil {
-			fmt.Printf("关闭gzip写入器时出错: %v\n", closeErr)
-		}
+		_ = gzipWriter.Close()
 	}()
 
 	// 设置文件名
@@ -938,9 +927,7 @@ func (s *Service) extractGzip(ctx context.Context, srcPath string, destPath stri
 		return err
 	}
 	defer func() {
-		if closeErr := srcFile.Close(); closeErr != nil {
-			fmt.Printf("关闭源文件时出错: %v\n", closeErr)
-		}
+		_ = srcFile.Close()
 	}()
 
 	// 创建gzip读取器
@@ -949,9 +936,7 @@ func (s *Service) extractGzip(ctx context.Context, srcPath string, destPath stri
 		return err
 	}
 	defer func() {
-		if closeErr := gzipReader.Close(); closeErr != nil {
-			fmt.Printf("关闭gzip读取器时出错: %v\n", closeErr)
-		}
+		_ = gzipReader.Close()
 	}()
 
 	// 确定目标文件名
@@ -986,15 +971,11 @@ func (s *Service) extractGzip(ctx context.Context, srcPath string, destPath stri
 	// 使用defer处理清理逻辑
 	success := false
 	defer func() {
-		if closeErr := destFile.Close(); closeErr != nil {
-			fmt.Printf("关闭目标文件时出错: %v\n", closeErr)
-		}
+		_ = destFile.Close()
 
 		// 如果操作未成功完成，删除部分创建的文件
 		if !success {
-			if removeErr := os.Remove(destFilePath); removeErr != nil && !os.IsNotExist(removeErr) {
-				fmt.Printf("清理失败的解压文件时出错: %v\n", removeErr)
-			}
+			_ = os.Remove(destFilePath)
 		}
 	}()
 

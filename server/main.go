@@ -2,7 +2,7 @@ package main
 
 import (
 	"flag"
-	"fmt"
+	"log"
 	"os"
 	"runtime"
 	"server/app"
@@ -39,50 +39,50 @@ func checkDebugMode() bool {
 func main() {
 	if runtime.GOOS == "windows" || checkDebugMode() {
 		if runtime.GOOS == "windows" {
-			fmt.Println("Windows系统启动...")
+			log.Println("Windows系统启动...")
 		} else {
-			fmt.Println("调试模式启动...")
+			log.Println("调试模式启动...")
 		}
 		serverMain()
 		return
 	}
 	if len(os.Args) < 2 {
-		fmt.Println(commandUsage)
+		log.Println(commandUsage)
 		return
 	}
 	d, err := daemon.NewUnixDaemon(pidFileName, logFileName, serverMain)
 	if err != nil {
-		fmt.Printf("创建守护进程管理器失败: %v\n", err)
+		log.Printf("创建守护进程管理器失败: %v\n", err)
 		os.Exit(1)
 	}
 	flag.Parse()
 	command := os.Args[1]
 	switch command {
 	case "start":
-		fmt.Println("正在启动服务...")
+		log.Println("正在启动服务...")
 		if err := d.Start(); err != nil {
-			fmt.Printf("启动失败: %v\n", err)
+			log.Printf("启动失败: %v\n", err)
 			os.Exit(1)
 		}
-		fmt.Println("服务已启动")
+		log.Println("服务已启动")
 	case "stop":
-		fmt.Println("正在停止服务...")
+		log.Println("正在停止服务...")
 		if err := d.Stop(); err != nil {
-			fmt.Printf("停止失败: %v\n", err)
+			log.Printf("停止失败: %v\n", err)
 			os.Exit(1)
 		}
-		fmt.Println("服务已停止")
+		log.Println("服务已停止")
 	case "restart":
-		fmt.Println("正在重启服务...")
+		log.Println("正在重启服务...")
 		if err := d.Reload(); err != nil {
-			fmt.Printf("重启失败: %v\n", err)
+			log.Printf("重启失败: %v\n", err)
 			os.Exit(1)
 		}
-		fmt.Println("服务已重启")
+		log.Println("服务已重启")
 	case "run":
-		fmt.Println("以前台模式运行服务...")
+		log.Println("以前台模式运行服务...")
 		serverMain()
 	default:
-		fmt.Println(commandUsage)
+		log.Println(commandUsage)
 	}
 }
