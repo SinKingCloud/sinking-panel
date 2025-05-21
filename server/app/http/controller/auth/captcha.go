@@ -1,7 +1,6 @@
 package auth
 
 import (
-	"image/png"
 	"server/app/service"
 	"server/app/util/server"
 )
@@ -15,9 +14,10 @@ func Captcha(c *server.Context) {
 		c.Error(msg)
 		return
 	}
-	img, _ := service.Auth.GetCaptcha(form.Token)
-	err := png.Encode(c.Writer, img)
+	captcha, err := service.Auth.GetCaptcha(form.Token)
 	if err != nil {
-		c.ErrorWithData("生成验证码失败", err)
+		c.Error(err.Error())
+		return
 	}
+	c.SuccessWithData("获取验证码成功", captcha)
 }
