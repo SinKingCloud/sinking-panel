@@ -14,14 +14,15 @@ func Login(c *server.Context) {
 		Password string `json:"password" default:"" validate:"-" label:"密码"`
 		Device   string `json:"device" default:"web" validate:"required,oneof=web pc mobile android" label:"登陆设备"`
 		Token    string `json:"token" default:"" validate:"required" label:"验证码标识"`
-		Captcha  string `json:"captcha" default:"" validate:"required" label:"验证码"`
+		CaptchaX int    `json:"captcha_x" default:"" validate:"required,numeric" label:"验证码X坐标"`
+		CaptchaY int    `json:"captcha_y" default:"" validate:"required,numeric" label:"验证码Y坐标"`
 	}
 	form := &Form{}
 	if ok, msg := c.ValidatorAll(form); !ok {
 		c.Error(msg)
 		return
 	}
-	if !service.Auth.CheckCaptcha(form.Token, form.Captcha) {
+	if !service.Auth.CheckCaptcha(form.Token, form.CaptchaX, form.CaptchaY) {
 		c.Error("验证码验证失败请重试")
 		return
 	}
