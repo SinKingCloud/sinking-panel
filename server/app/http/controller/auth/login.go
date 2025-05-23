@@ -10,8 +10,8 @@ import (
 // Login 账号登录
 func Login(c *server.Context) {
 	type Form struct {
-		Account  string `json:"account" default:"" validate:"-" label:"账户"`
-		Password string `json:"password" default:"" validate:"-" label:"密码"`
+		Account  string `json:"account" default:"" validate:"required" label:"账户"`
+		Password string `json:"password" default:"" validate:"required" label:"密码"`
 		Device   string `json:"device" default:"web" validate:"required,oneof=web pc mobile android" label:"登陆设备"`
 		Token    string `json:"token" default:"" validate:"required" label:"验证码标识"`
 		CaptchaX int    `json:"captcha_x" default:"" validate:"required,numeric" label:"验证码X坐标"`
