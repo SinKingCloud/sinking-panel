@@ -5,7 +5,6 @@ import (
 	"server/app/service"
 	"server/app/util/jwt"
 	"server/app/util/server"
-	"time"
 )
 
 // CheckLogin 判断登录
@@ -18,7 +17,7 @@ func CheckLogin(c *server.Context) {
 		return
 	}
 	key := jwt.CheckToken(token)
-	if key == nil || (key.ExpiresAt > 0 && time.Now().Unix() > key.ExpiresAt) || key.User == nil {
+	if key == nil || key.User == nil {
 		c.TokenError("登陆超时,请重新登陆", nil)
 		c.Abort()
 		return

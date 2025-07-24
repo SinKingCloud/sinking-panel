@@ -1,17 +1,16 @@
 package jwt
 
 import (
-	"github.com/golang-jwt/jwt"
+	"github.com/golang-jwt/jwt/v5"
 	"server/app/constant"
 	"server/app/util/str"
 	"time"
-	"unicode/utf8"
 )
 
 // MyClaims jwt载体
 type MyClaims struct {
 	User *User
-	jwt.StandardClaims
+	jwt.RegisteredClaims
 }
 
 // User 会员用户表
@@ -23,17 +22,7 @@ type User struct {
 
 // getKey 获取加密key
 func getKey() []byte {
-	key := constant.JwtKey
-	length := utf8.RuneCountInString(key)
-	if length != 16 {
-		if length > 8 {
-			key = constant.JwtKey[:8]
-		}
-		if length < 8 {
-			key = str.NewStringTool(constant.JwtKey).Md5()[:8]
-		}
-	}
-	return []byte(key)
+	return []byte(constant.JwtKey)
 }
 
 // GetToken 生成token user 用户信息
@@ -45,8 +34,8 @@ func GetToken(user *User, expireTime int) string {
 		User: user,
 	}
 	if expireTime >= 0 {
-		setClaim.StandardClaims = jwt.StandardClaims{
-			ExpiresAt: time.Now().Add(time.Duration(expireTime) * time.Second).Unix(), //过期时间（时间戳）
+		setClaim.RegisteredClaims = jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Duration(expireTime) * time.Second)), //过期时间（时间戳）
 		}
 	}
 	reqClaim := jwt.NewWithClaims(jwt.SigningMethodHS256, setClaim) //生成token
