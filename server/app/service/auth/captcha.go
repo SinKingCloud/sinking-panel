@@ -3,7 +3,6 @@ package auth
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"github.com/wenlng/go-captcha/v2/slide"
 	"server/app/constant"
 	"server/app/util"
@@ -41,7 +40,6 @@ func (c *Service) CheckCaptcha(key string, x int, y int) bool {
 	util.Cache.Delete(constant.CacheNameWithCaptcha + key)
 	var dct *slide.Block
 	if err := json.Unmarshal([]byte(value.(string)), &dct); err != nil {
-		fmt.Println("err")
 		return false
 	}
 	return captcha.CheckSlide(x, y, dct)
