@@ -28,8 +28,8 @@ func (c *Service) GetCaptcha(key string) (map[string]interface{}, error) {
 		"tile_base64":  tileImage,
 		"tile_width":   result.Width,
 		"tile_height":  result.Height,
-		"tile_x":       result.TileX,
-		"tile_y":       result.TileY,
+		"tile_x":       result.DX,
+		"tile_y":       result.DY,
 	}
 	return ret, nil
 }
