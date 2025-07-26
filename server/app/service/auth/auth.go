@@ -47,7 +47,6 @@ func (*Service) GenLoginToken(types string, ip string) (s string, e error) {
 		e = config.GetIns().Set(constant.LoginGroup, constant.LoginToken+"."+types, token)
 	} else {
 		e = errors.New("生成token失败")
-		return
 	}
 	if e != nil {
 		return "", e
