@@ -1,10 +1,9 @@
 package cache
 
 import (
+	goCache "github.com/patrickmn/go-cache"
 	"sync"
 	"time"
-
-	goCache "github.com/patrickmn/go-cache"
 )
 
 func NewCache(defaultExpiration, cleanupInterval time.Duration) *Cache {
