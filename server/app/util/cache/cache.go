@@ -23,6 +23,7 @@ func NewCache(defaultExpiration, cleanupInterval time.Duration) *Cache {
 type lockInfo struct {
 	mutex      sync.Mutex
 	expiration time.Time
+	locked     bool // 标记锁是否被持有
 }
 
 type Cache struct {
@@ -66,20 +67,20 @@ func (c *Cache) Lock(key string, expiration time.Duration) bool {
 	defer c.mu.Unlock()
 	now := time.Now()
 	info, exists := c.locks[key]
-	if exists && info.expiration.After(now) {
+	if exists && info.expiration.After(now) && info.locked {
 		return false
 	}
 	if !exists {
 		info = &lockInfo{}
 		c.locks[key] = info
 	}
-
 	info.expiration = now.Add(expiration)
 	locked := info.mutex.TryLock()
 	if !locked {
 		delete(c.locks, key)
 		return false
 	}
+	info.locked = true
 	return true
 }
 
@@ -91,9 +92,21 @@ func (c *Cache) UnLock(key string) {
 		return
 	}
 	info.mutex.Unlock()
+	info.locked = false
 	if info.expiration.Before(time.Now()) {
 		delete(c.locks, key)
 	}
+}
+
+// IsLock 检查指定键的锁是否处于上锁状态
+func (c *Cache) IsLock(key string) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	info, exists := c.locks[key]
+	if !exists {
+		return false
+	}
+	return info.locked && info.expiration.After(time.Now())
 }
 
 func (c *Cache) cleanupRoutine(interval time.Duration) {
@@ -115,7 +128,10 @@ func (c *Cache) CleanExpiredLock() {
 	now := time.Now()
 	for key, info := range c.locks {
 		if info.expiration.Before(now) {
-			info.mutex.Unlock()
+			if info.locked {
+				info.mutex.Unlock()
+				info.locked = false
+			}
 			delete(c.locks, key)
 		}
 	}
@@ -124,12 +140,13 @@ func (c *Cache) CleanExpiredLock() {
 // Close 停止清理goroutine并释放资源
 func (c *Cache) Close() {
 	close(c.stopChan)
-
-	// 清理所有锁
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	for key, info := range c.locks {
-		info.mutex.Unlock()
+		if info.locked {
+			info.mutex.Unlock()
+			info.locked = false
+		}
 		delete(c.locks, key)
 	}
 }
