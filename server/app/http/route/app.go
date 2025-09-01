@@ -10,15 +10,12 @@ import (
 	"server/app/http/controller/system"
 	"server/app/http/controller/task"
 	"server/app/http/middleware"
-	"server/app/util"
 	"server/app/util/server"
 	"server/public"
 )
 
 func loadApp(s *sinking_web.Engine) {
-	if util.IsDebug() {
-		s.Use(server.HandleFunc(middleware.Cors))
-	}
+	loadMiddleware(s)
 	loadAuthRoute(s)
 	loadFileRoute(s)
 	loadRecycleRoute(s)
@@ -29,6 +26,12 @@ func loadApp(s *sinking_web.Engine) {
 	loadStaticRoute(s)
 }
 
+// loadMiddleware 中间件
+func loadMiddleware(s *sinking_web.Engine) {
+	s.Use(server.HandleFunc(middleware.Cors))
+}
+
+// loadStaticRoute 静态资源
 func loadStaticRoute(s *sinking_web.Engine) {
 	s.ANY("/", server.HandleFunc(func(c *server.Context) {
 		c.SetHeader("content-type", "text/html;charset=utf-8;")
@@ -40,12 +43,14 @@ func loadStaticRoute(s *sinking_web.Engine) {
 	}))
 }
 
+// loadAuthRoute 授权路由
 func loadAuthRoute(s *sinking_web.Engine) {
 	s.ANY("/login", server.HandleFunc(auth.Login))     //账号登录
 	s.ANY("/logout", server.HandleFunc(auth.Logout))   //注销登录
 	s.ANY("/captcha", server.HandleFunc(auth.Captcha)) //验证码
 }
 
+// loadConfigRoute 配置路由
 func loadConfigRoute(s *sinking_web.Engine) {
 	g := s.Group("/config")
 	g.Use(server.HandleFunc(middleware.CheckLogin))
@@ -53,6 +58,7 @@ func loadConfigRoute(s *sinking_web.Engine) {
 	g.ANY("/set", server.HandleFunc(config.Set)) //修改配置
 }
 
+// loadServerRoute 服务器路由
 func loadServerRoute(s *sinking_web.Engine) {
 	g := s.Group("/server")
 	g.Use(server.HandleFunc(middleware.CheckLogin))
@@ -64,6 +70,7 @@ func loadServerRoute(s *sinking_web.Engine) {
 	g.ANY("/delete", server.HandleFunc(server2.Delete)) //删除服务器
 }
 
+// loadTaskRoute 任务路由
 func loadTaskRoute(s *sinking_web.Engine) {
 	g := s.Group("/task")
 	g.Use(server.HandleFunc(middleware.CheckLogin))
@@ -78,6 +85,7 @@ func loadTaskRoute(s *sinking_web.Engine) {
 	g.ANY("/log", server.HandleFunc(task.Log))         //任务日志
 }
 
+// loadRecycleRoute 回收站路由
 func loadRecycleRoute(s *sinking_web.Engine) {
 	g := s.Group("/recycle")
 	g.Use(server.HandleFunc(middleware.CheckLogin))
@@ -89,6 +97,7 @@ func loadRecycleRoute(s *sinking_web.Engine) {
 	g.ANY("/restore", server.HandleFunc(recycle.Restore)) //恢复文件
 }
 
+// loadFileRoute 文件路由
 func loadFileRoute(s *sinking_web.Engine) {
 	g := s.Group("/file")
 	g.Use(server.HandleFunc(middleware.CheckLogin))
@@ -108,6 +117,7 @@ func loadFileRoute(s *sinking_web.Engine) {
 	g.ANY("/download", server.HandleFunc(file.Download)) //下载文件
 }
 
+// loadSystemRoute 系统路由
 func loadSystemRoute(s *sinking_web.Engine) {
 	g := s.Group("/system")
 	g.Use(server.HandleFunc(middleware.CheckLogin))
