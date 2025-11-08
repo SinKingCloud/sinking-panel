@@ -3,14 +3,14 @@ package file
 import (
 	"server/app/service"
 	"server/app/service/system"
+	"server/app/util/context"
 	"server/app/util/file"
-	"server/app/util/server"
 	"server/app/util/str"
 	"sync/atomic"
 	"time"
 )
 
-func Copy(c *server.Context) {
+func Copy(c *context.Context) {
 	type Form struct {
 		SourcePath string `json:"source_path" default:"" validate:"required" label:"源文件路径"`
 		TargetPath string `json:"target_path" default:"" validate:"required" label:"目标路径"`

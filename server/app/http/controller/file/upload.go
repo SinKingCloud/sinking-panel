@@ -7,8 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"server/app/constant"
+	"server/app/util/context"
 	"server/app/util/file"
-	"server/app/util/server"
 	"strconv"
 	"strings"
 	"time"
@@ -26,7 +26,7 @@ type ChunkInfo struct {
 }
 
 // Upload 文件上传处理
-func Upload(c *server.Context) {
+func Upload(c *context.Context) {
 	// 获取请求参数
 	action := c.DefaultQuery("action", "upload")
 	time.Sleep(time.Second)
@@ -47,7 +47,7 @@ func Upload(c *server.Context) {
 }
 
 // handleFileUpload 处理文件上传
-func handleFileUpload(c *server.Context) {
+func handleFileUpload(c *context.Context) {
 	uploadPath := c.DefaultForm("path", "/")
 	uploadID := c.DefaultForm("upload_id", "")
 	chunkIndex := c.DefaultForm("chunk_index", "-1")
@@ -124,7 +124,7 @@ func handleFileUpload(c *server.Context) {
 }
 
 // handleCheckChunks 检查分片上传状态
-func handleCheckChunks(c *server.Context) {
+func handleCheckChunks(c *context.Context) {
 	uploadID := c.DefaultQuery("upload_id", "")
 	if uploadID == "" {
 		c.Error("缺少upload_id参数")
@@ -159,7 +159,7 @@ func handleCheckChunks(c *server.Context) {
 }
 
 // handleMergeChunks 合并文件分片
-func handleMergeChunks(c *server.Context) {
+func handleMergeChunks(c *context.Context) {
 	uploadID := c.DefaultForm("upload_id", "")
 	if uploadID == "" {
 		c.Error("缺少upload_id参数")

@@ -3,11 +3,11 @@ package config
 import (
 	"github.com/SinKingCloud/sinking-go/sinking-web"
 	"server/app/service"
-	"server/app/util/server"
+	"server/app/util/context"
 )
 
 // Get 获取配置
-func Get(c *server.Context) {
+func Get(c *context.Context) {
 	type Form struct {
 		Group string `form:"group" json:"group" default:"" validate:"required,max=100" label:"组ID"`
 		Key   string `form:"key" json:"key" default:"" validate:"omitempty,max=100" label:"配置标识"`

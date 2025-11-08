@@ -2,11 +2,11 @@ package recycle
 
 import (
 	"server/app/service"
-	"server/app/util/server"
+	"server/app/util/context"
 )
 
 // Clear 清空回收站
-func Clear(c *server.Context) {
+func Clear(c *context.Context) {
 	err := service.Recycle.Clear()
 	if err != nil {
 		c.Error("清空回收站失败")

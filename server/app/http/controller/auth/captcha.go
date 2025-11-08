@@ -2,10 +2,10 @@ package auth
 
 import (
 	"server/app/service"
-	"server/app/util/server"
+	"server/app/util/context"
 )
 
-func Captcha(c *server.Context) {
+func Captcha(c *context.Context) {
 	type Form struct {
 		Token string `json:"token" default:"" validate:"required,len=16" label:"验证码标识"`
 	}

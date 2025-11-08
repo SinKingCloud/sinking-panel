@@ -9,14 +9,14 @@ import (
 	"server/app/model"
 	"server/app/service"
 	server2 "server/app/service/server"
-	"server/app/util/server"
+	"server/app/util/context"
 	"server/app/util/webssh"
 	"strconv"
 	"strings"
 	"time"
 )
 
-func Ssh(c *server.Context) {
+func Ssh(c *context.Context) {
 	type Form struct {
 		Id     int `json:"id" default:"" validate:"omitempty,numeric,min=1" label:"记录ID"`
 		Width  int `json:"width" default:"200" validate:"omitempty,numeric,min=1" label:"宽度"`

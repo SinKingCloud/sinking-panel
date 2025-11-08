@@ -2,11 +2,11 @@ package recycle
 
 import (
 	"server/app/service"
-	"server/app/util/server"
+	"server/app/util/context"
 )
 
 // Restore 恢复文件或目录
-func Restore(c *server.Context) {
+func Restore(c *context.Context) {
 	type Form struct {
 		Name string `json:"name" default:"" validate:"required" label:"名称"`
 		Path string `json:"path" default:"" validate:"omitempty" label:"新目录"`

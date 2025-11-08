@@ -3,12 +3,12 @@ package middleware
 import (
 	"server/app/constant"
 	"server/app/service"
+	"server/app/util/context"
 	"server/app/util/jwt"
-	"server/app/util/server"
 )
 
 // CheckLogin 判断登录
-func CheckLogin(c *server.Context) {
+func CheckLogin(c *context.Context) {
 	token := c.Request.Header.Get(constant.JwtTokenName)
 	types := c.Request.Header.Get(constant.JwtDeviceName)
 	if token == "" || types == "" {

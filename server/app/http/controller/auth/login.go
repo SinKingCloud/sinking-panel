@@ -4,11 +4,11 @@ import (
 	"server/app/constant"
 	"server/app/http/middleware"
 	"server/app/service"
-	"server/app/util/server"
+	"server/app/util/context"
 )
 
 // Login 账号登录
-func Login(c *server.Context) {
+func Login(c *context.Context) {
 	type Form struct {
 		Account  string `json:"account" default:"" validate:"required" label:"账户"`
 		Password string `json:"password" default:"" validate:"required" label:"密码"`
@@ -39,7 +39,7 @@ func Login(c *server.Context) {
 }
 
 // Logout 退出登录
-func Logout(c *server.Context) {
+func Logout(c *context.Context) {
 	middleware.CheckLogin(c)
 	if c.IsAborted() {
 		return

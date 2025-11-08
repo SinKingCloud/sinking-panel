@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"server/app/service"
 	"server/app/service/system"
+	"server/app/util/context"
 	"server/app/util/file"
-	"server/app/util/server"
 	"server/app/util/str"
 	"strconv"
 	"strings"
@@ -15,7 +15,7 @@ import (
 )
 
 // Download 下载远程文件到本地
-func Download(c *server.Context) {
+func Download(c *context.Context) {
 	type Form struct {
 		URL  string `json:"url" default:"" validate:"required,url" label:"远程文件URL"`
 		Path string `json:"path" default:"" validate:"required" label:"目标路径"`

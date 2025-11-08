@@ -3,11 +3,11 @@ package task
 import (
 	"server/app/model"
 	"server/app/service"
-	"server/app/util/server"
+	"server/app/util/context"
 )
 
 // Create 添加信息
-func Create(c *server.Context) {
+func Create(c *context.Context) {
 	type Form struct {
 		Name   string `json:"name" default:"" validate:"required" label:"任务名称"`
 		Type   int    `json:"type" default:"0" validate:"required,oneof=0" label:"任务类型"`

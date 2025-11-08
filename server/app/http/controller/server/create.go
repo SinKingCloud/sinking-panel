@@ -3,11 +3,11 @@ package server
 import (
 	"server/app/model"
 	"server/app/service"
-	"server/app/util/server"
+	"server/app/util/context"
 )
 
 // Create 添加信息
-func Create(c *server.Context) {
+func Create(c *context.Context) {
 	type Form struct {
 		Ip       string `json:"ip" default:"" validate:"required,ip" label:"IP地址"`
 		Port     int    `json:"title" default:"" validate:"required,min=1,max=65535" label:"端口"`

@@ -2,11 +2,11 @@ package system
 
 import (
 	"server/app/service"
-	"server/app/util/server"
+	"server/app/util/context"
 )
 
 // Info 获取系统信息
-func Info(c *server.Context) {
+func Info(c *context.Context) {
 	// 从服务层获取系统信息
 	data := service.System.GetInfo()
 	// 返回成功响应

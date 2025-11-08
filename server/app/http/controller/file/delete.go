@@ -2,12 +2,12 @@ package file
 
 import (
 	"server/app/service"
+	"server/app/util/context"
 	"server/app/util/file"
-	"server/app/util/server"
 )
 
 // Delete 删除文件
-func Delete(c *server.Context) {
+func Delete(c *context.Context) {
 	type Form struct {
 		Path    string `json:"path" default:"" validate:"required" label:"文件路径"`
 		Recycle bool   `json:"recycle" default:"true" validate:"omitempty" label:"软删除"`

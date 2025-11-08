@@ -3,14 +3,14 @@ package file
 import (
 	"server/app/service"
 	"server/app/service/system"
+	"server/app/util/context"
 	"server/app/util/file"
-	"server/app/util/server"
 	"server/app/util/str"
 	"sync/atomic"
 	"time"
 )
 
-func Extract(c *server.Context) {
+func Extract(c *context.Context) {
 	type Form struct {
 		Path string `json:"path" default:"" validate:"required" label:"压缩文件路径"`
 		Dir  string `json:"dir" default:"" validate:"required" label:"解压目标目录"`

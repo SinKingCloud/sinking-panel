@@ -2,11 +2,11 @@ package task
 
 import (
 	"server/app/service"
-	"server/app/util/server"
+	"server/app/util/context"
 )
 
 // Update 修改信息
-func Update(c *server.Context) {
+func Update(c *context.Context) {
 	type Form struct {
 		Ids    []int  `json:"ids" default:"" validate:"required,min=1,max=1000,unique" label:"ID列表"`
 		Name   string `json:"name" default:"" validate:"omitempty" label:"任务名称"`

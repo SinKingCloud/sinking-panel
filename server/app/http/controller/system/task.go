@@ -2,12 +2,12 @@ package system
 
 import (
 	"server/app/service"
-	"server/app/util/server"
+	"server/app/util/context"
 	"strconv"
 )
 
 // Task 获取任务列表 获取任务详情 取消任务
-func Task(c *server.Context) {
+func Task(c *context.Context) {
 	type Form struct {
 		ID     string `json:"id" default:"" validate:"omitempty" label:"任务ID"`
 		Status string `json:"status" default:"" validate:"omitempty" label:"任务状态"`

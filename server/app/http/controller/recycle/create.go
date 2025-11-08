@@ -2,11 +2,11 @@ package recycle
 
 import (
 	"server/app/service"
-	"server/app/util/server"
+	"server/app/util/context"
 )
 
 // Create 创建文件或目录
-func Create(c *server.Context) {
+func Create(c *context.Context) {
 	type Form struct {
 		Name string `json:"name" default:"" validate:"required" label:"名称"`
 	}

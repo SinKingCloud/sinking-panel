@@ -3,13 +3,13 @@ package file
 import (
 	"os"
 	"path/filepath"
+	"server/app/util/context"
 	"server/app/util/file"
-	"server/app/util/server"
 	"strconv"
 )
 
 // Update 更新文件
-func Update(c *server.Context) {
+func Update(c *context.Context) {
 	type Form struct {
 		Path        string `json:"path" default:"" validate:"required" label:"文件路径"`
 		Name        string `json:"name" default:"" label:"新文件名"`

@@ -2,11 +2,11 @@ package task
 
 import (
 	"server/app/service"
-	"server/app/util/server"
+	"server/app/util/context"
 )
 
 // Run 执行任务
-func Run(c *server.Context) {
+func Run(c *context.Context) {
 	type Form struct {
 		Ids []int `json:"ids" default:"" validate:"required,min=1,max=1000,unique" label:"ID列表"`
 	}

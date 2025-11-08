@@ -2,11 +2,11 @@ package recycle
 
 import (
 	"server/app/service"
-	"server/app/util/server"
+	"server/app/util/context"
 )
 
 // Delete 删除文件
-func Delete(c *server.Context) {
+func Delete(c *context.Context) {
 	type Form struct {
 		Name string `json:"name" default:"" validate:"required" label:"文件名称"`
 	}

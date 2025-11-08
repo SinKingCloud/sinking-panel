@@ -2,10 +2,10 @@ package system
 
 import (
 	"server/app/service"
-	"server/app/util/server"
+	"server/app/util/context"
 )
 
-func Enum(c *server.Context) {
+func Enum(c *context.Context) {
 	type Form struct {
 		Name string `json:"name" default:"" validate:"required,name" label:"枚举名称"`
 	}

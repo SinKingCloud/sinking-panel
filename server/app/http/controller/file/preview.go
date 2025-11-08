@@ -6,12 +6,12 @@ import (
 	"net/url"
 	"os"
 	"server/app/service"
+	"server/app/util/context"
 	"server/app/util/file"
-	"server/app/util/server"
 	"strconv"
 )
 
-func Preview(c *server.Context) {
+func Preview(c *context.Context) {
 	type Form struct {
 		Path     string `json:"path" default:"" validate:"required" label:"文件路径"`
 		Download bool   `json:"download" default:"false" validate:"omitempty" label:"是否下载"`

@@ -1,12 +1,12 @@
 package file
 
 import (
+	"server/app/util/context"
 	"server/app/util/file"
-	"server/app/util/server"
 	"time"
 )
 
-func Info(c *server.Context) {
+func Info(c *context.Context) {
 	type Form struct {
 		Path     string `json:"path" default:"" validate:"required" label:"文件路径"`
 		Read     bool   `json:"read" default:"" validate:"omitempty" label:"是否读取内容"`

@@ -2,11 +2,11 @@ package system
 
 import (
 	"server/app/service"
+	"server/app/util/context"
 	"server/app/util/page"
-	"server/app/util/server"
 )
 
-func Log(c *server.Context) {
+func Log(c *context.Context) {
 	pageInfo := page.ValidatePageDefault(c)
 	type Form struct {
 		OrderByField    string `json:"order_by_field" default:"sort" validate:"oneof=id type ip create_time update_time" label:"排序字段"`

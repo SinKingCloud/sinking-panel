@@ -3,14 +3,14 @@ package file
 import (
 	"server/app/service"
 	"server/app/service/system"
+	"server/app/util/context"
 	"server/app/util/file"
-	"server/app/util/server"
 	"server/app/util/str"
 	"sync/atomic"
 	"time"
 )
 
-func Compress(c *server.Context) {
+func Compress(c *context.Context) {
 	type Form struct {
 		Paths  []string `json:"paths" default:"" validate:"required" label:"文件路径"`
 		Dir    string   `json:"dir" default:"" validate:"required" label:"目标目录"`

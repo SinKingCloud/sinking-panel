@@ -1,12 +1,12 @@
 package file
 
 import (
+	"server/app/util/context"
 	"server/app/util/file"
-	"server/app/util/server"
 )
 
 // Count 统计信息
-func Count(c *server.Context) {
+func Count(c *context.Context) {
 	type Form struct {
 		Path string `json:"path" default:"" validate:"required" label:"文件路径"`
 	}

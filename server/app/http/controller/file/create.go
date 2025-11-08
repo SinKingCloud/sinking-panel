@@ -1,12 +1,12 @@
 package file
 
 import (
+	"server/app/util/context"
 	"server/app/util/file"
-	"server/app/util/server"
 )
 
 // Create 创建文件或目录
-func Create(c *server.Context) {
+func Create(c *context.Context) {
 	type Form struct {
 		Name  string `json:"name" default:"" validate:"required" label:"名称"`
 		Path  string `json:"path" default:"" validate:"required" label:"目录"`

@@ -2,11 +2,11 @@ package server
 
 import (
 	"server/app/service"
-	"server/app/util/server"
+	"server/app/util/context"
 )
 
 // Info 获取详情
-func Info(c *server.Context) {
+func Info(c *context.Context) {
 	type Form struct {
 		Id int `json:"id" default:"" validate:"numeric,min=1" label:"记录ID"`
 	}

@@ -2,11 +2,11 @@ package recycle
 
 import (
 	"server/app/service"
+	"server/app/util/context"
 	"server/app/util/page"
-	"server/app/util/server"
 )
 
-func List(c *server.Context) {
+func List(c *context.Context) {
 	pageInfo := page.ValidatePageDefault(c)
 	type Form struct {
 		OrderByField string `json:"order_by_field" default:"name" validate:"oneof=name size update_time" label:"排序字段"`

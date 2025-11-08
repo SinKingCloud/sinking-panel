@@ -2,11 +2,11 @@ package server
 
 import (
 	"server/app/service"
-	"server/app/util/server"
+	"server/app/util/context"
 )
 
 // Delete 删除信息
-func Delete(c *server.Context) {
+func Delete(c *context.Context) {
 	type Form struct {
 		Ids []int `json:"ids" default:"" validate:"required,min=1,max=1000,unique" label:"ID列表"`
 	}

@@ -2,11 +2,11 @@ package system
 
 import (
 	"server/app/service"
-	"server/app/util/server"
+	"server/app/util/context"
 )
 
 // Status 获取系统状态信息（网卡流量和磁盘IO）
-func Status(c *server.Context) {
+func Status(c *context.Context) {
 	type Form struct {
 		Interface string `json:"interface" default:"" validate:"omitempty" label:"网卡名称"`
 		Disk      string `json:"disk" default:"" validate:"omitempty" label:"磁盘名称"`

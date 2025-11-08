@@ -2,11 +2,11 @@ package task
 
 import (
 	"server/app/service"
+	"server/app/util/context"
 	"server/app/util/page"
-	"server/app/util/server"
 )
 
-func Log(c *server.Context) {
+func Log(c *context.Context) {
 	pageInfo := page.ValidatePageDefault(c)
 	type Form struct {
 		Id int `json:"id" default:"" validate:"numeric,min=1" label:"记录ID"`
