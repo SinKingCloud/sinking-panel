@@ -8,7 +8,6 @@ import (
 	"server/app/constant"
 	"server/app/util/file"
 	"server/app/util/ip/czdb"
-	"server/public"
 	"strings"
 )
 
@@ -87,7 +86,7 @@ func init() {
 	if err == nil && v4 != "" {
 		v4Search, err = czdb.NewDbSearcher(v4, "MEMORY", key)
 	}
-	v6, err := initIPFile("ipv4")
+	v6, err := initIPFile("ipv6")
 	if err == nil && v6 != "" {
 		v6Search, err = czdb.NewDbSearcher(v6, "MEMORY", key)
 	}
@@ -102,7 +101,7 @@ func initIPFile(name string) (string, error) {
 	f := file.NewDisk(path)
 	if !f.Exists(name) {
 		_ = f.AutoCreate(name)
-		open, err := public.Ip.Open("ip/" + name)
+		open, err := czdb.Ip.Open("data/" + name)
 		if err == nil {
 			defer func() {
 				_ = open.Close()

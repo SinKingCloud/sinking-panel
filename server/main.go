@@ -1,12 +1,14 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"runtime"
 	"server/app"
 	"server/app/util"
 	"server/app/util/daemon"
+	"server/app/util/ip"
 	"server/bootstrap"
 )
 
@@ -36,6 +38,8 @@ func checkDebugMode() bool {
 }
 
 func main() {
+	fmt.Println(ip.Query("1.1.1.1"))
+	os.Exit(0)
 	if runtime.GOOS == "windows" || checkDebugMode() {
 		if runtime.GOOS == "windows" {
 			log.Println("Windows系统启动...")
