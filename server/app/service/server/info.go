@@ -1,12 +1,8 @@
 package server
 
-import (
-	"server/app/model"
-	"server/app/util"
-)
+import "server/app/model"
 
 // FindById 查询信息
-func (*Service) FindById(id int) (user *model.Server, err error) {
-	err = util.Database.Db.Where("`id` = ?", id).First(&user).Error
-	return
+func (s *service) FindById(id int64) (*model.Server, error) {
+	return s.repositoryServer.FindById(id)
 }

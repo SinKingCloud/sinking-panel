@@ -8,7 +8,7 @@ import (
 
 // Log 日志表
 type Log struct {
-	Id         int          `gorm:"column:id;PRIMARY_KEY" json:"id"`
+	Id         int64        `gorm:"column:id;PRIMARY_KEY" json:"id"`
 	Type       int          `gorm:"column:type" json:"type"`
 	Ip         string       `gorm:"column:ip" json:"ip"`
 	Title      string       `gorm:"column:title" json:"title"`

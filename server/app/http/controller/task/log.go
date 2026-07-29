@@ -3,16 +3,21 @@ package task
 import (
 	"server/app/service"
 	"server/app/util/context"
-	"server/app/util/page"
 )
 
 func Log(c *context.Context) {
-	pageInfo := page.ValidatePageDefault(c)
-	type Form struct {
-		Id int `json:"id" default:"" validate:"numeric,min=1" label:"记录ID"`
+	query := c.ValidatePage("id", "asc", "id")
+	if query.CursorId != "" || query.CursorLastId != "" {
+		c.Error("任务日志不支持游标分页")
+		return
 	}
-	form := &Form{}
-	if ok, msg := c.ValidatorAll(form); !ok {
+	if query.IsCursor() {
+		query.Page = 1
+	}
+	var form struct {
+		Id int64 `json:"id" default:"" validate:"numeric,min=1" label:"记录ID"`
+	}
+	if ok, msg := c.ValidatorAll(&form); !ok {
 		c.Error(msg)
 		return
 	}
@@ -20,6 +25,6 @@ func Log(c *context.Context) {
 	if err != nil || data == nil {
 		c.Error("获取失败")
 	} else {
-		c.SuccessWithData("获取成功", service.Task.ReadLog(data.Id, pageInfo.Page, pageInfo.PageSize))
+		c.SuccessWithData("获取成功", service.Task.ReadLog(data.Id, query.Page, query.PageSize))
 	}
 }

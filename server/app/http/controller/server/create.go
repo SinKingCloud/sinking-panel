@@ -8,7 +8,7 @@ import (
 
 // Create 添加信息
 func Create(c *context.Context) {
-	type Form struct {
+	var form struct {
 		Ip       string `json:"ip" default:"" validate:"required,ip" label:"IP地址"`
 		Port     int    `json:"title" default:"" validate:"required,min=1,max=65535" label:"端口"`
 		User     string `json:"user" default:"" validate:"required" label:"账号"`
@@ -16,8 +16,7 @@ func Create(c *context.Context) {
 		Password string `json:"password" default:"" validate:"required" label:"密码"`
 		Name     string `json:"name" default:"" validate:"required" label:"名称"`
 	}
-	form := &Form{}
-	if ok, msg := c.ValidatorAll(form); !ok {
+	if ok, msg := c.ValidatorAll(&form); !ok {
 		c.Error(msg)
 		return
 	}

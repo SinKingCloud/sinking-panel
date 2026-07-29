@@ -7,11 +7,10 @@ import (
 
 // Delete 删除文件
 func Delete(c *context.Context) {
-	type Form struct {
+	var form struct {
 		Name string `json:"name" default:"" validate:"required" label:"文件名称"`
 	}
-	form := &Form{}
-	if ok, msg := c.ValidatorAll(form); !ok {
+	if ok, msg := c.ValidatorAll(&form); !ok {
 		c.Error(msg)
 		return
 	}

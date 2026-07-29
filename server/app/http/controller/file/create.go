@@ -7,13 +7,12 @@ import (
 
 // Create 创建文件或目录
 func Create(c *context.Context) {
-	type Form struct {
+	var form struct {
 		Name  string `json:"name" default:"" validate:"required" label:"名称"`
 		Path  string `json:"path" default:"" validate:"required" label:"目录"`
 		Chmod uint32 `json:"chmod" default:"0" validate:"omitempty,numeric" label:"权限"`
 	}
-	form := &Form{}
-	if ok, msg := c.ValidatorAll(form); !ok {
+	if ok, msg := c.ValidatorAll(&form); !ok {
 		c.Error(msg)
 		return
 	}

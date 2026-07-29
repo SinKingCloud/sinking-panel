@@ -1,19 +1,17 @@
 package task
 
 import (
+	repositoryTask "server/app/repository/task"
 	"server/app/service"
 	"server/app/util/context"
-	"server/app/util/page"
 )
 
 // List 获取计划任务列表
 func List(c *context.Context) {
-	pageInfo := page.ValidatePageDefault(c)
-	type Form struct {
-		OrderByField    string `json:"order_by_field" default:"id" validate:"oneof=id run_time create_time update_time" label:"排序字段"`
-		OrderByType     string `json:"order_by_type" default:"desc" validate:"oneof=desc asc" label:"排序类型"`
+	query := c.ValidatePage("id", "desc", "id", "id,run_time,create_time,update_time")
+	var form struct {
 		Name            string `json:"name" default:"" validate:"omitempty" label:"任务名称"`
-		Type            string `json:"user" default:"" validate:"omitempty,numeric" label:"任务类型"`
+		Type            string `json:"type" default:"" validate:"omitempty,numeric" label:"任务类型"`
 		Status          string `json:"status" default:"" validate:"omitempty,oneof=0 1" label:"任务状态"`
 		RunTimeStart    string `json:"run_time_start" default:"" validate:"omitempty,datetime=2006-01-02 15:04:05" label:"运行起始时间"`
 		RunTimeEnd      string `json:"run_time_end" default:"" validate:"omitempty,datetime=2006-01-02 15:04:05" label:"运行结束时间"`
@@ -22,43 +20,42 @@ func List(c *context.Context) {
 		UpdateTimeStart string `json:"update_time_start" default:"" validate:"omitempty,datetime=2006-01-02 15:04:05" label:"更新起始时间"`
 		UpdateTimeEnd   string `json:"update_time_end" default:"" validate:"omitempty,datetime=2006-01-02 15:04:05" label:"更新结束时间"`
 	}
-	form := &Form{}
-	if ok, msg := c.ValidatorAll(form); !ok {
+	if ok, msg := c.ValidatorAll(&form); !ok {
 		c.Error(msg)
 		return
 	}
-	where := make(map[string]string)
+	where := &repositoryTask.SelectTask{}
 	if form.Type != "" {
-		where["type"] = form.Type
+		where.Type = form.Type
 	}
 	if form.Name != "" {
-		where["name"] = form.Name
+		where.Name = form.Name
 	}
 	if form.Status != "" {
-		where["status"] = form.Status
+		where.Status = form.Status
 	}
 	if form.RunTimeStart != "" {
-		where["run_time_start"] = form.RunTimeStart
+		where.RunTimeStart = form.RunTimeStart
 	}
 	if form.RunTimeEnd != "" {
-		where["run_time_end"] = form.RunTimeEnd
+		where.RunTimeEnd = form.RunTimeEnd
 	}
 	if form.CreateTimeStart != "" {
-		where["create_time_start"] = form.CreateTimeStart
+		where.CreateTimeStart = form.CreateTimeStart
 	}
 	if form.CreateTimeEnd != "" {
-		where["create_time_end"] = form.CreateTimeEnd
+		where.CreateTimeEnd = form.CreateTimeEnd
 	}
 	if form.UpdateTimeStart != "" {
-		where["update_time_start"] = form.UpdateTimeStart
+		where.UpdateTimeStart = form.UpdateTimeStart
 	}
 	if form.UpdateTimeEnd != "" {
-		where["update_time_end"] = form.UpdateTimeEnd
+		where.UpdateTimeEnd = form.UpdateTimeEnd
 	}
-	data, total, err := service.Task.Select(where, form.OrderByField, form.OrderByType, pageInfo.Page, pageInfo.PageSize)
+	data, err := service.Task.Select(where, query)
 	if err != nil {
 		c.Error("获取失败")
 	} else {
-		c.SuccessWithData("获取成功", page.NewPage(total, pageInfo.Page, pageInfo.PageSize, data))
+		c.SuccessWithData("获取成功", data)
 	}
 }

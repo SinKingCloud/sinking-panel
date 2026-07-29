@@ -7,11 +7,10 @@ import (
 
 // Count 统计信息
 func Count(c *context.Context) {
-	type Form struct {
+	var form struct {
 		Path string `json:"path" default:"" validate:"required" label:"文件路径"`
 	}
-	form := &Form{}
-	if ok, msg := c.ValidatorAll(form); !ok {
+	if ok, msg := c.ValidatorAll(&form); !ok {
 		c.Error(msg)
 		return
 	}

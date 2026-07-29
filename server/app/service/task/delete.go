@@ -1,12 +1,6 @@
 package task
 
-import (
-	"server/app/model"
-	"server/app/util"
-)
-
 // deleteById 通过ID删除
-func (s *Service) deleteById(id int) (err error) {
-	err = util.Database.Db.Where("`id` = ? ", id).Delete(&model.Task{}).Error
-	return
+func (s *service) deleteById(id int64) error {
+	return s.repositoryTask.DeleteById(id)
 }

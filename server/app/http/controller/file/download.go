@@ -3,8 +3,8 @@ package file
 import (
 	"fmt"
 	"path/filepath"
+	"server/app/enum/system_task_status"
 	"server/app/service"
-	"server/app/service/system"
 	"server/app/util/context"
 	"server/app/util/file"
 	"server/app/util/str"
@@ -16,13 +16,12 @@ import (
 
 // Download 下载远程文件到本地
 func Download(c *context.Context) {
-	type Form struct {
+	var form struct {
 		URL  string `json:"url" default:"" validate:"required,url" label:"远程文件URL"`
 		Path string `json:"path" default:"" validate:"required" label:"目标路径"`
 		Name string `json:"name" default:"" validate:"omitempty" label:"文件名"`
 	}
-	form := &Form{}
-	if ok, msg := c.ValidatorAll(form); !ok {
+	if ok, msg := c.ValidatorAll(&form); !ok {
 		c.Error(msg)
 		return
 	}
@@ -80,7 +79,7 @@ func Download(c *context.Context) {
 		if taskInfo == nil || taskInfo.Context == nil {
 			return
 		}
-		service.System.TaskUpdate(taskID, system.TaskStatusRunning, 0, "开始下载")
+		service.System.TaskUpdate(taskID, system_task_status.Running, 0, "开始下载")
 		err := service.File.DownloadWithProgress(taskInfo.Context, form.URL, targetFilePath, func(current, total int64, speed float64) bool {
 			if canceled.Load() {
 				return false
@@ -98,24 +97,24 @@ func Download(c *context.Context) {
 				service.File.FormatSize(total),
 				speedStr)
 
-			service.System.TaskUpdate(taskID, system.TaskStatusRunning, progress, message)
+			service.System.TaskUpdate(taskID, system_task_status.Running, progress, message)
 			return true
 		})
 		// 处理下载结果
 		select {
 		case <-taskInfo.Context.Done():
-			service.System.TaskUpdate(taskID, system.TaskStatusCanceled, 0, "任务已取消")
+			service.System.TaskUpdate(taskID, system_task_status.Canceled, 0, "任务已取消")
 			return
 		default:
 			if canceled.Load() {
-				service.System.TaskUpdate(taskID, system.TaskStatusCanceled, 0, "任务已取消")
+				service.System.TaskUpdate(taskID, system_task_status.Canceled, 0, "任务已取消")
 				return
 			}
 			if err != nil {
-				service.System.TaskUpdate(taskID, system.TaskStatusFailed, 0, "下载失败: "+err.Error())
+				service.System.TaskUpdate(taskID, system_task_status.Failed, 0, "下载失败: "+err.Error())
 				return
 			}
-			service.System.TaskUpdate(taskID, system.TaskStatusCompleted, 100, "下载完成")
+			service.System.TaskUpdate(taskID, system_task_status.Completed, 100, "下载完成")
 		}
 	}()
 

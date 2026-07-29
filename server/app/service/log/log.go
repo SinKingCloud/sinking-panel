@@ -1,23 +1,25 @@
 package log
 
 import (
-	"sync"
+	"server/app/model"
+	repositoryLog "server/app/repository/log"
+	"server/app/util/page"
 )
 
-// Service 单例对象
-type Service struct {
+// Service service接口
+type Service interface {
+	Create(ip string, types int, title string, content string)
+	Select(where *repositoryLog.SelectLog, queryPage *page.Query) (*page.Result[*model.Log], error)
 }
 
-// obj 单例对象
-var (
-	obj  *Service
-	once sync.Once
-)
+// service 注入结构
+type service struct {
+	repositoryLog repositoryLog.Interface
+}
 
-// GetIns 获取单例
-func GetIns() *Service {
-	once.Do(func() {
-		obj = &Service{}
-	})
-	return obj
+// NewService 实例化service
+func NewService(repositoryLog repositoryLog.Interface) *service {
+	return &service{
+		repositoryLog: repositoryLog,
+	}
 }

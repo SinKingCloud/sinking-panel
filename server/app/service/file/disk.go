@@ -26,7 +26,7 @@ type Disk struct {
 	} `json:"inodes"`
 }
 
-func (s *Service) GetDisks() ([]Disk, error) {
+func (s *service) GetDisks() ([]Disk, error) {
 	partitions, err := disk.Partitions(true)
 	if err != nil {
 		return nil, err
@@ -95,7 +95,7 @@ func (s *Service) GetDisks() ([]Disk, error) {
 }
 
 // GetDiskPaths 获取磁盘路径
-func (s *Service) GetDiskPaths() ([]string, error) {
+func (s *service) GetDiskPaths() ([]string, error) {
 	partitions, err := s.GetDisks()
 	if err != nil {
 		return nil, err
@@ -112,7 +112,7 @@ func (s *Service) GetDiskPaths() ([]string, error) {
 // src: 源路径
 // destDir: 目标目录
 // callback: 进度回调函数
-func (s *Service) CopyWithContext(ctx context.Context, src, destDir string, callback func(current, total int64, currentFile string, totalFiles, currentIndex int64) bool) error {
+func (s *service) CopyWithContext(ctx context.Context, src, destDir string, callback func(current, total int64, currentFile string, totalFiles, currentIndex int64) bool) error {
 	f := file.NewDisk("")
 	wrappedCallback := func(current, total int64, currentFile string, totalFiles, currentIndex int64) bool {
 		select {
@@ -125,7 +125,13 @@ func (s *Service) CopyWithContext(ctx context.Context, src, destDir string, call
 			return true
 		}
 	}
-	return f.CopyWithProcess(ctx, src, destDir, wrappedCallback)
+	err := f.CopyWithProcess(src, destDir, func(current, total int64, currentFile string, totalFiles, currentIndex int64) {
+		wrappedCallback(current, total, currentFile, totalFiles, currentIndex)
+	})
+	if err != nil {
+		return err
+	}
+	return ctx.Err()
 }
 
 // MoveWithContext 带上下文控制的文件移动
@@ -133,7 +139,7 @@ func (s *Service) CopyWithContext(ctx context.Context, src, destDir string, call
 // src: 源路径
 // destDir: 目标目录
 // callback: 进度回调函数
-func (s *Service) MoveWithContext(ctx context.Context, src, destDir string, callback func(current, total int64, currentFile string, totalFiles, currentIndex int64) bool) error {
+func (s *service) MoveWithContext(ctx context.Context, src, destDir string, callback func(current, total int64, currentFile string, totalFiles, currentIndex int64) bool) error {
 	f := file.NewDisk("")
 	wrappedCallback := func(current, total int64, currentFile string, totalFiles, currentIndex int64) bool {
 		select {
@@ -146,5 +152,11 @@ func (s *Service) MoveWithContext(ctx context.Context, src, destDir string, call
 			return true
 		}
 	}
-	return f.MoveWithProcess(ctx, src, destDir, wrappedCallback)
+	err := f.MoveWithProcess(src, destDir, func(current, total int64, currentFile string, totalFiles, currentIndex int64) {
+		wrappedCallback(current, total, currentFile, totalFiles, currentIndex)
+	})
+	if err != nil {
+		return err
+	}
+	return ctx.Err()
 }

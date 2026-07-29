@@ -2,7 +2,6 @@ package file
 
 import (
 	"bufio"
-	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -21,21 +20,12 @@ type Disk struct {
 
 // File 描述文件系统对象的元数据信息
 type File struct {
-	Name       string `json:"name"`        // 文件/目录名称（不含路径）
-	Size       int64  `json:"size"`        // 文件大小（字节），目录为0
-	Mode       uint32 `json:"mode"`        // 权限模式（八进制表示，例如 0644）
-	IsDir      bool   `json:"is_dir"`      // 是否为目录类型
-	UpdateTime int64  `json:"update_time"` // 最后修改时间（Unix时间戳）
-}
-
-// FilesTree 描述文件系统对象的元数据信息
-type FilesTree struct {
-	Name       string       `json:"name"`        // 文件/目录名称（不含路径）
-	Size       int64        `json:"size"`        // 文件大小（字节），目录为0
-	Mode       uint32       `json:"mode"`        // 权限模式（八进制表示，例如 0644）
-	IsDir      bool         `json:"is_dir"`      // 是否为目录类型
-	UpdateTime int64        `json:"update_time"` // 最后修改时间（Unix时间戳）
-	Child      []*FilesTree `json:"child"`       // 子文件列表（仅当IsDir为true时有效）
+	Name       string  `json:"name"`        // 文件/目录名称（不含路径）
+	Size       int64   `json:"size"`        // 文件大小（字节），目录为0
+	Mode       uint32  `json:"mode"`        // 权限模式（八进制表示，例如 0644）
+	IsDir      bool    `json:"is_dir"`      // 是否为目录类型
+	UpdateTime int64   `json:"update_time"` // 最后修改时间（Unix时间戳）
+	Child      []*File `json:"child"`       // 子文件列表（仅当IsDir为true时有效）
 }
 
 const (
@@ -95,12 +85,12 @@ func (d *Disk) Rename(oldName, newName string) error {
 			return fmt.Errorf("回退复制目录失败: %w", err)
 		}
 		return os.RemoveAll(srcPath)
-	} else {
-		if err := d.copyFile(srcPath, destPath); err != nil {
-			return fmt.Errorf("回退复制文件失败: %w", err)
-		}
-		return os.Remove(srcPath)
 	}
+
+	if err := d.copyFile(srcPath, destPath); err != nil {
+		return fmt.Errorf("回退复制文件失败: %w", err)
+	}
+	return os.Remove(srcPath)
 }
 
 // AutoCreate 智能创建文件或目录
@@ -260,7 +250,6 @@ func (d *Disk) Copy(src, destDir string) error {
 }
 
 // CopyWithProcess 带进度回调的文件/目录复制
-// ctx: 上下文，用于取消操作
 // src: 源路径（文件或目录）
 // destDir: 目标目录路径
 // callback: 进度回调函数，参数分别为：
@@ -270,25 +259,15 @@ func (d *Disk) Copy(src, destDir string) error {
 //	currentFile - 当前正在处理的文件名
 //	totalFiles - 总文件数量
 //	currentIndex - 当前文件序号（从0开始）
-func (d *Disk) CopyWithProcess(ctx context.Context, src, destDir string, callback func(int64, int64, string, int64, int64) bool) error {
+func (d *Disk) CopyWithProcess(src, destDir string, callback func(int64, int64, string, int64, int64)) error {
 	srcPath := d.fullPath(src)
 	destPath := d.fullPath(destDir)
 	baseName := filepath.Base(srcPath)
 	finalDest := filepath.Join(destPath, baseName)
 
-	// 检查上下文是否已取消
-	if ctx.Err() != nil {
-		return ctx.Err()
-	}
-
 	totalSize, fileCount, _, err := d.calculateTotal(srcPath)
 	if err != nil {
 		return fmt.Errorf("calculate total failed: %w", err)
-	}
-
-	// 再次检查上下文是否已取消
-	if ctx.Err() != nil {
-		return ctx.Err()
 	}
 
 	if err := d.prepareDestination(finalDest); err != nil {
@@ -296,26 +275,16 @@ func (d *Disk) CopyWithProcess(ctx context.Context, src, destDir string, callbac
 	}
 
 	var copied atomic.Int64
-	return d.copyTreeWithProgress(ctx, srcPath, finalDest, totalSize, fileCount, &copied, callback)
+	return d.copyTreeWithProgress(srcPath, finalDest, totalSize, fileCount, &copied, callback)
 }
 
 // MoveWithProcess 带进度回调的文件/目录移动
-// ctx: 上下文，用于取消操作
-// src: 源路径（文件或目录）
-// destDir: 目标目录路径
-// callback: 进度回调函数，与CopyWithProcess相同
-func (d *Disk) MoveWithProcess(ctx context.Context, src, destDir string, callback func(int64, int64, string, int64, int64) bool) error {
+// 参数说明同CopyWithProcess
+func (d *Disk) MoveWithProcess(src, destDir string, callback func(int64, int64, string, int64, int64)) error {
 	srcPath := d.fullPath(src)
 	destPath := d.fullPath(destDir)
 	baseName := filepath.Base(srcPath)
 	finalDest := filepath.Join(destPath, baseName)
-
-	// 检查上下文是否已取消
-	if ctx.Err() != nil {
-		return ctx.Err()
-	}
-
-	// 尝试直接重命名（快速路径）
 	if err := os.Rename(srcPath, finalDest); err == nil {
 		if callback != nil {
 			info, _ := os.Stat(finalDest)
@@ -323,37 +292,17 @@ func (d *Disk) MoveWithProcess(ctx context.Context, src, destDir string, callbac
 		}
 		return nil
 	}
-
-	// 检查上下文是否已取消
-	if ctx.Err() != nil {
-		return ctx.Err()
-	}
-
-	// 回退到复制再删除
 	totalSize, fileCount, _, err := d.calculateTotal(srcPath)
 	if err != nil {
 		return fmt.Errorf("calculate total failed: %w", err)
 	}
-
-	// 再次检查上下文是否已取消
-	if ctx.Err() != nil {
-		return ctx.Err()
-	}
-
 	if err := d.prepareDestination(finalDest); err != nil {
 		return err
 	}
-
 	var copied atomic.Int64
-	if err := d.copyTreeWithProgress(ctx, srcPath, finalDest, totalSize, fileCount, &copied, callback); err != nil {
+	if err := d.copyTreeWithProgress(srcPath, finalDest, totalSize, fileCount, &copied, callback); err != nil {
 		return fmt.Errorf("copy failed: %w", err)
 	}
-
-	// 最后检查上下文是否已取消，如果取消则不删除源文件
-	if ctx.Err() != nil {
-		return ctx.Err()
-	}
-
 	return os.RemoveAll(srcPath)
 }
 
@@ -398,7 +347,7 @@ func (d *Disk) FileInfo(name string) (*File, error) {
 // FileList 递归获取目录结构信息
 // dir: 需要查看的目录相对路径
 // 返回值：目录结构的File切片
-func (d *Disk) FileList(dir string) ([]*FilesTree, error) {
+func (d *Disk) FileList(dir string) ([]*File, error) {
 	return d.buildFileTree(d.fullPath(dir), false)
 }
 
@@ -410,11 +359,13 @@ func (d *Disk) FileListWithPage(dir string, page, pageSize int, orderByField, or
 	if page <= 0 || pageSize <= 0 {
 		return nil, 0, errors.New("无效的分页参数")
 	}
+
 	fullPath := d.fullPath(dir)
 	entries, err := os.ReadDir(fullPath)
 	if err != nil {
-		return []*File{}, 0, nil
+		return nil, 0, err
 	}
+
 	total := int64(len(entries))
 	var files []*File
 	for _, entry := range entries {
@@ -431,6 +382,7 @@ func (d *Disk) FileListWithPage(dir string, page, pageSize int, orderByField, or
 		}
 		files = append(files, file)
 	}
+
 	// 排序：先将排序类型转换为小写，方便比较
 	orderByType = strings.ToLower(orderByType)
 	switch orderByField {
@@ -475,7 +427,7 @@ func (d *Disk) FileListWithPage(dir string, page, pageSize int, orderByField, or
 // FileTree 递归获取目录结构信息
 // dir: 需要遍历的目录相对路径
 // 返回值：包含完整目录结构的File切片
-func (d *Disk) FileTree(dir string) ([]*FilesTree, error) {
+func (d *Disk) FileTree(dir string) ([]*File, error) {
 	return d.buildFileTree(d.fullPath(dir), true)
 }
 
@@ -588,12 +540,7 @@ func (d *Disk) calculateTotal(path string) (int64, int64, int64, error) {
 	return totalSize, fileCount, dirCount, err
 }
 
-func (d *Disk) copyTreeWithProgress(ctx context.Context, src, dest string, totalSize, totalFiles int64, copied *atomic.Int64, callback func(int64, int64, string, int64, int64) bool) error {
-	// 检查上下文是否已取消
-	if ctx.Err() != nil {
-		return ctx.Err()
-	}
-
+func (d *Disk) copyTreeWithProgress(src, dest string, totalSize, totalFiles int64, copied *atomic.Int64, callback func(int64, int64, string, int64, int64)) error {
 	srcInfo, err := os.Stat(src)
 	if err != nil {
 		return err
@@ -606,11 +553,6 @@ func (d *Disk) copyTreeWithProgress(ctx context.Context, src, dest string, total
 		}
 
 		return filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
-			// 每个文件/目录处理前检查上下文是否已取消
-			if ctx.Err() != nil {
-				return ctx.Err()
-			}
-
 			if err != nil {
 				return err
 			}
@@ -627,27 +569,16 @@ func (d *Disk) copyTreeWithProgress(ctx context.Context, src, dest string, total
 			}
 
 			currentIndex := fileIndex.Add(1) - 1
-
-			// 回调检查
 			if callback != nil {
-				if !callback(copied.Load(), totalSize, info.Name(), totalFiles, currentIndex) {
-					return errors.New("操作被取消")
-				}
+				callback(copied.Load(), totalSize, info.Name(), totalFiles, currentIndex)
 			}
-
-			return d.copyFileWithProgress(ctx, path, targetPath, totalSize, copied, callback, totalFiles, currentIndex)
+			return d.copyFileWithProgress(path, targetPath, totalSize, copied, callback, totalFiles, currentIndex)
 		})
 	}
-
-	return d.copyFileWithProgress(ctx, src, dest, totalSize, copied, callback, totalFiles, 0)
+	return d.copyFileWithProgress(src, dest, totalSize, copied, callback, totalFiles, 0)
 }
 
-func (d *Disk) copyFileWithProgress(ctx context.Context, src, dest string, totalSize int64, copied *atomic.Int64, callback func(int64, int64, string, int64, int64) bool, totalFiles, currentIndex int64) error {
-	// 检查上下文是否已取消
-	if ctx.Err() != nil {
-		return ctx.Err()
-	}
-
+func (d *Disk) copyFileWithProgress(src, dest string, totalSize int64, copied *atomic.Int64, callback func(int64, int64, string, int64, int64), totalFiles, currentIndex int64) error {
 	srcFile, err := os.Open(src)
 	if err != nil {
 		return err
@@ -663,25 +594,13 @@ func (d *Disk) copyFileWithProgress(ctx context.Context, src, dest string, total
 	defer func() {
 		_ = destFile.Close()
 	}()
-
 	var (
 		buf       = make([]byte, bufferSize)
 		lastFlush int64
 	)
-
 	for {
-		// 每次读取前检查上下文是否已取消
-		if ctx.Err() != nil {
-			return ctx.Err()
-		}
-
 		n, err := srcFile.Read(buf)
 		if n > 0 {
-			// 每次写入前检查上下文是否已取消
-			if ctx.Err() != nil {
-				return ctx.Err()
-			}
-
 			if _, wErr := destFile.Write(buf[:n]); wErr != nil {
 				return wErr
 			}
@@ -689,35 +608,21 @@ func (d *Disk) copyFileWithProgress(ctx context.Context, src, dest string, total
 			newCopied := copied.Add(int64(n))
 			if newCopied-lastFlush >= progressUnit || err == io.EOF {
 				if callback != nil {
-					if !callback(newCopied, totalSize, filepath.Base(src), totalFiles, currentIndex) {
-						return errors.New("操作被取消")
-					}
+					callback(newCopied, totalSize, filepath.Base(src), totalFiles, currentIndex)
 				}
 				lastFlush = newCopied / progressUnit * progressUnit
-
-				// 更新进度后再次检查上下文是否已取消
-				if ctx.Err() != nil {
-					return ctx.Err()
-				}
 			}
 		}
 
 		if err == io.EOF {
 			if callback != nil {
-				if !callback(copied.Load(), totalSize, filepath.Base(src), totalFiles, currentIndex) {
-					return errors.New("操作被取消")
-				}
+				callback(copied.Load(), totalSize, filepath.Base(src), totalFiles, currentIndex)
 			}
 			break
 		}
 		if err != nil {
 			return err
 		}
-	}
-
-	// 设置文件属性前检查上下文是否已取消
-	if ctx.Err() != nil {
-		return ctx.Err()
 	}
 
 	if info, err := os.Stat(src); err == nil {
@@ -737,13 +642,13 @@ func (d *Disk) prepareDestination(dest string) error {
 	return os.MkdirAll(filepath.Dir(dest), 0755)
 }
 
-func (d *Disk) buildFileTree(root string, recursive bool) ([]*FilesTree, error) {
+func (d *Disk) buildFileTree(root string, recursive bool) ([]*File, error) {
 	entries, err := os.ReadDir(root)
 	if err != nil {
 		return nil, err
 	}
 
-	var files []*FilesTree
+	var files []*File
 	for _, entry := range entries {
 		fullPath := filepath.Join(root, entry.Name())
 		info, err := entry.Info()
@@ -751,7 +656,7 @@ func (d *Disk) buildFileTree(root string, recursive bool) ([]*FilesTree, error) 
 			continue
 		}
 
-		file := &FilesTree{
+		file := &File{
 			Name:       entry.Name(),
 			Size:       info.Size(),
 			Mode:       uint32(info.Mode().Perm()),

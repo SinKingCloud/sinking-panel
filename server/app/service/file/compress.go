@@ -2,6 +2,7 @@ package file
 
 import (
 	"context"
+	"server/app/enum/file_format"
 	"server/app/util/archive"
 )
 
@@ -17,7 +18,7 @@ import (
 //   - totalFiles: 总文件数量
 //   - currentIndex: 当前文件索引（从0开始）
 //     返回false表示取消操作
-func (s *Service) CompressFiles(ctx context.Context, srcPaths []string, destPath, format string, callback func(current, total int64, currentFile string, totalFiles, currentIndex int64) bool) error {
+func (s *service) CompressFiles(ctx context.Context, srcPaths []string, destPath, format string, callback func(current, total int64, currentFile string, totalFiles, currentIndex int64) bool) error {
 	// 检查上下文是否已取消
 	select {
 	case <-ctx.Done():
@@ -61,7 +62,7 @@ func (s *Service) CompressFiles(ctx context.Context, srcPaths []string, destPath
 //   - totalFiles: 总文件数量
 //   - currentIndex: 当前文件索引（从0开始）
 //     返回false表示取消操作
-func (s *Service) Extract(ctx context.Context, srcPath, destPath string, callback func(current, total int64, currentFile string, totalFiles, currentIndex int64) bool) error {
+func (s *service) Extract(ctx context.Context, srcPath, destPath string, callback func(current, total int64, currentFile string, totalFiles, currentIndex int64) bool) error {
 	// 检查上下文是否已取消
 	select {
 	case <-ctx.Done():
@@ -95,21 +96,14 @@ func (s *Service) Extract(ctx context.Context, srcPath, destPath string, callbac
 }
 
 // GetFormatByExt 根据文件扩展名获取压缩格式
-func (s *Service) GetFormatByExt(filename string) string {
+func (s *service) GetFormatByExt(filename string) string {
 	return archive.Compress.GetFormatByExt(filename)
 }
 
 // IsSupportedFormat 判断是否为支持的压缩格式
-func (s *Service) IsSupportedFormat(format string) bool {
-	return archive.Compress.IsSupportedFormat(format)
-}
-
-// Formats 获取支持的压缩格式常量
-func (s *Service) Formats() map[string]string {
-	return map[string]string{
-		"zip": archive.FormatZip,
-		"tar": archive.FormatTar,
-		"gz":  archive.FormatGzip,
-		"tgz": archive.FormatTgz,
+func (s *service) IsSupportedFormat(format string) bool {
+	if _, ok := file_format.Map()[format]; !ok {
+		return false
 	}
+	return archive.Compress.IsSupportedFormat(format)
 }

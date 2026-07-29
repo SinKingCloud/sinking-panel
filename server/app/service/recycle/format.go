@@ -9,7 +9,7 @@ import (
 
 // encodeName 加密名称
 // name 文件路径
-func (s *Service) encodeName(name string, deleteTime int64, id int) string {
+func (s *service) encodeName(name string, deleteTime int64, id int) string {
 	if deleteTime <= 0 {
 		deleteTime = time.Now().Unix()
 	}
@@ -22,7 +22,7 @@ func (s *Service) encodeName(name string, deleteTime int64, id int) string {
 
 // decodeName 还原名称
 // name 文件名称
-func (s *Service) decodeName(name string) (path string, deleteTime int64, id int) {
+func (s *service) decodeName(name string) (path string, deleteTime int64, id int) {
 	arr := strings.Split(name, "_t_")
 	if len(arr) != 2 {
 		return "", 0, 0

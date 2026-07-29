@@ -5,28 +5,41 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"hash/fnv"
+	"net"
+	"os"
+	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
 
 const (
-	workerBits  uint8 = 10                      // 每台机器(节点)的ID位数 10位最大可以有2^10=1024个节点
-	numberBits  uint8 = 12                      // 表示每个集群下的每个节点，1毫秒内可生成的id序号的二进制位数 即每毫秒可生成 2^12-1=4096个唯一ID
-	workerMax   int64 = -1 ^ (-1 << workerBits) // 节点ID的最大值，用于防止溢出
-	numberMax   int64 = -1 ^ (-1 << numberBits) // 同上，用来表示生成id序号的最大值
-	timeShift         = workerBits + numberBits // 时间戳向左的偏移量
-	workerShift       = numberBits              // 节点ID向左的偏移量
-	epoch       int64 = 966441600000
+	workerBits    = 10 // 每台机器(节点)的ID位数，最大支持1024个节点
+	numberBits    = 14 // 每个节点每秒最多生成16384个唯一ID
+	timestampBits = 63 - workerBits - numberBits
+	workerMax     = int64(1)<<workerBits - 1
+	numberMax     = int64(1)<<numberBits - 1
+	timestampMax  = int64(1)<<timestampBits - 1
+	timeShift     = workerBits + numberBits
+	workerShift   = numberBits
+
+	// 使用秒级时间戳，保证ID始终为正数且不超过有符号int64最大值。
+	// 2024-01-01 00:00:00 UTC，可用约17438年。
+	epoch int64 = 1704067200
 )
 
-var instance *Worker
+var (
+	instance     *Worker
+	instanceOnce sync.Once
+)
 
 // GetSnowWorkIns 获取静态对象
 func GetSnowWorkIns() *Worker {
-	if instance == nil {
-		instance, _ = NewSnowWorker(1)
-	}
+	instanceOnce.Do(func() {
+		instance, _ = NewSnowWorker((&Worker{}).getWorkerId())
+	})
 	return instance
 }
 
@@ -54,20 +67,82 @@ func NewSnowWorker(workerId int64) (*Worker, error) {
 func (w *Worker) GetId() int64 {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	now := time.Now().UnixNano() / 1e6
+
+	now := w.currentSecond()
+	if now < w.timestamp {
+		now = w.timestamp
+	}
 	if w.timestamp == now {
 		w.number++
 		if w.number > numberMax {
-			for now <= w.timestamp {
-				now = time.Now().UnixNano() / 1e6
-			}
+			now = w.nextSecond(w.timestamp)
+			w.number = 0
 		}
 	} else {
 		w.number = 0
-		w.timestamp = now
 	}
-	ID := (now-epoch)<<timeShift | (w.workerId << workerShift) | (w.number)
-	return ID
+	if now > timestampMax {
+		panic("snowflake timestamp excess of quantity")
+	}
+	w.timestamp = now
+	return now<<timeShift | (w.workerId << workerShift) | w.number
+}
+
+func (w *Worker) nextSecond(last int64) int64 {
+	now := w.currentSecond()
+	for now <= last {
+		time.Sleep(time.Millisecond)
+		now = w.currentSecond()
+	}
+	return now
+}
+
+func (w *Worker) currentSecond() int64 {
+	now := time.Now().Unix() - epoch
+	if now < 0 {
+		return 0
+	}
+	return now
+}
+
+func (w *Worker) getWorkerId() int64 {
+	values := make([]string, 0)
+	if hostname, err := os.Hostname(); err == nil && hostname != "" {
+		values = append(values, "hostname="+hostname)
+	}
+	values = append(values, "pid="+strconv.Itoa(os.Getpid()))
+	if executable, err := os.Executable(); err == nil && executable != "" {
+		values = append(values, "executable="+executable)
+	}
+	if interfaces, err := net.Interfaces(); err == nil {
+		for _, item := range interfaces {
+			if item.Flags&net.FlagUp == 0 || item.Flags&net.FlagLoopback != 0 {
+				continue
+			}
+			if mac := item.HardwareAddr.String(); mac != "" {
+				values = append(values, "mac="+mac)
+			}
+			address, err := item.Addrs()
+			if err != nil {
+				continue
+			}
+			for _, addr := range address {
+				ip, _, err := net.ParseCIDR(addr.String())
+				if err != nil || ip == nil || ip.IsLoopback() {
+					continue
+				}
+				values = append(values, "ip="+ip.String())
+			}
+		}
+	}
+	if len(values) == 0 {
+		values = append(values, "default")
+	}
+	sort.Strings(values)
+
+	hash := fnv.New64a()
+	_, _ = hash.Write([]byte(strings.Join(values, "|")))
+	return int64(hash.Sum64() % uint64(workerMax+1))
 }
 
 // md5 获取md5值

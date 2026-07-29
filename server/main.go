@@ -1,15 +1,13 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"os"
 	"runtime"
 	"server/app"
-	"server/app/util"
 	"server/app/util/daemon"
-	"server/app/util/ip"
 	"server/bootstrap"
+	"server/global"
 )
 
 const (
@@ -34,12 +32,10 @@ func serverMain() {
 // 检查是否为调试模式 - 仅读取配置不连接数据库
 func checkDebugMode() bool {
 	bootstrap.LoadConf()
-	return util.IsDebug()
+	return global.App.IsDebug()
 }
 
 func main() {
-	fmt.Println(ip.Query("1.1.1.1"))
-	os.Exit(0)
 	if runtime.GOOS == "windows" || checkDebugMode() {
 		if runtime.GOOS == "windows" {
 			log.Println("Windows系统启动...")

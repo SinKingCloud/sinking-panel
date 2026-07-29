@@ -7,20 +7,18 @@ import (
 )
 
 func List(c *context.Context) {
-	pageInfo := page.ValidatePageDefault(c)
-	type Form struct {
-		OrderByField string `json:"order_by_field" default:"name" validate:"oneof=name size update_time" label:"排序字段"`
-		OrderByType  string `json:"order_by_type" default:"asc" validate:"oneof=desc asc" label:"排序类型"`
-	}
-	form := &Form{}
-	if ok, msg := c.ValidatorAll(form); !ok {
-		c.Error(msg)
+	query := c.ValidatePage("name", "asc", "name,size,update_time")
+	if query.CursorId != "" || query.CursorLastId != "" {
+		c.Error("回收站列表不支持游标分页")
 		return
 	}
-	list, total, err := service.Recycle.Select(pageInfo.Page, pageInfo.PageSize, form.OrderByField, form.OrderByType)
+	if query.IsCursor() {
+		query.Page = 1
+	}
+	list, total, err := service.Recycle.Select(query.Page, query.PageSize, query.OrderByField, query.OrderByType)
 	if err != nil {
 		c.Error("获取失败")
 		return
 	}
-	c.SuccessWithData("获取成功", page.NewPage(total, pageInfo.Page, pageInfo.PageSize, list))
+	c.SuccessWithData("获取成功", page.New(query, total, list))
 }

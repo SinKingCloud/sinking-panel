@@ -11,12 +11,11 @@ func Set(c *context.Context) {
 		Key   string `json:"key" default:"" validate:"required,max=100" label:"配置标识"`
 		Value string `json:"value" default:"" validate:"omitempty" label:"配置内容"`
 	}
-	type Form struct {
+	var form struct {
 		Configs []*Config `json:"configs" default:"" validate:"gte=1" label:"配置标识"`
 		Group   string    `json:"group" default:"" validate:"required,max=100" label:"配置组"`
 	}
-	form := &Form{}
-	if ok, msg := c.ValidatorAll(form); !ok {
+	if ok, msg := c.ValidatorAll(&form); !ok {
 		c.Error(msg)
 		return
 	}

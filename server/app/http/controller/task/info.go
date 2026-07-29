@@ -7,11 +7,10 @@ import (
 
 // Info 获取详情
 func Info(c *context.Context) {
-	type Form struct {
-		Id int `json:"id" default:"" validate:"numeric,min=1" label:"记录ID"`
+	var form struct {
+		Id int64 `json:"id" default:"" validate:"numeric,min=1" label:"记录ID"`
 	}
-	form := &Form{}
-	if ok, msg := c.ValidatorAll(form); !ok {
+	if ok, msg := c.ValidatorAll(&form); !ok {
 		c.Error(msg)
 		return
 	}

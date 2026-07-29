@@ -17,7 +17,7 @@ type File struct {
 }
 
 // Select 获取数据
-func (s *Service) Select(page int, pageSize int, orderByField string, orderByType string) (list []*File, total int64, err error) {
+func (s *service) Select(page int, pageSize int, orderByField string, orderByType string) (list []*File, total int64, err error) {
 	f := file.NewDisk(path)
 	var l []*file.File
 	l, total, err = f.FileListWithPage("./", page, pageSize, orderByField, orderByType)

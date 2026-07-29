@@ -3,8 +3,8 @@ package bootstrap
 import (
 	"github.com/spf13/viper"
 	"server/app/constant"
-	"server/app/util"
 	"server/app/util/file"
+	"server/global"
 	"strings"
 )
 
@@ -25,8 +25,6 @@ func LoadConf() {
 	config.WatchConfig()
 	if err := config.ReadInConfig(); err != nil {
 		panic(err)
-		return
 	}
-	//赋值到util
-	util.Conf = config
+	global.App.SetConfig(config)
 }

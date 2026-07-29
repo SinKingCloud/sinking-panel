@@ -8,13 +8,12 @@ import (
 
 // Task 获取任务列表 获取任务详情 取消任务
 func Task(c *context.Context) {
-	type Form struct {
+	var form struct {
 		ID     string `json:"id" default:"" validate:"omitempty" label:"任务ID"`
 		Status string `json:"status" default:"" validate:"omitempty" label:"任务状态"`
 		Action string `json:"action" default:"" validate:"omitempty" label:"操作类型"`
 	}
-	form := &Form{}
-	if ok, msg := c.ValidatorAll(form); !ok {
+	if ok, msg := c.ValidatorAll(&form); !ok {
 		c.Error(msg)
 		return
 	}

@@ -7,7 +7,7 @@ import (
 )
 
 // IsViewableInBrowser 判断是否能在浏览器预览
-func (s *Service) IsViewableInBrowser(contentType string) bool {
+func (s *service) IsViewableInBrowser(contentType string) bool {
 	viewableTypes := map[string]bool{
 		"text/html":              true,
 		"text/plain":             true,
@@ -32,7 +32,7 @@ func (s *Service) IsViewableInBrowser(contentType string) bool {
 }
 
 // GetContentType 获取文件的 Content-Type
-func (s *Service) GetContentType(fileName string) string {
+func (s *service) GetContentType(fileName string) string {
 	ext := strings.ToLower(filepath.Ext(fileName))
 	// 常用MIME类型映射
 	mimeTypes := map[string]string{

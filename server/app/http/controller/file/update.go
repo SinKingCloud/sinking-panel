@@ -10,14 +10,13 @@ import (
 
 // Update 更新文件
 func Update(c *context.Context) {
-	type Form struct {
+	var form struct {
 		Path        string `json:"path" default:"" validate:"required" label:"文件路径"`
 		Name        string `json:"name" default:"" label:"新文件名"`
 		Permissions string `json:"permissions" default:"" label:"权限"`
 		Content     string `json:"content" default:"" label:"文件内容"`
 	}
-	form := &Form{}
-	if ok, msg := c.ValidatorAll(form); !ok {
+	if ok, msg := c.ValidatorAll(&form); !ok {
 		c.Error(msg)
 		return
 	}

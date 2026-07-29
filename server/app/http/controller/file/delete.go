@@ -8,12 +8,11 @@ import (
 
 // Delete 删除文件
 func Delete(c *context.Context) {
-	type Form struct {
+	var form struct {
 		Path    string `json:"path" default:"" validate:"required" label:"文件路径"`
 		Recycle bool   `json:"recycle" default:"true" validate:"omitempty" label:"软删除"`
 	}
-	form := &Form{}
-	if ok, msg := c.ValidatorAll(form); !ok {
+	if ok, msg := c.ValidatorAll(&form); !ok {
 		c.Error(msg)
 		return
 	}

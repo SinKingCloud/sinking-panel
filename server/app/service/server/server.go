@@ -1,36 +1,28 @@
 package server
 
 import (
-	"server/app/util/str"
-	"sync"
+	"server/app/model"
+	repositoryServer "server/app/repository/server"
+	"server/app/util/page"
 )
 
-// Service 单例对象
-type Service struct {
+// Service service接口
+type Service interface {
+	Create(data *model.Server) error
+	DeleteByIds(ids []int64) error
+	FindById(id int64) (*model.Server, error)
+	Select(where *repositoryServer.SelectServer, queryPage *page.Query) (*page.Result[*repositoryServer.Server], error)
+	UpdateByIds(ids []int64, data *repositoryServer.UpdateServer) error
 }
 
-// obj 单例对象
-var (
-	obj  *Service
-	once sync.Once
-)
-
-// GetIns 获取单例
-func GetIns() *Service {
-	once.Do(func() {
-		obj = &Service{}
-	})
-	return obj
+// service 注入结构
+type service struct {
+	repositoryServer repositoryServer.Interface
 }
 
-// Server 配置表
-type Server struct {
-	Id         int          `gorm:"column:id;PRIMARY_KEY" json:"id"`
-	Ip         string       `gorm:"column:ip" json:"ip"`
-	Port       int          `gorm:"column:port" json:"port"`
-	User       string       `gorm:"column:user" json:"user"`
-	AuthType   int          `gorm:"column:auth_type" json:"auth_type"`
-	Name       string       `gorm:"column:name" json:"name"`
-	CreateTime str.DateTime `gorm:"column:create_time" json:"create_time"`
-	UpdateTime str.DateTime `gorm:"column:update_time" json:"update_time"`
+// NewService 实例化service
+func NewService(repositoryServer repositoryServer.Interface) *service {
+	return &service{
+		repositoryServer: repositoryServer,
+	}
 }

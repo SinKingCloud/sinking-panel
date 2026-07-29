@@ -8,7 +8,7 @@ import (
 
 // Server 配置表
 type Server struct {
-	Id         int          `gorm:"column:id;PRIMARY_KEY" json:"id"`
+	Id         int64        `gorm:"column:id;PRIMARY_KEY" json:"id"`
 	Ip         string       `gorm:"column:ip" json:"ip"`
 	Port       int          `gorm:"column:port" json:"port"`
 	User       string       `gorm:"column:user" json:"user"`

@@ -1,23 +1,19 @@
 package recycle
 
-import (
-	"sync"
-)
-
-// Service 单例对象
-type Service struct {
+// Service service接口
+type Service interface {
+	Count() (totalSize int64, fileCount int64, dirCount int64, err error)
+	Create(name string) error
+	Delete(name string) error
+	Clear() error
+	Restore(name string, path string) error
+	Select(page int, pageSize int, orderByField string, orderByType string) (list []*File, total int64, err error)
 }
 
-// obj 单例对象
-var (
-	obj  *Service
-	once sync.Once
-)
+// service 注入结构
+type service struct{}
 
-// GetIns 获取单例
-func GetIns() *Service {
-	once.Do(func() {
-		obj = &Service{}
-	})
-	return obj
+// NewService 实例化service
+func NewService() *service {
+	return &service{}
 }

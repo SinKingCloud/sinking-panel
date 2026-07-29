@@ -10,9 +10,9 @@ create table cloud_configs
 
 create table cloud_logs
 (
-    id          integer           not null
+    id          bigint            not null
         constraint pk_id
-            primary key autoincrement,
+            primary key,
     type        integer default 0 not null,
     ip          varchar(50),
     title       varchar(200),
@@ -35,9 +35,9 @@ create index cloud_logs_updateTime_index
 
 create table cloud_servers
 (
-    id          integer           not null
+    id          bigint            not null
         constraint pk_id
-            primary key autoincrement,
+            primary key,
     ip          varchar(100)      not null,
     port        integer           not null,
     user        varchar(50),
@@ -68,9 +68,9 @@ create index cloud_servers_user_index
 
 create table cloud_tasks
 (
-    id          integer           not null
+    id          bigint            not null
         constraint cloud_tasks_pk_id
-            primary key autoincrement,
+            primary key,
     entry_id    integer default 0 not null,
     name        varchar(50)       not null,
     spec        varchar(50)       not null,
@@ -93,8 +93,6 @@ create index cloud_tasks_type_index
 
 create index cloud_tasks_updateTime_index
     on cloud_tasks (update_time);
-
-
 
 
 

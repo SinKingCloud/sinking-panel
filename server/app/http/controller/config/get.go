@@ -8,12 +8,11 @@ import (
 
 // Get 获取配置
 func Get(c *context.Context) {
-	type Form struct {
+	var form struct {
 		Group string `form:"group" json:"group" default:"" validate:"required,max=100" label:"组ID"`
 		Key   string `form:"key" json:"key" default:"" validate:"omitempty,max=100" label:"配置标识"`
 	}
-	form := &Form{}
-	if ok, msg := c.ValidatorAll(form); !ok {
+	if ok, msg := c.ValidatorAll(&form); !ok {
 		c.Error(msg)
 		return
 	}

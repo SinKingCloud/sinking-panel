@@ -1,8 +1,8 @@
 package file
 
 import (
+	"server/app/enum/system_task_status"
 	"server/app/service"
-	"server/app/service/system"
 	"server/app/util/context"
 	"server/app/util/file"
 	"server/app/util/str"
@@ -11,12 +11,11 @@ import (
 )
 
 func Extract(c *context.Context) {
-	type Form struct {
+	var form struct {
 		Path string `json:"path" default:"" validate:"required" label:"压缩文件路径"`
 		Dir  string `json:"dir" default:"" validate:"required" label:"解压目标目录"`
 	}
-	form := &Form{}
-	if ok, msg := c.ValidatorAll(form); !ok {
+	if ok, msg := c.ValidatorAll(&form); !ok {
 		c.Error(msg)
 		return
 	}
@@ -62,7 +61,7 @@ func Extract(c *context.Context) {
 		if taskInfo == nil || taskInfo.Context == nil {
 			return
 		}
-		service.System.TaskUpdate(taskID, system.TaskStatusRunning, 0, "开始解压")
+		service.System.TaskUpdate(taskID, system_task_status.Running, 0, "开始解压")
 		err := service.File.Extract(taskInfo.Context, form.Path, form.Dir, func(current, total int64, currentFile string, totalFiles, currentIndex int64) bool {
 			if canceled.Load() {
 				return false
@@ -72,23 +71,23 @@ func Extract(c *context.Context) {
 				progress = float64(current) / float64(total) * 100
 			}
 			message := "正在解压: " + currentFile
-			service.System.TaskUpdate(taskID, system.TaskStatusRunning, progress, message)
+			service.System.TaskUpdate(taskID, system_task_status.Running, progress, message)
 			return true
 		})
 		select {
 		case <-taskInfo.Context.Done():
-			service.System.TaskUpdate(taskID, system.TaskStatusCanceled, 0, "任务已取消")
+			service.System.TaskUpdate(taskID, system_task_status.Canceled, 0, "任务已取消")
 			return
 		default:
 			if canceled.Load() {
-				service.System.TaskUpdate(taskID, system.TaskStatusCanceled, 0, "任务已取消")
+				service.System.TaskUpdate(taskID, system_task_status.Canceled, 0, "任务已取消")
 				return
 			}
 			if err != nil {
-				service.System.TaskUpdate(taskID, system.TaskStatusFailed, 0, "解压失败: "+err.Error())
+				service.System.TaskUpdate(taskID, system_task_status.Failed, 0, "解压失败: "+err.Error())
 				return
 			}
-			service.System.TaskUpdate(taskID, system.TaskStatusCompleted, 100, "解压完成")
+			service.System.TaskUpdate(taskID, system_task_status.Completed, 100, "解压完成")
 		}
 	}()
 	c.SuccessWithData("创建解压任务成功", taskID)

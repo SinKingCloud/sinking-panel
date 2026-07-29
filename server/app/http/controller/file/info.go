@@ -7,14 +7,13 @@ import (
 )
 
 func Info(c *context.Context) {
-	type Form struct {
+	var form struct {
 		Path     string `json:"path" default:"" validate:"required" label:"文件路径"`
 		Read     bool   `json:"read" default:"" validate:"omitempty" label:"是否读取内容"`
 		Page     int    `json:"page" default:"" validate:"omitempty,numeric,min=1" label:"分页页码"`
 		PageSize int    `json:"page_size" default:"" validate:"omitempty,numeric,max=999999" label:"分页容量"`
 	}
-	form := &Form{}
-	if ok, msg := c.ValidatorAll(form); !ok {
+	if ok, msg := c.ValidatorAll(&form); !ok {
 		c.Error(msg)
 		return
 	}

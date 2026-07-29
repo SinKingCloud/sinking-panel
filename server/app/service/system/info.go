@@ -1,44 +1,44 @@
 package system
 
 // GetInfo 获取系统信息
-func (s *Service) GetInfo() map[string]interface{} {
+func (s *service) GetInfo() map[string]interface{} {
 	// 从各个独立缓存中读取并组装系统信息
 	result := make(map[string]interface{})
 
 	// 获取系统基本信息
-	systemBaseCacheLock.RLock()
-	result["system"] = systemBaseCache
-	systemBaseCacheLock.RUnlock()
+	s.systemBaseCacheLock.RLock()
+	result["system"] = s.systemBaseCache
+	s.systemBaseCacheLock.RUnlock()
 
 	// 获取CPU信息
-	cpuInfoCacheLock.RLock()
-	result["cpu"] = cpuInfoCache
-	cpuInfoCacheLock.RUnlock()
+	s.cpuInfoCacheLock.RLock()
+	result["cpu"] = s.cpuInfoCache
+	s.cpuInfoCacheLock.RUnlock()
 
 	// 获取内存信息
-	memoryInfoCacheLock.RLock()
-	result["memory"] = memoryInfoCache
-	memoryInfoCacheLock.RUnlock()
+	s.memoryInfoCacheLock.RLock()
+	result["memory"] = s.memoryInfoCache
+	s.memoryInfoCacheLock.RUnlock()
 
 	// 获取磁盘信息
-	disksInfoCacheLock.RLock()
-	result["disks"] = disksInfoCache
-	disksInfoCacheLock.RUnlock()
+	s.disksInfoCacheLock.RLock()
+	result["disks"] = s.disksInfoCache
+	s.disksInfoCacheLock.RUnlock()
 
 	// 获取系统负载信息
-	loadInfoCacheLock.RLock()
-	result["load"] = loadInfoCache
-	loadInfoCacheLock.RUnlock()
+	s.loadInfoCacheLock.RLock()
+	result["load"] = s.loadInfoCache
+	s.loadInfoCacheLock.RUnlock()
 
 	// 获取运行时信息
-	runtimeInfoCacheLock.RLock()
-	result["runtime"] = runtimeInfoCache
-	runtimeInfoCacheLock.RUnlock()
+	s.runtimeInfoCacheLock.RLock()
+	result["runtime"] = s.runtimeInfoCache
+	s.runtimeInfoCacheLock.RUnlock()
 
 	// 获取网卡信息
-	networkInfoCacheLock.RLock()
-	result["network"] = networkInfoCache
-	networkInfoCacheLock.RUnlock()
+	s.networkInfoCacheLock.RLock()
+	result["network"] = s.networkInfoCache
+	s.networkInfoCacheLock.RUnlock()
 
 	return result
 }

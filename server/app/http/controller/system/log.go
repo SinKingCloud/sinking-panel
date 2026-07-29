@@ -1,16 +1,14 @@
 package system
 
 import (
+	repositoryLog "server/app/repository/log"
 	"server/app/service"
 	"server/app/util/context"
-	"server/app/util/page"
 )
 
 func Log(c *context.Context) {
-	pageInfo := page.ValidatePageDefault(c)
-	type Form struct {
-		OrderByField    string `json:"order_by_field" default:"sort" validate:"oneof=id type ip create_time update_time" label:"排序字段"`
-		OrderByType     string `json:"order_by_type" default:"desc" validate:"oneof=desc asc" label:"排序类型"`
+	query := c.ValidatePage("id", "desc", "id", "id,type,ip,create_time,update_time")
+	var form struct {
 		Type            string `json:"type" default:"" validate:"omitempty,numeric" label:"类型"`
 		Ip              string `json:"ip" default:"" validate:"omitempty" label:"IP地址"`
 		Title           string `json:"title" default:"" validate:"omitempty" label:"标题"`
@@ -20,40 +18,39 @@ func Log(c *context.Context) {
 		UpdateTimeStart string `json:"update_time_start" default:"" validate:"omitempty,datetime=2006-01-02 15:04:05" label:"更新起始时间"`
 		UpdateTimeEnd   string `json:"update_time_end" default:"" validate:"omitempty,datetime=2006-01-02 15:04:05" label:"更新结束时间"`
 	}
-	form := &Form{}
-	if ok, msg := c.ValidatorAll(form); !ok {
+	if ok, msg := c.ValidatorAll(&form); !ok {
 		c.Error(msg)
 		return
 	}
-	where := make(map[string]string)
+	where := &repositoryLog.SelectLog{}
 	if form.Ip != "" {
-		where["ip"] = form.Ip
+		where.Ip = form.Ip
 	}
 	if form.Type != "" {
-		where["type"] = form.Type
+		where.Type = form.Type
 	}
 	if form.Title != "" {
-		where["title"] = form.Title
+		where.Title = form.Title
 	}
 	if form.Content != "" {
-		where["content"] = form.Content
+		where.Content = form.Content
 	}
 	if form.CreateTimeStart != "" {
-		where["create_time_start"] = form.CreateTimeStart
+		where.CreateTimeStart = form.CreateTimeStart
 	}
 	if form.CreateTimeEnd != "" {
-		where["create_time_end"] = form.CreateTimeEnd
+		where.CreateTimeEnd = form.CreateTimeEnd
 	}
 	if form.UpdateTimeStart != "" {
-		where["update_time_start"] = form.UpdateTimeStart
+		where.UpdateTimeStart = form.UpdateTimeStart
 	}
 	if form.UpdateTimeEnd != "" {
-		where["update_time_end"] = form.UpdateTimeEnd
+		where.UpdateTimeEnd = form.UpdateTimeEnd
 	}
-	data, total, err := service.Log.Select(where, form.OrderByField, form.OrderByType, pageInfo.Page, pageInfo.PageSize)
+	data, err := service.Log.Select(where, query)
 	if err != nil {
 		c.Error("获取日志失败")
 	} else {
-		c.SuccessWithData("获取日志成功", page.NewPage(total, pageInfo.Page, pageInfo.PageSize, data))
+		c.SuccessWithData("获取日志成功", data)
 	}
 }

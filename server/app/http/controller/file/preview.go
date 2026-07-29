@@ -12,12 +12,11 @@ import (
 )
 
 func Preview(c *context.Context) {
-	type Form struct {
+	var form struct {
 		Path     string `json:"path" default:"" validate:"required" label:"文件路径"`
 		Download bool   `json:"download" default:"false" validate:"omitempty" label:"是否下载"`
 	}
-	form := &Form{}
-	if ok, msg := c.ValidatorAll(form); !ok {
+	if ok, msg := c.ValidatorAll(&form); !ok {
 		c.Error(msg)
 		return
 	}

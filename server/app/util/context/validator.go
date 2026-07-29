@@ -1,6 +1,11 @@
 package context
 
-import "server/app/util/validator"
+import (
+	"strings"
+
+	"server/app/util/page"
+	"server/app/util/validator"
+)
 
 // Validator 结构体验证
 func (c *Context) Validator(data interface{}) (bool, string) {
@@ -45,4 +50,73 @@ func (c *Context) ValidatorPath(data interface{}) (bool, string) {
 		return false, "path参数绑定失败"
 	}
 	return validator.Check(data)
+}
+
+// ValidatePage 验证分页和排序参数，并返回分页查询对象。
+// cursorAllowField 表示游标分页允许的排序字段，pageAllowField 表示普通分页允许的排序字段。
+// 不传 pageAllowField 或传入空字符串时，普通分页沿用游标分页的排序字段。
+// 例如 ValidatePage("id", "desc", "id,create_time,update_time", "id,status,create_time,update_time") 表示普通分页还允许使用 status 排序。
+// defaultField 和 defaultType 可以传空；游标白名单为空字符串或 "*" 时不限制排序字段；请求中的排序字段不在对应白名单内时，会回退到 defaultField。
+// page 大于 0 时使用普通分页，否则使用游标分页。
+func (c *Context) ValidatePage(defaultField, defaultType, cursorAllowField string, pageAllowFields ...string) *page.Query {
+	const defaultPageSize = 20
+	pageAllowField := strings.Join(pageAllowFields, ",")
+	defaultType = strings.ToLower(defaultType)
+	if defaultType != "" && defaultType != "desc" && defaultType != "asc" {
+		defaultType = "desc"
+	}
+	var pageInfo struct {
+		Page         int    `json:"page" label:"页码编号"`
+		PageSize     int    `json:"page_size" label:"每页数量"`
+		Field        string `json:"order_by_field" label:"排序字段"`
+		Type         string `json:"order_by_type" label:"排序类型"`
+		CursorId     string `json:"cursor_id" label:"分页游标排序值"`
+		CursorLastId string `json:"cursor_last_id" label:"分页游标定位值"`
+	}
+	if c.BindAll(&pageInfo) != nil {
+		return &page.Query{
+			PageSize:     defaultPageSize,
+			OrderByField: defaultField,
+			OrderByType:  defaultType,
+		}
+	}
+	query := &page.Query{
+		Page:         pageInfo.Page,
+		PageSize:     pageInfo.PageSize,
+		OrderByField: pageInfo.Field,
+		OrderByType:  strings.ToLower(pageInfo.Type),
+		CursorId:     pageInfo.CursorId,
+		CursorLastId: pageInfo.CursorLastId,
+	}
+	if query.PageSize <= 0 || query.PageSize > 1000 {
+		query.PageSize = defaultPageSize
+	}
+	if query.OrderByField == "" {
+		query.OrderByField = defaultField
+	}
+	if query.OrderByType == "" {
+		query.OrderByType = defaultType
+	}
+	if query.OrderByType != "" && query.OrderByType != "desc" && query.OrderByType != "asc" {
+		query.OrderByType = defaultType
+	}
+	isAllowed := func(fields string) bool {
+		if fields == "" || fields == "*" {
+			return true
+		}
+		for _, field := range strings.Fields(strings.ReplaceAll(fields, ",", " ")) {
+			if field == query.OrderByField {
+				return true
+			}
+		}
+		return false
+	}
+	allowField := cursorAllowField
+	if !query.IsCursor() && pageAllowField != "" {
+		allowField = pageAllowField
+	}
+	if !isAllowed(allowField) {
+		query.OrderByField = defaultField
+	}
+	return query
 }

@@ -1,44 +1,46 @@
 package service
 
 import (
+	configRepository "server/app/repository/config"
+	logRepository "server/app/repository/log"
+	serverRepository "server/app/repository/server"
+	taskRepository "server/app/repository/task"
 	"server/app/service/auth"
 	"server/app/service/config"
 	"server/app/service/file"
-	"server/app/service/log"
+	logService "server/app/service/log"
 	"server/app/service/recycle"
-	"server/app/service/server"
+	serverService "server/app/service/server"
 	"server/app/service/system"
-	"server/app/service/task"
+	taskService "server/app/service/task"
+	"server/global"
 )
 
 // service实例
 var (
-	Config  = config.GetIns()
-	Auth    = auth.GetIns()
-	Server  = server.GetIns()
-	Log     = log.GetIns()
-	Task    = task.GetIns()
-	File    = file.GetIns()
-	Recycle = recycle.GetIns()
-	System  = system.GetIns()
+	Config  config.Service
+	Auth    auth.Service
+	Server  serverService.Service
+	Log     logService.Service
+	Task    taskService.Service
+	File    file.Service
+	Recycle recycle.Service
+	System  system.Service
 )
 
-// Enum 枚举信息
-var Enum = map[string]interface{}{
-	"log": map[string]interface{}{
-		"type": Log.Types(), //日志类型
-	},
-	"server": map[string]interface{}{
-		"auth_type": Server.AuthTypes(), //服务器验证类型
-	},
-	"task": map[string]interface{}{
-		"type":   Task.Types(),  //计划任务类型
-		"status": Task.Status(), //计划任务状态
-	},
-	"system": map[string]interface{}{
-		"task_status": System.TaskStatus(), //任务状态
-	},
-	"file": map[string]interface{}{
-		"formats": File.Formats(), //支持的压缩格式
-	},
+// Init 初始化service
+func Init() {
+	configRepo := configRepository.NewRepository(global.App.Database)
+	logRepo := logRepository.NewRepository(global.App.Database)
+	serverRepo := serverRepository.NewRepository(global.App.Database)
+	taskRepo := taskRepository.NewRepository(global.App.Database)
+
+	Config = config.NewService(configRepo, global.App.Cache)
+	Auth = auth.NewService(Config, global.App.Cache)
+	Server = serverService.NewService(serverRepo)
+	Log = logService.NewService(logRepo)
+	Task = taskService.NewService(taskRepo)
+	File = file.NewService()
+	Recycle = recycle.NewService()
+	System = system.NewService(File)
 }

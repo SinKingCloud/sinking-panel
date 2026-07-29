@@ -1,8 +1,8 @@
 package file
 
 import (
+	"server/app/enum/system_task_status"
 	"server/app/service"
-	"server/app/service/system"
 	"server/app/util/context"
 	"server/app/util/file"
 	"server/app/util/str"
@@ -11,12 +11,11 @@ import (
 )
 
 func Copy(c *context.Context) {
-	type Form struct {
+	var form struct {
 		SourcePath string `json:"source_path" default:"" validate:"required" label:"源文件路径"`
 		TargetPath string `json:"target_path" default:"" validate:"required" label:"目标路径"`
 	}
-	form := &Form{}
-	if ok, msg := c.ValidatorAll(form); !ok {
+	if ok, msg := c.ValidatorAll(&form); !ok {
 		c.Error(msg)
 		return
 	}
@@ -45,10 +44,10 @@ func Copy(c *context.Context) {
 		if taskInfo == nil || taskInfo.Context == nil {
 			return
 		}
-		service.System.TaskUpdate(taskID, system.TaskStatusRunning, 0, "开始复制")
+		service.System.TaskUpdate(taskID, system_task_status.Running, 0, "开始复制")
 		_, _, _, err := f.Count(form.SourcePath)
 		if err != nil {
-			service.System.TaskUpdate(taskID, system.TaskStatusFailed, 0, "计算文件大小失败: "+err.Error())
+			service.System.TaskUpdate(taskID, system_task_status.Failed, 0, "计算文件大小失败: "+err.Error())
 			return
 		}
 		err = service.File.CopyWithContext(taskInfo.Context, form.SourcePath, form.TargetPath, func(current, total int64, currentFile string, totalFiles, currentIndex int64) bool {
@@ -60,23 +59,23 @@ func Copy(c *context.Context) {
 				progress = float64(current) / float64(total) * 100
 			}
 			message := "正在复制: " + currentFile
-			service.System.TaskUpdate(taskID, system.TaskStatusRunning, progress, message)
+			service.System.TaskUpdate(taskID, system_task_status.Running, progress, message)
 			return true
 		})
 		select {
 		case <-taskInfo.Context.Done():
-			service.System.TaskUpdate(taskID, system.TaskStatusCanceled, 0, "任务已取消")
+			service.System.TaskUpdate(taskID, system_task_status.Canceled, 0, "任务已取消")
 			return
 		default:
 			if canceled.Load() {
-				service.System.TaskUpdate(taskID, system.TaskStatusCanceled, 0, "任务已取消")
+				service.System.TaskUpdate(taskID, system_task_status.Canceled, 0, "任务已取消")
 				return
 			}
 			if err != nil {
-				service.System.TaskUpdate(taskID, system.TaskStatusFailed, 0, "复制失败: "+err.Error())
+				service.System.TaskUpdate(taskID, system_task_status.Failed, 0, "复制失败: "+err.Error())
 				return
 			}
-			service.System.TaskUpdate(taskID, system.TaskStatusCompleted, 100, "复制完成")
+			service.System.TaskUpdate(taskID, system_task_status.Completed, 100, "复制完成")
 		}
 	}()
 	c.SuccessWithData("创建复制任务成功", taskID)

@@ -1,12 +1,8 @@
 package task
 
-import (
-	"server/app/model"
-	"server/app/util"
-)
+import "server/app/model"
 
 // create 插入数据
-func (s *Service) create(data *model.Task) (err error) {
-	err = util.Database.Db.Create(&data).Error
-	return
+func (s *service) create(data *model.Task) error {
+	return s.repositoryTask.Create(data)
 }

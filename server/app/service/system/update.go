@@ -1,9 +1,15 @@
 package system
 
-import "time"
+import (
+	"server/app/enum/system_task_status"
+	"time"
+)
 
 // TaskUpdate 更新任务
-func (s *Service) TaskUpdate(id string, status TaskStatus, progress float64, message string) {
+func (s *service) TaskUpdate(id string, status int, progress float64, message string) {
+	if _, ok := system_task_status.Map()[status]; !ok {
+		return
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -17,11 +23,11 @@ func (s *Service) TaskUpdate(id string, status TaskStatus, progress float64, mes
 	task.Message = message
 	task.UpdateTime = time.Now().Unix()
 
-	if status == TaskStatusRunning && task.StartTime == 0 {
+	if status == system_task_status.Running && task.StartTime == 0 {
 		task.StartTime = task.UpdateTime
 	}
 
-	if status == TaskStatusCompleted || status == TaskStatusFailed || status == TaskStatusCanceled {
+	if status == system_task_status.Completed || status == system_task_status.Failed || status == system_task_status.Canceled {
 		task.EndTime = task.UpdateTime
 	}
 }

@@ -14,7 +14,7 @@ import (
 )
 
 // DownloadWithProgress 带进度的文件下载，支持断点续传
-func (s *Service) DownloadWithProgress(ctx context.Context, url string, destPath string, progressCallback func(current, total int64, speed float64) bool) error {
+func (s *service) DownloadWithProgress(ctx context.Context, url string, destPath string, progressCallback func(current, total int64, speed float64) bool) error {
 	tempPath := destPath + ".download"
 	dir := filepath.Dir(destPath)
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
@@ -140,7 +140,7 @@ func (s *Service) DownloadWithProgress(ctx context.Context, url string, destPath
 }
 
 // FormatSize 格式化文件大小
-func (s *Service) FormatSize(bytes int64) string {
+func (s *service) FormatSize(bytes int64) string {
 	const (
 		KB = 1024
 		MB = 1024 * KB

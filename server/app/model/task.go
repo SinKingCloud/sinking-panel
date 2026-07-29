@@ -8,7 +8,7 @@ import (
 
 // Task 计划任务表
 type Task struct {
-	Id         int          `gorm:"column:id;PRIMARY_KEY" json:"id"`
+	Id         int64        `gorm:"column:id;PRIMARY_KEY" json:"id"`
 	EntryID    int          `gorm:"column:entry_id" json:"entry_id"`
 	Type       int          `gorm:"column:type" json:"type"`
 	Name       string       `gorm:"column:name" json:"name"`
