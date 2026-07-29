@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
-	"encoding/base64"
-	"fmt"
 )
 
 func PKCS5Padding(ciphertext []byte, blockSize int) []byte {
@@ -43,28 +41,6 @@ func AesDecrypt(crypted, key []byte) ([]byte, error) {
 	blockMode.CryptBlocks(origData, crypted)
 	origData = PKCS5UnPadding(origData)
 	return origData, nil
-}
-
-func EncryptByAes(src string, key string) string {
-	result, err := AesEncrypt([]byte(src), []byte(key))
-	if err != nil {
-		panic(err)
-	}
-	return base64.StdEncoding.EncodeToString(result)
-}
-
-func DecryptByAes(src string, key string) string {
-	var result []byte
-	var err error
-	result, err = base64.StdEncoding.DecodeString(src)
-	if err != nil {
-		panic(err)
-	}
-	origData, err := AesDecrypt(result, []byte(key))
-	if err != nil {
-		panic(err)
-	}
-	return string(origData)
 }
 
 // ECB mode
@@ -122,15 +98,4 @@ func (x *ecbDecrypter) CryptBlocks(dst, src []byte) {
 		src = src[x.blockSize:]
 		dst = dst[x.blockSize:]
 	}
-}
-
-func main() {
-	key := "1234567890123456" // AES-128 需要16字节密钥
-	src := "Hello, World!"
-
-	encrypted := EncryptByAes(src, key)
-	fmt.Println("Encrypted:", encrypted)
-
-	decrypted := DecryptByAes(encrypted, key)
-	fmt.Println("Decrypted:", decrypted)
 }

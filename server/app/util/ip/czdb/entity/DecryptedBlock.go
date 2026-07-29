@@ -2,6 +2,7 @@ package entity
 
 import (
 	"encoding/base64"
+
 	"server/app/util/ip/czdb/aesECB"
 	"server/app/util/ip/czdb/byteUtil"
 )

@@ -3,10 +3,11 @@ package hyperHeaderDecoder
 import (
 	"fmt"
 	"io"
-	"server/app/util/ip/czdb/byteUtil"
-	"server/app/util/ip/czdb/entity"
 	"strconv"
 	"time"
+
+	"server/app/util/ip/czdb/byteUtil"
+	"server/app/util/ip/czdb/entity"
 )
 
 // package HyperHeaderDecoder 提供用于解码HyperHeaderBlock对象的实用方法。

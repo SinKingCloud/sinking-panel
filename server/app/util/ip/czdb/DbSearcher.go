@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+
 	"server/app/util/ip/czdb/byteUtil"
 	"server/app/util/ip/czdb/constant"
 	"server/app/util/ip/czdb/entity"
@@ -535,21 +536,21 @@ func compareBytes(bytes1, bytes2 []byte, length int) int {
 			// When the signs are different, the negative byte is considered larger
 			if b1 > 0 {
 				return -1
-			} else {
-				return 1
 			}
+
+			return 1
 		} else if b1*b2 == 0 && b1+b2 != 0 {
 			// When one byte is zero and the other is not, the zero byte is considered smaller
 			if b1 == 0 {
 				return -1
-			} else {
-				return 1
 			}
+
+			return 1
 		}
 	}
 	if len(bytes1) >= length && len(bytes2) >= length {
 		return 0
-	} else {
-		return len(bytes1) - len(bytes2)
 	}
+
+	return len(bytes1) - len(bytes2)
 }

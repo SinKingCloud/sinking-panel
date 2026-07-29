@@ -2,6 +2,7 @@ package entity
 
 import (
 	"math"
+
 	"server/app/util/ip/czdb/byteUtil"
 )
 
