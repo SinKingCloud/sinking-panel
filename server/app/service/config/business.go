@@ -4,6 +4,7 @@ import (
 	"errors"
 	"server/app/constant"
 	"server/app/model"
+	"strings"
 )
 
 // Group 获取group所有数据
@@ -19,28 +20,37 @@ func (s *service) Group(group string) map[string]string {
 }
 
 // Set 设置数据
-func (s *service) Set(group string, key string, value string) error {
-	return s.Sets(group, map[string]string{key: value})
+func (s *service) Set(key string, value string) error {
+	return s.Sets(map[string]string{key: value})
 }
 
 // Sets 批量设置数据
-func (s *service) Sets(group string, configs map[string]string) error {
+func (s *service) Sets(configs map[string]string) error {
 	if len(configs) == 0 {
 		return errors.New("设置数据不能为空")
 	}
-	lock := constant.LockConfigSet + group
-	if !s.cache.Lock(lock, constant.LockTimeConfigSet) {
+	if !s.cache.Lock(constant.LockConfigSet, constant.LockTimeConfigSet) {
 		return errors.New("获取并发锁失败")
 	}
-	defer s.cache.UnLock(lock)
-	defer s.cache.Delete(constant.CacheNameWithSysConfig + group)
+	defer s.cache.UnLock(constant.LockConfigSet)
 	list := make([]*model.Config, 0, len(configs))
+	groups := make(map[string]struct{})
 	for key, value := range configs {
+		group := key
+		if index := strings.IndexByte(key, '.'); index > 0 {
+			group = key[:index]
+		}
+		groups[group] = struct{}{}
 		list = append(list, &model.Config{
 			Key:   key,
 			Value: value,
 		})
 	}
+	defer func() {
+		for group := range groups {
+			s.cache.Delete(constant.CacheNameWithSysConfig + group)
+		}
+	}()
 	return s.repositoryConfig.Save(list)
 }
 

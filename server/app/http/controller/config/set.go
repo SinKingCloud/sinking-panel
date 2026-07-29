@@ -13,7 +13,6 @@ func Set(c *context.Context) {
 	}
 	var form struct {
 		Configs []*Config `json:"configs" default:"" validate:"gte=1" label:"配置标识"`
-		Group   string    `json:"group" default:"" validate:"required,max=100" label:"配置组"`
 	}
 	if ok, msg := c.ValidatorAll(&form); !ok {
 		c.Error(msg)
@@ -26,7 +25,7 @@ func Set(c *context.Context) {
 		}
 	}
 	if len(configs) > 0 {
-		if err := service.Config.Sets(form.Group, configs); err != nil {
+		if err := service.Config.Sets(configs); err != nil {
 			c.Error("修改数据失败")
 			return
 		}

@@ -10,9 +10,9 @@ import (
 func Create(c *context.Context) {
 	var form struct {
 		Ip       string `json:"ip" default:"" validate:"required,ip" label:"IP地址"`
-		Port     int    `json:"title" default:"" validate:"required,min=1,max=65535" label:"端口"`
+		Port     int    `json:"port" default:"" validate:"required,min=1,max=65535" label:"端口"`
 		User     string `json:"user" default:"" validate:"required" label:"账号"`
-		AuthType int    `json:"auth_type" default:"" validate:"required,oneof=0 1" label:"验证方式"`
+		AuthType int    `json:"auth_type" default:"0" validate:"oneof=0 1" label:"验证方式"`
 		Password string `json:"password" default:"" validate:"required" label:"密码"`
 		Name     string `json:"name" default:"" validate:"required" label:"名称"`
 	}

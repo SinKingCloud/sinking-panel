@@ -1,8 +1,17 @@
 package constant
 
 const (
-	WebGroup = "web"              //网站配置组
-	WebName  = WebGroup + ".name" //网站名称
+	WebGroup = "web"               //网站配置组
+	WebTitle = WebGroup + ".title" //网站标题
+	WebName  = WebGroup + ".name"  //网站名称
+
+	UiGroup     = "ui"                   //界面配置组
+	UiLayout    = UiGroup + ".layout"    //界面布局
+	UiWaterMark = UiGroup + ".watermark" //水印内容
+	UiTheme     = UiGroup + ".theme"     //主题
+	UiCompact   = UiGroup + ".compact"   //紧凑模式
+	UiColor     = UiGroup + ".color"     //主题色
+	UiRadius    = UiGroup + ".radius"    //主题圆角
 
 	LoginGroup    = "login"                  //登录配置组
 	LoginAccount  = LoginGroup + ".account"  //登录账号

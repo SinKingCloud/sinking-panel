@@ -18,7 +18,7 @@ func (s *service) Login(account string, pwd string, types string, ip string) (st
 		if password == "" {
 			return "", errors.New("密码加密失败")
 		}
-		if err := s.configService.Sets(constant.LoginGroup, map[string]string{
+		if err := s.configService.Sets(map[string]string{
 			constant.LoginAccount:  account,
 			constant.LoginPassword: password,
 		}); err != nil {
@@ -37,15 +37,15 @@ func (s *service) Login(account string, pwd string, types string, ip string) (st
 	token := str.NewStringTool(strconv.FormatInt(time.Now().UnixMilli(), 10)).Md5()
 	loginTime := str.DateTime(time.Now())
 	if token != "" {
-		if err := s.configService.Set(constant.LoginGroup, constant.LoginToken+"."+types, token); err != nil {
+		if err := s.configService.Set(constant.LoginToken+"."+types, token); err != nil {
 			return "", err
 		}
 	} else {
 		return "", errors.New("生成token失败")
 	}
 	expire, _ := strconv.Atoi(s.configService.Get(constant.LoginGroup, constant.LoginExpire))
-	if expire > 0 && expire <= 600 {
-		expire = 600
+	if expire > 0 && expire <= 7200 {
+		expire = 7200
 	}
 	tokenValue := jwt.GetToken(&jwt.User{
 		LoginToken: token,
@@ -57,5 +57,5 @@ func (s *service) Login(account string, pwd string, types string, ip string) (st
 
 // Logout 注销登录
 func (s *service) Logout(types string) error {
-	return s.configService.Set(constant.LoginGroup, constant.LoginToken+"."+types, "")
+	return s.configService.Set(constant.LoginToken+"."+types, "")
 }

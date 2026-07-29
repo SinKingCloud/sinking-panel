@@ -45,6 +45,7 @@ func loadStaticRoute(s *sinking_web.Engine) {
 
 // loadAuthRoute 授权路由
 func loadAuthRoute(s *sinking_web.Engine) {
+	s.ANY("/info", context.HandleFunc(auth.Info))       //网站信息
 	s.ANY("/login", context.HandleFunc(auth.Login))     //账号登录
 	s.ANY("/logout", context.HandleFunc(auth.Logout))   //注销登录
 	s.ANY("/captcha", context.HandleFunc(auth.Captcha)) //验证码

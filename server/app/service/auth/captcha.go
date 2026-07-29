@@ -3,9 +3,10 @@ package auth
 import (
 	"encoding/json"
 	"errors"
-	"github.com/wenlng/go-captcha/v2/slide"
 	"server/app/constant"
 	"server/app/util/captcha"
+
+	"github.com/wenlng/go-captcha/v2/slide"
 )
 
 // GetCaptcha 获取验证码
@@ -37,8 +38,12 @@ func (s *service) GetCaptcha(key string) (map[string]interface{}, error) {
 func (s *service) CheckCaptcha(key string, x int, y int) bool {
 	value := s.cache.Get(constant.CacheNameWithCaptcha + key)
 	s.cache.Delete(constant.CacheNameWithCaptcha + key)
+	valueString, ok := value.(string)
+	if !ok || valueString == "" {
+		return false
+	}
 	var dct *slide.Block
-	if err := json.Unmarshal([]byte(value.(string)), &dct); err != nil {
+	if err := json.Unmarshal([]byte(valueString), &dct); err != nil || dct == nil {
 		return false
 	}
 	return captcha.CheckSlide(x, y, dct)
