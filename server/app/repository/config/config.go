@@ -9,9 +9,7 @@ import (
 // Interface 配置仓储接口
 type Interface interface {
 	FindByGroup(group string) ([]*model.Config, error)
-	CountByKey(key string) (int64, error)
-	UpdateByKey(key string, value string) error
-	Create(config *model.Config) error
+	Save(configs []*model.Config) error
 }
 
 // Repository 仓储

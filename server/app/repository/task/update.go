@@ -4,6 +4,8 @@ import (
 	"server/app/model"
 	"server/app/util/str"
 	"time"
+
+	"gorm.io/gorm"
 )
 
 // UpdateEntryIDById 更新任务实例ID
@@ -56,5 +58,11 @@ func (r *Repository) UpdateByIds(ids []int64, data *UpdateTask) error {
 		return nil
 	}
 	updates["update_time"] = str.DateTime(time.Now())
-	return r.Database.Db.Model(&model.Task{}).Where("id IN ?", ids).Updates(updates).Error
+	return r.Database.Transaction(func(tx *gorm.DB) error {
+		return r.Database.BatchExecute(ids, 1000, func(batch interface{}) error {
+			return tx.Model(&model.Task{}).
+				Where("id IN ?", batch.([]int64)).
+				Updates(updates).Error
+		})
+	})
 }

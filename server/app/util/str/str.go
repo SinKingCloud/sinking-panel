@@ -10,12 +10,12 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"github.com/axgle/mahonia"
-	"golang.org/x/crypto/bcrypt"
 	"io"
 	rand2 "math/rand"
 	"strings"
-	"time"
+
+	"github.com/axgle/mahonia"
+	"golang.org/x/crypto/bcrypt"
 )
 
 // StringTool 字符串工具
@@ -34,7 +34,7 @@ func NewStrTool() *StringTool {
 }
 
 // GetBetween 获取文本中间字符
-func (stringTool *StringTool) GetBetween(start string, end string) string {
+func (stringTool StringTool) GetBetween(start string, end string) string {
 	n := strings.Index(stringTool.string, start)
 	if n == -1 {
 		n = 0
@@ -49,14 +49,14 @@ func (stringTool *StringTool) GetBetween(start string, end string) string {
 }
 
 // Md5 获取字符串md5值
-func (stringTool *StringTool) Md5() string {
+func (stringTool StringTool) Md5() string {
 	h := md5.New()
 	h.Write([]byte(stringTool.string))
 	return hex.EncodeToString(h.Sum(nil))
 }
 
 // AesCbcEncrypt aes cbc加密
-func (stringTool *StringTool) AesCbcEncrypt(key string) string {
+func (stringTool StringTool) AesCbcEncrypt(key string) string {
 	plainByte := []byte(stringTool.string)
 	keyByte := []byte(key)
 	if len(plainByte)%aes.BlockSize != 0 {
@@ -77,7 +77,7 @@ func (stringTool *StringTool) AesCbcEncrypt(key string) string {
 }
 
 // AesCbcDecrypt aes cbc解密
-func (stringTool *StringTool) AesCbcDecrypt(key string) string {
+func (stringTool StringTool) AesCbcDecrypt(key string) string {
 	cipherByte, _ := hex.DecodeString(stringTool.string)
 	keyByte := []byte(key)
 	block, err := aes.NewCipher(keyByte)
@@ -97,7 +97,7 @@ func (stringTool *StringTool) AesCbcDecrypt(key string) string {
 	return string(cipherByte[:])
 }
 
-func (stringTool *StringTool) AesEncrypt(key string) string {
+func (stringTool StringTool) AesEncrypt(key string) string {
 	origData := []byte(stringTool.string)
 	k := []byte(key)
 	block, _ := aes.NewCipher(k)
@@ -109,7 +109,7 @@ func (stringTool *StringTool) AesEncrypt(key string) string {
 	return base64.StdEncoding.EncodeToString(cryted)
 }
 
-func (stringTool *StringTool) AesDecrypt(key string) string {
+func (stringTool StringTool) AesDecrypt(key string) string {
 	crytedByte, _ := base64.StdEncoding.DecodeString(stringTool.string)
 	k := []byte(key)
 	block, _ := aes.NewCipher(k)
@@ -147,16 +147,14 @@ func (stringTool StringTool) CheckPassword(password string) bool {
 	err := bcrypt.CompareHashAndPassword([]byte(stringTool.string), []byte(password)) //验证（对比）
 	if err != nil {
 		return false
-	} else {
-		return true
 	}
+	return true
 }
 
 // GenValidateCode 生成指定位数验证码
 func (stringTool StringTool) GenValidateCode(width int) string {
 	numeric := [10]byte{1, 2, 3, 4, 5, 6, 7, 8, 9}
 	r := len(numeric)
-	rand2.Seed(time.Now().UnixNano())
 	var sb strings.Builder
 	for i := 0; i < width; i++ {
 		_, err := fmt.Fprintf(&sb, "%d", numeric[rand2.Intn(r)])

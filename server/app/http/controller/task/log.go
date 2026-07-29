@@ -6,16 +6,10 @@ import (
 )
 
 func Log(c *context.Context) {
-	query := c.ValidatePage("id", "asc", "id")
-	if query.CursorId != "" || query.CursorLastId != "" {
-		c.Error("任务日志不支持游标分页")
-		return
-	}
-	if query.IsCursor() {
-		query.Page = 1
-	}
 	var form struct {
-		Id int64 `json:"id" default:"" validate:"numeric,min=1" label:"记录ID"`
+		Id       int64 `json:"id" default:"" validate:"required,numeric,min=1" label:"记录ID"`
+		Page     int   `json:"page" default:"1" validate:"numeric,min=1" label:"分页页码"`
+		PageSize int   `json:"page_size" default:"20" validate:"numeric,min=1,max=1000" label:"分页容量"`
 	}
 	if ok, msg := c.ValidatorAll(&form); !ok {
 		c.Error(msg)
@@ -25,6 +19,6 @@ func Log(c *context.Context) {
 	if err != nil || data == nil {
 		c.Error("获取失败")
 	} else {
-		c.SuccessWithData("获取成功", service.Task.ReadLog(data.Id, query.Page, query.PageSize))
+		c.SuccessWithData("获取成功", service.Task.ReadLog(data.Id, form.Page, form.PageSize))
 	}
 }

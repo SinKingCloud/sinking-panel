@@ -9,33 +9,45 @@ import (
 	"time"
 )
 
-// CheckAccount 判断账号密码
-func (s *service) CheckAccount(account string, pwd string) error {
+// Login 账号登录
+func (s *service) Login(account string, pwd string, types string, ip string) (string, error) {
 	sUser := s.configService.Get(constant.LoginGroup, constant.LoginAccount)
 	sPwd := s.configService.Get(constant.LoginGroup, constant.LoginPassword)
-	if sUser == "" || sPwd == "" || sUser != account || !str.NewStringTool(sPwd).CheckPassword(pwd) {
-		return errors.New("用户名或密码错误")
+	if sUser == "" && sPwd == "" {
+		password := str.NewStringTool(pwd).GetPassword()
+		if password == "" {
+			return "", errors.New("密码加密失败")
+		}
+		if err := s.configService.Sets(constant.LoginGroup, map[string]string{
+			constant.LoginAccount:  account,
+			constant.LoginPassword: password,
+		}); err != nil {
+			return "", err
+		}
+		sUser = account
+		sPwd = password
 	}
-	return nil
-}
+	if (sUser == "") != (sPwd == "") {
+		return "", errors.New("登录配置异常")
+	}
+	if sUser != account || !str.NewStringTool(sPwd).CheckPassword(pwd) {
+		return "", errors.New("用户名或密码错误")
+	}
 
-// GenLoginToken 生成jwtToken
-func (s *service) GenLoginToken(types string, ip string) (tokenValue string, err error) {
 	token := str.NewStringTool(strconv.FormatInt(time.Now().UnixMilli(), 10)).Md5()
 	loginTime := str.DateTime(time.Now())
 	if token != "" {
-		err = s.configService.Set(constant.LoginGroup, constant.LoginToken+"."+types, token)
+		if err := s.configService.Set(constant.LoginGroup, constant.LoginToken+"."+types, token); err != nil {
+			return "", err
+		}
 	} else {
-		err = errors.New("生成token失败")
-	}
-	if err != nil {
-		return "", err
+		return "", errors.New("生成token失败")
 	}
 	expire, _ := strconv.Atoi(s.configService.Get(constant.LoginGroup, constant.LoginExpire))
 	if expire > 0 && expire <= 600 {
 		expire = 600
 	}
-	tokenValue = jwt.GetToken(&jwt.User{
+	tokenValue := jwt.GetToken(&jwt.User{
 		LoginToken: token,
 		LoginIp:    ip,
 		LoginTime:  loginTime,
@@ -43,11 +55,7 @@ func (s *service) GenLoginToken(types string, ip string) (tokenValue string, err
 	return tokenValue, nil
 }
 
-// ClearLoginToken 清理jwtToken
-func (s *service) ClearLoginToken(types string) error {
-	err := s.configService.Set(constant.LoginGroup, constant.LoginToken+"."+types, "")
-	if err != nil {
-		return err
-	}
-	return nil
+// Logout 注销登录
+func (s *service) Logout(types string) error {
+	return s.configService.Set(constant.LoginGroup, constant.LoginToken+"."+types, "")
 }

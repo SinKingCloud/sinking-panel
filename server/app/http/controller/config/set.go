@@ -19,9 +19,16 @@ func Set(c *context.Context) {
 		c.Error(msg)
 		return
 	}
+	configs := make(map[string]string)
 	for _, v := range form.Configs {
-		if v.Value != "" {
-			_ = service.Config.Set(form.Group, v.Key, v.Value)
+		if v != nil && v.Value != "" {
+			configs[v.Key] = v.Value
+		}
+	}
+	if len(configs) > 0 {
+		if err := service.Config.Sets(form.Group, configs); err != nil {
+			c.Error("修改数据失败")
+			return
 		}
 	}
 	c.Success("修改数据成功")

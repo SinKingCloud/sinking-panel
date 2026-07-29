@@ -2,18 +2,54 @@ package database
 
 import (
 	"errors"
+	"log"
+	"os"
+	"reflect"
+	"time"
+
 	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
-	"log"
-	"os"
-	"time"
 )
 
 // Database 数据库连接
 type Database struct {
 	Db      *gorm.DB
 	DbError error
+}
+
+// Transaction 事务执行
+func (d *Database) Transaction(fc func(tx *gorm.DB) error) error {
+	if d == nil || d.Db == nil {
+		return gorm.ErrInvalidDB
+	}
+	return d.Db.Transaction(fc)
+}
+
+// BatchExecute 批量执行
+func (d *Database) BatchExecute(slice interface{}, batchSize int, fn func(batch interface{}) error) error {
+	val := reflect.ValueOf(slice)
+	if val.Kind() != reflect.Slice {
+		return nil
+	}
+	total := val.Len()
+	if total == 0 {
+		return nil
+	}
+	if batchSize <= 0 {
+		batchSize = 1000
+	}
+	for i := 0; i < total; i += batchSize {
+		end := i + batchSize
+		if end > total {
+			end = total
+		}
+		batch := val.Slice(i, end).Interface()
+		if err := fn(batch); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func newLogger() logger.Interface {

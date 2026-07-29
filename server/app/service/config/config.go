@@ -9,6 +9,7 @@ import (
 type Service interface {
 	Group(group string) map[string]string
 	Set(group string, key string, value string) error
+	Sets(group string, configs map[string]string) error
 	Get(group string, key string) string
 }
 

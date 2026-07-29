@@ -7,9 +7,8 @@ import (
 
 // Service service接口
 type Service interface {
-	CheckAccount(account string, pwd string) error
-	GenLoginToken(types string, ip string) (string, error)
-	ClearLoginToken(types string) error
+	Login(account string, pwd string, types string, ip string) (string, error)
+	Logout(types string) error
 	GetCaptcha(key string) (map[string]interface{}, error)
 	CheckCaptcha(key string, x int, y int) bool
 }

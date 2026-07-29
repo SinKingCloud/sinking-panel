@@ -4,8 +4,6 @@ import (
 	"errors"
 	"server/app/constant"
 	"server/app/model"
-	"server/app/util/str"
-	"time"
 )
 
 // Group 获取group所有数据
@@ -22,20 +20,28 @@ func (s *service) Group(group string) map[string]string {
 
 // Set 设置数据
 func (s *service) Set(group string, key string, value string) error {
-	lock := constant.LockConfigSet + group + key
+	return s.Sets(group, map[string]string{key: value})
+}
+
+// Sets 批量设置数据
+func (s *service) Sets(group string, configs map[string]string) error {
+	if len(configs) == 0 {
+		return errors.New("设置数据不能为空")
+	}
+	lock := constant.LockConfigSet + group
 	if !s.cache.Lock(lock, constant.LockTimeConfigSet) {
 		return errors.New("获取并发锁失败")
 	}
 	defer s.cache.UnLock(lock)
 	defer s.cache.Delete(constant.CacheNameWithSysConfig + group)
-	if n, e := s.repositoryConfig.CountByKey(key); e == nil && n > 0 {
-		return s.repositoryConfig.UpdateByKey(key, value)
+	list := make([]*model.Config, 0, len(configs))
+	for key, value := range configs {
+		list = append(list, &model.Config{
+			Key:   key,
+			Value: value,
+		})
 	}
-	return s.repositoryConfig.Create(&model.Config{
-		Key:        key,
-		Value:      value,
-		CreateTime: str.DateTime(time.Now()),
-	})
+	return s.repositoryConfig.Save(list)
 }
 
 // Get 获取数据

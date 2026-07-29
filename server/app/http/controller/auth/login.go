@@ -25,13 +25,9 @@ func Login(c *context.Context) {
 		c.Error("验证码验证失败请重试")
 		return
 	}
-	if e := service.Auth.CheckAccount(form.Account, form.Password); e != nil {
-		c.Error(e.Error())
-		return
-	}
-	token, e := service.Auth.GenLoginToken(form.Device, c.GetRequestIp())
-	if e != nil {
-		c.Error(e.Error())
+	token, err := service.Auth.Login(form.Account, form.Password, form.Device, c.GetRequestIp())
+	if err != nil {
+		c.Error(err.Error())
 		return
 	}
 	c.SuccessWithData("登录成功", token)
@@ -43,6 +39,9 @@ func Logout(c *context.Context) {
 	if c.IsAborted() {
 		return
 	}
-	_ = service.Auth.ClearLoginToken(c.Request.Header.Get(constant.JwtDeviceName))
+	if err := service.Auth.Logout(c.Request.Header.Get(constant.JwtDeviceName)); err != nil {
+		c.Error(err.Error())
+		return
+	}
 	c.Success("注销成功")
 }
