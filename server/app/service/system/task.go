@@ -18,7 +18,9 @@ func (s *service) SetTaskCancelFunc(id string, cancelFunc func()) {
 	task.Cancel = cancel
 	// 设置取消函数
 	task.CancelFunc = func() {
-		cancel()     // 取消上下文
-		cancelFunc() // 执行用户提供的取消函数
+		cancel()
+		if cancelFunc != nil {
+			cancelFunc()
+		}
 	}
 }

@@ -2,6 +2,7 @@ package file
 
 import (
 	"bufio"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -259,15 +260,23 @@ func (d *Disk) Copy(src, destDir string) error {
 //	currentFile - 当前正在处理的文件名
 //	totalFiles - 总文件数量
 //	currentIndex - 当前文件序号（从0开始）
-func (d *Disk) CopyWithProcess(src, destDir string, callback func(int64, int64, string, int64, int64)) error {
+func (d *Disk) CopyWithProcess(ctx context.Context, src, destDir string, callback func(int64, int64, string, int64, int64) bool) error {
 	srcPath := d.fullPath(src)
 	destPath := d.fullPath(destDir)
 	baseName := filepath.Base(srcPath)
 	finalDest := filepath.Join(destPath, baseName)
 
-	totalSize, fileCount, _, err := d.calculateTotal(srcPath)
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
+	totalSize, fileCount, _, err := d.calculateTotalWithContext(ctx, srcPath)
 	if err != nil {
 		return fmt.Errorf("calculate total failed: %w", err)
+	}
+
+	if err = ctx.Err(); err != nil {
+		return err
 	}
 
 	if err := d.prepareDestination(finalDest); err != nil {
@@ -275,35 +284,77 @@ func (d *Disk) CopyWithProcess(src, destDir string, callback func(int64, int64, 
 	}
 
 	var copied atomic.Int64
-	return d.copyTreeWithProgress(srcPath, finalDest, totalSize, fileCount, &copied, callback)
+	if err = d.copyTreeWithProgress(ctx, srcPath, finalDest, totalSize, fileCount, &copied, callback); err != nil {
+		return cleanPartialDestination(finalDest, err)
+	}
+	return nil
 }
 
 // MoveWithProcess 带进度回调的文件/目录移动
 // 参数说明同CopyWithProcess
-func (d *Disk) MoveWithProcess(src, destDir string, callback func(int64, int64, string, int64, int64)) error {
+func (d *Disk) MoveWithProcess(ctx context.Context, src, destDir string, callback func(int64, int64, string, int64, int64) bool) error {
 	srcPath := d.fullPath(src)
 	destPath := d.fullPath(destDir)
 	baseName := filepath.Base(srcPath)
 	finalDest := filepath.Join(destPath, baseName)
-	if err := os.Rename(srcPath, finalDest); err == nil {
-		if callback != nil {
-			info, _ := os.Stat(finalDest)
-			callback(info.Size(), info.Size(), baseName, 1, 0)
+
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if callback != nil && !callback(0, 0, baseName, 1, 0) {
+		return context.Canceled
+	}
+	complete := func() {
+		if callback == nil {
+			return
 		}
+		var size int64
+		if info, err := os.Stat(finalDest); err == nil {
+			size = info.Size()
+		}
+		callback(size, size, baseName, 1, 0)
+	}
+	if err := os.MkdirAll(filepath.Dir(finalDest), 0755); err != nil {
+		return err
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
+	if err := os.Rename(srcPath, finalDest); err == nil {
+		complete()
 		return nil
 	}
-	totalSize, fileCount, _, err := d.calculateTotal(srcPath)
-	if err != nil {
-		return fmt.Errorf("calculate total failed: %w", err)
+
+	if err := ctx.Err(); err != nil {
+		return err
 	}
 	if err := d.prepareDestination(finalDest); err != nil {
 		return err
 	}
-	var copied atomic.Int64
-	if err := d.copyTreeWithProgress(srcPath, finalDest, totalSize, fileCount, &copied, callback); err != nil {
-		return fmt.Errorf("copy failed: %w", err)
+	if err := ctx.Err(); err != nil {
+		return cleanPartialDestination(finalDest, err)
 	}
-	return os.RemoveAll(srcPath)
+	if err := os.Rename(srcPath, finalDest); err == nil {
+		complete()
+		return nil
+	}
+	totalSize, fileCount, _, err := d.calculateTotalWithContext(ctx, srcPath)
+	if err != nil {
+		return cleanPartialDestination(finalDest, fmt.Errorf("calculate total failed: %w", err))
+	}
+
+	var copied atomic.Int64
+	if err = d.copyTreeWithProgress(ctx, srcPath, finalDest, totalSize, fileCount, &copied, callback); err != nil {
+		return cleanPartialDestination(finalDest, fmt.Errorf("copy failed: %w", err))
+	}
+	if err = ctx.Err(); err != nil {
+		return cleanPartialDestination(finalDest, err)
+	}
+	if err = os.RemoveAll(srcPath); err != nil {
+		return cleanPartialDestination(finalDest, fmt.Errorf("remove source failed: %w", err))
+	}
+	return nil
 }
 
 // IsFile 检查路径是否为文件
@@ -524,8 +575,15 @@ func (d *Disk) copyFile(src, dest string) error {
 /******************** 进度跟踪逻辑 ********************/
 
 func (d *Disk) calculateTotal(path string) (int64, int64, int64, error) {
+	return d.calculateTotalWithContext(context.Background(), path)
+}
+
+func (d *Disk) calculateTotalWithContext(ctx context.Context, path string) (int64, int64, int64, error) {
 	var totalSize, fileCount, dirCount int64
 	err := filepath.Walk(path, func(p string, info os.FileInfo, err error) error {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return ctxErr
+		}
 		if err != nil {
 			return err
 		}
@@ -540,7 +598,11 @@ func (d *Disk) calculateTotal(path string) (int64, int64, int64, error) {
 	return totalSize, fileCount, dirCount, err
 }
 
-func (d *Disk) copyTreeWithProgress(src, dest string, totalSize, totalFiles int64, copied *atomic.Int64, callback func(int64, int64, string, int64, int64)) error {
+func (d *Disk) copyTreeWithProgress(ctx context.Context, src, dest string, totalSize, totalFiles int64, copied *atomic.Int64, callback func(int64, int64, string, int64, int64) bool) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
 	srcInfo, err := os.Stat(src)
 	if err != nil {
 		return err
@@ -553,11 +615,17 @@ func (d *Disk) copyTreeWithProgress(src, dest string, totalSize, totalFiles int6
 		}
 
 		return filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
+			if ctxErr := ctx.Err(); ctxErr != nil {
+				return ctxErr
+			}
 			if err != nil {
 				return err
 			}
 
-			relPath, _ := filepath.Rel(src, path)
+			relPath, err := filepath.Rel(src, path)
+			if err != nil {
+				return err
+			}
 			targetPath := filepath.Join(dest, relPath)
 
 			if path == src {
@@ -569,16 +637,20 @@ func (d *Disk) copyTreeWithProgress(src, dest string, totalSize, totalFiles int6
 			}
 
 			currentIndex := fileIndex.Add(1) - 1
-			if callback != nil {
-				callback(copied.Load(), totalSize, info.Name(), totalFiles, currentIndex)
-			}
-			return d.copyFileWithProgress(path, targetPath, totalSize, copied, callback, totalFiles, currentIndex)
+			return d.copyFileWithProgress(ctx, path, targetPath, totalSize, copied, callback, totalFiles, currentIndex)
 		})
 	}
-	return d.copyFileWithProgress(src, dest, totalSize, copied, callback, totalFiles, 0)
+	return d.copyFileWithProgress(ctx, src, dest, totalSize, copied, callback, totalFiles, 0)
 }
 
-func (d *Disk) copyFileWithProgress(src, dest string, totalSize int64, copied *atomic.Int64, callback func(int64, int64, string, int64, int64), totalFiles, currentIndex int64) error {
+func (d *Disk) copyFileWithProgress(ctx context.Context, src, dest string, totalSize int64, copied *atomic.Int64, callback func(int64, int64, string, int64, int64) bool, totalFiles, currentIndex int64) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if callback != nil && !callback(copied.Load(), totalSize, filepath.Base(src), totalFiles, currentIndex) {
+		return context.Canceled
+	}
+
 	srcFile, err := os.Open(src)
 	if err != nil {
 		return err
@@ -599,24 +671,34 @@ func (d *Disk) copyFileWithProgress(src, dest string, totalSize int64, copied *a
 		lastFlush int64
 	)
 	for {
+		if err = ctx.Err(); err != nil {
+			return err
+		}
+
 		n, err := srcFile.Read(buf)
 		if n > 0 {
+			if ctxErr := ctx.Err(); ctxErr != nil {
+				return ctxErr
+			}
 			if _, wErr := destFile.Write(buf[:n]); wErr != nil {
 				return wErr
 			}
 
 			newCopied := copied.Add(int64(n))
 			if newCopied-lastFlush >= progressUnit || err == io.EOF {
-				if callback != nil {
-					callback(newCopied, totalSize, filepath.Base(src), totalFiles, currentIndex)
+				if callback != nil && !callback(newCopied, totalSize, filepath.Base(src), totalFiles, currentIndex) {
+					return context.Canceled
 				}
 				lastFlush = newCopied / progressUnit * progressUnit
+			}
+			if ctxErr := ctx.Err(); ctxErr != nil {
+				return ctxErr
 			}
 		}
 
 		if err == io.EOF {
-			if callback != nil {
-				callback(copied.Load(), totalSize, filepath.Base(src), totalFiles, currentIndex)
+			if callback != nil && !callback(copied.Load(), totalSize, filepath.Base(src), totalFiles, currentIndex) {
+				return context.Canceled
 			}
 			break
 		}
@@ -625,6 +707,9 @@ func (d *Disk) copyFileWithProgress(src, dest string, totalSize int64, copied *a
 		}
 	}
 
+	if err = ctx.Err(); err != nil {
+		return err
+	}
 	if info, err := os.Stat(src); err == nil {
 		_ = os.Chtimes(dest, time.Now(), info.ModTime())
 		_ = os.Chmod(dest, info.Mode())
@@ -640,6 +725,13 @@ func (d *Disk) prepareDestination(dest string) error {
 		return fmt.Errorf("clean destination failed: %w", err)
 	}
 	return os.MkdirAll(filepath.Dir(dest), 0755)
+}
+
+func cleanPartialDestination(dest string, operationErr error) error {
+	if err := os.RemoveAll(dest); err != nil {
+		return errors.Join(operationErr, fmt.Errorf("clean partial destination failed: %w", err))
+	}
+	return operationErr
 }
 
 func (d *Disk) buildFileTree(root string, recursive bool) ([]*File, error) {

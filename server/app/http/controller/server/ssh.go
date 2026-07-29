@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/SinKingCloud/sinking-go/sinking-websocket"
+	"github.com/gorilla/websocket"
 )
 
 type sshContextKey struct{}
@@ -126,6 +127,9 @@ func Ssh(c *context.Context) {
 		}
 	}
 	client := webssh.NewSshClient(s.Ip, s.Port, 10*time.Second)
+	defer func() {
+		_ = client.Close()
+	}()
 	if s.AuthType == server_auth_type.Password {
 		err = client.AuthWithPassword(s.User, s.Password)
 	} else {
@@ -135,18 +139,15 @@ func Ssh(c *context.Context) {
 		c.Error(err.Error())
 		return
 	}
-	defer func() {
-		_ = client.Close()
-	}()
 	ssh := &sshConnection{
 		client: client,
 		width:  form.Width,
 		height: form.Height,
 	}
-	token := c.Request.Header.Get("Sec-Websocket-Protocol")
 	resp := make(http.Header)
-	if token != "" {
-		resp.Set("Sec-Websocket-Protocol", token)
+	protocols := websocket.Subprotocols(c.Request)
+	if len(protocols) > 0 {
+		resp.Set("Sec-WebSocket-Protocol", protocols[0])
 	}
 	request := c.Request.WithContext(stdContext.WithValue(c.Request.Context(), sshContextKey{}, ssh))
 	_ = sshServer.Handle(c.Writer, request, resp)

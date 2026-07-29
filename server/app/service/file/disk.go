@@ -114,24 +114,7 @@ func (s *service) GetDiskPaths() ([]string, error) {
 // callback: 进度回调函数
 func (s *service) CopyWithContext(ctx context.Context, src, destDir string, callback func(current, total int64, currentFile string, totalFiles, currentIndex int64) bool) error {
 	f := file.NewDisk("")
-	wrappedCallback := func(current, total int64, currentFile string, totalFiles, currentIndex int64) bool {
-		select {
-		case <-ctx.Done():
-			return false
-		default:
-			if callback != nil {
-				return callback(current, total, currentFile, totalFiles, currentIndex)
-			}
-			return true
-		}
-	}
-	err := f.CopyWithProcess(src, destDir, func(current, total int64, currentFile string, totalFiles, currentIndex int64) {
-		wrappedCallback(current, total, currentFile, totalFiles, currentIndex)
-	})
-	if err != nil {
-		return err
-	}
-	return ctx.Err()
+	return f.CopyWithProcess(ctx, src, destDir, callback)
 }
 
 // MoveWithContext 带上下文控制的文件移动
@@ -141,22 +124,5 @@ func (s *service) CopyWithContext(ctx context.Context, src, destDir string, call
 // callback: 进度回调函数
 func (s *service) MoveWithContext(ctx context.Context, src, destDir string, callback func(current, total int64, currentFile string, totalFiles, currentIndex int64) bool) error {
 	f := file.NewDisk("")
-	wrappedCallback := func(current, total int64, currentFile string, totalFiles, currentIndex int64) bool {
-		select {
-		case <-ctx.Done():
-			return false
-		default:
-			if callback != nil {
-				return callback(current, total, currentFile, totalFiles, currentIndex)
-			}
-			return true
-		}
-	}
-	err := f.MoveWithProcess(src, destDir, func(current, total int64, currentFile string, totalFiles, currentIndex int64) {
-		wrappedCallback(current, total, currentFile, totalFiles, currentIndex)
-	})
-	if err != nil {
-		return err
-	}
-	return ctx.Err()
+	return f.MoveWithProcess(ctx, src, destDir, callback)
 }

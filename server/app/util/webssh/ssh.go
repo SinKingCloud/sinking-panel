@@ -136,6 +136,9 @@ func (s *SshClient) NewSession(height int, width int) (*SshSession, error) {
 
 // Close 关闭client
 func (s *SshClient) Close() error {
+	if s == nil || s.client == nil {
+		return nil
+	}
 	return s.client.Close()
 }
 
