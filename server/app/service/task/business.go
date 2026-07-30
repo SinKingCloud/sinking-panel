@@ -88,16 +88,25 @@ func (s *service) Run(id int64) error {
 }
 
 // Remove 移除任务
-func (s *service) Remove(id int64) error {
-	task, err := s.findById(id)
-	if err != nil {
+func (s *service) Remove(ids []int64) error {
+	if len(ids) == 0 {
+		return errors.New("删除任务不能为空")
+	}
+	tasks := make([]*model.Task, 0, len(ids))
+	for _, id := range ids {
+		task, err := s.findById(id)
+		if err != nil {
+			return err
+		}
+		tasks = append(tasks, task)
+	}
+	if err := s.repositoryTask.DeleteByIds(ids); err != nil {
 		return err
 	}
-	if err = s.deleteById(id); err != nil {
-		return err
-	}
-	if task.EntryID > 0 {
-		s.instance.Remove(cron.EntryID(task.EntryID))
+	for _, task := range tasks {
+		if task.EntryID > 0 {
+			s.instance.Remove(cron.EntryID(task.EntryID))
+		}
 	}
 	return nil
 }

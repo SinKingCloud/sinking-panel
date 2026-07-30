@@ -6,12 +6,14 @@ import (
 	"server/app/util/page"
 	"server/app/util/repository"
 	"time"
+
+	"gorm.io/gorm"
 )
 
 // Interface 任务仓储接口
 type Interface interface {
 	Create(data *model.Task) error
-	DeleteById(id int64) error
+	DeleteByIds(ids []int64, tx ...*gorm.DB) error
 	FindById(id int64) (*model.Task, error)
 	SelectAll() ([]*model.Task, error)
 	Select(where *SelectTask, queryPage *page.Query) (*page.Result[*Task], error)

@@ -14,8 +14,9 @@ func Delete(c *context.Context) {
 		c.Error(msg)
 		return
 	}
-	for _, v := range form.Ids {
-		_ = service.Task.Remove(v)
+	if err := service.Task.Remove(form.Ids); err != nil {
+		c.Error("删除失败")
+		return
 	}
 	c.Success("删除成功")
 }

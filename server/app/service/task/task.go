@@ -14,7 +14,7 @@ type Service interface {
 	Stop(id int64) error
 	Restore(id int64) error
 	Run(id int64) error
-	Remove(id int64) error
+	Remove(ids []int64) error
 	Refresh(id int64) error
 	Add(data *model.Task) error
 	Start()
