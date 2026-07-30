@@ -1,5 +1,7 @@
 package recycle
 
+import "sync"
+
 // Service service接口
 type Service interface {
 	Count() (totalSize int64, fileCount int64, dirCount int64, err error)
@@ -11,7 +13,9 @@ type Service interface {
 }
 
 // service 注入结构
-type service struct{}
+type service struct {
+	lock sync.RWMutex
+}
 
 // NewService 实例化service
 func NewService() *service {

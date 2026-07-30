@@ -1,6 +1,8 @@
 package recycle
 
 import (
+	"errors"
+	"os"
 	"path/filepath"
 	"server/app/util/file"
 	"server/app/util/str"
@@ -18,6 +20,9 @@ type File struct {
 
 // Select 获取数据
 func (s *service) Select(page int, pageSize int, orderByField string, orderByType string) (list []*File, total int64, err error) {
+	s.lock.RLock()
+	defer s.lock.RUnlock()
+
 	f := file.NewDisk(path)
 	if !f.Exists("./") {
 		return []*File{}, 0, nil
@@ -25,6 +30,9 @@ func (s *service) Select(page int, pageSize int, orderByField string, orderByTyp
 	var l []*file.File
 	l, total, err = f.FileListWithPage("./", page, pageSize, orderByField, orderByType)
 	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return []*File{}, 0, nil
+		}
 		return nil, 0, err
 	}
 	list = []*File{}

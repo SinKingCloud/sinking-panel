@@ -62,10 +62,12 @@ func (s *service) UpdateByIds(ids []int64, data *repositoryTask.UpdateTask) (err
 			return errors.New("任务表达式不合法")
 		}
 	}
+	s.taskLock.Lock()
+	defer s.taskLock.Unlock()
 	err = s.repositoryTask.UpdateByIds(ids, data)
 	if err == nil {
 		for _, v := range ids {
-			if refreshErr := s.Refresh(v); refreshErr != nil && err == nil {
+			if refreshErr := s.refresh(v); refreshErr != nil && err == nil {
 				err = refreshErr
 			}
 		}

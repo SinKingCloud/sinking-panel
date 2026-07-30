@@ -34,6 +34,9 @@ func (s *service) entryId(id int64) (cron.EntryID, error) {
 
 // Stop 暂停任务
 func (s *service) Stop(id int64) error {
+	s.taskLock.Lock()
+	defer s.taskLock.Unlock()
+
 	task, err := s.findById(id)
 	if err != nil {
 		return err
@@ -49,6 +52,9 @@ func (s *service) Stop(id int64) error {
 
 // Restore 恢复任务
 func (s *service) Restore(id int64) error {
+	s.taskLock.Lock()
+	defer s.taskLock.Unlock()
+
 	task, err := s.findById(id)
 	if err != nil {
 		return err
@@ -76,6 +82,9 @@ func (s *service) Restore(id int64) error {
 
 // Run 执行任务
 func (s *service) Run(id int64) error {
+	s.taskLock.Lock()
+	defer s.taskLock.Unlock()
+
 	entryID, err := s.entryId(id)
 	if err != nil {
 		return err
@@ -89,6 +98,9 @@ func (s *service) Run(id int64) error {
 
 // Remove 移除任务
 func (s *service) Remove(ids []int64) error {
+	s.taskLock.Lock()
+	defer s.taskLock.Unlock()
+
 	if len(ids) == 0 {
 		return errors.New("删除任务不能为空")
 	}
@@ -111,8 +123,8 @@ func (s *service) Remove(ids []int64) error {
 	return nil
 }
 
-// Refresh 刷新任务
-func (s *service) Refresh(id int64) error {
+// refresh 刷新任务
+func (s *service) refresh(id int64) error {
 	task, err := s.findById(id)
 	if err != nil {
 		return err
@@ -148,8 +160,18 @@ func (s *service) Refresh(id int64) error {
 	return nil
 }
 
+// Refresh 刷新任务
+func (s *service) Refresh(id int64) error {
+	s.taskLock.Lock()
+	defer s.taskLock.Unlock()
+	return s.refresh(id)
+}
+
 // Add 添加任务
 func (s *service) Add(data *model.Task) error {
+	s.taskLock.Lock()
+	defer s.taskLock.Unlock()
+
 	if data == nil {
 		return errors.New("任务数据不能为空")
 	}
@@ -180,6 +202,9 @@ func (s *service) Add(data *model.Task) error {
 // Start 启动任务
 func (s *service) Start() {
 	go s.startOnce.Do(func() {
+		s.taskLock.Lock()
+		defer s.taskLock.Unlock()
+
 		tasks, err := s.selectAll()
 		if err == nil && tasks != nil {
 			for _, task := range tasks {
@@ -270,7 +295,7 @@ func (s *service) WriteLog(id int64, content string) error {
 // ValidateCron 判断cron表达式
 func (s *service) ValidateCron(expr string) bool {
 	parser := cron.NewParser(
-		cron.SecondOptional |
+		cron.Second |
 			cron.Minute |
 			cron.Hour |
 			cron.Dom |

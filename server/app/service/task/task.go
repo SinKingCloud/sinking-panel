@@ -31,6 +31,7 @@ type service struct {
 	repositoryTask repositoryTask.Interface
 	instance       *cron.Cron
 	startOnce      sync.Once
+	taskLock       sync.Mutex
 }
 
 // NewService 实例化service

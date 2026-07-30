@@ -29,6 +29,7 @@ type sshConnection struct {
 }
 
 var sshServer = sinking_websocket.NewServer(
+	sinking_websocket.WithReadLimit(1024*1024),
 	sinking_websocket.WithConnectHandler(func(connection *sinking_websocket.Connection) error {
 		ssh, ok := connection.Request().Context().Value(sshContextKey{}).(*sshConnection)
 		if !ok || ssh == nil {

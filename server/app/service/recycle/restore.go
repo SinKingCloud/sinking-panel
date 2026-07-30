@@ -9,6 +9,9 @@ import (
 // Restore 恢复文件
 // name: 加密目录或文件路径
 func (s *service) Restore(name string, path2 string) error {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
 	f := file.NewDisk("")
 	oldPath := filepath.Join(filepath.Dir(path), name)
 	if !f.Exists(oldPath) {

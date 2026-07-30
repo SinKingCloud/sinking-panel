@@ -4,10 +4,11 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"golang.org/x/crypto/ssh"
 	"io"
 	"sync"
 	"time"
+
+	"golang.org/x/crypto/ssh"
 )
 
 func NewSshClient(ip string, port int, timeout time.Duration) *SshClient {
@@ -39,12 +40,39 @@ type SshSession struct {
 type sshBufWriter struct {
 	buffer bytes.Buffer
 	mu     sync.Mutex
+	cond   *sync.Cond
+	closed bool
+}
+
+func newSshBufWriter() *sshBufWriter {
+	write := new(sshBufWriter)
+	write.cond = sync.NewCond(&write.mu)
+	return write
 }
 
 func (w *sshBufWriter) Write(p []byte) (int, error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	return w.buffer.Write(p)
+	written := 0
+	for len(p) > 0 {
+		for !w.closed && w.buffer.Len() >= 1024*1024 {
+			w.cond.Wait()
+		}
+		if w.closed {
+			return written, io.ErrClosedPipe
+		}
+		size := 1024*1024 - w.buffer.Len()
+		if size > len(p) {
+			size = len(p)
+		}
+		n, err := w.buffer.Write(p[:size])
+		written += n
+		p = p[n:]
+		if err != nil {
+			return written, err
+		}
+	}
+	return written, nil
 }
 
 func (w *sshBufWriter) Read() []byte {
@@ -55,7 +83,15 @@ func (w *sshBufWriter) Read() []byte {
 	}
 	payload := append([]byte(nil), w.buffer.Bytes()...)
 	w.buffer.Reset()
+	w.cond.Broadcast()
 	return payload
+}
+
+func (w *sshBufWriter) Close() {
+	w.mu.Lock()
+	w.closed = true
+	w.cond.Broadcast()
+	w.mu.Unlock()
 }
 
 // AuthWithPassword 账号密码登录
@@ -133,7 +169,7 @@ func (s *SshClient) NewSession(height int, width int) (*SshSession, error) {
 		_ = temp.Close()
 		return nil, err
 	}
-	write := new(sshBufWriter)
+	write := newSshBufWriter()
 	temp.Stdout = write
 	temp.Stderr = write
 	if err = temp.Shell(); err != nil {
@@ -171,6 +207,15 @@ func (s *SshClient) Exec(cmd string) (string, error) {
 
 // Close 关闭session
 func (s *SshSession) Close() error {
+	if s == nil {
+		return nil
+	}
+	if s.write != nil {
+		s.write.Close()
+	}
+	if s.Session == nil {
+		return nil
+	}
 	return s.Session.Close()
 }
 
