@@ -3,11 +3,13 @@ package daemon
 import (
 	"errors"
 	"fmt"
-	"github.com/sevlyar/go-daemon"
 	"os"
 	"os/signal"
+	"runtime"
 	"syscall"
 	"time"
+
+	"github.com/sevlyar/go-daemon"
 )
 
 type UnixDaemon struct {
@@ -53,7 +55,12 @@ func (u *UnixDaemon) Start() error {
 	go u.Service()
 	// 等待信号，以便能够正确处理停止等操作
 	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+	if runtime.GOOS == "windows" {
+		signal.Notify(sigs, os.Interrupt)
+	} else {
+		signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+	}
+	defer signal.Stop(sigs)
 	<-sigs
 	return nil
 }
@@ -65,12 +72,24 @@ func (u *UnixDaemon) Stop() error {
 	if err != nil {
 		return fmt.Errorf("无法读取PID文件: %v", err)
 	}
-	// 发送终止信号给守护进程
-	if err := syscall.Kill(pid, syscall.SIGTERM); err != nil {
+	process, err := os.FindProcess(pid)
+	if err != nil {
+		return fmt.Errorf("无法获取守护进程: %v", err)
+	}
+	defer func() {
+		_ = process.Release()
+	}()
+	// Windows不支持SIGTERM，直接终止进程；其他系统发送终止信号
+	if runtime.GOOS == "windows" {
+		err = process.Kill()
+	} else {
+		err = process.Signal(syscall.SIGTERM)
+	}
+	if err != nil {
 		return fmt.Errorf("无法停止守护进程: %v", err)
 	}
 	// 删除PID文件
-	if err := os.Remove("server.pid"); err != nil {
+	if err = os.Remove(u.PidFileName); err != nil {
 		return fmt.Errorf("无法删除PID文件: %v", err)
 	}
 	return nil
