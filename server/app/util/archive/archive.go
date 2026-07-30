@@ -268,21 +268,10 @@ func (s *Service) compressZip(ctx context.Context, srcPaths []string, destPath s
 	var processedSize int64
 	fileIndex := int64(0)
 	for _, srcPath := range srcPaths {
+		srcPath = filepath.Clean(srcPath)
 		// 检查上下文是否已取消
 		if ctx.Err() != nil {
 			return ctx.Err()
-		}
-
-		// 获取源路径的基础信息
-		srcInfo, err := os.Stat(srcPath)
-		if err != nil {
-			return err
-		}
-
-		// 获取源路径的基础名称
-		baseDir := ""
-		if srcInfo.IsDir() {
-			baseDir = filepath.Base(srcPath)
 		}
 
 		// 遍历源路径中的所有文件和目录
@@ -309,31 +298,47 @@ func (s *Service) compressZip(ctx context.Context, srcPaths []string, destPath s
 				return err
 			}
 
-			if baseDir != "" {
-				relPath = filepath.Join(baseDir, relPath)
-			}
-
 			// 统一使用斜杠作为路径分隔符
 			relPath = filepath.ToSlash(relPath)
 
-			// 如果是目录，添加目录项
-			if info.IsDir() {
-				_, err = zipWriter.Create(relPath + "/")
-				fileIndex++
-				return err
-			}
-
-			// 创建文件项
 			fileHeader, err := zip.FileInfoHeader(info)
 			if err != nil {
 				return err
 			}
 			fileHeader.Name = relPath
+
+			// 如果是目录，添加目录项
+			if info.IsDir() {
+				fileHeader.Name += "/"
+				fileHeader.Method = zip.Store
+				_, err = zipWriter.CreateHeader(fileHeader)
+				fileIndex++
+				return err
+			}
+
+			// 创建文件项
 			fileHeader.Method = zip.Deflate // 使用压缩
+			if info.Mode()&os.ModeSymlink != 0 {
+				fileHeader.Method = zip.Store
+			}
 
 			writer, err := zipWriter.CreateHeader(fileHeader)
 			if err != nil {
 				return err
+			}
+
+			if info.Mode()&os.ModeSymlink != 0 {
+				linkTarget, err := os.Readlink(path)
+				if err != nil {
+					return err
+				}
+				written, err := io.WriteString(writer, filepath.ToSlash(linkTarget))
+				if err != nil {
+					return err
+				}
+				processedSize += int64(written)
+				fileIndex++
+				return nil
 			}
 
 			// 打开源文件
@@ -386,6 +391,10 @@ func (s *Service) extractZip(ctx context.Context, srcPath, destPath string, call
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}
+	rootPath, err := s.resolvePath(destPath)
+	if err != nil {
+		return err
+	}
 
 	// 打开ZIP文件
 	reader, err := zip.OpenReader(srcPath)
@@ -426,23 +435,57 @@ func (s *Service) extractZip(ctx context.Context, srcPath, destPath string, call
 		}
 
 		// 构建解压后的文件路径
-		destFilePath := filepath.Join(destPath, file.Name)
-
-		// 检查文件路径是否在目标路径内（防止路径穿越攻击）
-		if !strings.HasPrefix(destFilePath, filepath.Clean(destPath)+string(os.PathSeparator)) {
-			return fmt.Errorf("非法的文件路径: %s", file.Name)
+		destFilePath, err := s.getExtractPath(rootPath, file.Name)
+		if err != nil {
+			return err
 		}
 
 		// 如果是目录，创建目录
 		if file.FileInfo().IsDir() {
+			if destFilePath == rootPath {
+				continue
+			}
+			if info, err := os.Lstat(destFilePath); err == nil && info.Mode()&os.ModeSymlink != 0 {
+				if err = os.Remove(destFilePath); err != nil {
+					return err
+				}
+			} else if err != nil && !os.IsNotExist(err) {
+				return err
+			}
 			if err := os.MkdirAll(destFilePath, file.Mode()); err != nil {
 				return err
 			}
 			continue
 		}
+		if file.Mode()&os.ModeSymlink != 0 {
+			srcFile, err := file.Open()
+			if err != nil {
+				return err
+			}
+			linkTarget, err := io.ReadAll(io.LimitReader(srcFile, 4097))
+			srcFile.Close()
+			if err != nil {
+				return err
+			}
+			if len(linkTarget) > 4096 {
+				return fmt.Errorf("符号链接目标过长: %s", file.Name)
+			}
+			if err = s.createExtractSymlink(rootPath, destFilePath, string(linkTarget)); err != nil {
+				return err
+			}
+			processedSize += int64(len(linkTarget))
+			continue
+		}
 
 		// 确保父目录存在
 		if err := os.MkdirAll(filepath.Dir(destFilePath), 0755); err != nil {
+			return err
+		}
+		if info, err := os.Lstat(destFilePath); err == nil && info.Mode()&os.ModeSymlink != 0 {
+			if err = os.Remove(destFilePath); err != nil {
+				return err
+			}
+		} else if err != nil && !os.IsNotExist(err) {
 			return err
 		}
 
@@ -564,21 +607,10 @@ func (s *Service) compressTar(ctx context.Context, srcPaths []string, destPath s
 	var processedSize int64
 	fileIndex := int64(0)
 	for _, srcPath := range srcPaths {
+		srcPath = filepath.Clean(srcPath)
 		// 检查上下文是否已取消
 		if ctx.Err() != nil {
 			return ctx.Err()
-		}
-
-		// 获取源路径的基础信息
-		srcInfo, err := os.Stat(srcPath)
-		if err != nil {
-			return err
-		}
-
-		// 获取源路径的基础名称
-		baseDir := ""
-		if srcInfo.IsDir() {
-			baseDir = filepath.Base(srcPath)
 		}
 
 		// 遍历源路径中的所有文件和目录
@@ -605,12 +637,15 @@ func (s *Service) compressTar(ctx context.Context, srcPaths []string, destPath s
 				return err
 			}
 
-			if baseDir != "" {
-				relPath = filepath.Join(baseDir, relPath)
-			}
-
 			// 创建TAR头部
-			header, err := tar.FileInfoHeader(info, "")
+			linkTarget := ""
+			if info.Mode()&os.ModeSymlink != 0 {
+				linkTarget, err = os.Readlink(path)
+				if err != nil {
+					return err
+				}
+			}
+			header, err := tar.FileInfoHeader(info, filepath.ToSlash(linkTarget))
 			if err != nil {
 				return err
 			}
@@ -673,6 +708,10 @@ func (s *Service) extractTar(ctx context.Context, srcPath, destPath string, isGz
 	// 检查上下文是否已取消
 	if ctx.Err() != nil {
 		return ctx.Err()
+	}
+	rootPath, err := s.resolvePath(destPath)
+	if err != nil {
+		return err
 	}
 
 	// 打开TAR文件
@@ -777,16 +816,24 @@ func (s *Service) extractTar(ctx context.Context, srcPath, destPath string, isGz
 		}
 
 		// 构建解压后的文件路径
-		destFilePath := filepath.Join(destPath, header.Name)
-
-		// 检查文件路径是否在目标路径内（防止路径穿越攻击）
-		if !strings.HasPrefix(destFilePath, filepath.Clean(destPath)+string(os.PathSeparator)) {
-			return fmt.Errorf("非法的文件路径: %s", header.Name)
+		destFilePath, err := s.getExtractPath(rootPath, header.Name)
+		if err != nil {
+			return err
 		}
 
 		// 根据头部类型处理
 		switch header.Typeflag {
 		case tar.TypeDir:
+			if destFilePath == rootPath {
+				continue
+			}
+			if info, err := os.Lstat(destFilePath); err == nil && info.Mode()&os.ModeSymlink != 0 {
+				if err = os.Remove(destFilePath); err != nil {
+					return err
+				}
+			} else if err != nil && !os.IsNotExist(err) {
+				return err
+			}
 			// 创建目录
 			if err := os.MkdirAll(destFilePath, 0755); err != nil {
 				return err
@@ -794,6 +841,13 @@ func (s *Service) extractTar(ctx context.Context, srcPath, destPath string, isGz
 		case tar.TypeReg:
 			// 确保父目录存在
 			if err := os.MkdirAll(filepath.Dir(destFilePath), 0755); err != nil {
+				return err
+			}
+			if info, err := os.Lstat(destFilePath); err == nil && info.Mode()&os.ModeSymlink != 0 {
+				if err = os.Remove(destFilePath); err != nil {
+					return err
+				}
+			} else if err != nil && !os.IsNotExist(err) {
 				return err
 			}
 
@@ -816,6 +870,10 @@ func (s *Service) extractTar(ctx context.Context, srcPath, destPath string, isGz
 				return err
 			}
 			processedSize += written
+		case tar.TypeSymlink:
+			if err = s.createExtractSymlink(rootPath, destFilePath, header.Linkname); err != nil {
+				return err
+			}
 		}
 
 		// 最终更新进度
@@ -830,6 +888,52 @@ func (s *Service) extractTar(ctx context.Context, srcPath, destPath string, isGz
 }
 
 // ---------------------- GZIP 压缩与解压缩 ----------------------
+
+func (s *Service) getExtractPath(rootPath string, name string) (string, error) {
+	name = filepath.Clean(filepath.FromSlash(name))
+	if filepath.IsAbs(name) || filepath.VolumeName(name) != "" {
+		return "", fmt.Errorf("非法的文件路径: %s", name)
+	}
+	destPath := filepath.Join(rootPath, name)
+	resolvedPath, err := s.resolvePath(destPath)
+	if err != nil {
+		return "", err
+	}
+	relPath, err := filepath.Rel(rootPath, resolvedPath)
+	if err != nil || relPath == ".." || strings.HasPrefix(relPath, ".."+string(os.PathSeparator)) || filepath.IsAbs(relPath) {
+		return "", fmt.Errorf("非法的文件路径: %s", name)
+	}
+	return destPath, nil
+}
+
+func (s *Service) createExtractSymlink(rootPath string, destPath string, linkTarget string) error {
+	if destPath == rootPath || linkTarget == "" {
+		return errors.New("符号链接路径不合法")
+	}
+	linkTarget = filepath.FromSlash(linkTarget)
+	if filepath.IsAbs(linkTarget) || filepath.VolumeName(linkTarget) != "" {
+		return fmt.Errorf("非法的符号链接目标: %s", linkTarget)
+	}
+	resolvedTarget, err := s.resolvePath(filepath.Join(filepath.Dir(destPath), linkTarget))
+	if err != nil {
+		return err
+	}
+	relPath, err := filepath.Rel(rootPath, resolvedTarget)
+	if err != nil || relPath == ".." || strings.HasPrefix(relPath, ".."+string(os.PathSeparator)) || filepath.IsAbs(relPath) {
+		return fmt.Errorf("非法的符号链接目标: %s", linkTarget)
+	}
+	if err = os.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
+		return err
+	}
+	if _, err = os.Lstat(destPath); err == nil {
+		if err = os.Remove(destPath); err != nil {
+			return err
+		}
+	} else if !os.IsNotExist(err) {
+		return err
+	}
+	return os.Symlink(linkTarget, destPath)
+}
 
 func (s *Service) validateCompressDestination(srcPaths []string, dest string) error {
 	destPath, err := s.resolvePath(dest)

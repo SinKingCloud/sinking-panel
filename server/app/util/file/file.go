@@ -77,7 +77,7 @@ func (d *Disk) Rename(oldName, newName string) error {
 		return nil
 	}
 	// 如果 os.Rename 失败，则回退为复制和删除操作
-	srcInfo, err := os.Stat(srcPath)
+	srcInfo, err := os.Lstat(srcPath)
 	if err != nil {
 		return err
 	}
@@ -172,10 +172,10 @@ func (d *Disk) GetFileMode(name string) uint32 {
 
 // GetFileContent 获取文件内容
 // name: 存在的相对路径
-// page: 分页页码
-// pageSize: 分页容量
+// page: 分页页码，与pageSize同时为0时读取完整文件
+// pageSize: 分页容量，与page同时为0时读取完整文件
 func (d *Disk) GetFileContent(name string, page int, pageSize int) (string, error) {
-	if page <= 0 || pageSize <= 0 {
+	if page < 0 || pageSize < 0 || (page == 0) != (pageSize == 0) {
 		return "", errors.New("参数不合法")
 	}
 	f, err := os.Open(d.fullPath(name))
@@ -185,23 +185,31 @@ func (d *Disk) GetFileContent(name string, page int, pageSize int) (string, erro
 	defer func() {
 		_ = f.Close()
 	}()
-	scanner := bufio.NewScanner(f)
+	if page == 0 {
+		content, err := io.ReadAll(f)
+		return string(content), err
+	}
+	reader := bufio.NewReader(f)
 	skipLines := (page - 1) * pageSize
 	for i := 0; i < skipLines; i++ {
-		if !scanner.Scan() {
-			return "", nil // 没有更多行可读取
+		_, err = reader.ReadString('\n')
+		if err == io.EOF {
+			return "", nil
+		}
+		if err != nil {
+			return "", err
 		}
 	}
 	var builder strings.Builder
 	for i := 0; i < pageSize; i++ {
-		if !scanner.Scan() {
+		line, readErr := reader.ReadString('\n')
+		builder.WriteString(line)
+		if readErr == io.EOF {
 			break
 		}
-		builder.WriteString(scanner.Text())
-		builder.WriteByte('\n')
-	}
-	if err = scanner.Err(); err != nil {
-		return "", err
+		if readErr != nil {
+			return "", readErr
+		}
 	}
 	return builder.String(), nil
 }
@@ -321,7 +329,7 @@ func (d *Disk) MoveWithProcess(ctx context.Context, src, destDir string, callbac
 			return
 		}
 		var size int64
-		if info, err := os.Stat(finalDest); err == nil {
+		if info, err := os.Lstat(finalDest); err == nil {
 			size = info.Size()
 		}
 		callback(size, size, baseName, 1, 0)
@@ -386,7 +394,7 @@ func (d *Disk) IsDir(name string) bool {
 // Exists 检查路径是否存在
 // 返回值：true表示存在，false表示不存在
 func (d *Disk) Exists(name string) bool {
-	_, err := os.Stat(d.fullPath(name))
+	_, err := os.Lstat(d.fullPath(name))
 	return !os.IsNotExist(err)
 }
 
@@ -527,9 +535,12 @@ func (d *Disk) dirExists(path string) bool {
 /******************** 核心复制逻辑 ********************/
 
 func (d *Disk) copyTree(src, dest string) error {
-	srcInfo, err := os.Stat(src)
+	srcInfo, err := os.Lstat(src)
 	if err != nil {
 		return err
+	}
+	if srcInfo.Mode()&os.ModeSymlink != 0 {
+		return d.copySymlink(src, dest)
 	}
 
 	if srcInfo.IsDir() {
@@ -549,6 +560,9 @@ func (d *Disk) copyTree(src, dest string) error {
 				return nil
 			}
 
+			if info.Mode()&os.ModeSymlink != 0 {
+				return d.copySymlink(path, targetPath)
+			}
 			if info.IsDir() {
 				return os.Mkdir(targetPath, info.Mode())
 			}
@@ -560,6 +574,14 @@ func (d *Disk) copyTree(src, dest string) error {
 }
 
 func (d *Disk) copyFile(src, dest string) error {
+	srcInfo, err := os.Lstat(src)
+	if err != nil {
+		return err
+	}
+	if srcInfo.Mode()&os.ModeSymlink != 0 {
+		return d.copySymlink(src, dest)
+	}
+
 	srcFile, err := os.Open(src)
 	if err != nil {
 		return err
@@ -580,8 +602,18 @@ func (d *Disk) copyFile(src, dest string) error {
 		return err
 	}
 
-	srcInfo, _ := os.Stat(src)
 	return os.Chtimes(dest, time.Now(), srcInfo.ModTime())
+}
+
+func (d *Disk) copySymlink(src, dest string) error {
+	target, err := os.Readlink(src)
+	if err != nil {
+		return err
+	}
+	if err = os.MkdirAll(filepath.Dir(dest), 0755); err != nil {
+		return err
+	}
+	return os.Symlink(target, dest)
 }
 
 /******************** 进度跟踪逻辑 ********************/
@@ -615,12 +647,15 @@ func (d *Disk) copyTreeWithProgress(ctx context.Context, src, dest string, total
 		return err
 	}
 
-	srcInfo, err := os.Stat(src)
+	srcInfo, err := os.Lstat(src)
 	if err != nil {
 		return err
 	}
 
 	var fileIndex atomic.Int64
+	if srcInfo.Mode()&os.ModeSymlink != 0 {
+		return d.copySymlinkWithProgress(ctx, src, dest, srcInfo.Size(), totalSize, copied, callback, totalFiles, 0)
+	}
 	if srcInfo.IsDir() {
 		if err := os.MkdirAll(dest, srcInfo.Mode()); err != nil {
 			return err
@@ -644,6 +679,10 @@ func (d *Disk) copyTreeWithProgress(ctx context.Context, src, dest string, total
 				return nil
 			}
 
+			if info.Mode()&os.ModeSymlink != 0 {
+				currentIndex := fileIndex.Add(1) - 1
+				return d.copySymlinkWithProgress(ctx, path, targetPath, info.Size(), totalSize, copied, callback, totalFiles, currentIndex)
+			}
 			if info.IsDir() {
 				return os.Mkdir(targetPath, info.Mode())
 			}
@@ -658,6 +697,13 @@ func (d *Disk) copyTreeWithProgress(ctx context.Context, src, dest string, total
 func (d *Disk) copyFileWithProgress(ctx context.Context, src, dest string, totalSize int64, copied *atomic.Int64, callback func(int64, int64, string, int64, int64) bool, totalFiles, currentIndex int64) error {
 	if err := ctx.Err(); err != nil {
 		return err
+	}
+	info, err := os.Lstat(src)
+	if err != nil {
+		return err
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		return d.copySymlinkWithProgress(ctx, src, dest, info.Size(), totalSize, copied, callback, totalFiles, currentIndex)
 	}
 	if callback != nil && !callback(copied.Load(), totalSize, filepath.Base(src), totalFiles, currentIndex) {
 		return context.Canceled
@@ -722,11 +768,29 @@ func (d *Disk) copyFileWithProgress(ctx context.Context, src, dest string, total
 	if err = ctx.Err(); err != nil {
 		return err
 	}
-	if info, err := os.Stat(src); err == nil {
-		_ = os.Chtimes(dest, time.Now(), info.ModTime())
-		_ = os.Chmod(dest, info.Mode())
-	}
+	_ = os.Chtimes(dest, time.Now(), info.ModTime())
+	_ = os.Chmod(dest, info.Mode())
 
+	return nil
+}
+
+func (d *Disk) copySymlinkWithProgress(ctx context.Context, src, dest string, size, totalSize int64, copied *atomic.Int64, callback func(int64, int64, string, int64, int64) bool, totalFiles, currentIndex int64) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if callback != nil && !callback(copied.Load(), totalSize, filepath.Base(src), totalFiles, currentIndex) {
+		return context.Canceled
+	}
+	if err := d.copySymlink(src, dest); err != nil {
+		return err
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	current := copied.Add(size)
+	if callback != nil && !callback(current, totalSize, filepath.Base(src), totalFiles, currentIndex) {
+		return context.Canceled
+	}
 	return nil
 }
 
@@ -750,7 +814,7 @@ func (d *Disk) validateTransferDestination(src, dest string) error {
 		return errors.New("目标路径不能与源路径相同")
 	}
 
-	info, err := os.Stat(src)
+	info, err := os.Lstat(src)
 	if err != nil {
 		return err
 	}
