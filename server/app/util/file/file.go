@@ -1,7 +1,6 @@
 package file
 
 import (
-	"bufio"
 	"context"
 	"errors"
 	"fmt"
@@ -12,6 +11,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"time"
+	"unicode/utf8"
 )
 
 // Disk 封装文件系统操作，限定在指定根目录下进行
@@ -172,46 +172,248 @@ func (d *Disk) GetFileMode(name string) uint32 {
 
 // GetFileContent 获取文件内容
 // name: 存在的相对路径
-// page: 分页页码，与pageSize同时为0时读取完整文件
-// pageSize: 分页容量，与page同时为0时读取完整文件
-func (d *Disk) GetFileContent(name string, page int, pageSize int) (string, error) {
-	if page < 0 || pageSize < 0 || (page == 0) != (pageSize == 0) {
-		return "", errors.New("参数不合法")
+// cursor: 本次读取的起始字节位置
+// pageSize: 本次读取的行数
+// version: 首次读取返回的文件版本
+// 单次最多读取8MB，超长单行会通过游标继续读取
+func (d *Disk) GetFileContent(name string, cursor int64, pageSize int, version string) (string, int64, bool, string, error) {
+	if cursor < 0 || pageSize <= 0 {
+		return "", 0, false, "", errors.New("参数不合法")
 	}
-	f, err := os.Open(d.fullPath(name))
+	if cursor > 0 && version == "" {
+		return "", 0, false, "", errors.New("缺少文件版本，请重新读取")
+	}
+	fullPath := d.fullPath(name)
+	f, err := os.Open(fullPath)
 	if err != nil {
-		return "", err
+		return "", 0, false, "", err
 	}
 	defer func() {
 		_ = f.Close()
 	}()
-	if page == 0 {
-		content, err := io.ReadAll(f)
-		return string(content), err
+	unlock, err := d.lockFile(f, false)
+	if err != nil {
+		return "", 0, false, "", err
 	}
-	reader := bufio.NewReader(f)
-	skipLines := (page - 1) * pageSize
-	for i := 0; i < skipLines; i++ {
-		_, err = reader.ReadString('\n')
-		if err == io.EOF {
-			return "", nil
-		}
-		if err != nil {
-			return "", err
-		}
+	defer unlock()
+	info, err := f.Stat()
+	if err != nil {
+		return "", 0, false, "", err
 	}
-	var builder strings.Builder
-	for i := 0; i < pageSize; i++ {
-		line, readErr := reader.ReadString('\n')
-		builder.WriteString(line)
+	if !info.Mode().IsRegular() {
+		return "", 0, false, "", errors.New("只能读取普通文件")
+	}
+	if cursor > info.Size() {
+		return "", 0, false, "", errors.New("文件游标已失效，请重新读取")
+	}
+	if _, err = f.Seek(cursor, io.SeekStart); err != nil {
+		return "", 0, false, "", err
+	}
+	currentVersion := fmt.Sprintf("%d:%d", info.Size(), info.ModTime().UnixNano())
+	if version != "" && version != currentVersion {
+		return "", 0, false, "", errors.New("文件内容已发生变化，请重新读取")
+	}
+	contentSize := info.Size() - cursor
+	if contentSize > bufferSize {
+		contentSize = bufferSize
+	}
+	content := make([]byte, 0, int(contentSize))
+	buffer := make([]byte, bufferSize)
+	lineCount := 0
+	stop := false
+	for lineCount < pageSize && len(content) < 8<<20 {
+		n, readErr := f.Read(buffer)
+		if n > 0 {
+			take := n
+			if remaining := 8<<20 - len(content); take > remaining {
+				take = remaining
+				stop = true
+			}
+			for i, value := range buffer[:take] {
+				if value == '\n' {
+					lineCount++
+					if lineCount == pageSize {
+						take = i + 1
+						stop = true
+						break
+					}
+				}
+			}
+			content = append(content, buffer[:take]...)
+		}
 		if readErr == io.EOF {
 			break
 		}
 		if readErr != nil {
-			return "", readErr
+			return "", 0, false, "", readErr
+		}
+		if stop {
+			break
 		}
 	}
-	return builder.String(), nil
+	if !utf8.Valid(content) && len(content) > 0 {
+		lastRune := len(content) - 1
+		for lastRune > 0 && !utf8.RuneStart(content[lastRune]) {
+			lastRune--
+		}
+		if !utf8.FullRune(content[lastRune:]) {
+			content = content[:lastRune]
+		}
+	}
+	if !utf8.Valid(content) {
+		return "", 0, false, "", errors.New("文件不是UTF-8文本，无法读取内容")
+	}
+	nextCursor := cursor + int64(len(content))
+	currentInfo, err := os.Stat(fullPath)
+	if err != nil {
+		return "", 0, false, "", err
+	}
+	if !os.SameFile(info, currentInfo) || fmt.Sprintf("%d:%d", currentInfo.Size(), currentInfo.ModTime().UnixNano()) != currentVersion {
+		return "", 0, false, "", errors.New("文件内容已发生变化，请重新读取")
+	}
+	return string(content), nextCursor, nextCursor >= info.Size(), currentVersion, nil
+}
+
+// UpdateFileContent 更新文件内容
+// cursor和nextCursor都为空时替换完整文件，否则替换指定游标区间
+func (d *Disk) UpdateFileContent(name string, content string, cursor *int64, nextCursor *int64, version string) (int64, bool, string, error) {
+	if (cursor == nil) != (nextCursor == nil) {
+		return 0, false, "", errors.New("文件游标参数不完整")
+	}
+	partial := cursor != nil
+	if partial && version == "" {
+		return 0, false, "", errors.New("缺少文件版本，请重新读取")
+	}
+	fullPath := d.fullPath(name)
+	if resolvedPath, err := filepath.EvalSymlinks(fullPath); err == nil {
+		fullPath = resolvedPath
+	} else {
+		return 0, false, "", err
+	}
+	file, err := os.OpenFile(fullPath, os.O_RDWR, 0)
+	if err != nil {
+		return 0, false, "", err
+	}
+	defer func() {
+		_ = file.Close()
+	}()
+	unlock, err := d.lockFile(file, true)
+	if err != nil {
+		return 0, false, "", err
+	}
+	defer unlock()
+	info, err := file.Stat()
+	if err != nil {
+		return 0, false, "", err
+	}
+	if !info.Mode().IsRegular() {
+		return 0, false, "", errors.New("只能更新普通文件")
+	}
+	currentVersion := fmt.Sprintf("%d:%d", info.Size(), info.ModTime().UnixNano())
+	if version != "" && version != currentVersion {
+		return 0, false, "", errors.New("文件内容已发生变化，请重新读取后再保存")
+	}
+	if partial && (*cursor < 0 || *nextCursor < *cursor || *nextCursor > info.Size()) {
+		return 0, false, "", errors.New("文件游标已失效，请重新读取")
+	}
+	backup, err := os.CreateTemp(filepath.Dir(fullPath), "."+filepath.Base(fullPath)+".edit-*")
+	if err != nil {
+		backup, err = os.CreateTemp("", "sinking-panel-edit-*")
+		if err != nil {
+			return 0, false, "", err
+		}
+	}
+	backupPath := backup.Name()
+	defer func() {
+		_ = backup.Close()
+		_ = os.Remove(backupPath)
+	}()
+	if _, err = file.Seek(0, io.SeekStart); err != nil {
+		return 0, false, "", err
+	}
+	if _, err = io.Copy(backup, file); err != nil {
+		return 0, false, "", err
+	}
+	if err = backup.Sync(); err != nil {
+		return 0, false, "", err
+	}
+	if _, err = backup.Seek(0, io.SeekStart); err != nil {
+		return 0, false, "", err
+	}
+	currentInfo, err := file.Stat()
+	if err != nil {
+		return 0, false, "", err
+	}
+	if fmt.Sprintf("%d:%d", currentInfo.Size(), currentInfo.ModTime().UnixNano()) != currentVersion {
+		return 0, false, "", errors.New("文件内容已发生变化，请重新读取后再保存")
+	}
+	pathInfo, err := os.Stat(fullPath)
+	if err != nil {
+		return 0, false, "", err
+	}
+	if !os.SameFile(info, pathInfo) || fmt.Sprintf("%d:%d", pathInfo.Size(), pathInfo.ModTime().UnixNano()) != currentVersion {
+		return 0, false, "", errors.New("文件内容已发生变化，请重新读取后再保存")
+	}
+	writeErr := file.Truncate(0)
+	modified := writeErr == nil
+	if writeErr == nil {
+		_, writeErr = file.Seek(0, io.SeekStart)
+	}
+	if writeErr == nil && partial && *cursor > 0 {
+		_, writeErr = io.CopyN(file, backup, *cursor)
+	}
+	if writeErr == nil {
+		_, writeErr = file.WriteString(content)
+	}
+	if writeErr == nil && partial {
+		_, writeErr = backup.Seek(*nextCursor, io.SeekStart)
+	}
+	if writeErr == nil && partial {
+		_, writeErr = io.Copy(file, backup)
+	}
+	if writeErr == nil {
+		writeErr = file.Sync()
+	}
+	if writeErr != nil && modified {
+		restoreErr := file.Truncate(0)
+		if restoreErr == nil {
+			_, restoreErr = file.Seek(0, io.SeekStart)
+		}
+		if restoreErr == nil {
+			_, restoreErr = backup.Seek(0, io.SeekStart)
+		}
+		if restoreErr == nil {
+			_, restoreErr = io.Copy(file, backup)
+		}
+		if restoreErr == nil {
+			restoreErr = file.Sync()
+		}
+		if restoreErr != nil {
+			return 0, false, "", errors.Join(writeErr, fmt.Errorf("恢复原文件失败: %w", restoreErr))
+		}
+		return 0, false, "", writeErr
+	}
+	if writeErr != nil {
+		return 0, false, "", writeErr
+	}
+	updatedInfo, err := file.Stat()
+	if err != nil {
+		return 0, false, "", err
+	}
+	pathInfo, err = os.Stat(fullPath)
+	if err != nil {
+		return 0, false, "", err
+	}
+	if !os.SameFile(updatedInfo, pathInfo) {
+		return 0, false, "", errors.New("文件内容已发生变化，请重新读取后再保存")
+	}
+	newCursor := int64(len(content))
+	eof := true
+	if partial {
+		newCursor += *cursor
+		eof = *nextCursor == info.Size()
+	}
+	return newCursor, eof, fmt.Sprintf("%d:%d", pathInfo.Size(), pathInfo.ModTime().UnixNano()), nil
 }
 
 // Delete 递归删除文件或目录

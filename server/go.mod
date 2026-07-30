@@ -22,6 +22,7 @@ require (
 	github.com/wenlng/go-captcha-assets v1.0.7
 	github.com/wenlng/go-captcha/v2 v2.0.5
 	golang.org/x/crypto v0.54.0
+	golang.org/x/sys v0.47.0
 	gorm.io/gorm v1.31.2
 )
 
@@ -57,7 +58,6 @@ require (
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	golang.org/x/image v0.44.0 // indirect
-	golang.org/x/sys v0.47.0 // indirect
 	golang.org/x/text v0.40.0 // indirect
 	golang.org/x/tools v0.48.0 // indirect
 	modernc.org/libc v1.74.4 // indirect

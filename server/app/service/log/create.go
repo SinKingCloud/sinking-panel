@@ -2,7 +2,6 @@ package log
 
 import (
 	"fmt"
-	"server/app/enum/log_type"
 	"server/app/model"
 	ip2 "server/app/util/ip"
 	"server/app/util/str"
@@ -11,9 +10,6 @@ import (
 
 // Create 插入数据
 func (s *service) Create(ip string, types int, title string, content string) {
-	if _, ok := log_type.Map()[types]; !ok {
-		return
-	}
 	location := "未知"
 	ipInfo, err := ip2.Query(ip)
 	if err == nil && ipInfo != nil {

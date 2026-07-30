@@ -1,7 +1,6 @@
 package file
 
 import (
-	"os"
 	"path/filepath"
 	"server/app/enum/log_type"
 	"server/app/service"
@@ -17,6 +16,9 @@ func Update(c *context.Context) {
 		Name        string  `json:"name" default:"" label:"新文件名"`
 		Permissions string  `json:"permissions" default:"" label:"权限"`
 		Content     *string `json:"content" default:"" validate:"omitempty" label:"文件内容"`
+		Cursor      *int64  `json:"cursor" default:"" validate:"omitempty,min=0" label:"文件游标"`
+		NextCursor  *int64  `json:"next_cursor" default:"" validate:"omitempty,min=0" label:"下一文件游标"`
+		Version     string  `json:"version" default:"" validate:"omitempty" label:"文件版本"`
 	}
 	if ok, msg := c.ValidatorAll(&form); !ok {
 		c.Error(msg)
@@ -28,6 +30,10 @@ func Update(c *context.Context) {
 		return
 	}
 	var operations []string
+	var nextCursor int64
+	var eof bool
+	var version string
+	var err error
 	currentPath := form.Path
 	if form.Name != "" {
 		dir := filepath.Dir(currentPath)
@@ -67,15 +73,9 @@ func Update(c *context.Context) {
 			c.Error("只能更新文件内容，不能更新目录")
 			return
 		}
-		file, err := f.OpenFile(currentPath, os.O_WRONLY|os.O_TRUNC, 0644)
+		nextCursor, eof, version, err = f.UpdateFileContent(currentPath, *form.Content, form.Cursor, form.NextCursor, form.Version)
 		if err != nil {
-			c.Error("打开文件失败: " + err.Error())
-			return
-		}
-		defer file.Close()
-		_, err = file.WriteString(*form.Content)
-		if err != nil {
-			c.Error("写入文件失败: " + err.Error())
+			c.Error("更新文件内容失败: " + err.Error())
 			return
 		}
 		operations = append(operations, "更新内容")
@@ -87,6 +87,15 @@ func Update(c *context.Context) {
 	data := map[string]interface{}{
 		"operations": operations,
 		"path":       currentPath,
+	}
+	if form.Content != nil {
+		data["cursor"] = int64(0)
+		if form.Cursor != nil {
+			data["cursor"] = *form.Cursor
+		}
+		data["next_cursor"] = nextCursor
+		data["eof"] = eof
+		data["version"] = version
 	}
 	service.Log.Create(c.GetRequestIp(), log_type.EventUpdate, "修改文件", "修改文件["+currentPath+"]")
 	c.SuccessWithData("修改成功", data)
