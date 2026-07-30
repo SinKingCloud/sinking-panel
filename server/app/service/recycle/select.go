@@ -19,6 +19,9 @@ type File struct {
 // Select 获取数据
 func (s *service) Select(page int, pageSize int, orderByField string, orderByType string) (list []*File, total int64, err error) {
 	f := file.NewDisk(path)
+	if !f.Exists("./") {
+		return []*File{}, 0, nil
+	}
 	var l []*file.File
 	l, total, err = f.FileListWithPage("./", page, pageSize, orderByField, orderByType)
 	if err != nil {

@@ -153,7 +153,14 @@ func (s *service) Add(data *model.Task) error {
 	if data == nil {
 		return errors.New("任务数据不能为空")
 	}
+	if _, ok := task_status.Map()[data.Status]; !ok {
+		return errors.New("任务状态不合法")
+	}
 	data.Id = str.GetSnowWorkIns().GetId()
+	if data.Status == task_status.Stop {
+		data.EntryID = 0
+		return s.create(data)
+	}
 	j := newJob(data, s)
 	if j == nil {
 		return errors.New("任务实例化失败")

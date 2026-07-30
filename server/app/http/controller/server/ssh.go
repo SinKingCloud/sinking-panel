@@ -78,11 +78,11 @@ var sshServer = sinking_websocket.NewServer(
 				width, _ := strconv.Atoi(arr[0])
 				height, _ := strconv.Atoi(arr[1])
 				if width > 0 && height > 0 {
-					_ = ssh.session.Resize(height, width)
+					return ssh.session.Resize(height, width)
 				}
 			}
 		case "write":
-			_ = ssh.session.Write([]byte(data.Content))
+			return ssh.session.Write([]byte(data.Content))
 		}
 		return nil
 	}),

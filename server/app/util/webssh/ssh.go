@@ -47,6 +47,17 @@ func (w *sshBufWriter) Write(p []byte) (int, error) {
 	return w.buffer.Write(p)
 }
 
+func (w *sshBufWriter) Read() []byte {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.buffer.Len() == 0 {
+		return nil
+	}
+	payload := append([]byte(nil), w.buffer.Bytes()...)
+	w.buffer.Reset()
+	return payload
+}
+
 // AuthWithPassword 账号密码登录
 func (s *SshClient) AuthWithPassword(user string, password string) error {
 	s.User = user
@@ -110,6 +121,7 @@ func (s *SshClient) NewSession(height int, width int) (*SshSession, error) {
 	}
 	stdinPipe, err := temp.StdinPipe()
 	if err != nil {
+		_ = temp.Close()
 		return nil, err
 	}
 	modes := ssh.TerminalModes{
@@ -118,14 +130,16 @@ func (s *SshClient) NewSession(height int, width int) (*SshSession, error) {
 		ssh.TTY_OP_OSPEED: 14400,
 	}
 	if err = temp.RequestPty("xterm", height, width, modes); err != nil {
-		return nil, err
-	}
-	if err = temp.Shell(); err != nil {
+		_ = temp.Close()
 		return nil, err
 	}
 	write := new(sshBufWriter)
 	temp.Stdout = write
 	temp.Stderr = write
+	if err = temp.Shell(); err != nil {
+		_ = temp.Close()
+		return nil, err
+	}
 	session := &SshSession{
 		Session:   temp,
 		StdinPipe: stdinPipe,
@@ -169,11 +183,10 @@ func (s *SshSession) Write(payload []byte) error {
 	return errors.New("the stdin not init")
 }
 
-// Write 写入数据
+// Read 读取数据
 func (s *SshSession) Read() []byte {
-	if s.write != nil && s.write.buffer.Len() != 0 {
-		defer s.write.buffer.Reset()
-		return s.write.buffer.Bytes()
+	if s.write != nil {
+		return s.write.Read()
 	}
 	return nil
 }
@@ -189,13 +202,5 @@ func (s *SshSession) Wait() error {
 
 // Resize 重置大小
 func (s *SshSession) Resize(height int, width int) error {
-	modes := ssh.TerminalModes{
-		ssh.ECHO:          1,
-		ssh.TTY_OP_ISPEED: 14400,
-		ssh.TTY_OP_OSPEED: 14400,
-	}
-	if err := s.Session.RequestPty("xterm", height, width, modes); err != nil {
-		return err
-	}
-	return nil
+	return s.Session.WindowChange(height, width)
 }
