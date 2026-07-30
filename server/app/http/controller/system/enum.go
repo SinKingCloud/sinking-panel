@@ -7,7 +7,7 @@ import (
 
 func Enum(c *context.Context) {
 	var form struct {
-		Name string `json:"name" default:"" validate:"required,name" label:"枚举名称"`
+		Name string `json:"name" default:"" validate:"required" label:"枚举名称"`
 	}
 	if ok, msg := c.ValidatorAll(&form); !ok {
 		c.Error(msg)

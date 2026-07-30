@@ -1,19 +1,25 @@
 package config
 
 import (
-	"github.com/SinKingCloud/sinking-go/sinking-web"
+	"server/app/constant"
 	"server/app/service"
 	"server/app/util/context"
+
+	"github.com/SinKingCloud/sinking-go/sinking-web"
 )
 
 // Get 获取配置
 func Get(c *context.Context) {
 	var form struct {
-		Group string `form:"group" json:"group" default:"" validate:"required,max=100" label:"组ID"`
+		Group string `form:"group" json:"group" default:"" validate:"required,alphanum,max=100" label:"组ID"`
 		Key   string `form:"key" json:"key" default:"" validate:"omitempty,max=100" label:"配置标识"`
 	}
 	if ok, msg := c.ValidatorAll(&form); !ok {
 		c.Error(msg)
+		return
+	}
+	if form.Group == constant.LoginGroup {
+		c.Error("配置不存在")
 		return
 	}
 	if form.Key != "" {

@@ -7,7 +7,8 @@ func (r *Repository) FindByGroup(group string) ([]*model.Config, error) {
 	var configs []*model.Config
 	query := r.Database.Db.Model(&model.Config{})
 	if group != "" {
-		query = query.Where("`key` like ?", group+"%")
+		prefix := group + "."
+		query = query.Where("`key` = ? OR (`key` >= ? AND `key` < ?)", group, prefix, group+"/")
 	}
 	err := query.Find(&configs).Error
 	return configs, err

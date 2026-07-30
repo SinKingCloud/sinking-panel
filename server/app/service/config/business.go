@@ -14,7 +14,14 @@ func (s *service) Group(group string) map[string]string {
 	if value != nil {
 		return value.(map[string]string)
 	}
-	temp := s.selectByGroup(group)
+	temp := make(map[string]string)
+	configs, err := s.repositoryConfig.FindByGroup(group)
+	if err != nil {
+		return temp
+	}
+	for _, v := range configs {
+		temp[v.Key] = v.Value
+	}
 	s.cache.SetWithExpire(key, temp, constant.CacheTimeWithSysConfig)
 	return temp
 }
