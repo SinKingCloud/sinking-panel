@@ -1,6 +1,7 @@
 package config
 
 import (
+	"server/app/enum/log_type"
 	"server/app/service"
 	"server/app/util/context"
 )
@@ -29,6 +30,7 @@ func Set(c *context.Context) {
 			c.Error("修改数据失败")
 			return
 		}
+		service.Log.Create(c.GetRequestIp(), log_type.EventUpdate, "修改系统配置", "修改系统配置数据")
 	}
 	c.Success("修改数据成功")
 }

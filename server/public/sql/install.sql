@@ -15,6 +15,7 @@ create table if not exists cloud_logs
             primary key,
     type        integer default 0 not null,
     ip          varchar(50),
+    location    varchar(100),
     title       varchar(200),
     content     text,
     update_time text,
@@ -93,7 +94,6 @@ create index if not exists cloud_tasks_type_index
 
 create index if not exists cloud_tasks_updateTime_index
     on cloud_tasks (update_time);
-
 
 
 

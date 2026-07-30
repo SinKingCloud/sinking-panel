@@ -3,6 +3,7 @@ package file
 import (
 	"fmt"
 	"path/filepath"
+	"server/app/enum/log_type"
 	"server/app/enum/system_task_status"
 	"server/app/service"
 	"server/app/util/context"
@@ -118,5 +119,6 @@ func Download(c *context.Context) {
 		}
 	}()
 
+	service.Log.Create(c.GetRequestIp(), log_type.EventCreate, "创建下载任务", "下载文件到["+targetFilePath+"]")
 	c.SuccessWithData("创建下载任务成功", taskID)
 }

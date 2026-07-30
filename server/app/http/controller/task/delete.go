@@ -1,6 +1,7 @@
 package task
 
 import (
+	"server/app/enum/log_type"
 	"server/app/service"
 	"server/app/util/context"
 )
@@ -18,5 +19,6 @@ func Delete(c *context.Context) {
 		c.Error("删除失败")
 		return
 	}
+	service.Log.Create(c.GetRequestIp(), log_type.EventDelete, "删除计划任务", "删除计划任务数据")
 	c.Success("删除成功")
 }

@@ -1,6 +1,7 @@
 package server
 
 import (
+	"server/app/enum/log_type"
 	repositoryServer "server/app/repository/server"
 	"server/app/service"
 	"server/app/util/context"
@@ -48,6 +49,7 @@ func Update(c *context.Context) {
 	}
 	err := service.Server.UpdateByIds(form.Ids, data)
 	if err == nil {
+		service.Log.Create(c.GetRequestIp(), log_type.EventUpdate, "修改服务器", "修改服务器数据")
 		c.Success("修改成功")
 	} else {
 		c.Error("修改失败")

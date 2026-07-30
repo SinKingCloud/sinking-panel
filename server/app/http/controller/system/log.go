@@ -11,6 +11,7 @@ func Log(c *context.Context) {
 	var form struct {
 		Type            string `json:"type" default:"" validate:"omitempty,numeric" label:"类型"`
 		Ip              string `json:"ip" default:"" validate:"omitempty" label:"IP地址"`
+		Location        string `json:"location" default:"" validate:"omitempty,max=100" label:"IP归属地"`
 		Title           string `json:"title" default:"" validate:"omitempty" label:"标题"`
 		Content         string `json:"content" default:"" validate:"omitempty" label:"内容"`
 		CreateTimeStart string `json:"create_time_start" default:"" validate:"omitempty,datetime=2006-01-02 15:04:05" label:"创建起始时间"`
@@ -25,6 +26,9 @@ func Log(c *context.Context) {
 	where := &repositoryLog.SelectLog{}
 	if form.Ip != "" {
 		where.Ip = form.Ip
+	}
+	if form.Location != "" {
+		where.Location = form.Location
 	}
 	if form.Type != "" {
 		where.Type = form.Type

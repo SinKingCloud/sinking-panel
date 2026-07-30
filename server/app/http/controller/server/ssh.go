@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"server/app/constant"
+	"server/app/enum/log_type"
 	"server/app/enum/server_auth_type"
 	"server/app/model"
 	"server/app/service"
@@ -40,6 +41,11 @@ var sshServer = sinking_websocket.NewServer(
 		if err != nil {
 			return err
 		}
+		sessionDone := make(chan struct{})
+		go func() {
+			_ = ssh.session.Wait()
+			close(sessionDone)
+		}()
 		go func() {
 			tick := time.NewTicker(10 * time.Millisecond)
 			defer tick.Stop()
@@ -52,6 +58,13 @@ var sshServer = sinking_websocket.NewServer(
 						}
 					}
 				case <-connection.Done():
+					return
+				case <-sessionDone:
+					if payload := ssh.session.Read(); payload != nil {
+						_ = connection.Send(sinking_websocket.TextMessage, payload)
+					}
+					time.Sleep(10 * time.Millisecond)
+					_ = connection.Close()
 					return
 				}
 			}
@@ -140,6 +153,11 @@ func Ssh(c *context.Context) {
 		c.Error(err.Error())
 		return
 	}
+	name := s.Name
+	if name == "" {
+		name = s.Ip
+	}
+	service.Log.Create(c.GetRequestIp(), log_type.EventLogin, "连接SSH终端", "连接服务器["+name+"]")
 	ssh := &sshConnection{
 		client: client,
 		width:  form.Width,

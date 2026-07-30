@@ -3,6 +3,7 @@ package file
 import (
 	stdContext "context"
 	"errors"
+	"server/app/enum/log_type"
 	"server/app/enum/system_task_status"
 	"server/app/service"
 	"server/app/util/context"
@@ -62,5 +63,6 @@ func Move(c *context.Context) {
 		}
 		service.System.TaskUpdate(taskID, system_task_status.Completed, 100, "移动完成")
 	}()
+	service.Log.Create(c.GetRequestIp(), log_type.EventCreate, "创建移动任务", taskName)
 	c.SuccessWithData("创建移动任务成功", taskID)
 }

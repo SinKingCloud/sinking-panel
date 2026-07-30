@@ -1,6 +1,7 @@
 package file
 
 import (
+	"server/app/enum/log_type"
 	"server/app/enum/system_task_status"
 	"server/app/service"
 	"server/app/util/context"
@@ -108,5 +109,6 @@ func Compress(c *context.Context) {
 			service.System.TaskUpdate(taskID, system_task_status.Completed, 100, "压缩完成")
 		}
 	}()
+	service.Log.Create(c.GetRequestIp(), log_type.EventCreate, "创建压缩任务", taskName)
 	c.SuccessWithData("创建压缩任务成功", taskID)
 }

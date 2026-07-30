@@ -1,6 +1,7 @@
 package recycle
 
 import (
+	"server/app/enum/log_type"
 	"server/app/service"
 	"server/app/util/context"
 )
@@ -19,6 +20,7 @@ func Restore(c *context.Context) {
 	if err != nil {
 		c.Error(err.Error())
 	} else {
+		service.Log.Create(c.GetRequestIp(), log_type.EventUpdate, "恢复回收站文件", "恢复回收站文件")
 		c.Success("恢复成功")
 	}
 }

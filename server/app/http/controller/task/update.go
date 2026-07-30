@@ -1,6 +1,7 @@
 package task
 
 import (
+	"server/app/enum/log_type"
 	repositoryTask "server/app/repository/task"
 	"server/app/service"
 	"server/app/util/context"
@@ -39,6 +40,7 @@ func Update(c *context.Context) {
 	}
 	err := service.Task.UpdateByIds(form.Ids, data)
 	if err == nil {
+		service.Log.Create(c.GetRequestIp(), log_type.EventUpdate, "修改计划任务", "修改计划任务数据")
 		c.Success("修改成功")
 	} else {
 		c.Error("修改失败")

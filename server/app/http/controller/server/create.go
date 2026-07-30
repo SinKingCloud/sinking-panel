@@ -1,6 +1,7 @@
 package server
 
 import (
+	"server/app/enum/log_type"
 	"server/app/model"
 	"server/app/service"
 	"server/app/util/context"
@@ -29,6 +30,7 @@ func Create(c *context.Context) {
 		Name:     form.Name,
 	})
 	if err == nil {
+		service.Log.Create(c.GetRequestIp(), log_type.EventCreate, "添加服务器", "添加服务器["+form.Name+"]")
 		c.Success("添加成功")
 	} else {
 		c.Error("添加失败")

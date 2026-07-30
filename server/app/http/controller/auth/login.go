@@ -2,6 +2,7 @@ package auth
 
 import (
 	"server/app/constant"
+	"server/app/enum/log_type"
 	"server/app/http/middleware"
 	"server/app/service"
 	"server/app/util/context"
@@ -30,6 +31,7 @@ func Login(c *context.Context) {
 		c.Error(err.Error())
 		return
 	}
+	service.Log.Create(c.GetRequestIp(), log_type.EventLogin, "系统账户登录", "系统登录成功")
 	c.SuccessWithData("登录成功", token)
 }
 
@@ -43,5 +45,6 @@ func Logout(c *context.Context) {
 		c.Error(err.Error())
 		return
 	}
+	service.Log.Create(c.GetRequestIp(), log_type.EventLogin, "注销账户登录", "注销登录成功")
 	c.Success("注销成功")
 }

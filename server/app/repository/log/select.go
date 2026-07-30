@@ -15,6 +15,9 @@ func (r *Repository) Select(where *SelectLog, queryPage *page.Query) (*page.Resu
 		if where.Ip != "" {
 			query = query.Where("ip LIKE ?", "%"+where.Ip+"%")
 		}
+		if where.Location != "" {
+			query = query.Where("location LIKE ?", "%"+where.Location+"%")
+		}
 		if where.Title != "" {
 			query = query.Where("title LIKE ?", "%"+where.Title+"%")
 		}

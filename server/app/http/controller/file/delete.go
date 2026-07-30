@@ -1,6 +1,7 @@
 package file
 
 import (
+	"server/app/enum/log_type"
 	"server/app/service"
 	"server/app/util/context"
 	"server/app/util/file"
@@ -26,6 +27,7 @@ func Delete(c *context.Context) {
 		if err != nil {
 			c.Error("删除失败")
 		} else {
+			service.Log.Create(c.GetRequestIp(), log_type.EventDelete, "删除文件", "彻底删除文件["+form.Path+"]")
 			c.Success("删除成功")
 		}
 	} else {
@@ -33,6 +35,7 @@ func Delete(c *context.Context) {
 		if err != nil {
 			c.Error("移动至回收站失败")
 		} else {
+			service.Log.Create(c.GetRequestIp(), log_type.EventDelete, "删除文件", "移动文件至回收站["+form.Path+"]")
 			c.Success("移动至回收站成功")
 		}
 	}

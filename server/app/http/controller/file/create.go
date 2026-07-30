@@ -1,6 +1,8 @@
 package file
 
 import (
+	"server/app/enum/log_type"
+	"server/app/service"
 	"server/app/util/context"
 	"server/app/util/file"
 )
@@ -29,5 +31,6 @@ func Create(c *context.Context) {
 	if form.Chmod > 0 {
 		_ = f.SetFileMode(form.Name, form.Chmod)
 	}
+	service.Log.Create(c.GetRequestIp(), log_type.EventCreate, "创建文件", "创建文件或目录["+form.Path+"/"+form.Name+"]")
 	c.Success("创建成功")
 }

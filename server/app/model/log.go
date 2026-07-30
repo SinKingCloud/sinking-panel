@@ -11,6 +11,7 @@ type Log struct {
 	Id         int64        `gorm:"column:id;PRIMARY_KEY" json:"id"`
 	Type       int          `gorm:"column:type" json:"type"`
 	Ip         string       `gorm:"column:ip" json:"ip"`
+	Location   string       `gorm:"column:location" json:"location"`
 	Title      string       `gorm:"column:title" json:"title"`
 	Content    string       `gorm:"column:content" json:"content"`
 	CreateTime str.DateTime `gorm:"column:create_time" json:"create_time"`

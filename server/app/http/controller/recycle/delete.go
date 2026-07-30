@@ -1,6 +1,7 @@
 package recycle
 
 import (
+	"server/app/enum/log_type"
 	"server/app/service"
 	"server/app/util/context"
 )
@@ -18,6 +19,7 @@ func Delete(c *context.Context) {
 	if err != nil {
 		c.Error("彻底删除失败")
 	} else {
+		service.Log.Create(c.GetRequestIp(), log_type.EventDelete, "彻底删除文件", "彻底删除回收站文件")
 		c.Success("彻底删除成功")
 	}
 }

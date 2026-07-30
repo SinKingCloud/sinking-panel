@@ -3,6 +3,8 @@ package file
 import (
 	"os"
 	"path/filepath"
+	"server/app/enum/log_type"
+	"server/app/service"
 	"server/app/util/context"
 	"server/app/util/file"
 	"strconv"
@@ -11,10 +13,10 @@ import (
 // Update 更新文件
 func Update(c *context.Context) {
 	var form struct {
-		Path        string `json:"path" default:"" validate:"required" label:"文件路径"`
-		Name        string `json:"name" default:"" label:"新文件名"`
-		Permissions string `json:"permissions" default:"" label:"权限"`
-		Content     string `json:"content" default:"" label:"文件内容"`
+		Path        string  `json:"path" default:"" validate:"required" label:"文件路径"`
+		Name        string  `json:"name" default:"" label:"新文件名"`
+		Permissions string  `json:"permissions" default:"" label:"权限"`
+		Content     *string `json:"content" default:"" validate:"omitempty" label:"文件内容"`
 	}
 	if ok, msg := c.ValidatorAll(&form); !ok {
 		c.Error(msg)
@@ -60,7 +62,7 @@ func Update(c *context.Context) {
 		operations = append(operations, "修改权限")
 	}
 
-	if form.Content != "" {
+	if form.Content != nil {
 		if !f.IsFile(currentPath) {
 			c.Error("只能更新文件内容，不能更新目录")
 			return
@@ -71,7 +73,7 @@ func Update(c *context.Context) {
 			return
 		}
 		defer file.Close()
-		_, err = file.WriteString(form.Content)
+		_, err = file.WriteString(*form.Content)
 		if err != nil {
 			c.Error("写入文件失败: " + err.Error())
 			return
@@ -86,5 +88,6 @@ func Update(c *context.Context) {
 		"operations": operations,
 		"path":       currentPath,
 	}
+	service.Log.Create(c.GetRequestIp(), log_type.EventUpdate, "修改文件", "修改文件["+currentPath+"]")
 	c.SuccessWithData("修改成功", data)
 }

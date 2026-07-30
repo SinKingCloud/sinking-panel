@@ -4,6 +4,7 @@ package log
 type SelectLog struct {
 	Type            string
 	Ip              string
+	Location        string
 	Title           string
 	Content         string
 	CreateTimeStart string

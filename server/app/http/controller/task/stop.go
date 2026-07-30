@@ -1,6 +1,7 @@
 package task
 
 import (
+	"server/app/enum/log_type"
 	"server/app/service"
 	"server/app/util/context"
 )
@@ -17,5 +18,6 @@ func Stop(c *context.Context) {
 	for _, v := range form.Ids {
 		_ = service.Task.Stop(v)
 	}
+	service.Log.Create(c.GetRequestIp(), log_type.EventUpdate, "暂停计划任务", "暂停计划任务")
 	c.Success("操作成功")
 }

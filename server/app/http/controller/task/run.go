@@ -1,6 +1,7 @@
 package task
 
 import (
+	"server/app/enum/log_type"
 	"server/app/service"
 	"server/app/util/context"
 )
@@ -17,5 +18,6 @@ func Run(c *context.Context) {
 	for _, v := range form.Ids {
 		_ = service.Task.Run(v)
 	}
+	service.Log.Create(c.GetRequestIp(), log_type.EventUpdate, "执行计划任务", "手动执行计划任务")
 	c.Success("执行成功")
 }

@@ -1,6 +1,7 @@
 package task
 
 import (
+	"server/app/enum/log_type"
 	"server/app/model"
 	"server/app/service"
 	"server/app/util/context"
@@ -31,6 +32,7 @@ func Create(c *context.Context) {
 		Status: form.Status,
 	})
 	if err == nil {
+		service.Log.Create(c.GetRequestIp(), log_type.EventCreate, "创建计划任务", "创建计划任务["+form.Name+"]")
 		c.Success("添加成功")
 	} else {
 		c.Error("添加失败")

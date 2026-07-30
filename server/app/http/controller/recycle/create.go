@@ -1,6 +1,7 @@
 package recycle
 
 import (
+	"server/app/enum/log_type"
 	"server/app/service"
 	"server/app/util/context"
 )
@@ -18,6 +19,7 @@ func Create(c *context.Context) {
 	if err != nil {
 		c.Error(err.Error())
 	} else {
+		service.Log.Create(c.GetRequestIp(), log_type.EventDelete, "移入回收站", "移动文件至回收站["+form.Name+"]")
 		c.Success("移动至回收站成功")
 	}
 }
