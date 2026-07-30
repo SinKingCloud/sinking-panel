@@ -1,4 +1,4 @@
-create table cloud_configs
+create table if not exists cloud_configs
 (
     key         varchar(50) not null
         constraint pk_key
@@ -8,7 +8,7 @@ create table cloud_configs
     create_time TEXT        not null
 );
 
-create table cloud_logs
+create table if not exists cloud_logs
 (
     id          bigint            not null
         constraint pk_id
@@ -21,19 +21,19 @@ create table cloud_logs
     create_time text
 );
 
-create index cloud_logs_createTime_index
+create index if not exists cloud_logs_createTime_index
     on cloud_logs (create_time);
 
-create index cloud_logs_ip_index
+create index if not exists cloud_logs_ip_index
     on cloud_logs (ip);
 
-create index cloud_logs_type_index
+create index if not exists cloud_logs_type_index
     on cloud_logs (type);
 
-create index cloud_logs_updateTime_index
+create index if not exists cloud_logs_updateTime_index
     on cloud_logs (update_time);
 
-create table cloud_servers
+create table if not exists cloud_servers
 (
     id          bigint            not null
         constraint pk_id
@@ -48,25 +48,25 @@ create table cloud_servers
     create_time text
 );
 
-create index cloud_servers_authType_index
+create index if not exists cloud_servers_authType_index
     on cloud_servers (auth_type);
 
-create index cloud_servers_createTime_index
+create index if not exists cloud_servers_createTime_index
     on cloud_servers (create_time);
 
-create index cloud_servers_ip_index
+create index if not exists cloud_servers_ip_index
     on cloud_servers (ip);
 
-create index cloud_servers_port_index
+create index if not exists cloud_servers_port_index
     on cloud_servers (port);
 
-create index cloud_servers_updateTime_index
+create index if not exists cloud_servers_updateTime_index
     on cloud_servers (update_time);
 
-create index cloud_servers_user_index
+create index if not exists cloud_servers_user_index
     on cloud_servers (user);
 
-create table cloud_tasks
+create table if not exists cloud_tasks
 (
     id          bigint            not null
         constraint cloud_tasks_pk_id
@@ -82,18 +82,17 @@ create table cloud_tasks
     create_time text
 );
 
-create index cloud_tasks_createTime_index
+create index if not exists cloud_tasks_createTime_index
     on cloud_tasks (create_time);
 
-create index cloud_tasks_status_index
+create index if not exists cloud_tasks_status_index
     on cloud_tasks (status);
 
-create index cloud_tasks_type_index
+create index if not exists cloud_tasks_type_index
     on cloud_tasks (type);
 
-create index cloud_tasks_updateTime_index
+create index if not exists cloud_tasks_updateTime_index
     on cloud_tasks (update_time);
-
 
 
 
