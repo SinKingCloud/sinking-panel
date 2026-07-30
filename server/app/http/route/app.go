@@ -1,7 +1,6 @@
 package route
 
 import (
-	"github.com/SinKingCloud/sinking-go/sinking-web"
 	"server/app/http/controller/auth"
 	"server/app/http/controller/config"
 	"server/app/http/controller/file"
@@ -12,6 +11,8 @@ import (
 	"server/app/http/middleware"
 	"server/app/util/context"
 	"server/public"
+
+	"github.com/SinKingCloud/sinking-go/sinking-web"
 )
 
 func loadApp(s *sinking_web.Engine) {
