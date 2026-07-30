@@ -70,7 +70,12 @@ func (s *service) DownloadWithProgress(ctx context.Context, url string, destPath
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	fileClosed := false
+	defer func() {
+		if !fileClosed {
+			_ = file.Close()
+		}
+	}()
 	buffer := make([]byte, 32*1024) // 32KB缓冲区
 	var lastUpdate = time.Now()
 	var lastBytes = resumeOffset
@@ -133,8 +138,43 @@ func (s *service) DownloadWithProgress(ctx context.Context, url string, destPath
 	if ctx.Err() != nil {
 		return errors.New("下载被取消")
 	}
-	if err := os.Rename(tempPath, destPath); err != nil {
+	if err := file.Close(); err != nil {
 		return err
+	}
+	fileClosed = true
+	destInfo, err := os.Lstat(destPath)
+	if os.IsNotExist(err) {
+		return os.Rename(tempPath, destPath)
+	}
+	if err != nil {
+		return err
+	}
+	if destInfo.IsDir() {
+		return fmt.Errorf("目标路径是目录: %s", destPath)
+	}
+	backup, err := os.CreateTemp(dir, "."+filepath.Base(destPath)+".backup-*")
+	if err != nil {
+		return err
+	}
+	backupPath := backup.Name()
+	if err = backup.Close(); err != nil {
+		_ = os.Remove(backupPath)
+		return err
+	}
+	if err = os.Remove(backupPath); err != nil {
+		return err
+	}
+	if err = os.Rename(destPath, backupPath); err != nil {
+		return err
+	}
+	if err = os.Rename(tempPath, destPath); err != nil {
+		if restoreErr := os.Rename(backupPath, destPath); restoreErr != nil {
+			return fmt.Errorf("替换下载文件失败: %v，恢复原文件失败: %v", err, restoreErr)
+		}
+		return err
+	}
+	if err = os.Remove(backupPath); err != nil {
+		return fmt.Errorf("下载完成但清理原文件备份失败: %v", err)
 	}
 	return nil
 }

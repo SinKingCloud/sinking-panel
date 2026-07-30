@@ -220,6 +220,9 @@ func (d *Disk) Move(src, destDir string) error {
 	destPath := d.fullPath(destDir)
 	baseName := filepath.Base(srcPath)
 	finalDest := filepath.Join(destPath, baseName)
+	if err := d.validateTransferDestination(srcPath, finalDest); err != nil {
+		return err
+	}
 
 	if err := d.prepareDestination(finalDest); err != nil {
 		return fmt.Errorf("prepare destination failed: %w", err)
@@ -243,6 +246,9 @@ func (d *Disk) Copy(src, destDir string) error {
 	destPath := d.fullPath(destDir)
 	baseName := filepath.Base(srcPath)
 	finalDest := filepath.Join(destPath, baseName)
+	if err := d.validateTransferDestination(srcPath, finalDest); err != nil {
+		return err
+	}
 
 	if err := d.prepareDestination(finalDest); err != nil {
 		return fmt.Errorf("prepare destination failed: %w", err)
@@ -265,6 +271,9 @@ func (d *Disk) CopyWithProcess(ctx context.Context, src, destDir string, callbac
 	destPath := d.fullPath(destDir)
 	baseName := filepath.Base(srcPath)
 	finalDest := filepath.Join(destPath, baseName)
+	if err := d.validateTransferDestination(srcPath, finalDest); err != nil {
+		return err
+	}
 
 	if err := ctx.Err(); err != nil {
 		return err
@@ -297,6 +306,9 @@ func (d *Disk) MoveWithProcess(ctx context.Context, src, destDir string, callbac
 	destPath := d.fullPath(destDir)
 	baseName := filepath.Base(srcPath)
 	finalDest := filepath.Join(destPath, baseName)
+	if err := d.validateTransferDestination(srcPath, finalDest); err != nil {
+		return err
+	}
 
 	if err := ctx.Err(); err != nil {
 		return err
@@ -719,6 +731,66 @@ func (d *Disk) copyFileWithProgress(ctx context.Context, src, dest string, total
 }
 
 /******************** 其他辅助方法 ********************/
+
+func (d *Disk) validateTransferDestination(src, dest string) error {
+	srcPath, err := d.resolvePath(src)
+	if err != nil {
+		return fmt.Errorf("解析源路径失败: %w", err)
+	}
+	destPath, err := d.resolvePath(dest)
+	if err != nil {
+		return fmt.Errorf("解析目标路径失败: %w", err)
+	}
+
+	relPath, err := filepath.Rel(srcPath, destPath)
+	if err != nil {
+		return nil
+	}
+	if relPath == "." {
+		return errors.New("目标路径不能与源路径相同")
+	}
+
+	info, err := os.Stat(src)
+	if err != nil {
+		return err
+	}
+	if info.IsDir() && relPath != ".." && !strings.HasPrefix(relPath, ".."+string(os.PathSeparator)) && !filepath.IsAbs(relPath) {
+		return errors.New("目标路径不能位于源目录内")
+	}
+	return nil
+}
+
+func (d *Disk) resolvePath(path string) (string, error) {
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return "", err
+	}
+	if resolvedPath, err := filepath.EvalSymlinks(absPath); err == nil {
+		return filepath.Clean(resolvedPath), nil
+	} else if !os.IsNotExist(err) {
+		return "", err
+	}
+
+	parent := filepath.Dir(absPath)
+	for {
+		resolvedParent, err := filepath.EvalSymlinks(parent)
+		if err == nil {
+			relPath, err := filepath.Rel(parent, absPath)
+			if err != nil {
+				return "", err
+			}
+			return filepath.Clean(filepath.Join(resolvedParent, relPath)), nil
+		}
+		if !os.IsNotExist(err) {
+			return "", err
+		}
+		next := filepath.Dir(parent)
+		if next == parent {
+			return filepath.Clean(absPath), nil
+		}
+		parent = next
+	}
+}
 
 func (d *Disk) prepareDestination(dest string) error {
 	if err := os.RemoveAll(dest); err != nil && !os.IsNotExist(err) {

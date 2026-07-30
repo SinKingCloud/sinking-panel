@@ -42,6 +42,13 @@ func Upload(c *context.Context) {
 	case "check":
 		// 检查分片状态
 		handleCheckChunks(c)
+	case "clear":
+		if err := os.RemoveAll(filepath.Join(constant.TempPath, "upload")); err != nil {
+			c.Error("清理上传缓存失败")
+			return
+		}
+		service.Log.Create(c.GetRequestIp(), log_type.EventDelete, "清理上传缓存", "清理全部分片上传缓存")
+		c.Success("清理上传缓存成功")
 	default:
 		c.Error("不支持的操作类型")
 	}
@@ -52,6 +59,10 @@ func handleFileUpload(c *context.Context) {
 	uploadPath := c.DefaultForm("path", "/")
 	uploadID := c.DefaultForm("upload_id", "")
 	chunkIndex := c.DefaultForm("chunk_index", "-1")
+	if uploadID != "" && (len(uploadID) > 128 || uploadID == "." || uploadID == ".." || strings.ContainsAny(uploadID, `/\`)) {
+		c.Error("upload_id参数不合法")
+		return
+	}
 	disk := file.NewDisk("")
 	if err := disk.CreateDir(uploadPath); err != nil {
 		c.Error("创建目录失败: " + err.Error())
@@ -116,6 +127,10 @@ func handleCheckChunks(c *context.Context) {
 		c.Error("缺少upload_id参数")
 		return
 	}
+	if len(uploadID) > 128 || uploadID == "." || uploadID == ".." || strings.ContainsAny(uploadID, `/\`) {
+		c.Error("upload_id参数不合法")
+		return
+	}
 	totalChunks, _ := strconv.Atoi(c.DefaultQuery("total_chunks", "0"))
 	if totalChunks <= 0 {
 		c.Error("缺少total_chunks参数")
@@ -149,6 +164,10 @@ func handleMergeChunks(c *context.Context) {
 	uploadID := c.DefaultForm("upload_id", "")
 	if uploadID == "" {
 		c.Error("缺少upload_id参数")
+		return
+	}
+	if len(uploadID) > 128 || uploadID == "." || uploadID == ".." || strings.ContainsAny(uploadID, `/\`) {
+		c.Error("upload_id参数不合法")
 		return
 	}
 	fileName := c.DefaultForm("file_name", "")

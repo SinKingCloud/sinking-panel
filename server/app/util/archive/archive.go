@@ -82,6 +82,9 @@ func (s *Service) CompressFiles(ctx context.Context, srcPaths []string, destPath
 	if !s.IsSupportedFormat(format) {
 		return errors.New("不支持的压缩格式")
 	}
+	if err := s.validateCompressDestination(srcPaths, destPath); err != nil {
+		return err
+	}
 
 	// 检查上下文是否已取消
 	if ctx.Err() != nil {
@@ -795,7 +798,7 @@ func (s *Service) extractTar(ctx context.Context, srcPath, destPath string, isGz
 			}
 
 			// 创建文件
-			file, err := os.OpenFile(destFilePath, os.O_CREATE|os.O_RDWR, os.FileMode(header.Mode))
+			file, err := os.OpenFile(destFilePath, os.O_CREATE|os.O_TRUNC|os.O_RDWR, os.FileMode(header.Mode))
 			if err != nil {
 				return err
 			}
@@ -827,6 +830,66 @@ func (s *Service) extractTar(ctx context.Context, srcPath, destPath string, isGz
 }
 
 // ---------------------- GZIP 压缩与解压缩 ----------------------
+
+func (s *Service) validateCompressDestination(srcPaths []string, dest string) error {
+	destPath, err := s.resolvePath(dest)
+	if err != nil {
+		return fmt.Errorf("解析目标路径失败: %w", err)
+	}
+	for _, src := range srcPaths {
+		srcPath, err := s.resolvePath(src)
+		if err != nil {
+			return fmt.Errorf("解析源路径失败: %w", err)
+		}
+		relPath, err := filepath.Rel(srcPath, destPath)
+		if err != nil {
+			continue
+		}
+		if relPath == "." {
+			return errors.New("压缩目标不能与源路径相同")
+		}
+		info, err := os.Stat(src)
+		if err != nil {
+			return err
+		}
+		if info.IsDir() && relPath != ".." && !strings.HasPrefix(relPath, ".."+string(os.PathSeparator)) && !filepath.IsAbs(relPath) {
+			return errors.New("压缩目标不能位于源目录内")
+		}
+	}
+	return nil
+}
+
+func (s *Service) resolvePath(path string) (string, error) {
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return "", err
+	}
+	if resolvedPath, err := filepath.EvalSymlinks(absPath); err == nil {
+		return filepath.Clean(resolvedPath), nil
+	} else if !os.IsNotExist(err) {
+		return "", err
+	}
+
+	parent := filepath.Dir(absPath)
+	for {
+		resolvedParent, err := filepath.EvalSymlinks(parent)
+		if err == nil {
+			relPath, err := filepath.Rel(parent, absPath)
+			if err != nil {
+				return "", err
+			}
+			return filepath.Clean(filepath.Join(resolvedParent, relPath)), nil
+		}
+		if !os.IsNotExist(err) {
+			return "", err
+		}
+		next := filepath.Dir(parent)
+		if next == parent {
+			return filepath.Clean(absPath), nil
+		}
+		parent = next
+	}
+}
 
 // compressGzip 使用gzip压缩单个文件
 // ctx: 上下文，用于取消操作
