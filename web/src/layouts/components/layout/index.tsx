@@ -310,7 +310,7 @@ const SKLayout: React.FC = () => {
 
         const items = getParentList(menusWithHidden, currentRoute?.name);
         const temp = [{
-            title: "首页",
+            title: "系统概览",
             onClick: () => {
                 historyPush("index");
             },

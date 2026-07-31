@@ -21,10 +21,10 @@ export default () => {
             <Result
                 status="500"
                 title="500"
-                subTitle="服务器连接失败,请返回首页稍后重试"
+                subTitle="服务器连接失败,请返回系统概览稍后重试"
                 extra={<Button type="primary" onClick={() => {
                     historyPush("index");
-                }}>返回首页</Button>}
+                }}>返回系统概览</Button>}
             />
         </Body>
     );

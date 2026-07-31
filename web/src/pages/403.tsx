@@ -24,7 +24,7 @@ export default () => {
                 subTitle="您无权限访问此页面,请联系管理员"
                 extra={<Button type="primary" onClick={() => {
                     historyPush("index");
-                }}>返回首页</Button>}
+                }}>返回系统概览</Button>}
             />
         </Body>
     );
