@@ -9,6 +9,7 @@ import (
 type Service interface {
 	Login(account string, pwd string, types string, ip string) (string, error)
 	Logout(types string) error
+	UpdateAccount(account string, password string) error
 	GetCaptcha(key string) (map[string]interface{}, error)
 	CheckCaptcha(key string, x int, y int) bool
 }

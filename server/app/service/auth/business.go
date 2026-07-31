@@ -59,3 +59,25 @@ func (s *service) Login(account string, pwd string, types string, ip string) (st
 func (s *service) Logout(types string) error {
 	return s.configService.Set(constant.LoginToken+"."+types, "")
 }
+
+// UpdateAccount 修改账户
+func (s *service) UpdateAccount(account string, password string) error {
+	configs := make(map[string]string)
+	if account != "" {
+		configs[constant.LoginAccount] = account
+	}
+	if password != "" {
+		value := str.NewStringTool(password).GetPassword()
+		if value == "" {
+			return errors.New("密码加密失败")
+		}
+		configs[constant.LoginPassword] = value
+	}
+	if len(configs) == 0 {
+		return errors.New("账户信息不能为空")
+	}
+	if err := s.configService.Sets(configs); err != nil {
+		return errors.New("修改账户信息失败")
+	}
+	return nil
+}
