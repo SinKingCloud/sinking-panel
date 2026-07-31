@@ -18,7 +18,7 @@ func Info(c *context.Context) {
 		"ui": sinking_web.H{
 			"layout":    c.GetStringWithDefault(ui[constant.UiLayout], "left"),
 			"watermark": c.GetBoolWithDefault(ui[constant.UiWaterMark], false),
-			"theme":     c.GetStringWithDefault(ui[constant.UiTheme], "light"),
+			"theme":     c.GetStringWithDefault(ui[constant.UiTheme], "dark"),
 			"compact":   c.GetBoolWithDefault(ui[constant.UiCompact], false),
 			"color":     c.GetStringWithDefault(ui[constant.UiColor], "rgb(0,81,235)"),
 			"radius":    c.GetIntWithDefault(ui[constant.UiRadius], 0),

@@ -123,9 +123,10 @@ func loadFileRoute(s *sinking_web.Engine) {
 func loadSystemRoute(s *sinking_web.Engine) {
 	g := s.Group("/system")
 	g.Use(context.HandleFunc(middleware.CheckLogin))
-	g.ANY("/info", context.HandleFunc(system.Info))     //系统信息
-	g.ANY("/status", context.HandleFunc(system.Status)) //系统状态
-	g.ANY("/task", context.HandleFunc(system.Task))     //系统任务
-	g.ANY("/log", context.HandleFunc(system.Log))       //系统日志
-	g.ANY("/enum", context.HandleFunc(system.Enum))     //枚举类型
+	g.ANY("/account", context.HandleFunc(system.Account)) //账户管理
+	g.ANY("/info", context.HandleFunc(system.Info))       //系统信息
+	g.ANY("/status", context.HandleFunc(system.Status))   //系统状态
+	g.ANY("/task", context.HandleFunc(system.Task))       //系统任务
+	g.ANY("/log", context.HandleFunc(system.Log))         //系统日志
+	g.ANY("/enum", context.HandleFunc(system.Enum))       //枚举类型
 }

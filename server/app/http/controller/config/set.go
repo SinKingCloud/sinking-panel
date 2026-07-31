@@ -1,9 +1,11 @@
 package config
 
 import (
+	"server/app/constant"
 	"server/app/enum/log_type"
 	"server/app/service"
 	"server/app/util/context"
+	"strings"
 )
 
 // Set 修改配置
@@ -21,7 +23,10 @@ func Set(c *context.Context) {
 	}
 	configs := make(map[string]string)
 	for _, v := range form.Configs {
-		if v != nil && v.Value != "" {
+		if v == nil || v.Key == constant.LoginGroup || strings.HasPrefix(v.Key, constant.LoginGroup+".") {
+			continue
+		}
+		if v.Value != "" {
 			configs[v.Key] = v.Value
 		}
 	}
