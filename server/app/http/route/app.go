@@ -5,7 +5,7 @@ import (
 	"server/app/http/controller/config"
 	"server/app/http/controller/file"
 	"server/app/http/controller/recycle"
-	server2 "server/app/http/controller/server"
+	"server/app/http/controller/server"
 	"server/app/http/controller/system"
 	"server/app/http/controller/task"
 	"server/app/http/middleware"
@@ -64,12 +64,12 @@ func loadConfigRoute(s *sinking_web.Engine) {
 func loadServerRoute(s *sinking_web.Engine) {
 	g := s.Group("/server")
 	g.Use(context.HandleFunc(middleware.CheckLogin))
-	g.ANY("/ssh", context.HandleFunc(server2.Ssh))       //连接ssh
-	g.ANY("/list", context.HandleFunc(server2.List))     //服务器列表
-	g.ANY("/info", context.HandleFunc(server2.Info))     //服务器信息
-	g.ANY("/create", context.HandleFunc(server2.Create)) //添加服务器
-	g.ANY("/update", context.HandleFunc(server2.Update)) //更新服务器
-	g.ANY("/delete", context.HandleFunc(server2.Delete)) //删除服务器
+	g.ANY("/ssh", context.HandleFunc(server.Ssh))       //连接ssh
+	g.ANY("/list", context.HandleFunc(server.List))     //服务器列表
+	g.ANY("/info", context.HandleFunc(server.Info))     //服务器信息
+	g.ANY("/create", context.HandleFunc(server.Create)) //添加服务器
+	g.ANY("/update", context.HandleFunc(server.Update)) //更新服务器
+	g.ANY("/delete", context.HandleFunc(server.Delete)) //删除服务器
 }
 
 // loadTaskRoute 任务路由
