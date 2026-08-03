@@ -1,0 +1,11 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="面板服务" type="GoApplicationRunConfiguration" factoryName="Go Application">
+    <module name="sinking-panel" />
+    <working_directory value="$PROJECT_DIR$/server" />
+    <kind value="PACKAGE" />
+    <package value="server" />
+    <directory value="$PROJECT_DIR$" />
+    <auto_managed_config_id value="$PROJECT_DIR$/server" />
+    <method v="2" />
+  </configuration>
+</component>
