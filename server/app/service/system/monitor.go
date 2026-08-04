@@ -4,7 +4,6 @@ import (
 	"runtime"
 	"server/app/constant"
 	"server/app/service/file"
-	"sync"
 	"time"
 
 	"github.com/shirou/gopsutil/v4/cpu"
@@ -17,179 +16,88 @@ import (
 
 // startMonitor 启动系统监控
 func (s *service) startMonitor() {
-	// 首次更新系统数据
-	s.updateSystemMonitor()
-	s.updateIOMonitor()
+	// 首次同步更新，确保服务启动后即可读取监控数据
+	s.updateMonitor()
 
-	// 启动后台goroutine定期更新系统数据
+	// 只保留一个后台goroutine定期更新所有监控数据
 	go func() {
-		// 统一使用3秒的更新频率
 		ticker := time.NewTicker(3 * time.Second)
 		defer ticker.Stop()
 
-		// 监控更新循环
-		for {
-			select {
-			case <-ticker.C:
-				// 更新所有系统数据
-				s.updateSystemMonitor()
-				s.updateIOMonitor()
-			}
+		for range ticker.C {
+			s.updateMonitor()
 		}
 	}()
 }
 
-// updateSystemMonitor 更新系统基础监控信息
-func (s *service) updateSystemMonitor() {
-	// 并发获取各类系统信息
-	var wg sync.WaitGroup
-	wg.Add(7)
-
-	// 系统基本信息
-	go func() {
-		defer wg.Done()
-		systemBase := s.getSystemBaseInfo()
-
-		s.systemBaseCacheLock.Lock()
-		s.systemBaseCache = systemBase
-		s.systemBaseCacheLock.Unlock()
-	}()
-
-	// CPU信息
-	go func() {
-		defer wg.Done()
-		cpuInfo := s.getCpuInfo()
-
-		s.cpuInfoCacheLock.Lock()
-		s.cpuInfoCache = cpuInfo
-		s.cpuInfoCacheLock.Unlock()
-	}()
-
-	// 内存信息
-	go func() {
-		defer wg.Done()
-		memoryInfo := s.getMemoryInfo()
-
-		s.memoryInfoCacheLock.Lock()
-		s.memoryInfoCache = memoryInfo
-		s.memoryInfoCacheLock.Unlock()
-	}()
-
-	// 磁盘信息
-	go func() {
-		defer wg.Done()
-		disksInfo := s.getDisksInfo()
-
-		s.disksInfoCacheLock.Lock()
-		s.disksInfoCache = disksInfo
-		s.disksInfoCacheLock.Unlock()
-	}()
-
-	// 系统负载信息
-	go func() {
-		defer wg.Done()
-		loadInfo := s.getLoadInfo()
-
-		s.loadInfoCacheLock.Lock()
-		s.loadInfoCache = loadInfo
-		s.loadInfoCacheLock.Unlock()
-	}()
-
-	// 运行时信息
-	go func() {
-		defer wg.Done()
-		runtimeInfo := s.getRuntimeInfo()
-
-		s.runtimeInfoCacheLock.Lock()
-		s.runtimeInfoCache = runtimeInfo
-		s.runtimeInfoCacheLock.Unlock()
-	}()
-
-	// 网卡基本信息
-	go func() {
-		defer wg.Done()
-		networkInfo := s.getNetworkInfo()
-
-		s.networkInfoCacheLock.Lock()
-		s.networkInfoCache = networkInfo
-		s.networkInfoCacheLock.Unlock()
-	}()
-
-	// 等待所有数据收集完成
-	wg.Wait()
-}
-
-// updateIOMonitor 更新IO监控信息
-func (s *service) updateIOMonitor() {
-	// 获取当前时间
+// updateMonitor 更新全部系统监控信息
+func (s *service) updateMonitor() {
 	now := time.Now()
-
-	// 获取上次更新时间
-	s.lastUpdateTimeLock.RLock()
-	lastTime := s.lastUpdateTime
-	s.lastUpdateTimeLock.RUnlock()
-
-	// 计算时间间隔（秒）
-	interval := now.Sub(lastTime).Seconds()
+	interval := now.Sub(s.lastUpdateTime).Seconds()
 	if interval <= 0 {
-		interval = 1 // 防止除以零
+		interval = 1
 	}
 
-	// 更新网卡和磁盘IO状态
-	var wg sync.WaitGroup
-	wg.Add(2)
+	// 网卡统计只采集一次，同时用于网卡信息与速率计算
+	netCounters, netErr := net.IOCounters(true)
+	diskCounters, diskErr := disk.IOCounters()
+	cpuInfo := s.getCpuInfo()
+	cpuUsage, _ := cpuInfo["usage"].(float64)
 
-	// 更新网卡IO
-	go func() {
-		defer wg.Done()
-		if netCounters, err := net.IOCounters(true); err == nil {
-			// 更新网卡速率
-			s.updateNetworkRate(netCounters, interval)
+	systemBase := s.getSystemBaseInfo()
+	memoryInfo := s.getMemoryInfo()
+	disksInfo := s.getDisksInfo()
+	loadInfo := s.getLoadInfo(cpuUsage)
+	runtimeInfo := s.getRuntimeInfo()
+	networkInfo := s.getNetworkInfo(netCounters)
 
-			// 更新网卡数据缓存
-			s.netIOCacheLock.Lock()
-			for _, counter := range netCounters {
-				s.netIOCache[counter.Name] = counter
-			}
-			s.netIOCacheLock.Unlock()
+	if netErr == nil {
+		s.updateNetworkRate(netCounters, interval)
+		netIOCache := make(map[string]net.IOCountersStat, len(netCounters))
+		for _, counter := range netCounters {
+			netIOCache[counter.Name] = counter
 		}
-	}()
+		s.netIOCache = netIOCache
+	}
 
-	// 更新磁盘IO
-	go func() {
-		defer wg.Done()
-		if diskCounters, err := disk.IOCounters(); err == nil {
-			// 更新磁盘IO速率
-			s.updateDiskIORate(diskCounters, interval)
+	if diskErr == nil {
+		s.updateDiskIORate(diskCounters, interval)
+		s.diskIOCache = diskCounters
+	}
 
-			// 更新磁盘IO数据缓存
-			s.diskIOCacheLock.Lock()
-			for name, counter := range diskCounters {
-				s.diskIOCache[name] = counter
-			}
-			s.diskIOCacheLock.Unlock()
-		}
-	}()
-
-	// 等待IO数据更新完成
-	wg.Wait()
-
-	// 更新时间
-	s.lastUpdateTimeLock.Lock()
 	s.lastUpdateTime = now
-	s.lastUpdateTimeLock.Unlock()
+
+	s.systemBaseCacheLock.Lock()
+	s.systemBaseCache = systemBase
+	s.systemBaseCacheLock.Unlock()
+
+	s.cpuInfoCacheLock.Lock()
+	s.cpuInfoCache = cpuInfo
+	s.cpuInfoCacheLock.Unlock()
+
+	s.memoryInfoCacheLock.Lock()
+	s.memoryInfoCache = memoryInfo
+	s.memoryInfoCacheLock.Unlock()
+
+	s.disksInfoCacheLock.Lock()
+	s.disksInfoCache = disksInfo
+	s.disksInfoCacheLock.Unlock()
+
+	s.loadInfoCacheLock.Lock()
+	s.loadInfoCache = loadInfo
+	s.loadInfoCacheLock.Unlock()
+
+	s.runtimeInfoCacheLock.Lock()
+	s.runtimeInfoCache = runtimeInfo
+	s.runtimeInfoCacheLock.Unlock()
+
+	s.networkInfoCacheLock.Lock()
+	s.networkInfoCache = networkInfo
+	s.networkInfoCacheLock.Unlock()
 }
 
 // updateNetworkRate 更新网卡速率
 func (s *service) updateNetworkRate(netCounters []net.IOCountersStat, interval float64) {
-	// 获取之前的网卡数据
-	prevNetIOData := make(map[string]net.IOCountersStat)
-	s.netIOCacheLock.RLock()
-	for name, counter := range s.netIOCache {
-		prevNetIOData[name] = counter
-	}
-	s.netIOCacheLock.RUnlock()
-
 	// 新的网卡速率数据
 	newNetRateCache := make(map[string]map[string]interface{})
 
@@ -205,7 +113,7 @@ func (s *service) updateNetworkRate(netCounters []net.IOCountersStat, interval f
 
 		// 获取上一次的数据
 		var sendRateBps, recvRateBps float64
-		if prevCounter, exists := prevNetIOData[counter.Name]; exists {
+		if prevCounter, exists := s.netIOCache[counter.Name]; exists {
 			// 计算速率（字节/秒）
 			sendRateBps = float64(counter.BytesSent-prevCounter.BytesSent) / interval
 			recvRateBps = float64(counter.BytesRecv-prevCounter.BytesRecv) / interval
@@ -234,14 +142,6 @@ func (s *service) updateNetworkRate(netCounters []net.IOCountersStat, interval f
 
 // updateDiskIORate 更新磁盘IO速率
 func (s *service) updateDiskIORate(diskCounters map[string]disk.IOCountersStat, interval float64) {
-	// 获取之前的磁盘IO数据
-	prevDiskIOData := make(map[string]disk.IOCountersStat)
-	s.diskIOCacheLock.RLock()
-	for name, counter := range s.diskIOCache {
-		prevDiskIOData[name] = counter
-	}
-	s.diskIOCacheLock.RUnlock()
-
 	// 新的磁盘IO速率数据
 	newDiskRateCache := make(map[string]map[string]interface{})
 
@@ -251,7 +151,7 @@ func (s *service) updateDiskIORate(diskCounters map[string]disk.IOCountersStat, 
 		diskStats := s.createBasicDiskIOStats(counter)
 
 		// 如果有上一次数据，计算速率
-		if prevCounter, exists := prevDiskIOData[name]; exists {
+		if prevCounter, exists := s.diskIOCache[name]; exists {
 			// 计算速率
 			readBytesRate := float64(counter.ReadBytes-prevCounter.ReadBytes) / interval
 			writeBytesRate := float64(counter.WriteBytes-prevCounter.WriteBytes) / interval
@@ -312,40 +212,18 @@ func (s *service) getSystemBaseInfo() map[string]interface{} {
 
 // getCpuInfo 获取CPU信息
 func (s *service) getCpuInfo() map[string]interface{} {
-	var cpuInfo []cpu.InfoStat
-	var cpuCounts int
-	var cpuPercent []float64
-
-	// 并发获取CPU信息
-	var wg sync.WaitGroup
-	wg.Add(3)
-
-	// 获取CPU基本信息
-	go func() {
-		defer wg.Done()
-		cpuInfo, _ = cpu.Info()
-	}()
-
-	// 获取CPU核心数
-	go func() {
-		defer wg.Done()
-		cpuCounts, _ = cpu.Counts(true)
-	}()
-
-	// 获取CPU使用率（使用10毫秒时间窗口代替1秒）
-	go func() {
-		defer wg.Done()
-		cpuPercent, _ = cpu.Percent(10*time.Millisecond, false)
-	}()
-
-	// 等待CPU信息获取完成
-	wg.Wait()
-
-	// 获取CPU型号
-	cpuModel := "Unknown"
-	if len(cpuInfo) > 0 {
-		cpuModel = cpuInfo[0].ModelName
+	if !s.cpuInfoInitialized {
+		cpuInfo, _ := cpu.Info()
+		s.cpuModel = "Unknown"
+		if len(cpuInfo) > 0 {
+			s.cpuModel = cpuInfo[0].ModelName
+		}
+		s.cpuCores, _ = cpu.Counts(true)
+		s.cpuInfoInitialized = true
 	}
+
+	// 与上次监控周期的CPU时间进行比较，不额外阻塞采样
+	cpuPercent, _ := cpu.Percent(0, false)
 
 	// 获取CPU使用率
 	cpuUsage := 0.0
@@ -354,8 +232,8 @@ func (s *service) getCpuInfo() map[string]interface{} {
 	}
 
 	return map[string]interface{}{
-		"model":     cpuModel,         // CPU型号
-		"cores":     cpuCounts,        // CPU物理核心数
+		"model":     s.cpuModel,       // CPU型号
+		"cores":     s.cpuCores,       // CPU核心数
 		"usage":     cpuUsage,         // CPU使用率(百分比)
 		"processor": runtime.NumCPU(), // CPU逻辑处理器数量
 	}
@@ -392,7 +270,7 @@ func (s *service) getDisksInfo() []file.Disk {
 }
 
 // getLoadInfo 获取系统负载信息
-func (s *service) getLoadInfo() map[string]interface{} {
+func (s *service) getLoadInfo(cpuUsage float64) map[string]interface{} {
 	// 负载信息默认值
 	data := map[string]interface{}{
 		"load1":  0.0, // 1分钟平均负载
@@ -402,22 +280,12 @@ func (s *service) getLoadInfo() map[string]interface{} {
 
 	// Windows系统不支持原生load.Avg，需要模拟实现
 	if runtime.GOOS == "windows" {
-		// 在Windows上使用CPU利用率作为负载的替代指标
-		// 获取当前CPU使用率
-		cpuPercent, err := cpu.Percent(1*time.Second, false)
-		if err == nil && len(cpuPercent) > 0 {
-			// 将CPU利用率转换为类似负载值
-			// 在Windows中，可以将CPU利用率除以核心数来近似负载
-			// 实际负载 ≈ CPU利用率 / 100 * 逻辑处理器数量
-			processors := float64(runtime.NumCPU())
-			loadValue := cpuPercent[0] / 100.0 * processors
-			// 将计算结果设置为所有时间段的负载值
-			// 由于Windows无法获取过去的数据，所以三个值相同
-			data = map[string]interface{}{
-				"load1":  loadValue, // 使用CPU利用率模拟的负载
-				"load5":  loadValue, // 在Windows上无法获取5分钟值，使用相同值
-				"load15": loadValue, // 在Windows上无法获取15分钟值，使用相同值
-			}
+		// Windows复用本轮CPU利用率，避免为模拟负载再次阻塞采样
+		loadValue := cpuUsage / 100.0 * float64(runtime.NumCPU())
+		data = map[string]interface{}{
+			"load1":  loadValue,
+			"load5":  loadValue,
+			"load15": loadValue,
 		}
 	} else {
 		// 在Unix/Linux系统上使用原生负载值
@@ -442,14 +310,8 @@ func (s *service) getRuntimeInfo() map[string]interface{} {
 }
 
 // getNetworkInfo 获取网卡信息
-func (s *service) getNetworkInfo() []map[string]interface{} {
+func (s *service) getNetworkInfo(netStats []net.IOCountersStat) []map[string]interface{} {
 	var networkInfo []map[string]interface{}
-
-	// 获取所有网卡统计信息（含流量信息）
-	netStats, err := net.IOCounters(true)
-	if err != nil {
-		return networkInfo
-	}
 
 	// 处理网卡流量统计信息
 	for _, stat := range netStats {

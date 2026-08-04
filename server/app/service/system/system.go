@@ -32,6 +32,9 @@ type service struct {
 	systemBaseCacheLock  sync.RWMutex
 	cpuInfoCache         map[string]interface{}
 	cpuInfoCacheLock     sync.RWMutex
+	cpuModel             string
+	cpuCores             int
+	cpuInfoInitialized   bool
 	memoryInfoCache      map[string]interface{}
 	memoryInfoCacheLock  sync.RWMutex
 	disksInfoCache       []file.Disk
@@ -43,15 +46,12 @@ type service struct {
 	networkInfoCache     []map[string]interface{}
 	networkInfoCacheLock sync.RWMutex
 	netIOCache           map[string]net.IOCountersStat
-	netIOCacheLock       sync.RWMutex
 	diskIOCache          map[string]disk.IOCountersStat
-	diskIOCacheLock      sync.RWMutex
 	netRateCache         map[string]map[string]interface{}
 	netRateCacheLock     sync.RWMutex
 	diskRateCache        map[string]map[string]interface{}
 	diskRateCacheLock    sync.RWMutex
 	lastUpdateTime       time.Time
-	lastUpdateTimeLock   sync.RWMutex
 }
 
 // NewService 实例化service
