@@ -45,3 +45,9 @@ export async function getData(params: any, sort: any, request: any): Promise<any
         total: data?.data?.total,
     };
 }
+
+/** 生成日期范围搜索字段转换函数 */
+export const dateRangeTransform = (name: string) => (value: any) => ({
+    [`${name}_start`]: value?.[0]?.format ? value[0].format("YYYY-MM-DD HH:mm:ss") : value?.[0],
+    [`${name}_end`]: value?.[1]?.format ? value[1].format("YYYY-MM-DD HH:mm:ss") : value?.[1],
+});

@@ -13,3 +13,8 @@ export async function updateAccount(params: API.RequestParams<{
 }> = {}) {
     return post("/system/account", params?.body, params?.onSuccess, params?.onFail, params?.onFinally);
 }
+
+/** 获取操作日志 GET /system/log */
+export async function getLog(params: API.RequestParams = {}) {
+    return get("/system/log", params?.body, params?.onSuccess, params?.onFail, params?.onFinally);
+}

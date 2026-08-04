@@ -36,6 +36,14 @@ export default [
         component: "@/pages/test",
     },
     {
+        path: "log",
+        title: "操作日志",
+        name: "log",
+        icon: "FileTextOutlined",
+        hideInMenu: false,
+        component: "@/pages/log",
+    },
+    {
         path: "setting",
         title: "系统设置",
         name: "setting",

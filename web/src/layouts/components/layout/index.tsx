@@ -236,6 +236,22 @@ const RightTop: React.FC = () => {
                      </Row>
                      <ul className={menu}>
                          <li className={menuItem} onClick={() => {
+                             historyPush("log");
+                         }}>
+                             <div className={menuItemLabel}>
+                                 <Icon type="FileTextOutlined" className={menuItemLeadIcon}/>操作日志
+                             </div>
+                             <Icon type="RightOutlined"/>
+                         </li>
+                         <li className={menuItem} onClick={() => {
+                             historyPush("setting");
+                         }}>
+                             <div className={menuItemLabel}>
+                                 <Icon type="SettingOutlined" className={menuItemLeadIcon}/>系统设置
+                             </div>
+                             <Icon type="RightOutlined"/>
+                         </li>
+                         <li className={menuItem} onClick={() => {
                              setUserOpen(false);
                              confirmOutLogin();
                          }}>
