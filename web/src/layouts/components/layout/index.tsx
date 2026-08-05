@@ -3,7 +3,7 @@ import {Layout, Icon, useTheme} from "sinking-antd";
 import {useModel, useSelectedRoutes, useLocation, history, Outlet} from "umi";
 import {deleteHeader} from "@/utils/auth";
 import {getAllMenuItems, getFirstMenuWithoutChildren, getParentList, historyPush} from "@/utils/route";
-import {App, Avatar, Col, Popover, Row, Tooltip} from "antd";
+import {App, Popover, Tooltip} from "antd";
 import {createStyles} from "antd-style";
 import Settings from "@/../config/defaultSettings";
 import {logout} from "@/service/auth/login";
@@ -14,9 +14,6 @@ import defaultSettings from "@/../config/defaultSettings";
  */
 const useRightTopStyles = createStyles(({css, token, isDarkMode}: any): any => {
     return {
-        img: {
-            marginBottom: "5px",
-        },
         nickname: {
             fontSize: "13px",
             color: isDarkMode ? token.colorTextSecondary : "rgb(150,150,150)",
@@ -41,13 +38,10 @@ const useRightTopStyles = createStyles(({css, token, isDarkMode}: any): any => {
             }
         `,
         box: css`
-            &.ant-popover {
-                filter: none !important;
-            }
-
             .ant-popover-container {
                 padding: 0 !important;
-                box-shadow: 0 0 5px 0 rgba(0, 0, 0, 0.15) !important;
+                overflow: hidden;
+                border-radius: ${token?.borderRadiusLG}px;
                 width: 210px;
             }
 
@@ -56,34 +50,38 @@ const useRightTopStyles = createStyles(({css, token, isDarkMode}: any): any => {
             }
         `,
         content_top: css`
-            height: 70px;
-            width: 100%;
+            height: 64px;
+            box-sizing: border-box;
             background-color: ${token?.colorPrimary};
             overflow: hidden;
             background-image: url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAIgAAACGBAMAAAD0nt8RAAAAD1BMVEVHcEz///////////////8T4DEaAAAABXRSTlMADAYJA8T7L0gAAALASURBVGjezVpbcoMwDCS2DxBhDgC0BwhNDoDb3v9MfaQQMLb1cqfVVz6YjbS7ks2IptnFCOD7RhcDfIafVRgGvqPVJ/IZmoLcD4YqFbuAgAIkrCCKeqYaICsGnP8WxP0bkE05F71hK4EoWvC0YHh9EwN0v93Fr9frs3aefP/PjdA9Pfo3F8xuxRk74LlaTBpLaPOATaRA0A+lBPAB6rBUNy2KVXwmDOF8YwSs3g1Ij8zYVgPi0PYjlGOppJVATmi9BgcZUJDH1PKokzIamwdGVkGDPGEeB2S+jU9lT2/4KFASip4edxgtfpxDidJiIpvmOsoTYfQEI8UPmR3GOFJuOLHGe0o97YYT8fYKNE4jSnYP7mUpH2x292SW0vKtIyQlNAeM4pEzpTQ0E3BAXOpJA4mYqZTcCx+BCRKOOg5JDE+m5AskjVECcfGzJoNRsokFanRkSgpxJlNSiAudEgmIoYPM+AVWAzKQMTzlzUAOwqCkq0FJV8FqBa9NFWzCsBrt2BLbhEEJ1KDE16DE16Ckq0FJV4GSrNc4lGS9xqEk6zUOJVmvcSgB/UAq2GSqAWJq2IQxpQsgpsZcY4h89Jpbf0xSr5kngBeuaSOv3f/9xuQ2LUnP4tanFWlZqfiMID1nHnQZry/Kv/FB3PF9giTz9foyju/vc6Spl7TQHW5IqDaAPBphKhn/hBogbqoAwpv7WRNKue2kkzI/ZoSpzPIjtTWZ1+03BkgfzRPJKdQupmjlo98v1hoVp9AyiGbFKdRSN0Wy1x56C6FLJKsuhiYzYZtleL0iu2zQtoROXQwqM3nlMmmLQWRm7BkHfSJ5mXkL6aAuJiszd5FsBc1Lkpm/ATbqYpIyS1bRcSo35U5dseLfT0rpXt3qE6GtUTjcKj4SWFNRfcPh9Kvs9bLRN7qY1B+k/HCrTeSL24saozF4MR+gwScpYNNOxQAAAABJRU5ErkJggg==);
             background-repeat: no-repeat;
             background-position: right;
-            border-top-left-radius: ${token?.borderRadius}px;
-            border-top-right-radius: ${token?.borderRadius}px;
-            line-height: 70px;
+            display: flex;
+            align-items: center;
+            padding: 0 15px;
         `,
-        ava: {
-            height: "40px",
-            width: "40px",
-            marginLeft: "10px",
-        },
         top_text: {
             color: "#fff",
-            fontSize: "12px",
-            letterSpacing: "1px",
-            lineHeight: "100%",
-            marginLeft: "8px",
-            width: "auto"
+            width: "100%",
+            minWidth: 0,
         },
         userName: {
-            fontSize: "13px",
-            marginTop: "18px",
-            marginBottom: "10px",
+            fontSize: "14px",
+            fontWeight: 600,
+            lineHeight: "20px",
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+        },
+        userIp: {
+            marginTop: "3px",
+            fontSize: "12px",
+            lineHeight: "18px",
+            opacity: 0.8,
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
         },
         menuItemLabel: {
             display: "flex",
@@ -193,14 +191,13 @@ const RightTop: React.FC = () => {
 
     const {
         styles: {
-            img,
             nickname,
             bottomIconDark,
             pop,
             content_top,
-            ava,
             top_text,
             userName,
+            userIp,
             box,
             menu,
             menuItem,
@@ -222,18 +219,12 @@ const RightTop: React.FC = () => {
                  onOpenChange={setUserOpen}
                  placement="bottomRight"
                  content={<>
-                     <Row className={content_top}>
-                         <Col span={6}>
-                             <Avatar src={(defaultSettings?.basePath || "/") + "images/default_avatar.jpg"}
-                                     className={ava}>
-                                 {user?.web?.account?.slice(0, 1)?.toUpperCase() || "未设置"}
-                             </Avatar>
-                         </Col>
-                         <Col span={16} className={top_text}>
+                     <div className={content_top}>
+                         <div className={top_text}>
                              <div className={userName}>{user?.web?.account || "未登录"}</div>
-                             <div>{user?.web?.login_ip || "未知IP"}</div>
-                         </Col>
-                     </Row>
+                             <div className={userIp}>{user?.web?.login_ip || "未知IP"}</div>
+                         </div>
+                     </div>
                      <ul className={menu}>
                          <li className={menuItem} onClick={() => {
                              historyPush("log");
@@ -263,10 +254,6 @@ const RightTop: React.FC = () => {
                      </ul>
                  </>}>
             <div className={pop}>
-                <Avatar className={img}
-                        src={(defaultSettings?.basePath || "/") + "images/default_avatar.jpg"}>
-                    {user?.web?.account?.slice(0, 1)?.toUpperCase() || "未登录"}
-                </Avatar>
                 <span className={nickname}>{user?.web?.account || "未登录"}</span>
                 <Icon className={theme?.isDarkMode() ? bottomIconDark : ""} type="DownOutlined"/>
             </div>
@@ -281,6 +268,12 @@ const useSKLayoutStyles = createStyles((): any => {
     return {
         collapsedLogo: {
             fontSize: "27px",
+        },
+        content: {
+            width: "100%",
+            maxWidth: "1440px",
+            minWidth: 0,
+            margin: "0 auto",
         },
         unCollapsed: {
             overflow: "hidden",
@@ -316,7 +309,7 @@ const SKLayout: React.FC = () => {
     const menus = useMemo(() => getAllMenuItems(true), []);
     const menusWithHidden = useMemo(() => getAllMenuItems(false), []);
     const isTopLayout = web?.info?.ui?.layout != "left";
-    const {styles: {collapsedLogo, unCollapsed}} = useSKLayoutStyles();
+    const {styles: {collapsedLogo, content, unCollapsed}} = useSKLayoutStyles();
 
     /**
      * 计算面包屑数据
@@ -381,7 +374,9 @@ const SKLayout: React.FC = () => {
                         </div>
                     </div>)
             }}>
-            <Outlet/>
+            <div className={content}>
+                <Outlet/>
+            </div>
         </Layout>
     );
 }

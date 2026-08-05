@@ -18,3 +18,13 @@ export async function updateAccount(params: API.RequestParams<{
 export async function getLog(params: API.RequestParams = {}) {
     return get("/system/log", params?.body, params?.onSuccess, params?.onFail, params?.onFinally);
 }
+
+/** 获取系统信息 GET /system/info */
+export async function getSystemInfo(params: API.RequestParams = {}) {
+    return get("/system/info", params?.body, params?.onSuccess, params?.onFail, params?.onFinally);
+}
+
+/** 获取系统状态 GET /system/status */
+export async function getSystemStatus(params: API.RequestParams = {}) {
+    return get("/system/status", params?.body, params?.onSuccess, params?.onFail, params?.onFinally);
+}
