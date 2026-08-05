@@ -12,7 +12,7 @@ import (
 // Service service接口
 type Service interface {
 	GetInfo() map[string]interface{}
-	GetStatus(netInterface, diskName string) map[string]interface{}
+	GetStatus(netInterface, diskName string, after int64) map[string]interface{}
 	GetTask(id string) *Task
 	TaskList() []*Task
 	TaskCreate(id, name string, data interface{}) *Task
@@ -50,27 +50,33 @@ type service struct {
 	statusCacheLock      sync.RWMutex
 	netRateCache         map[string]map[string]interface{}
 	diskRateCache        map[string]map[string]interface{}
-	lastUpdateTime       time.Time
+	netLastUpdateTime    time.Time
+	diskLastUpdateTime   time.Time
+	monitorSequence      int64
 	monitorUpdatedAt     int64
+	monitorHistory       []map[string]interface{}
 }
 
 // NewService 实例化service
 func NewService(fileService file.Service) *service {
+	now := time.Now()
 	s := &service{
-		tasks:            make(map[string]*Task),
-		fileService:      fileService,
-		systemBaseCache:  make(map[string]interface{}),
-		cpuInfoCache:     make(map[string]interface{}),
-		memoryInfoCache:  make(map[string]interface{}),
-		disksInfoCache:   make([]file.Disk, 0),
-		loadInfoCache:    make(map[string]interface{}),
-		runtimeInfoCache: make(map[string]interface{}),
-		networkInfoCache: make([]map[string]interface{}, 0),
-		netIOCache:       make(map[string]net.IOCountersStat),
-		diskIOCache:      make(map[string]disk.IOCountersStat),
-		netRateCache:     make(map[string]map[string]interface{}),
-		diskRateCache:    make(map[string]map[string]interface{}),
-		lastUpdateTime:   time.Now(),
+		tasks:              make(map[string]*Task),
+		fileService:        fileService,
+		systemBaseCache:    make(map[string]interface{}),
+		cpuInfoCache:       make(map[string]interface{}),
+		memoryInfoCache:    make(map[string]interface{}),
+		disksInfoCache:     make([]file.Disk, 0),
+		loadInfoCache:      make(map[string]interface{}),
+		runtimeInfoCache:   make(map[string]interface{}),
+		networkInfoCache:   make([]map[string]interface{}, 0),
+		netIOCache:         make(map[string]net.IOCountersStat),
+		diskIOCache:        make(map[string]disk.IOCountersStat),
+		netRateCache:       make(map[string]map[string]interface{}),
+		diskRateCache:      make(map[string]map[string]interface{}),
+		netLastUpdateTime:  now,
+		diskLastUpdateTime: now,
+		monitorHistory:     make([]map[string]interface{}, 0, 120),
 	}
 	s.startMonitor()
 	return s

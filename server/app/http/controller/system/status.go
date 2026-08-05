@@ -10,11 +10,12 @@ func Status(c *context.Context) {
 	var form struct {
 		Interface string `json:"interface" default:"" validate:"omitempty" label:"网卡名称"`
 		Disk      string `json:"disk" default:"" validate:"omitempty" label:"磁盘名称"`
+		After     int64  `json:"after" default:"0" validate:"omitempty,min=0" label:"采样游标"`
 	}
 	if ok, msg := c.ValidatorAll(&form); !ok {
 		c.Error(msg)
 		return
 	}
-	data := service.System.GetStatus(form.Interface, form.Disk)
+	data := service.System.GetStatus(form.Interface, form.Disk, form.After)
 	c.SuccessWithData("获取系统状态成功", data)
 }

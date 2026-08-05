@@ -1,11 +1,15 @@
 package system
 
 // GetStatus 获取系统状态信息（网卡流量和磁盘IO）
-func (s *service) GetStatus(netInterface, diskName string) map[string]interface{} {
+func (s *service) GetStatus(netInterface, diskName string, after int64) map[string]interface{} {
 	s.statusCacheLock.RLock()
 	defer s.statusCacheLock.RUnlock()
+	if after > s.monitorSequence {
+		after = 0
+	}
 
 	result := map[string]interface{}{
+		"sample_id":   s.monitorSequence,
 		"sample_time": s.monitorUpdatedAt,
 	}
 
@@ -37,6 +41,43 @@ func (s *service) GetStatus(netInterface, diskName string) map[string]interface{
 	} else {
 		result["disk"] = diskData
 	}
+
+	history := make([]map[string]interface{}, 0)
+	for _, sample := range s.monitorHistory {
+		if sample["sample_id"].(int64) <= after {
+			continue
+		}
+
+		sampleNetwork := sample["network"].(map[string]map[string]interface{})
+		if netInterface != "" {
+			if netData, exists := sampleNetwork[netInterface]; exists {
+				sampleNetwork = map[string]map[string]interface{}{
+					netInterface: netData,
+				}
+			} else {
+				sampleNetwork = map[string]map[string]interface{}{}
+			}
+		}
+
+		sampleDisk := sample["disk"].(map[string]map[string]interface{})
+		if diskName != "" {
+			if diskInfo, exists := sampleDisk[diskName]; exists {
+				sampleDisk = map[string]map[string]interface{}{
+					diskName: diskInfo,
+				}
+			} else {
+				sampleDisk = map[string]map[string]interface{}{}
+			}
+		}
+
+		history = append(history, map[string]interface{}{
+			"sample_id":   sample["sample_id"],
+			"sample_time": sample["sample_time"],
+			"network":     sampleNetwork,
+			"disk":        sampleDisk,
+		})
+	}
+	result["history"] = history
 
 	// 返回完整状态信息
 	return result

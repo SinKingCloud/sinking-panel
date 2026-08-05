@@ -17,28 +17,32 @@ import (
 // startMonitor 启动系统监控
 func (s *service) startMonitor() {
 	// 首次同步更新，确保服务启动后即可读取监控数据
-	s.updateMonitor(true)
+	s.updateMonitor()
+	s.updateStaticMonitor()
 
-	// 只保留一个后台goroutine定期更新所有监控数据
 	go func() {
 		ticker := time.NewTicker(time.Second)
 		defer ticker.Stop()
 
-		count := 0
 		for range ticker.C {
-			count++
-			s.updateMonitor(count%5 == 0)
+			s.updateMonitor()
+		}
+	}()
+
+	// 磁盘容量等静态信息单独刷新，避免慢挂载点阻塞实时采样
+	go func() {
+		ticker := time.NewTicker(5 * time.Second)
+		defer ticker.Stop()
+
+		for range ticker.C {
+			s.updateStaticMonitor()
 		}
 	}()
 }
 
 // updateMonitor 更新全部系统监控信息
-func (s *service) updateMonitor(refreshStatic bool) {
+func (s *service) updateMonitor() {
 	now := time.Now()
-	interval := now.Sub(s.lastUpdateTime).Seconds()
-	if interval <= 0 {
-		interval = 1
-	}
 
 	// 网卡统计只采集一次，同时用于网卡信息与速率计算
 	netCounters, netErr := net.IOCounters(true)
@@ -52,28 +56,54 @@ func (s *service) updateMonitor(refreshStatic bool) {
 	networkInfo := s.getNetworkInfo(netCounters)
 
 	s.statusCacheLock.Lock()
-	hasPreviousCounter := len(s.netIOCache) > 0 || len(s.diskIOCache) > 0
-	updated := false
+	hasPreviousNetCounter := len(s.netIOCache) > 0
+	hasPreviousDiskCounter := len(s.diskIOCache) > 0
+	netUpdated := false
+	diskUpdated := false
 	if netErr == nil {
+		interval := now.Sub(s.netLastUpdateTime).Seconds()
+		if interval <= 0 {
+			interval = 1
+		}
 		s.updateNetworkRate(netCounters, interval)
 		netIOCache := make(map[string]net.IOCountersStat, len(netCounters))
 		for _, counter := range netCounters {
 			netIOCache[counter.Name] = counter
 		}
 		s.netIOCache = netIOCache
-		updated = true
+		s.netLastUpdateTime = now
+		netUpdated = true
 	}
 
 	if diskErr == nil {
+		interval := now.Sub(s.diskLastUpdateTime).Seconds()
+		if interval <= 0 {
+			interval = 1
+		}
 		s.updateDiskIORate(diskCounters, interval)
 		s.diskIOCache = diskCounters
-		updated = true
+		s.diskLastUpdateTime = now
+		diskUpdated = true
 	}
 
-	if updated {
-		s.lastUpdateTime = now
-		if hasPreviousCounter {
-			s.monitorUpdatedAt = now.UnixMilli()
+	if (netUpdated && hasPreviousNetCounter) || (diskUpdated && hasPreviousDiskCounter) {
+		s.monitorUpdatedAt = now.UnixMilli()
+		if s.monitorUpdatedAt > s.monitorSequence {
+			s.monitorSequence = s.monitorUpdatedAt
+		} else {
+			s.monitorSequence++
+		}
+		sample := map[string]interface{}{
+			"sample_id":   s.monitorSequence,
+			"sample_time": s.monitorUpdatedAt,
+			"network":     s.netRateCache,
+			"disk":        s.diskRateCache,
+		}
+		if len(s.monitorHistory) == 120 {
+			copy(s.monitorHistory, s.monitorHistory[1:])
+			s.monitorHistory[len(s.monitorHistory)-1] = sample
+		} else {
+			s.monitorHistory = append(s.monitorHistory, sample)
 		}
 	}
 	s.statusCacheLock.Unlock()
@@ -97,19 +127,20 @@ func (s *service) updateMonitor(refreshStatic bool) {
 	s.networkInfoCacheLock.Lock()
 	s.networkInfoCache = networkInfo
 	s.networkInfoCacheLock.Unlock()
+}
 
-	if refreshStatic {
-		systemBase := s.getSystemBaseInfo()
-		disksInfo := s.getDisksInfo()
+// updateStaticMonitor 更新低频系统信息
+func (s *service) updateStaticMonitor() {
+	systemBase := s.getSystemBaseInfo()
+	disksInfo := s.getDisksInfo()
 
-		s.systemBaseCacheLock.Lock()
-		s.systemBaseCache = systemBase
-		s.systemBaseCacheLock.Unlock()
+	s.systemBaseCacheLock.Lock()
+	s.systemBaseCache = systemBase
+	s.systemBaseCacheLock.Unlock()
 
-		s.disksInfoCacheLock.Lock()
-		s.disksInfoCache = disksInfo
-		s.disksInfoCacheLock.Unlock()
-	}
+	s.disksInfoCacheLock.Lock()
+	s.disksInfoCache = disksInfo
+	s.disksInfoCacheLock.Unlock()
 }
 
 // updateNetworkRate 更新网卡速率
@@ -131,8 +162,12 @@ func (s *service) updateNetworkRate(netCounters []net.IOCountersStat, interval f
 		var sendRateBps, recvRateBps float64
 		if prevCounter, exists := s.netIOCache[counter.Name]; exists {
 			// 计算速率（字节/秒）
-			sendRateBps = float64(counter.BytesSent-prevCounter.BytesSent) / interval
-			recvRateBps = float64(counter.BytesRecv-prevCounter.BytesRecv) / interval
+			if counter.BytesSent >= prevCounter.BytesSent {
+				sendRateBps = float64(counter.BytesSent-prevCounter.BytesSent) / interval
+			}
+			if counter.BytesRecv >= prevCounter.BytesRecv {
+				recvRateBps = float64(counter.BytesRecv-prevCounter.BytesRecv) / interval
+			}
 		}
 
 		// 构建网卡速率数据
@@ -165,17 +200,18 @@ func (s *service) updateDiskIORate(diskCounters map[string]disk.IOCountersStat, 
 
 		// 如果有上一次数据，计算速率
 		if prevCounter, exists := s.diskIOCache[name]; exists {
-			// 计算速率
-			readBytesRate := float64(counter.ReadBytes-prevCounter.ReadBytes) / interval
-			writeBytesRate := float64(counter.WriteBytes-prevCounter.WriteBytes) / interval
-			readCountRate := float64(counter.ReadCount-prevCounter.ReadCount) / interval
-			writeCountRate := float64(counter.WriteCount-prevCounter.WriteCount) / interval
-
-			// 更新速率数据
-			diskStats["read_bytes_rate"] = readBytesRate   // 读取速率(字节/秒)
-			diskStats["write_bytes_rate"] = writeBytesRate // 写入速率(字节/秒)
-			diskStats["read_count_rate"] = readCountRate   // 读取次数速率(次/秒)
-			diskStats["write_count_rate"] = writeCountRate // 写入次数速率(次/秒)
+			if counter.ReadBytes >= prevCounter.ReadBytes {
+				diskStats["read_bytes_rate"] = float64(counter.ReadBytes-prevCounter.ReadBytes) / interval
+			}
+			if counter.WriteBytes >= prevCounter.WriteBytes {
+				diskStats["write_bytes_rate"] = float64(counter.WriteBytes-prevCounter.WriteBytes) / interval
+			}
+			if counter.ReadCount >= prevCounter.ReadCount {
+				diskStats["read_count_rate"] = float64(counter.ReadCount-prevCounter.ReadCount) / interval
+			}
+			if counter.WriteCount >= prevCounter.WriteCount {
+				diskStats["write_count_rate"] = float64(counter.WriteCount-prevCounter.WriteCount) / interval
+			}
 		}
 
 		// 添加到磁盘IO速率缓存
