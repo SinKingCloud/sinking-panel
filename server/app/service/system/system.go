@@ -47,11 +47,11 @@ type service struct {
 	networkInfoCacheLock sync.RWMutex
 	netIOCache           map[string]net.IOCountersStat
 	diskIOCache          map[string]disk.IOCountersStat
+	statusCacheLock      sync.RWMutex
 	netRateCache         map[string]map[string]interface{}
-	netRateCacheLock     sync.RWMutex
 	diskRateCache        map[string]map[string]interface{}
-	diskRateCacheLock    sync.RWMutex
 	lastUpdateTime       time.Time
+	monitorUpdatedAt     int64
 }
 
 // NewService 实例化service

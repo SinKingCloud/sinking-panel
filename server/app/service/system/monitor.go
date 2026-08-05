@@ -17,21 +17,23 @@ import (
 // startMonitor 启动系统监控
 func (s *service) startMonitor() {
 	// 首次同步更新，确保服务启动后即可读取监控数据
-	s.updateMonitor()
+	s.updateMonitor(true)
 
 	// 只保留一个后台goroutine定期更新所有监控数据
 	go func() {
-		ticker := time.NewTicker(3 * time.Second)
+		ticker := time.NewTicker(time.Second)
 		defer ticker.Stop()
 
+		count := 0
 		for range ticker.C {
-			s.updateMonitor()
+			count++
+			s.updateMonitor(count%5 == 0)
 		}
 	}()
 }
 
 // updateMonitor 更新全部系统监控信息
-func (s *service) updateMonitor() {
+func (s *service) updateMonitor(refreshStatic bool) {
 	now := time.Now()
 	interval := now.Sub(s.lastUpdateTime).Seconds()
 	if interval <= 0 {
@@ -44,13 +46,14 @@ func (s *service) updateMonitor() {
 	cpuInfo := s.getCpuInfo()
 	cpuUsage, _ := cpuInfo["usage"].(float64)
 
-	systemBase := s.getSystemBaseInfo()
 	memoryInfo := s.getMemoryInfo()
-	disksInfo := s.getDisksInfo()
 	loadInfo := s.getLoadInfo(cpuUsage)
 	runtimeInfo := s.getRuntimeInfo()
 	networkInfo := s.getNetworkInfo(netCounters)
 
+	s.statusCacheLock.Lock()
+	hasPreviousCounter := len(s.netIOCache) > 0 || len(s.diskIOCache) > 0
+	updated := false
 	if netErr == nil {
 		s.updateNetworkRate(netCounters, interval)
 		netIOCache := make(map[string]net.IOCountersStat, len(netCounters))
@@ -58,18 +61,22 @@ func (s *service) updateMonitor() {
 			netIOCache[counter.Name] = counter
 		}
 		s.netIOCache = netIOCache
+		updated = true
 	}
 
 	if diskErr == nil {
 		s.updateDiskIORate(diskCounters, interval)
 		s.diskIOCache = diskCounters
+		updated = true
 	}
 
-	s.lastUpdateTime = now
-
-	s.systemBaseCacheLock.Lock()
-	s.systemBaseCache = systemBase
-	s.systemBaseCacheLock.Unlock()
+	if updated {
+		s.lastUpdateTime = now
+		if hasPreviousCounter {
+			s.monitorUpdatedAt = now.UnixMilli()
+		}
+	}
+	s.statusCacheLock.Unlock()
 
 	s.cpuInfoCacheLock.Lock()
 	s.cpuInfoCache = cpuInfo
@@ -78,10 +85,6 @@ func (s *service) updateMonitor() {
 	s.memoryInfoCacheLock.Lock()
 	s.memoryInfoCache = memoryInfo
 	s.memoryInfoCacheLock.Unlock()
-
-	s.disksInfoCacheLock.Lock()
-	s.disksInfoCache = disksInfo
-	s.disksInfoCacheLock.Unlock()
 
 	s.loadInfoCacheLock.Lock()
 	s.loadInfoCache = loadInfo
@@ -94,6 +97,19 @@ func (s *service) updateMonitor() {
 	s.networkInfoCacheLock.Lock()
 	s.networkInfoCache = networkInfo
 	s.networkInfoCacheLock.Unlock()
+
+	if refreshStatic {
+		systemBase := s.getSystemBaseInfo()
+		disksInfo := s.getDisksInfo()
+
+		s.systemBaseCacheLock.Lock()
+		s.systemBaseCache = systemBase
+		s.systemBaseCacheLock.Unlock()
+
+		s.disksInfoCacheLock.Lock()
+		s.disksInfoCache = disksInfo
+		s.disksInfoCacheLock.Unlock()
+	}
 }
 
 // updateNetworkRate 更新网卡速率
@@ -134,10 +150,7 @@ func (s *service) updateNetworkRate(netCounters []net.IOCountersStat, interval f
 		}
 	}
 
-	// 更新网卡速率缓存
-	s.netRateCacheLock.Lock()
 	s.netRateCache = newNetRateCache
-	s.netRateCacheLock.Unlock()
 }
 
 // updateDiskIORate 更新磁盘IO速率
@@ -169,10 +182,7 @@ func (s *service) updateDiskIORate(diskCounters map[string]disk.IOCountersStat, 
 		newDiskRateCache[name] = diskStats
 	}
 
-	// 更新磁盘IO速率缓存
-	s.diskRateCacheLock.Lock()
 	s.diskRateCache = newDiskRateCache
-	s.diskRateCacheLock.Unlock()
 }
 
 // 以下是基础信息获取方法

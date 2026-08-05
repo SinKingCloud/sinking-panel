@@ -2,18 +2,15 @@ package system
 
 // GetStatus 获取系统状态信息（网卡流量和磁盘IO）
 func (s *service) GetStatus(netInterface, diskName string) map[string]interface{} {
-	// 从独立缓存中获取网卡和磁盘状态信息
-	result := make(map[string]interface{})
+	s.statusCacheLock.RLock()
+	defer s.statusCacheLock.RUnlock()
 
-	// 获取网卡速率信息
-	s.netRateCacheLock.RLock()
+	result := map[string]interface{}{
+		"sample_time": s.monitorUpdatedAt,
+	}
+
 	networkData := s.netRateCache
-	s.netRateCacheLock.RUnlock()
-
-	// 获取磁盘IO速率信息
-	s.diskRateCacheLock.RLock()
 	diskData := s.diskRateCache
-	s.diskRateCacheLock.RUnlock()
 
 	// 如果指定了网卡，只返回该网卡的信息
 	if netInterface != "" {
