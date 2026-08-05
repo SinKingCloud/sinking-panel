@@ -9,8 +9,6 @@ const useStyles = createStyles(({css, token, isDarkMode}: any) => ({
         height: 100%;
         overflow: hidden;
         border-radius: ${token.borderRadiusLG}px;
-        container-name: monitor-card;
-        container-type: inline-size;
 
         .ant-card-head {
             min-height: 48px;
@@ -111,52 +109,36 @@ const useStyles = createStyles(({css, token, isDarkMode}: any) => ({
         }
     `,
     monitorBody: css`
+        width: 100%;
         min-width: 0;
         display: grid;
-        grid-template-columns: 252px minmax(0, 1fr);
+        grid-template-columns: minmax(0, 1fr);
         align-items: stretch;
-
-        @container monitor-card (max-width: 640px) {
-            grid-template-columns: minmax(0, 1fr);
-        }
-
-        @media (max-width: 575px) {
-            grid-template-columns: minmax(0, 1fr);
-        }
     `,
     throughputStats: css`
         display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-columns: repeat(4, minmax(0, 1fr));
         align-content: center;
-        padding: 18px 0 18px 14px;
+        padding: 10px 14px 0;
 
         .throughput-stat {
             position: relative;
             min-width: 0;
-            min-height: 76px;
-            padding: 12px 14px;
+            min-height: 66px;
+            padding: 8px 14px;
             display: flex;
             flex-direction: column;
             justify-content: center;
             box-sizing: border-box;
         }
 
-        .throughput-stat:nth-child(even)::before {
+        .throughput-stat + .throughput-stat::before {
             content: "";
             position: absolute;
             inset-inline-start: 0;
-            top: 18px;
-            bottom: 18px;
+            top: 16px;
+            bottom: 16px;
             width: 1px;
-            background: ${isDarkMode ? "rgba(255,255,255,0.08)" : "rgba(5,5,5,0.08)"};
-        }
-
-        .throughput-stat:nth-child(n + 3)::after {
-            content: "";
-            position: absolute;
-            top: 0;
-            inset-inline: 14px;
-            height: 1px;
             background: ${isDarkMode ? "rgba(255,255,255,0.08)" : "rgba(5,5,5,0.08)"};
         }
 
@@ -198,7 +180,7 @@ const useStyles = createStyles(({css, token, isDarkMode}: any) => ({
             min-width: 0;
             overflow: hidden;
             color: ${token.colorTextHeading};
-            font-size: 18px;
+            font-size: 17px;
             font-weight: 600;
             font-variant-numeric: tabular-nums;
             line-height: 24px;
@@ -214,47 +196,6 @@ const useStyles = createStyles(({css, token, isDarkMode}: any) => ({
             line-height: 16px;
         }
 
-        @container monitor-card (max-width: 640px) {
-            grid-template-columns: repeat(4, minmax(0, 1fr));
-            padding: 10px 14px 0;
-
-            .throughput-stat {
-                min-height: 66px;
-                padding: 8px 14px;
-            }
-
-            .throughput-stat:nth-child(n + 3)::after {
-                display: none;
-            }
-
-            .throughput-stat + .throughput-stat::before {
-                content: "";
-                position: absolute;
-                inset-inline-start: 0;
-                top: 16px;
-                bottom: 16px;
-                width: 1px;
-                display: block;
-                background: ${isDarkMode ? "rgba(255,255,255,0.08)" : "rgba(5,5,5,0.08)"};
-            }
-
-            .stat-value strong {
-                font-size: 17px;
-            }
-        }
-
-        @container monitor-card (max-width: 420px) {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-
-            .throughput-stat:nth-child(odd)::before {
-                display: none;
-            }
-
-            .throughput-stat:nth-child(n + 3)::after {
-                display: block;
-            }
-        }
-
         @media (max-width: 575px) {
             grid-template-columns: repeat(2, minmax(0, 1fr));
 
@@ -263,15 +204,22 @@ const useStyles = createStyles(({css, token, isDarkMode}: any) => ({
             }
 
             .throughput-stat:nth-child(n + 3)::after {
+                content: "";
+                position: absolute;
+                top: 0;
+                inset-inline: 14px;
+                height: 1px;
                 display: block;
+                background: ${isDarkMode ? "rgba(255,255,255,0.08)" : "rgba(5,5,5,0.08)"};
             }
         }
     `,
     throughputChart: css`
         width: 100%;
-        height: 334px;
-        margin: 10px 0 12px;
-        padding: 0 14px 0 12px;
+        min-width: 0;
+        height: 314px;
+        margin: 8px 0 12px;
+        padding: 0 14px;
         display: flex;
         flex-direction: column;
         overflow: hidden;
@@ -325,12 +273,6 @@ const useStyles = createStyles(({css, token, isDarkMode}: any) => ({
             width: 100%;
             min-height: 0;
             flex: 1;
-        }
-
-        @container monitor-card (max-width: 640px) {
-            height: 314px;
-            margin-top: 8px;
-            padding-inline: 14px;
         }
 
         @media (max-width: 576px) {

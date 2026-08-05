@@ -1,6 +1,6 @@
 import {Line} from "@ant-design/charts";
 import {theme as antdTheme} from "antd";
-import React, {useMemo} from "react";
+import React, {useEffect, useMemo, useRef} from "react";
 
 const byteUnits = ["B/s", "KB/s", "MB/s", "GB/s", "TB/s", "PB/s"];
 
@@ -36,10 +36,41 @@ const formatTime = (value: any): string => {
 
 const TelemetryChart = React.memo(({className, data, first, second, isDarkMode}: any) => {
     const {token} = antdTheme.useToken();
+    const containerRef = useRef<HTMLDivElement | null>(null);
+    const chartRef = useRef<any>(null);
     const firstLabel = first?.label || "系列一";
     const secondLabel = second?.label || "系列二";
     const firstColor = first?.color || "#1677ff";
     const secondColor = second?.color || "#13c2c2";
+
+    useEffect(() => {
+        const container = containerRef.current;
+        if (!container || typeof ResizeObserver === "undefined") {
+            return;
+        }
+        let width = Math.round(container.getBoundingClientRect().width);
+        let timer = 0;
+        const observer = new ResizeObserver(([entry]) => {
+            const nextWidth = Math.round(entry.contentRect.width);
+            if (nextWidth <= 0 || nextWidth === width) {
+                return;
+            }
+            width = nextWidth;
+            window.clearTimeout(timer);
+            timer = window.setTimeout(() => {
+                const chart = chartRef.current?.chart;
+                if (chart?.forceFit) {
+                    void chart.forceFit();
+                }
+            }, 80);
+        });
+        observer.observe(container);
+        return () => {
+            window.clearTimeout(timer);
+            observer.disconnect();
+        };
+    }, []);
+
     const chart = useMemo<any>(() => {
         const gridColor = isDarkMode ? "rgba(255,255,255,0.08)" : "rgba(5,5,5,0.06)";
         const source = Array.isArray(data)
@@ -97,7 +128,7 @@ const TelemetryChart = React.memo(({className, data, first, second, isDarkMode}:
                         line: false,
                         tick: false,
                         tickCount: 5,
-                        labelFill: token.colorTextQuaternary,
+                        labelFill: token.colorTextSecondary,
                         labelFontSize: 10,
                         labelAutoHide: true,
                         labelAutoRotate: false,
@@ -109,7 +140,7 @@ const TelemetryChart = React.memo(({className, data, first, second, isDarkMode}:
                         line: false,
                         tick: false,
                         tickCount: 4,
-                        labelFill: token.colorTextQuaternary,
+                        labelFill: token.colorTextSecondary,
                         labelFontSize: 10,
                         labelFormatter: formatAxisRate,
                         grid: true,
@@ -150,10 +181,10 @@ const TelemetryChart = React.memo(({className, data, first, second, isDarkMode}:
                 },
             },
         };
-    }, [data, firstColor, firstLabel, isDarkMode, secondColor, secondLabel, token.colorTextQuaternary]);
+    }, [data, firstColor, firstLabel, isDarkMode, secondColor, secondLabel, token.colorTextSecondary]);
 
     return (
-        <div className={className}>
+        <div ref={containerRef} className={className}>
             <div className="telemetry-toolbar">
                 <div className="telemetry-legends">
                     <span className="telemetry-legend" style={{"--legend-color": firstColor} as React.CSSProperties}>
@@ -165,7 +196,7 @@ const TelemetryChart = React.memo(({className, data, first, second, isDarkMode}:
                 </div>
                 <span className="telemetry-unit">{chart.unit}</span>
             </div>
-            <Line {...chart.config} className="telemetry-plot"/>
+            <Line ref={chartRef} {...chart.config} className="telemetry-plot"/>
         </div>
     );
 });
