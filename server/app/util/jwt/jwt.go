@@ -1,10 +1,22 @@
 package jwt
 
 import (
-	"github.com/golang-jwt/jwt/v5"
+	"crypto/sha256"
+	"os"
+	"os/exec"
+	"runtime"
 	"server/app/constant"
 	"server/app/util/str"
+	"strings"
+	"sync"
 	"time"
+
+	"github.com/golang-jwt/jwt/v5"
+)
+
+var (
+	jwtKey     []byte
+	jwtKeyOnce sync.Once
 )
 
 // MyClaims jwt载体
@@ -22,7 +34,49 @@ type User struct {
 
 // getKey 获取加密key
 func getKey() []byte {
-	return []byte(constant.JwtKey)
+	jwtKeyOnce.Do(func() {
+		machineId := ""
+		switch runtime.GOOS {
+		case "linux":
+			for _, path := range []string{"/sys/class/dmi/id/product_uuid", "/etc/machine-id", "/var/lib/dbus/machine-id"} {
+				value, err := os.ReadFile(path)
+				if err == nil && strings.TrimSpace(string(value)) != "" {
+					machineId = string(value)
+					break
+				}
+			}
+		case "darwin":
+			value, err := exec.Command("/usr/sbin/ioreg", "-rd1", "-c", "IOPlatformExpertDevice").Output()
+			if err == nil {
+				for _, line := range strings.Split(string(value), "\n") {
+					if strings.Contains(line, "IOPlatformUUID") {
+						fields := strings.SplitN(line, "=", 2)
+						if len(fields) == 2 {
+							machineId = strings.Trim(strings.TrimSpace(fields[1]), "\"")
+						}
+						break
+					}
+				}
+			}
+		case "windows":
+			value, err := exec.Command("reg.exe", "query", `HKLM\SOFTWARE\Microsoft\Cryptography`, "/v", "MachineGuid").Output()
+			if err == nil {
+				for _, line := range strings.Split(string(value), "\n") {
+					fields := strings.Fields(line)
+					if len(fields) >= 3 && strings.EqualFold(fields[0], "MachineGuid") {
+						machineId = fields[len(fields)-1]
+						break
+					}
+				}
+			}
+		}
+		if machineId == "" {
+			machineId, _ = os.Hostname()
+		}
+		value := sha256.Sum256([]byte(constant.JwtKey + ":" + strings.TrimSpace(strings.ToLower(machineId))))
+		jwtKey = value[:]
+	})
+	return jwtKey
 }
 
 // GetToken 生成token user 用户信息
