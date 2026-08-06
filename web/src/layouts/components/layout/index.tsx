@@ -38,10 +38,15 @@ const useRightTopStyles = createStyles(({css, token, isDarkMode}: any): any => {
             }
         `,
         box: css`
+            &.ant-popover {
+                filter: none !important;
+            }
+
             .ant-popover-container {
                 padding: 0 !important;
                 overflow: hidden;
                 border-radius: ${token?.borderRadiusLG}px;
+                box-shadow: 0 0 5px 0 rgba(0, 0, 0, 0.15) !important;
                 width: 210px;
             }
 

@@ -4,7 +4,7 @@
 export default [
     {
         path: "/",
-        title: "系统概览",
+        title: "数据概览",
         name: "index",
         icon: 'icon-home',
         hideInMenu: false,
@@ -25,7 +25,7 @@ export default [
         name: "task",
         icon: "ScheduleOutlined",
         hideInMenu: false,
-        component: "@/pages/test",
+        component: "@/pages/task",
     },
     {
         path: "terminal",

@@ -22,6 +22,7 @@ export default (): React.ReactNode => {
             tip: "日志ID",
             width: 180,
             sorter: true,
+            hideInTable: true,
             hideInSearch: true,
             copyable: true,
             ellipsis: true,
@@ -30,7 +31,7 @@ export default (): React.ReactNode => {
             title: "操作IP",
             dataIndex: "ip",
             tip: "请求来源IP地址",
-            width: 160,
+            width: 120,
             valueType: "text",
             copyable: true,
             ellipsis: true,
@@ -39,15 +40,16 @@ export default (): React.ReactNode => {
             title: "IP归属地",
             dataIndex: "location",
             tip: "请求来源IP归属地",
-            width: 240,
+            width: 200,
             valueType: "text",
+            copyable: true,
             ellipsis: true,
         },
         {
             title: "操作类型",
             dataIndex: "type",
             tip: "操作事件类型",
-            width: 120,
+            width: 100,
             valueEnum: Object.fromEntries(Object.entries(enumData?.type || {}).map(([key, value]) => {
                 return [key, {text: value, color: color[key]}];
             })),
@@ -57,7 +59,7 @@ export default (): React.ReactNode => {
             title: "操作标题",
             dataIndex: "title",
             tip: "操作事件标题",
-            width: 220,
+            width: 120,
             valueType: "text",
             ellipsis: true,
             hideInSearch: true,
@@ -66,7 +68,7 @@ export default (): React.ReactNode => {
             title: "操作内容",
             dataIndex: "content",
             tip: "操作事件详细内容",
-            width: 360,
+            width: 160,
             valueType: "text",
             ellipsis: true,
             hideInSearch: true,
@@ -75,7 +77,7 @@ export default (): React.ReactNode => {
             title: "操作时间",
             dataIndex: "create_time",
             tip: "日志创建时间",
-            width: 180,
+            width: 100,
             valueType: "dateRange",
             sorter: true,
             transform: dateRangeTransform("create_time"),
@@ -92,7 +94,6 @@ export default (): React.ReactNode => {
                 columns={columns}
                 defaultPage={1}
                 defaultPageSize={10}
-                tableProps={{scroll: {x: 1460}}}
                 request={(params, sort) => getData(params, sort, getLog)}
                 paginationAffix
             />

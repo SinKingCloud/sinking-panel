@@ -44,6 +44,16 @@ const ResourceOverview = React.memo(({info}: any) => {
     const diskPercent = diskSummary.total > 0 ? diskSummary.used / diskSummary.total * 100 : 0;
     const diskFree = diskSummary.free;
     const loadPercent = numberValue(load?.load1) / Math.max(1, numberValue(cpu?.processor)) * 100;
+    const metricColor = (value: any, color: string) => {
+        const percent = numberValue(value);
+        if (percent >= 95) {
+            return token.colorError;
+        }
+        if (percent >= 80) {
+            return token.colorWarning;
+        }
+        return color;
+    };
     let loadDescription = "负载较低，系统资源充足";
     if (loadPercent >= 100) {
         loadDescription = "负载过高，建议检查运行进程";
@@ -59,7 +69,7 @@ const ResourceOverview = React.memo(({info}: any) => {
                 <Col xs={24} md={12} xl={6}>
                     <Card className={styles.metricCard} variant="borderless">
                         <ResourceMetric
-                            color={token.colorPrimary}
+                            color={metricColor(loadPercent, token.colorPrimary)}
                             icon="LineChartOutlined"
                             title="系统负载"
                             value={formatPercent(loadPercent)}
@@ -72,7 +82,7 @@ const ResourceOverview = React.memo(({info}: any) => {
                 <Col xs={24} md={12} xl={6}>
                     <Card className={styles.metricCard} variant="borderless">
                         <ResourceMetric
-                            color="#13c2c2"
+                            color={metricColor(cpu?.usage, "#13c2c2")}
                             icon="DashboardOutlined"
                             title="CPU 使用率"
                             value={formatPercent(cpu?.usage)}
@@ -85,7 +95,7 @@ const ResourceOverview = React.memo(({info}: any) => {
                 <Col xs={24} md={12} xl={6}>
                     <Card className={styles.metricCard} variant="borderless">
                         <ResourceMetric
-                            color="#52c41a"
+                            color={metricColor(memory?.used_percent, "#52c41a")}
                             icon="DatabaseOutlined"
                             title="内存使用率"
                             value={formatPercent(memory?.used_percent)}
@@ -111,7 +121,7 @@ const ResourceOverview = React.memo(({info}: any) => {
                     >
                         <Card className={styles.metricCard} variant="borderless">
                             <ResourceMetric
-                                color="#5b8ff9"
+                                color={metricColor(diskPercent, "#5b8ff9")}
                                 icon="PieChartOutlined"
                                 title="磁盘使用率"
                                 value={formatPercent(diskPercent)}
