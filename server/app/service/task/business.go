@@ -100,12 +100,17 @@ func (s *service) Remove(ids []int64) error {
 		}
 		tasks = append(tasks, task)
 	}
+	s.logLock.Lock()
+	defer s.logLock.Unlock()
 	if err := s.repositoryTask.DeleteByIds(ids); err != nil {
 		return err
 	}
 	for _, task := range tasks {
 		if task.EntryID > 0 {
 			s.instance.Remove(cron.EntryID(task.EntryID))
+		}
+		if err := os.Remove(s.getTaskLogFilePath(task.Id)); err != nil && !os.IsNotExist(err) {
+			return err
 		}
 	}
 	return nil
@@ -223,6 +228,11 @@ func (s *service) getTaskLogPath() string {
 	return strings.ReplaceAll(path, "//", "")
 }
 
+func (s *service) getTaskLogFilePath(id int64) string {
+	name := "task-" + strconv.FormatInt(id, 10) + ".log"
+	return strings.ReplaceAll(s.getTaskLogPath()+name, "//", "")
+}
+
 // getTaskLogFile 获取任务日志文件
 func (s *service) getTaskLogFile(id int64) string {
 	name := "task-" + strconv.FormatInt(id, 10) + ".log"
@@ -230,7 +240,7 @@ func (s *service) getTaskLogFile(id int64) string {
 	if !f.Exists(name) {
 		_ = f.AutoCreate(name)
 	}
-	return strings.ReplaceAll(s.getTaskLogPath()+name, "//", "")
+	return s.getTaskLogFilePath(id)
 }
 
 // ReadLog 读取日志。首次读取最新内容，cursor 读取新增内容，before 读取更早内容。
@@ -432,7 +442,13 @@ func (s *service) WriteLog(id int64, content string) error {
 	s.logLock.Lock()
 	defer s.logLock.Unlock()
 
-	fileName := s.getTaskLogFile(id)
+	fileName := s.getTaskLogFilePath(id)
+	if _, err := os.Stat(fileName); os.IsNotExist(err) {
+		if _, findErr := s.repositoryTask.FindById(id); findErr != nil {
+			return nil
+		}
+	}
+	fileName = s.getTaskLogFile(id)
 	f, err := os.OpenFile(fileName, os.O_RDWR|os.O_APPEND, 0755)
 	if err != nil {
 		return err
