@@ -442,6 +442,12 @@ func (s *service) WriteLog(id int64, content string) error {
 	s.logLock.Lock()
 	defer s.logLock.Unlock()
 
+	// 统一清理调用方携带的行结束符，确保每条记录只追加一个换行。
+	content = strings.TrimRight(content, "\r\n")
+	if content == "" {
+		return nil
+	}
+
 	fileName := s.getTaskLogFilePath(id)
 	if _, err := os.Stat(fileName); os.IsNotExist(err) {
 		if _, findErr := s.repositoryTask.FindById(id); findErr != nil {
