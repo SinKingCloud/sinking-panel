@@ -1,6 +1,7 @@
 package task
 
 import (
+	"bufio"
 	"bytes"
 	"errors"
 	"io"
@@ -232,80 +233,185 @@ func (s *service) getTaskLogFile(id int64) string {
 	return strings.ReplaceAll(s.getTaskLogPath()+name, "//", "")
 }
 
-// ReadLog 读取日志，第一页返回最新输出，后续页按时间倒序读取历史日志。
-func (s *service) ReadLog(id int64, page int, pageSize int) []string {
+// ReadLog 读取日志。首次读取最新内容，cursor 读取新增内容，before 读取更早内容。
+func (s *service) ReadLog(id int64, cursor int64, before int64, pageSize int) map[string]interface{} {
 	s.logLock.RLock()
 	defer s.logLock.RUnlock()
 
-	if page < 1 {
-		page = 1
-	}
 	if pageSize < 1 {
+		pageSize = 300
+	}
+	if pageSize > 10000 {
 		pageSize = 10000
 	}
 	fileName := s.getTaskLogFile(id)
 	f, err := os.Open(fileName)
 	if err != nil {
-		return nil
+		return map[string]interface{}{
+			"lines":        []string{},
+			"cursor":       cursor,
+			"start_cursor": cursor,
+			"has_previous": false,
+			"end":          false,
+		}
 	}
 	defer func() {
 		_ = f.Close()
 	}()
 
 	stat, err := f.Stat()
-	if err != nil || stat.Size() == 0 {
-		return nil
+	if err != nil {
+		return map[string]interface{}{
+			"lines":        []string{},
+			"cursor":       cursor,
+			"start_cursor": cursor,
+			"has_previous": false,
+			"end":          false,
+		}
+	}
+	result := map[string]interface{}{
+		"lines":        []string{},
+		"cursor":       cursor,
+		"start_cursor": cursor,
+		"has_previous": cursor > 0,
+		"end":          false,
+	}
+	if stat.Size() == 0 {
+		result["cursor"] = int64(0)
+		result["start_cursor"] = int64(0)
+		result["has_previous"] = false
+		return result
 	}
 
-	// 从文件末尾按块读取，避免日志越大轮询成本越高。
-	const chunkSize int64 = 64 * 1024
-	targetLines := page * pageSize
-	position := stat.Size()
-	newLineCount := 0
-	chunks := make([][]byte, 0, pageSize+1)
-	totalSize := 0
-	for position > 0 && newLineCount <= targetLines {
-		readSize := chunkSize
-		if position < readSize {
-			readSize = position
+	// 从文件尾部读取一段完整日志，并记录每一行的文件起始位置。
+	readBefore := func(end int64) ([]string, []int64) {
+		if end < 0 {
+			end = 0
 		}
-		position -= readSize
-		chunk := make([]byte, int(readSize))
-		_, readErr := f.ReadAt(chunk, position)
-		if readErr != nil && !errors.Is(readErr, io.EOF) {
-			return nil
+		if end > stat.Size() {
+			end = stat.Size()
 		}
-		chunks = append(chunks, chunk)
-		totalSize += len(chunk)
-		newLineCount += bytes.Count(chunk, []byte{'\n'})
+		const chunkSize int64 = 64 * 1024
+		position := end
+		lineCount := 0
+		chunks := make([][]byte, 0, 2)
+		totalSize := 0
+		for position > 0 && lineCount <= pageSize {
+			readSize := chunkSize
+			if position < readSize {
+				readSize = position
+			}
+			position -= readSize
+			chunk := make([]byte, int(readSize))
+			_, readErr := f.ReadAt(chunk, position)
+			if readErr != nil && !errors.Is(readErr, io.EOF) {
+				return nil, nil
+			}
+			chunks = append(chunks, chunk)
+			totalSize += len(chunk)
+			lineCount += bytes.Count(chunk, []byte{'\n'})
+		}
+		data := make([]byte, 0, totalSize)
+		for i := len(chunks) - 1; i >= 0; i-- {
+			data = append(data, chunks[i]...)
+		}
+		start := 0
+		if position > 0 {
+			lineEnd := bytes.IndexByte(data, '\n')
+			if lineEnd < 0 {
+				return nil, nil
+			}
+			start = lineEnd + 1
+		}
+		lines := make([]string, 0, pageSize)
+		starts := make([]int64, 0, pageSize)
+		for start < len(data) {
+			relEnd := bytes.IndexByte(data[start:], '\n')
+			if relEnd < 0 {
+				if end == stat.Size() {
+					lines = append(lines, strings.TrimSuffix(string(data[start:]), "\r"))
+					starts = append(starts, position+int64(start))
+				}
+				break
+			}
+			lineEnd := start + relEnd
+			lines = append(lines, strings.TrimSuffix(string(data[start:lineEnd]), "\r"))
+			starts = append(starts, position+int64(start))
+			start = lineEnd + 1
+		}
+		if len(lines) > pageSize {
+			first := len(lines) - pageSize
+			lines = lines[first:]
+			starts = starts[first:]
+		}
+		return lines, starts
 	}
 
-	data := make([]byte, 0, totalSize)
-	for i := len(chunks) - 1; i >= 0; i-- {
-		data = append(data, chunks[i]...)
+	readAfter := func(start int64) ([]string, int64) {
+		if start < 0 {
+			start = 0
+		}
+		if start >= stat.Size() {
+			return []string{}, start
+		}
+		if _, err = f.Seek(start, io.SeekStart); err != nil {
+			return nil, start
+		}
+		reader := bufio.NewReaderSize(f, 64*1024)
+		lines := make([]string, 0, pageSize)
+		next := start
+		for len(lines) < pageSize {
+			line, readErr := reader.ReadString('\n')
+			if len(line) == 0 && readErr != nil {
+				break
+			}
+			if len(line) == 0 || line[len(line)-1] != '\n' {
+				break
+			}
+			next += int64(len(line))
+			lines = append(lines, strings.TrimSuffix(strings.TrimSuffix(line, "\n"), "\r"))
+			if readErr != nil {
+				break
+			}
+		}
+		return lines, next
 	}
-	parts := bytes.Split(data, []byte{'\n'})
-	if position > 0 && len(parts) > 0 {
-		parts = parts[1:]
+
+	if cursor > 0 {
+		if cursor > stat.Size() {
+			lines, starts := readBefore(stat.Size())
+			result["lines"] = lines
+			result["cursor"] = stat.Size()
+			result["end"] = true
+			if len(starts) > 0 {
+				result["start_cursor"] = starts[0]
+				result["has_previous"] = starts[0] > 0
+			}
+			return result
+		}
+		lines, next := readAfter(cursor)
+		result["lines"] = lines
+		result["cursor"] = next
+		result["start_cursor"] = cursor
+		result["has_previous"] = cursor > 0
+		return result
 	}
-	if len(parts) > 0 && len(parts[len(parts)-1]) == 0 {
-		parts = parts[:len(parts)-1]
+
+	end := stat.Size()
+	if before > 0 {
+		end = before
 	}
-	offset := (page - 1) * pageSize
-	if offset >= len(parts) {
-		return []string{}
+	lines, starts := readBefore(end)
+	result["lines"] = lines
+	result["cursor"] = stat.Size()
+	if len(starts) > 0 {
+		result["start_cursor"] = starts[0]
+		result["has_previous"] = starts[0] > 0
+	} else {
+		result["start_cursor"] = int64(0)
+		result["has_previous"] = false
 	}
-	pageEnd := len(parts) - offset
-	pageStart := pageEnd - pageSize
-	if pageStart < 0 {
-		pageStart = 0
-	}
-	parts = parts[pageStart:pageEnd]
-	lines := make([]string, 0, len(parts))
-	for _, part := range parts {
-		lines = append(lines, strings.TrimSuffix(string(part), "\r"))
-	}
-	return lines
+	return result
 }
 
 // ClearLog 清理任务日志。
