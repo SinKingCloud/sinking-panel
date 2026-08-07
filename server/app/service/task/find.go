@@ -9,7 +9,21 @@ func (s *service) findById(id int64) (*model.Task, error) {
 	return s.repositoryTask.FindById(id)
 }
 
-// FindById 通过ID查询
-func (s *service) FindById(id int64) (data *model.Task, err error) {
-	return s.findById(id)
+// FindById 通过ID查询任务详情
+func (s *service) FindById(id int64) (*Info, error) {
+	data, err := s.findById(id)
+	if err != nil || data == nil {
+		return nil, err
+	}
+	return &Info{
+		Id:         data.Id,
+		Type:       data.Type,
+		Name:       data.Name,
+		Spec:       data.Spec,
+		Script:     data.Script,
+		Status:     data.Status,
+		RunTime:    data.RunTime,
+		CreateTime: data.CreateTime,
+		UpdateTime: data.UpdateTime,
+	}, nil
 }

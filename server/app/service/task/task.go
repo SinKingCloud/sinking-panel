@@ -18,9 +18,10 @@ type Service interface {
 	Refresh(id int64) error
 	Add(data *model.Task) error
 	Start()
-	FindById(id int64) (*model.Task, error)
+	FindById(id int64) (*Info, error)
 	Select(where *repositoryTask.SelectTask, queryPage *page.Query) (*page.Result[*repositoryTask.Task], error)
 	ReadLog(id int64, page int, pageSize int) []string
+	ClearLog(id int64) error
 	WriteLog(id int64, content string) error
 	ValidateCron(expr string) bool
 	UpdateByIds(ids []int64, data *repositoryTask.UpdateTask) error
@@ -32,6 +33,7 @@ type service struct {
 	instance       *cron.Cron
 	startOnce      sync.Once
 	taskLock       sync.Mutex
+	logLock        sync.RWMutex
 }
 
 // NewService 实例化service

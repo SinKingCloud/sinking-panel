@@ -1,8 +1,9 @@
 package task
 
 import (
-	"bufio"
+	"bytes"
 	"errors"
+	"io"
 	"os"
 	"server/app/constant"
 	"server/app/enum/task_status"
@@ -15,22 +16,6 @@ import (
 
 	"github.com/robfig/cron/v3"
 )
-
-// entryId 获取任务实例ID
-func (s *service) entryId(id int64) (cron.EntryID, error) {
-	task, err := s.findById(id)
-	if err != nil {
-		return 0, err
-	}
-	if task.EntryID <= 0 {
-		return 0, errors.New("任务未实例化")
-	}
-	entry := s.instance.Entry(cron.EntryID(task.EntryID))
-	if entry.ID <= 0 {
-		return 0, errors.New("未查询到对应实例")
-	}
-	return entry.ID, nil
-}
 
 // Stop 暂停任务
 func (s *service) Stop(id int64) error {
@@ -83,16 +68,18 @@ func (s *service) Restore(id int64) error {
 // Run 执行任务
 func (s *service) Run(id int64) error {
 	s.taskLock.Lock()
-	defer s.taskLock.Unlock()
-
-	entryID, err := s.entryId(id)
+	task, err := s.findById(id)
 	if err != nil {
+		s.taskLock.Unlock()
 		return err
 	}
-	entry := s.instance.Entry(entryID)
-	if entry.ID > 0 {
-		go entry.Job.Run()
+	j := newJob(task, s)
+	if j == nil {
+		s.taskLock.Unlock()
+		return errors.New("任务实例化失败")
 	}
+	s.taskLock.Unlock()
+	go j.Run()
 	return nil
 }
 
@@ -245,49 +232,108 @@ func (s *service) getTaskLogFile(id int64) string {
 	return strings.ReplaceAll(s.getTaskLogPath()+name, "//", "")
 }
 
-// GetLog 获取log信息
-func (s *service) getLines(filename string, page int, pageSize int) ([]string, error) {
-	f, err := os.Open(filename)
+// ReadLog 读取日志，第一页返回最新输出，后续页按时间倒序读取历史日志。
+func (s *service) ReadLog(id int64, page int, pageSize int) []string {
+	s.logLock.RLock()
+	defer s.logLock.RUnlock()
+
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 {
+		pageSize = 10000
+	}
+	fileName := s.getTaskLogFile(id)
+	f, err := os.Open(fileName)
 	if err != nil {
-		return nil, err
+		return nil
 	}
 	defer func() {
 		_ = f.Close()
 	}()
-	scanner := bufio.NewScanner(f)
-	skipLines := (page - 1) * pageSize
-	for i := 0; i < skipLines; i++ {
-		if !scanner.Scan() {
-			return nil, nil // 没有更多行可读取
+
+	stat, err := f.Stat()
+	if err != nil || stat.Size() == 0 {
+		return nil
+	}
+
+	// 从文件末尾按块读取，避免日志越大轮询成本越高。
+	const chunkSize int64 = 64 * 1024
+	targetLines := page * pageSize
+	position := stat.Size()
+	newLineCount := 0
+	chunks := make([][]byte, 0, pageSize+1)
+	totalSize := 0
+	for position > 0 && newLineCount <= targetLines {
+		readSize := chunkSize
+		if position < readSize {
+			readSize = position
 		}
-	}
-	var lines []string
-	for i := 0; i < pageSize; i++ {
-		if !scanner.Scan() {
-			break
+		position -= readSize
+		chunk := make([]byte, int(readSize))
+		_, readErr := f.ReadAt(chunk, position)
+		if readErr != nil && !errors.Is(readErr, io.EOF) {
+			return nil
 		}
-		lines = append(lines, scanner.Text())
+		chunks = append(chunks, chunk)
+		totalSize += len(chunk)
+		newLineCount += bytes.Count(chunk, []byte{'\n'})
 	}
-	if err = scanner.Err(); err != nil {
-		return nil, err
+
+	data := make([]byte, 0, totalSize)
+	for i := len(chunks) - 1; i >= 0; i-- {
+		data = append(data, chunks[i]...)
 	}
-	return lines, nil
+	parts := bytes.Split(data, []byte{'\n'})
+	if position > 0 && len(parts) > 0 {
+		parts = parts[1:]
+	}
+	if len(parts) > 0 && len(parts[len(parts)-1]) == 0 {
+		parts = parts[:len(parts)-1]
+	}
+	offset := (page - 1) * pageSize
+	if offset >= len(parts) {
+		return []string{}
+	}
+	pageEnd := len(parts) - offset
+	pageStart := pageEnd - pageSize
+	if pageStart < 0 {
+		pageStart = 0
+	}
+	parts = parts[pageStart:pageEnd]
+	lines := make([]string, 0, len(parts))
+	for _, part := range parts {
+		lines = append(lines, strings.TrimSuffix(string(part), "\r"))
+	}
+	return lines
 }
 
-// ReadLog 读取日志
-func (s *service) ReadLog(id int64, page int, pageSize int) []string {
-	l, _ := s.getLines(s.getTaskLogFile(id), page, pageSize)
-	return l
+// ClearLog 清理任务日志。
+func (s *service) ClearLog(id int64) error {
+	s.logLock.Lock()
+	defer s.logLock.Unlock()
+
+	fileName := s.getTaskLogFile(id)
+	f, err := os.OpenFile(fileName, os.O_WRONLY|os.O_TRUNC, 0755)
+	if err != nil {
+		return err
+	}
+	return f.Close()
 }
 
 // WriteLog 写入日志
 func (s *service) WriteLog(id int64, content string) error {
+	s.logLock.Lock()
+	defer s.logLock.Unlock()
+
 	fileName := s.getTaskLogFile(id)
 	f, err := os.OpenFile(fileName, os.O_RDWR|os.O_APPEND, 0755)
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() {
+		_ = f.Close()
+	}()
 	_, err = f.WriteString("[" + time.Now().Format("2006-01-02 15:04:05") + "] " + content + "\n")
 	return err
 }
