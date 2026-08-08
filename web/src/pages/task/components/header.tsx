@@ -1,21 +1,6 @@
 import React from "react";
-import {DownOutlined, FilterOutlined, SearchOutlined, SortDescendingOutlined} from "@ant-design/icons";
+import {DownOutlined, PoweroffOutlined, SearchOutlined, TagsOutlined} from "@ant-design/icons";
 import {Dropdown, Input} from "antd";
-
-const sortOptions = [
-    {label: "最近创建", value: "id"},
-    {label: "最近运行", value: "run_time"},
-    {label: "最近更新", value: "update_time"},
-];
-
-const statusOptions = [
-    {label: "全部任务", value: ""},
-    {label: "运行中", value: "0"},
-    {label: "已暂停", value: "1"},
-];
-
-const sortItems = sortOptions.map(({label, value}) => ({key: value, label}));
-const statusItems = statusOptions.map(({label, value}) => ({key: value || "all", label}));
 
 const Graphic = React.memo(() => (
     <svg className="scheduler-graphic" viewBox="0 0 430 132" aria-hidden="true" focusable="false">
@@ -39,9 +24,29 @@ const Graphic = React.memo(() => (
 
 Graphic.displayName = "Graphic";
 
-const Header = ({styles, keyword, status, sort, onKeywordChange, onSearch, onStatusChange, onSortChange, onCreate}: any) => {
+const Header = ({
+    styles,
+    keyword,
+    type,
+    status,
+    typeData,
+    statusData,
+    onKeywordChange,
+    onSearch,
+    onTypeChange,
+    onStatusChange,
+    onCreate,
+}: any) => {
+    const typeOptions = React.useMemo(() => [
+        {label: "全部类型", value: ""},
+        ...Object.entries(typeData || {}).map(([value, label]) => ({value, label: String(label)})),
+    ], [typeData]);
+    const statusOptions = React.useMemo(() => [
+        {label: "全部状态", value: ""},
+        ...Object.entries(statusData || {}).map(([value, label]) => ({value, label: String(label)})),
+    ], [statusData]);
+    const activeType = typeOptions.find((item) => item.value === type)?.label || typeOptions[0].label;
     const activeStatus = statusOptions.find((item) => item.value === status)?.label || statusOptions[0].label;
-    const activeSort = sortOptions.find((item) => item.value === sort)?.label || sortOptions[0].label;
 
     return (
         <>
@@ -73,13 +78,13 @@ const Header = ({styles, keyword, status, sort, onKeywordChange, onSearch, onSta
                         classNames={{root: styles.toolbarDropdown}}
                         menu={{
                             selectable: true,
-                            selectedKeys: [status || "all"],
-                            items: statusItems,
-                            onClick: ({key}) => onStatusChange(key === "all" ? "" : key),
+                            selectedKeys: [type || "all"],
+                            items: typeOptions.map(({label, value}) => ({key: value || "all", label})),
+                            onClick: ({key}) => onTypeChange(key === "all" ? "" : key),
                         }}>
-                        <button className={`${styles.toolbarTrigger} status-trigger`} type="button" aria-label="任务状态筛选">
-                            <FilterOutlined className="marker"/>
-                            <span className="value">{activeStatus}</span>
+                        <button className={`${styles.toolbarTrigger} type-trigger`} type="button" aria-label="任务类型筛选">
+                            <TagsOutlined className="marker"/>
+                            <span className="value">{activeType}</span>
                             <DownOutlined className="arrow"/>
                         </button>
                     </Dropdown>
@@ -89,13 +94,13 @@ const Header = ({styles, keyword, status, sort, onKeywordChange, onSearch, onSta
                         classNames={{root: styles.toolbarDropdown}}
                         menu={{
                             selectable: true,
-                            selectedKeys: [sort],
-                            items: sortItems,
-                            onClick: ({key}) => onSortChange(key),
+                            selectedKeys: [status || "all"],
+                            items: statusOptions.map(({label, value}) => ({key: value || "all", label})),
+                            onClick: ({key}) => onStatusChange(key === "all" ? "" : key),
                         }}>
-                        <button className={`${styles.toolbarTrigger} sort-trigger`} type="button" aria-label="任务排序方式">
-                            <SortDescendingOutlined className="marker"/>
-                            <span className="value">{activeSort}</span>
+                        <button className={`${styles.toolbarTrigger} status-trigger`} type="button" aria-label="任务状态筛选">
+                            <PoweroffOutlined className="marker"/>
+                            <span className="value">{activeStatus}</span>
                             <DownOutlined className="arrow"/>
                         </button>
                     </Dropdown>

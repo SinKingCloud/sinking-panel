@@ -280,8 +280,8 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
                 gap: 3px;
             }
 
-            .command-actions .status-trigger,
-            .command-actions .sort-trigger {
+            .command-actions .type-trigger,
+            .command-actions .status-trigger {
                 width: 80px;
                 min-width: 80px;
                 padding: 0 4px;
@@ -366,12 +366,9 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
         line-height: 1;
         transition: background-color 0.16s ease, color 0.16s ease;
 
+        &.type-trigger,
         &.status-trigger {
             min-width: ${compact ? 100 : 108}px;
-        }
-
-        &.sort-trigger {
-            min-width: ${compact ? 104 : 112}px;
         }
 
         .marker {
@@ -502,6 +499,30 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
             display: none;
         }
 
+        .ant-table-thead > tr > th.ant-table-column-sort,
+        .ant-table-thead > tr > th.ant-table-column-has-sorters:hover {
+            background: ${tableHighlight};
+        }
+
+        .ant-table-tbody > tr > td.ant-table-column-sort {
+            background: ${token.colorBgContainer};
+        }
+
+        .ant-table-column-sorters {
+            justify-content: flex-start;
+            gap: 5px;
+        }
+
+        .ant-table-column-sorter {
+            margin-inline-start: 0;
+            color: ${token.colorTextQuaternary};
+        }
+
+        .ant-table-column-sorter-up.active,
+        .ant-table-column-sorter-down.active {
+            color: ${token.colorPrimary};
+        }
+
         .ant-table-thead > tr > th.action-cell {
             background: ${tableHighlight} !important;
             color: var(--task-table-text) !important;
@@ -616,7 +637,7 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
         }
 
         .task-state.paused {
-            color: color-mix(in srgb, ${token.colorWarning} 62%, ${token.colorTextSecondary});
+            color: ${token.colorWarning};
         }
 
         .task-type {

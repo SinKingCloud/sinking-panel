@@ -1,4 +1,4 @@
-import React, {useMemo, useState} from "react";
+import React, {useCallback, useMemo, useState} from "react";
 import {Button, Dropdown, Table as AntTable, Tooltip} from "antd";
 import {ago} from "@/utils/time";
 import {describeTaskSchedule} from "../utils";
@@ -14,7 +14,10 @@ const Table = ({
     loading,
     typeData,
     statusData,
+    sort,
+    order,
     operating,
+    onSortChange,
     onAction,
     onEdit,
     onLog,
@@ -40,8 +43,10 @@ const Table = ({
             title: "类型",
             dataIndex: "type",
             key: "type",
-            width: 90,
+            width: 100,
             className: "type-cell",
+            sorter: true,
+            sortOrder: sort === "type" ? (order === "asc" ? "ascend" : "descend") : null,
             render: (value: any) => (
                 <span className="task-type">{typeData[String(value)] || "-"}</span>
             ),
@@ -60,8 +65,10 @@ const Table = ({
             title: "状态",
             dataIndex: "status",
             key: "status",
-            width: 80,
+            width: 90,
             className: "status-cell",
+            sorter: true,
+            sortOrder: sort === "status" ? (order === "asc" ? "ascend" : "descend") : null,
             render: (value: any) => {
                 const running = Number(value) === 0;
                 return (
@@ -75,8 +82,10 @@ const Table = ({
             title: "最近执行",
             dataIndex: "run_time",
             key: "run_time",
-            width: 120,
+            width: 130,
             className: "runtime-cell",
+            sorter: true,
+            sortOrder: sort === "run_time" ? (order === "asc" ? "ascend" : "descend") : null,
             render: (value: any) => {
                 const runTime = formatRunTime(value);
                 return (
@@ -120,7 +129,15 @@ const Table = ({
                 );
             },
         },
-    ], [onAction, onEdit, onLog, openRowId, operating, statusData, typeData]);
+    ], [onAction, onEdit, onLog, openRowId, operating, order, sort, statusData, typeData]);
+
+    const change = useCallback((_: any, __: any, sorter: any, extra: any) => {
+        if (extra?.action !== "sort") {
+            return;
+        }
+        const current = Array.isArray(sorter) ? sorter[0] : sorter;
+        onSortChange(current?.field || current?.columnKey || "", current?.order || "");
+    }, [onSortChange]);
 
     return (
         <AntTable
@@ -129,9 +146,11 @@ const Table = ({
             dataSource={tasks}
             loading={loading}
             pagination={false}
+            onChange={change}
             rowKey={(record) => String(record.id)}
             rowClassName={(record) => openRowId === String(record.id) ? "action-menu-open" : ""}
-            scroll={{x: 790}}
+            scroll={{x: 800}}
+            showSorterTooltip={false}
             tableLayout="fixed"
             size="middle"
         />

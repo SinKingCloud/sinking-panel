@@ -57,11 +57,19 @@ const useList = () => {
     const [tasks, setTasks] = useState<any[]>([]);
     const [total, setTotal] = useState(0);
     const [keyword, setKeyword] = useState("");
-    const [query, setQuery] = useState({page: 1, pageSize: 10, name: "", status: "", sort: "id"});
+    const [query, setQuery] = useState({
+        page: 1,
+        pageSize: 10,
+        name: "",
+        type: "",
+        status: "",
+        sort: "id",
+        order: "desc",
+    });
     const [loading, setLoading] = useState(true);
     const [reloadKey, setReloadKey] = useState(0);
     const [operating, setOperating] = useState(() => new Set<string>());
-    const {page, pageSize, name, status, sort} = query;
+    const {page, pageSize, name, type, status, sort, order} = query;
 
     useEffect(() => {
         const requestId = ++requestRef.current;
@@ -74,8 +82,9 @@ const useList = () => {
                 page,
                 page_size: pageSize,
                 order_by_field: sort,
-                order_by_type: "desc",
+                order_by_type: order,
                 name,
+                type,
                 status,
             },
         }).then((response) => {
@@ -113,7 +122,7 @@ const useList = () => {
         return () => {
             active = false;
         };
-    }, [message, name, page, pageSize, reloadKey, sort, status]);
+    }, [message, name, order, page, pageSize, reloadKey, sort, status, type]);
 
     const reload = useCallback(() => {
         requestRef.current += 1;
@@ -131,12 +140,21 @@ const useList = () => {
         setQuery((current) => ({...current, page: 1, name: value.trim()}));
     }, []);
 
+    const changeType = useCallback((value: string) => {
+        setQuery((current) => ({...current, page: 1, type: value}));
+    }, []);
+
     const changeStatus = useCallback((value: string) => {
         setQuery((current) => ({...current, page: 1, status: value}));
     }, []);
 
-    const changeSort = useCallback((value: string) => {
-        setQuery((current) => ({...current, page: 1, sort: value}));
+    const changeSort = useCallback((field: string, value: string) => {
+        setQuery((current) => ({
+            ...current,
+            page: 1,
+            sort: value ? field : "id",
+            order: value === "ascend" ? "asc" : "desc",
+        }));
     }, []);
 
     const changePage = useCallback((nextPage: number, nextPageSize: number) => {
@@ -213,13 +231,16 @@ const useList = () => {
         page,
         pageSize,
         keyword,
+        type,
         status,
         sort,
+        order,
         loading,
         operating,
         reload,
         changeKeyword,
         search,
+        changeType,
         changeStatus,
         changeSort,
         changePage,

@@ -36,12 +36,14 @@ export default (): React.ReactNode => {
                         <Header
                             styles={styles}
                             keyword={list.keyword}
+                            type={list.type}
                             status={list.status}
-                            sort={list.sort}
+                            typeData={typeData}
+                            statusData={statusData}
                             onKeywordChange={list.changeKeyword}
                             onSearch={list.search}
+                            onTypeChange={list.changeType}
                             onStatusChange={list.changeStatus}
-                            onSortChange={list.changeSort}
                             onCreate={openCreate}/>
 
                         <main className={styles.dataPanel}>
@@ -54,7 +56,10 @@ export default (): React.ReactNode => {
                                     loading={list.loading}
                                     typeData={typeData}
                                     statusData={statusData}
+                                    sort={list.sort}
+                                    order={list.order}
                                     operating={list.operating}
+                                    onSortChange={list.changeSort}
                                     onAction={list.confirmAction}
                                     onEdit={openEdit}
                                     onLog={openLog}/>

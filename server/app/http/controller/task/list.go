@@ -8,7 +8,7 @@ import (
 
 // List 获取计划任务列表
 func List(c *context.Context) {
-	query := c.ValidatePage("id", "desc", "id", "id,run_time,create_time,update_time")
+	query := c.ValidatePage("id", "desc", "id", "id,type,status,run_time,create_time,update_time")
 	var form struct {
 		Name            string `json:"name" default:"" validate:"omitempty" label:"任务名称"`
 		Type            string `json:"type" default:"" validate:"omitempty,numeric" label:"任务类型"`

@@ -75,14 +75,26 @@ func (j *job) Run() {
 			return
 		}
 		defer response.Body.Close()
-		if _, err = io.Copy(io.Discard, io.LimitReader(response.Body, 64*1024)); err != nil {
+		responseBody, err := io.ReadAll(io.LimitReader(response.Body, 64*1024+1))
+		if err != nil {
 			_ = j.service.WriteLog(j.Id, "读取响应失败: "+err.Error())
 			return
+		}
+		truncated := len(responseBody) > 64*1024
+		if truncated {
+			responseBody = responseBody[:64*1024]
 		}
 		result := "请求完成"
 		if response.StatusCode >= http.StatusBadRequest {
 			result = "请求异常"
 		}
-		_ = j.service.WriteLog(j.Id, fmt.Sprintf("%s: %s %s, 耗时: %s", result, data.Method, response.Status, time.Since(startedAt).Round(time.Millisecond)))
+		content := fmt.Sprintf("%s: %s %s, 耗时: %s", result, data.Method, response.Status, time.Since(startedAt).Round(time.Millisecond))
+		if len(responseBody) > 0 {
+			content += "\n返回值:\n" + strings.ToValidUTF8(string(responseBody), "�")
+		}
+		if truncated {
+			content += "\n[返回值超过64 KiB，已截断]"
+		}
+		_ = j.service.WriteLog(j.Id, content)
 	}
 }
