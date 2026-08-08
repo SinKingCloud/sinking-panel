@@ -34,21 +34,37 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
         justify-content: space-between;
         overflow: hidden;
         isolation: isolate;
-        background: ${dark
-            ? "linear-gradient(118deg, rgba(22,119,255,0.09) 0%, rgba(255,255,255,0.025) 58%, rgba(82,196,26,0.055) 100%)"
-            : "linear-gradient(118deg, #f7faff 0%, #eef4ff 58%, #f5fbf5 100%)"};
+        background: linear-gradient(
+            118deg,
+            color-mix(in srgb, ${token.colorPrimary}, ${token.colorBgContainer} ${dark ? 94 : 93}%) 0%,
+            ${token.colorBgContainer} 58%,
+            color-mix(in srgb, #13c2c2, ${token.colorBgContainer} ${dark ? 97 : 96}%) 100%
+        );
 
         &::before {
             position: absolute;
             z-index: 0;
             inset: 0;
             background-image:
-                linear-gradient(${dark ? "rgba(255,255,255,0.026)" : "rgba(72,132,202,0.05)"} 1px, transparent 1px),
-                linear-gradient(90deg, ${dark ? "rgba(255,255,255,0.026)" : "rgba(72,132,202,0.05)"} 1px, transparent 1px);
+                linear-gradient(${dark ? "rgba(255,255,255,0.018)" : "rgba(72,132,202,0.035)"} 1px, transparent 1px),
+                linear-gradient(90deg, ${dark ? "rgba(255,255,255,0.018)" : "rgba(72,132,202,0.035)"} 1px, transparent 1px);
             background-size: 24px 24px;
             content: "";
-            -webkit-mask-image: linear-gradient(90deg, transparent 10%, rgba(0, 0, 0, .2) 45%, #000 100%);
-            mask-image: linear-gradient(90deg, transparent 10%, rgba(0, 0, 0, .2) 45%, #000 100%);
+            -webkit-mask-image: linear-gradient(90deg, transparent 36%, rgba(0, 0, 0, .2) 58%, #000 100%);
+            mask-image: linear-gradient(90deg, transparent 36%, rgba(0, 0, 0, .2) 58%, #000 100%);
+            pointer-events: none;
+        }
+
+        &::after {
+            position: absolute;
+            z-index: 0;
+            inset: -45% -10% -55% 48%;
+            background:
+                radial-gradient(ellipse at 48% 32%, color-mix(in srgb, ${token.colorPrimary}, transparent 84%) 0%, transparent 60%),
+                radial-gradient(ellipse at 76% 72%, color-mix(in srgb, #13c2c2, transparent 89%) 0%, transparent 58%);
+            content: "";
+            filter: blur(28px);
+            opacity: ${dark ? .34 : .52};
             pointer-events: none;
         }
 
@@ -93,72 +109,14 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
             position: absolute;
             z-index: 1;
             top: 0;
-            right: 86px;
-            width: 48%;
+            right: 82px;
+            width: 52%;
             height: 100%;
-            opacity: ${dark ? .28 : .38};
+            opacity: ${dark ? .12 : .25};
+            filter: ${dark ? "blur(.8px) saturate(.78)" : "blur(.25px)"};
+            -webkit-mask-image: linear-gradient(90deg, transparent 0%, rgba(0, 0, 0, .38) 28%, #000 52%);
+            mask-image: linear-gradient(90deg, transparent 0%, rgba(0, 0, 0, .38) 28%, #000 52%);
             pointer-events: none;
-        }
-
-        .scheduler-graphic {
-            width: 100%;
-            height: 100%;
-            display: block;
-        }
-
-        .time-track,
-        .clock-orbit,
-        .clock-face,
-        .clock-markers,
-        .clock-hands {
-            fill: none;
-            stroke-linecap: round;
-            stroke-linejoin: round;
-        }
-
-        .time-track {
-            stroke: color-mix(in srgb, ${token.colorPrimary}, transparent 68%);
-            stroke-width: 1.4;
-        }
-
-        .time-track.secondary,
-        .time-ticks {
-            fill: none;
-            stroke: color-mix(in srgb, ${token.colorTextTertiary}, transparent 83%);
-            stroke-width: 1;
-        }
-
-        .time-track.secondary {
-            stroke-dasharray: 4 7;
-        }
-
-        .track-node,
-        .orbit-node,
-        .clock-center {
-            fill: color-mix(in srgb, ${token.colorPrimary}, #fff 18%);
-        }
-
-        .track-node.secondary,
-        .orbit-node.secondary {
-            fill: color-mix(in srgb, ${token.colorSuccess}, #fff 20%);
-        }
-
-        .clock-orbit {
-            stroke: color-mix(in srgb, ${token.colorPrimary}, transparent 80%);
-            stroke-dasharray: 4 6;
-            stroke-width: 1;
-        }
-
-        .clock-face {
-            fill: color-mix(in srgb, ${token.colorBgContainer}, transparent 28%);
-            stroke: color-mix(in srgb, ${token.colorPrimary}, transparent 48%);
-            stroke-width: 1.2;
-        }
-
-        .clock-markers,
-        .clock-hands {
-            stroke: color-mix(in srgb, ${token.colorPrimary}, ${token.colorTextSecondary} 34%);
-            stroke-width: 1.6;
         }
 
         .create-button {
@@ -221,9 +179,14 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
             }
 
             .hero-visual {
-                right: 62px;
-                width: 70%;
-                opacity: ${dark ? .18 : .24};
+                right: 42px;
+                width: 68%;
+                opacity: ${dark ? .07 : .14};
+            }
+
+            .hero-visual .flow-secondary,
+            .hero-visual .flow-detail {
+                display: none;
             }
         }
 
@@ -234,9 +197,19 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
             }
 
             .hero-visual {
-                right: 30px;
-                width: 78%;
-                opacity: .16;
+                right: 16px;
+                width: 76%;
+                opacity: ${dark ? .045 : .09};
+            }
+
+            .hero-visual .flow-node-a {
+                display: none;
+            }
+        }
+
+        @container task-workspace (max-width: 360px) {
+            .hero-visual {
+                display: none;
             }
         }
     `,

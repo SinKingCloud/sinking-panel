@@ -49,7 +49,7 @@ export default [
         name: "setting",
         icon: "SettingOutlined",
         hideInMenu: false,
-        component: "@/pages/test",
+        component: "@/pages/setting",
     },
     {
         path: 'login',

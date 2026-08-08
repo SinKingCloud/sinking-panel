@@ -1,28 +1,7 @@
 import React from "react";
 import {Dropdown, Input} from "antd";
 import {Icon} from "sinking-antd";
-
-const Graphic = React.memo(() => (
-    <svg className="scheduler-graphic" viewBox="0 0 430 132" aria-hidden="true" focusable="false">
-        <path className="time-track" d="M14 84C76 84 87 49 143 49S211 98 270 77 350 47 416 62"/>
-        <path className="time-track secondary" d="M18 105H410"/>
-        <path className="time-ticks" d="M44 100V110M78 102V108M112 100V110M146 102V108M180 100V110M214 102V108M248 100V110M282 102V108M316 100V110M350 102V108M384 100V110"/>
-        <circle className="track-node" cx="82" cy="67" r="5"/>
-        <circle className="track-node secondary" cx="164" cy="57" r="4"/>
-        <circle className="track-node" cx="350" cy="53" r="5"/>
-        <g className="hero-clock" transform="translate(270 64)">
-            <circle className="clock-orbit" r="48"/>
-            <circle className="clock-face" r="31"/>
-            <path className="clock-markers" d="M0-25V-21M25 0H21M0 25V21M-25 0H-21"/>
-            <path className="clock-hands" d="M0 0V-15M0 0L13 7"/>
-            <circle className="clock-center" r="3"/>
-            <circle className="orbit-node" cx="-37" cy="-30" r="4"/>
-            <circle className="orbit-node secondary" cx="43" cy="21" r="3.5"/>
-        </g>
-    </svg>
-));
-
-Graphic.displayName = "Graphic";
+import HeroGraphic from "@/components/hero-graphic";
 
 const Header = ({
     styles,
@@ -55,7 +34,7 @@ const Header = ({
                     <div className="eyebrow"><span className="status-dot"/>TASK SCHEDULER</div>
                     <h1>计划任务</h1>
                 </div>
-                <div className="hero-visual"><Graphic/></div>
+                <div className="hero-visual"><HeroGraphic variant="task"/></div>
                 <button className="create-button" type="button" onClick={onCreate}>
                     <span>添加任务</span>
                 </button>

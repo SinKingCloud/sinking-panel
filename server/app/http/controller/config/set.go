@@ -26,9 +26,7 @@ func Set(c *context.Context) {
 		if v == nil || v.Key == constant.LoginGroup || strings.HasPrefix(v.Key, constant.LoginGroup+".") {
 			continue
 		}
-		if v.Value != "" {
-			configs[v.Key] = v.Value
-		}
+		configs[v.Key] = v.Value
 	}
 	if len(configs) > 0 {
 		if err := service.Config.Sets(configs); err != nil {

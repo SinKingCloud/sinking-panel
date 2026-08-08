@@ -28,7 +28,8 @@ const useStyles: any = createStyles(({isDarkMode, token}) => {
     return {
         modal: {
             ".ant-modal": {
-                width: "326px !important",
+                width: "min(326px, calc(100vw - 24px)) !important",
+                maxWidth: "calc(100vw - 24px)",
             },
             ".ant-modal-container": {
                 padding: "0 !important",
@@ -39,19 +40,19 @@ const useStyles: any = createStyles(({isDarkMode, token}) => {
                 "--go-captcha-theme-text-color": "#8f94a7 !important",
                 "--go-captcha-theme-bg-color": "#18181a !important",
                 "--go-captcha-theme-btn-color": "#ffffff !important",
-                "--go-captcha-theme-btn-bg-color": "#4e87ff !important",
-                "--go-captcha-theme-btn-border-color": "#4e87ff !important",
-                "--go-captcha-theme-active-color": "#3e7cff !important",
+                "--go-captcha-theme-btn-bg-color": token?.colorPrimary + " !important",
+                "--go-captcha-theme-btn-border-color": token?.colorPrimary + " !important",
+                "--go-captcha-theme-active-color": token?.colorPrimary + " !important",
                 "--go-captcha-theme-border-color": "#3c3f44 !important",
                 "--go-captcha-theme-icon-color": "#696d7b !important",
                 "--go-captcha-theme-drag-bar-color": "#3c3f44 !important",
-                "--go-captcha-theme-drag-bg-color": "#3e7cff !important",
+                "--go-captcha-theme-drag-bg-color": token?.colorPrimary + " !important",
                 "--go-captcha-theme-drag-icon-color": "#ffffff !important",
                 "--go-captcha-theme-round-color": "#3c3f44 !important",
-                "--go-captcha-theme-loading-icon-color": "#3e7cff !important",
+                "--go-captcha-theme-loading-icon-color": token?.colorPrimary + " !important",
                 "--go-captcha-theme-body-bg-color": "#34383e !important",
                 "--go-captcha-theme-dot-color": "#cedffe !important",
-                "--go-captcha-theme-dot-bg-color": "#3e7cff !important",
+                "--go-captcha-theme-dot-bg-color": token?.colorPrimary + " !important",
                 "--go-captcha-theme-dot-border-color": "#f7f9fb !important",
             } : {
                 "--go-captcha-theme-btn-color": token?.colorPrimary + " !important",
@@ -75,17 +76,19 @@ const Captcha = forwardRef<CaptchaRef>((_, ref): any => {
      * 回调函数引用
      */
     const token = useRef<string>("");
+    const request = useRef(0);
     const successCallback = useRef<((res: CaptchaResponse) => void) | null>(null);
     const closeCallback = useRef<(() => void) | null>(null);
 
     /**
      * 关闭验证码
      */
-    const close = () => {
+    const close = (notify = true) => {
+        request.current += 1;
         setVisible(false);
         setData(null);
         setLoading(true);
-        if (closeCallback.current) {
+        if (notify && closeCallback.current) {
             closeCallback.current();
         }
         successCallback.current = null;
@@ -96,12 +99,17 @@ const Captcha = forwardRef<CaptchaRef>((_, ref): any => {
      * 刷新验证码
      */
     const refresh = async () => {
+        const requestId = ++request.current;
+        const currentToken = getRandStr(16);
         try {
             setLoading(true);
-            token.current = getRandStr(16);
+            token.current = currentToken;
             await getCaptcha({
-                body: {token: token.current},
+                body: {token: currentToken},
                 onSuccess: (res) => {
+                    if (requestId !== request.current) {
+                        return;
+                    }
                     const d = res?.data;
                     if (d) {
                         setData({
@@ -118,14 +126,22 @@ const Captcha = forwardRef<CaptchaRef>((_, ref): any => {
                     }
                 },
                 onFail: (error) => {
+                    if (requestId !== request.current) {
+                        return;
+                    }
                     message.error(error?.message || "验证码加载失败");
                     close();
                 },
                 onFinally: () => {
-                    setLoading(false);
+                    if (requestId === request.current) {
+                        setLoading(false);
+                    }
                 }
             });
         } catch (error) {
+            if (requestId !== request.current) {
+                return;
+            }
             message.error("验证码加载失败");
             setLoading(false);
             close();
@@ -157,7 +173,7 @@ const Captcha = forwardRef<CaptchaRef>((_, ref): any => {
         <Modal
             open={visible}
             destroyOnHidden={true}
-            onCancel={close}
+            onCancel={() => close()}
             footer={null}
             closable={false}
             mask={{closable: false}}
@@ -190,10 +206,10 @@ const Captcha = forwardRef<CaptchaRef>((_, ref): any => {
                             if (successCallback.current) {
                                 successCallback.current(result);
                             }
-                            close();
+                            close(false);
                         },
                         refresh: refresh,
-                        close: close,
+                        close: () => close(),
                     }}
                 />
             </Spin>

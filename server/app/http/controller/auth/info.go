@@ -20,7 +20,7 @@ func Info(c *context.Context) {
 			"watermark": c.GetBoolWithDefault(ui[constant.UiWaterMark], false),
 			"theme":     c.GetStringWithDefault(ui[constant.UiTheme], "dark"),
 			"compact":   c.GetBoolWithDefault(ui[constant.UiCompact], false),
-			"color":     c.GetStringWithDefault(ui[constant.UiColor], "rgb(0,81,235)"),
+			"color":     c.GetStringWithDefault(ui[constant.UiColor], "rgb(0, 83, 251)"),
 			"radius":    c.GetIntWithDefault(ui[constant.UiRadius], 0),
 		},
 	})
