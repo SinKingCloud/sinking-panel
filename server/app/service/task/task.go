@@ -23,7 +23,6 @@ type Service interface {
 	ReadLog(id int64, after int64, before int64, pageSize int) map[string]interface{}
 	ClearLog(id int64) error
 	WriteLog(id int64, content string) error
-	ValidateCron(expr string) bool
 	UpdateByIds(ids []int64, data *repositoryTask.UpdateTask) error
 }
 

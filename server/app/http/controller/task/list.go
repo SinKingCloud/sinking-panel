@@ -12,7 +12,7 @@ func List(c *context.Context) {
 	var form struct {
 		Name            string `json:"name" default:"" validate:"omitempty" label:"任务名称"`
 		Type            string `json:"type" default:"" validate:"omitempty,numeric" label:"任务类型"`
-		Status          string `json:"status" default:"" validate:"omitempty,oneof=0 1" label:"任务状态"`
+		Status          string `json:"status" default:"" validate:"omitempty,numeric" label:"任务状态"`
 		RunTimeStart    string `json:"run_time_start" default:"" validate:"omitempty,datetime=2006-01-02 15:04:05" label:"运行起始时间"`
 		RunTimeEnd      string `json:"run_time_end" default:"" validate:"omitempty,datetime=2006-01-02 15:04:05" label:"运行结束时间"`
 		CreateTimeStart string `json:"create_time_start" default:"" validate:"omitempty,datetime=2006-01-02 15:04:05" label:"创建起始时间"`

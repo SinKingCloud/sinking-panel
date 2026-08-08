@@ -1,10 +1,12 @@
-import {forwardRef, memo, useCallback, useImperativeHandle, useRef, useState} from "react";
+import {forwardRef, memo, useCallback, useImperativeHandle, useMemo, useRef, useState} from "react";
 import {App, Col, Form as AntForm, Input, Row, Select, Spin} from "antd";
 import {createStyles} from "antd-style";
 import {ProModal, ProModalRef, Title} from "sinking-antd";
 import defaultSettings from "@/../config/defaultSettings";
 import AceEditor from "@/components/ace-editor";
 import {createTask, getTaskInfo, updateTask} from "@/service/api/task";
+import {parseRequest, stringifyRequest} from "../utils";
+import Request from "./request";
 import Schedule from "./schedule";
 
 const acePath = `${defaultSettings?.basePath || "/"}ace`;
@@ -41,48 +43,72 @@ export interface FormRef {
     open: (record?: any) => void;
 }
 
-const Form = forwardRef<FormRef, {onSuccess?: () => void}>(({onSuccess}, ref) => {
+const Form = forwardRef<FormRef, {typeData?: any; onSuccess?: () => void}>(({
+    typeData,
+    onSuccess,
+}, ref) => {
     const {message} = App.useApp();
     const {styles} = useStyles();
     const modalRef = useRef<ProModalRef>({} as ProModalRef);
     const requestRef = useRef(0);
     const [form] = AntForm.useForm();
     const [taskId, setTaskId] = useState<any>();
+    const [taskType, setTaskType] = useState(0);
     const [active, setActive] = useState(false);
     const [infoLoading, setInfoLoading] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const editing = taskId !== undefined && taskId !== null;
+    const typeOptions = useMemo(() => {
+        return Object.entries(typeData || {}).map(([value, label]) => ({
+            label: String(label),
+            value: Number(value),
+        }));
+    }, [typeData]);
 
     const reset = useCallback(() => {
         requestRef.current += 1;
         form.resetFields();
         setTaskId(undefined);
+        setTaskType(0);
         setActive(false);
         setInfoLoading(false);
         setSubmitting(false);
     }, [form]);
 
     const openCreate = useCallback(() => {
+        const type = Number(typeOptions[0]?.value);
+        if (!Number.isFinite(type)) {
+            message.error("任务类型尚未加载");
+            return;
+        }
         requestRef.current += 1;
         setTaskId(undefined);
+        setTaskType(type);
         setActive(true);
         setInfoLoading(false);
         form.resetFields();
         form.setFieldsValue({
             name: "",
+            type,
             spec: "0 */5 * * * *",
             script: "",
+            request: parseRequest({method: "GET"}),
             status: 0,
         });
         modalRef.current?.show();
-    }, [form]);
+    }, [form, message, typeOptions]);
 
     const openEdit = useCallback((record: any) => {
         if (record?.id === undefined || record?.id === null) {
             return;
         }
+        if (typeOptions.length === 0) {
+            message.error("任务类型尚未加载");
+            return;
+        }
         const requestId = ++requestRef.current;
         setTaskId(record.id);
+        setTaskType(Number(record.type || 0));
         setActive(true);
         setInfoLoading(true);
         form.resetFields();
@@ -98,10 +124,14 @@ const Form = forwardRef<FormRef, {onSuccess?: () => void}>(({onSuccess}, ref) =>
                 return;
             }
             const data: any = response?.data || {};
+            const type = Number(data.type || 0);
+            setTaskType(type);
             form.setFieldsValue({
                 name: data.name,
+                type,
                 spec: data.spec,
-                script: data.script || "",
+                script: type === 0 ? String(data.script || "") : "",
+                request: type === 1 ? parseRequest(data.script) : undefined,
                 status: Number(data.status),
             });
         }).catch(() => {
@@ -114,7 +144,7 @@ const Form = forwardRef<FormRef, {onSuccess?: () => void}>(({onSuccess}, ref) =>
                 setInfoLoading(false);
             }
         });
-    }, [form, message]);
+    }, [form, message, typeOptions.length]);
 
     useImperativeHandle(ref, () => ({
         open: (record?: any) => record ? openEdit(record) : openCreate(),
@@ -122,11 +152,21 @@ const Form = forwardRef<FormRef, {onSuccess?: () => void}>(({onSuccess}, ref) =>
 
     const submit = useCallback(async (values: any) => {
         const requestId = ++requestRef.current;
+        const type = Number(values.type);
+        let script = String(values.script || "");
+        if (type === 1) {
+            try {
+                script = stringifyRequest(values.request);
+            } catch (error: any) {
+                message.error(error?.message || "请求配置不合法");
+                return;
+            }
+        }
         const body: any = {
             name: String(values.name || "").trim(),
-            type: 0,
+            type,
             spec: String(values.spec || "").trim(),
-            script: String(values.script || ""),
+            script,
             status: Number(values.status),
         };
         if (editing) {
@@ -182,7 +222,7 @@ const Form = forwardRef<FormRef, {onSuccess?: () => void}>(({onSuccess}, ref) =>
                 ) : (
                     <>
                         <Row gutter={[16, 0]}>
-                            <Col xs={24} sm={16}>
+                            <Col xs={24} sm={12}>
                                 <AntForm.Item
                                     name="name"
                                     label="任务名称"
@@ -190,7 +230,24 @@ const Form = forwardRef<FormRef, {onSuccess?: () => void}>(({onSuccess}, ref) =>
                                     <Input placeholder="请输入任务名称"/>
                                 </AntForm.Item>
                             </Col>
-                            <Col xs={24} sm={8}>
+                            <Col xs={24} sm={6}>
+                                <AntForm.Item
+                                    name="type"
+                                    label="任务类型"
+                                    rules={[{required: true, message: "请选择任务类型"}]}>
+                                    <Select
+                                        options={typeOptions}
+                                        onChange={(value) => {
+                                            const type = Number(value);
+                                            setTaskType(type);
+                                            form.setFieldsValue({
+                                                script: "",
+                                                request: type === 1 ? parseRequest({method: "GET"}) : undefined,
+                                            });
+                                        }}/>
+                                </AntForm.Item>
+                            </Col>
+                            <Col xs={24} sm={6}>
                                 <AntForm.Item
                                     name="status"
                                     label="任务状态"
@@ -205,20 +262,31 @@ const Form = forwardRef<FormRef, {onSuccess?: () => void}>(({onSuccess}, ref) =>
                             rules={[{required: true, whitespace: true, message: "请设置执行周期"}]}>
                             <Schedule/>
                         </AntForm.Item>
-                        <AntForm.Item
-                            name="script"
-                            label="任务内容"
-                            rules={[{required: true, whitespace: true, message: "请输入任务内容"}]}>
-                            <AceEditor
-                                mode="sh"
-                                width="100%"
-                                height={280}
-                                fontSize={14}
-                                showPrintMargin={false}
-                                wrapEnabled
-                                acePath={acePath}
-                                className={styles.editor}/>
-                        </AntForm.Item>
+                        {taskType === 0 ? (
+                            <AntForm.Item
+                                name="script"
+                                label="任务内容"
+                                rules={[{required: true, whitespace: true, message: "请输入任务内容"}]}>
+                                <AceEditor
+                                    mode="sh"
+                                    width="100%"
+                                    height={280}
+                                    fontSize={14}
+                                    showPrintMargin={false}
+                                    wrapEnabled
+                                    acePath={acePath}
+                                    className={styles.editor}/>
+                            </AntForm.Item>
+                        ) : taskType === 1 ? (
+                            <Request/>
+                        ) : (
+                            <AntForm.Item
+                                name="script"
+                                label="任务内容"
+                                rules={[{required: true, whitespace: true, message: "请输入任务内容"}]}>
+                                <Input placeholder="请输入任务内容" maxLength={2000}/>
+                            </AntForm.Item>
+                        )}
                     </>
                 ))}
             </AntForm>

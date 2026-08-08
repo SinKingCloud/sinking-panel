@@ -20,7 +20,7 @@ func (s *service) FindById(id int64) (*Info, error) {
 		Type:       data.Type,
 		Name:       data.Name,
 		Spec:       data.Spec,
-		Script:     data.Script,
+		Script:     s.formatContent(data.Script, data.Type),
 		Status:     data.Status,
 		RunTime:    data.RunTime,
 		CreateTime: data.CreateTime,

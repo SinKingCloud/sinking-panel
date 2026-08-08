@@ -74,7 +74,7 @@ export default (): React.ReactNode => {
                         onChange={list.changePage}/>
                 </Col>
             </Row>
-            <Form ref={formRef} onSuccess={list.reload}/>
+            <Form ref={formRef} typeData={typeData} onSuccess={list.reload}/>
             <Log ref={logRef}/>
         </Body>
     );

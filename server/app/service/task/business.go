@@ -3,12 +3,15 @@ package task
 import (
 	"bufio"
 	"bytes"
+	"encoding/json"
 	"errors"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"server/app/constant"
 	"server/app/enum/task_status"
+	"server/app/enum/task_type"
 	"server/app/model"
 	"server/app/util/file"
 	"server/app/util/str"
@@ -18,6 +21,116 @@ import (
 
 	"github.com/robfig/cron/v3"
 )
+
+// checkContent 判断任务内容
+func (s *service) checkContent(content string, Type int) (string, error) {
+	if strings.TrimSpace(content) == "" {
+		return "", errors.New("任务内容不能为空")
+	}
+	switch Type {
+	case task_type.Script:
+		return content, nil
+	case task_type.Request:
+		data := Request{}
+		if err := json.Unmarshal([]byte(content), &data); err != nil {
+			data = Request{Method: http.MethodGet, Url: strings.TrimSpace(content)}
+		}
+		data.Method = strings.ToUpper(strings.TrimSpace(data.Method))
+		if data.Method == "" {
+			data.Method = http.MethodGet
+		}
+		switch data.Method {
+		case http.MethodGet, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodHead, http.MethodOptions:
+		default:
+			return "", errors.New("请求方式不合法")
+		}
+		data.Url = strings.TrimSpace(data.Url)
+		request, err := http.NewRequest(data.Method, data.Url, nil)
+		if err != nil || request.URL.Host == "" || (!strings.EqualFold(request.URL.Scheme, "http") && !strings.EqualFold(request.URL.Scheme, "https")) {
+			return "", errors.New("请求地址必须是有效的HTTP或HTTPS地址")
+		}
+		if len(data.Headers) > 100 {
+			return "", errors.New("请求头数量不能超过100个")
+		}
+		validHeaderName := func(name string) bool {
+			for i := 0; i < len(name); i++ {
+				char := name[i]
+				if (char >= 'a' && char <= 'z') || (char >= 'A' && char <= 'Z') || (char >= '0' && char <= '9') || strings.ContainsRune("!#$%&'*+-.^_`|~", rune(char)) {
+					continue
+				}
+				return false
+			}
+			return name != ""
+		}
+		validHeaderValue := func(value string) bool {
+			for i := 0; i < len(value); i++ {
+				char := value[i]
+				if char != '\t' && (char < 0x20 || char == 0x7f) {
+					return false
+				}
+			}
+			return true
+		}
+		headers := make(map[string]string, len(data.Headers))
+		headerNames := make(map[string]struct{}, len(data.Headers))
+		for name, value := range data.Headers {
+			name = strings.TrimSpace(name)
+			if !validHeaderName(name) {
+				return "", errors.New("请求头名称不合法")
+			}
+			lowerName := strings.ToLower(name)
+			if _, ok := headerNames[lowerName]; ok {
+				return "", errors.New("请求头名称不能重复")
+			}
+			if lowerName == "content-length" || lowerName == "transfer-encoding" || lowerName == "trailer" {
+				return "", errors.New("不支持自定义传输层请求头")
+			}
+			if !validHeaderValue(value) {
+				return "", errors.New("请求头值不合法")
+			}
+			if lowerName == "host" && strings.TrimSpace(value) == "" {
+				return "", errors.New("Host请求头不能为空")
+			}
+			headerNames[lowerName] = struct{}{}
+			name = http.CanonicalHeaderKey(name)
+			headers[name] = value
+			if lowerName == "host" {
+				request.Host = value
+			} else {
+				request.Header.Set(name, value)
+			}
+		}
+		if err = request.Write(io.Discard); err != nil {
+			return "", errors.New("请求配置不合法")
+		}
+		data.Headers = headers
+		value, err := json.Marshal(data)
+		if err != nil {
+			return "", errors.New("请求配置格式化失败")
+		}
+		return string(value), nil
+	default:
+		return "", errors.New("任务类型不合法")
+	}
+}
+
+// formatContent 格式化任务内容
+func (s *service) formatContent(content string, Type int) interface{} {
+	if Type == task_type.Script {
+		return content
+	}
+	if Type == task_type.Request {
+		content, err := s.checkContent(content, Type)
+		if err == nil {
+			data := Request{}
+			if json.Unmarshal([]byte(content), &data) == nil {
+				return data
+			}
+		}
+		return Request{}
+	}
+	return nil
+}
 
 // Stop 暂停任务
 func (s *service) Stop(id int64) error {
@@ -169,9 +282,23 @@ func (s *service) Add(data *model.Task) error {
 	if data == nil {
 		return errors.New("任务数据不能为空")
 	}
+	if _, ok := task_type.Map()[data.Type]; !ok {
+		return errors.New("任务类型不合法")
+	}
 	if _, ok := task_status.Map()[data.Status]; !ok {
 		return errors.New("任务状态不合法")
 	}
+	if strings.TrimSpace(data.Name) == "" {
+		return errors.New("任务名称不能为空")
+	}
+	if !s.validateCron(data.Spec) {
+		return errors.New("任务表达式不合法")
+	}
+	content, err := s.checkContent(data.Script, data.Type)
+	if err != nil {
+		return err
+	}
+	data.Script = content
 	data.Id = str.GetSnowWorkIns().GetId()
 	if data.Status == task_status.Stop {
 		data.EntryID = 0
@@ -470,8 +597,8 @@ func (s *service) WriteLog(id int64, content string) error {
 	return err
 }
 
-// ValidateCron 判断cron表达式
-func (s *service) ValidateCron(expr string) bool {
+// validateCron 判断cron表达式
+func (s *service) validateCron(expr string) bool {
 	parser := cron.NewParser(
 		cron.Second |
 			cron.Minute |

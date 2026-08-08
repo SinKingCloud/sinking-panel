@@ -5,6 +5,7 @@ import (
 	"server/app/enum/task_status"
 	"server/app/enum/task_type"
 	repositoryTask "server/app/repository/task"
+	"strings"
 	"time"
 )
 
@@ -47,23 +48,60 @@ func (s *service) UpdateByIds(ids []int64, data *repositoryTask.UpdateTask) (err
 		}
 	}
 	if data.Name != nil {
-		if value, ok := data.Name.(string); !ok || value == "" {
+		if value, ok := data.Name.(string); !ok || strings.TrimSpace(value) == "" {
 			return errors.New("任务名称不合法")
 		}
 	}
 	if data.Script != nil {
-		if value, ok := data.Script.(string); !ok || value == "" {
+		if value, ok := data.Script.(string); !ok || strings.TrimSpace(value) == "" {
 			return errors.New("任务内容不合法")
 		}
 	}
 	if data.Spec != nil {
 		value, ok := data.Spec.(string)
-		if !ok || value == "" || !s.ValidateCron(value) {
+		if !ok || value == "" || !s.validateCron(value) {
 			return errors.New("任务表达式不合法")
 		}
 	}
 	s.taskLock.Lock()
 	defer s.taskLock.Unlock()
+	var normalizedContent string
+	contentType := -1
+	if data.Type != nil || data.Script != nil {
+		for _, id := range ids {
+			task, findErr := s.findById(id)
+			if findErr != nil {
+				return findErr
+			}
+			taskType := task.Type
+			content := task.Script
+			if data.Type != nil {
+				taskType = data.Type.(int)
+				if taskType != task.Type && data.Script == nil {
+					return errors.New("修改任务类型时必须同时提交任务内容")
+				}
+			}
+			if data.Script != nil {
+				content = data.Script.(string)
+				if data.Type == nil {
+					if contentType >= 0 && contentType != taskType {
+						return errors.New("不同类型任务不能批量修改内容")
+					}
+					contentType = taskType
+				}
+			}
+			value, checkErr := s.checkContent(content, taskType)
+			if checkErr != nil {
+				return checkErr
+			}
+			if data.Script != nil {
+				normalizedContent = value
+			}
+		}
+	}
+	if data.Script != nil {
+		data.Script = normalizedContent
+	}
 	err = s.repositoryTask.UpdateByIds(ids, data)
 	if err == nil {
 		for _, v := range ids {

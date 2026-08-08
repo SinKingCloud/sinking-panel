@@ -43,7 +43,7 @@ const Table = ({
             width: 90,
             className: "type-cell",
             render: (value: any) => (
-                <span className="task-type">{typeData[String(value)] || "系统脚本"}</span>
+                <span className="task-type">{typeData[String(value)] || "-"}</span>
             ),
         },
         {

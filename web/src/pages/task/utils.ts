@@ -84,3 +84,62 @@ export const describeSchedule = (schedule: any): string => {
 };
 
 export const describeTaskSchedule = (value: any) => describeSchedule(parseSchedule(value));
+
+export const parseRequest = (value: any): any => {
+    let data = value;
+    if (typeof value === "string") {
+        try {
+            data = JSON.parse(value);
+        } catch {
+            data = {url: value};
+        }
+    }
+    if (!data || typeof data !== "object" || Array.isArray(data)) {
+        data = {};
+    }
+    const headers = data.headers && typeof data.headers === "object" && !Array.isArray(data.headers)
+        ? Object.entries(data.headers).map(([name, headerValue]) => ({name, value: String(headerValue ?? "")}))
+        : [];
+    return {
+        method: String(data.method || "GET").trim().toUpperCase(),
+        url: String(data.url || ""),
+        headers,
+        body: String(data.body || ""),
+    };
+};
+
+export const stringifyRequest = (value: any): string => {
+    const headers: any = {};
+    const names = new Set<string>();
+    (value?.headers || []).forEach((header: any) => {
+        const name = String(header?.name || "").trim();
+        const key = name.toLowerCase();
+        if (!name) {
+            throw new Error("请求头名称不能为空");
+        }
+        if (names.has(key)) {
+            throw new Error("请求头名称不能重复");
+        }
+        names.add(key);
+        const headerValue = String(header?.value ?? "");
+        if (key === "content-length" || key === "transfer-encoding" || key === "trailer") {
+            throw new Error("不支持自定义传输层请求头");
+        }
+        if (key === "host" && !headerValue.trim()) {
+            throw new Error("Host请求头不能为空");
+        }
+        if (/\r|\n/.test(headerValue)) {
+            throw new Error("请求头值不能换行");
+        }
+        if (/^[^\u0000-\u0008\u000A-\u001F\u007F]*$/.test(headerValue) === false) {
+            throw new Error("请求头值包含非法字符");
+        }
+        headers[name] = headerValue;
+    });
+    return JSON.stringify({
+        method: String(value?.method || "GET").trim().toUpperCase(),
+        url: String(value?.url || "").trim(),
+        headers,
+        body: String(value?.body ?? ""),
+    });
+};
