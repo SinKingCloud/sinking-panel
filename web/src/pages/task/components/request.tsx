@@ -1,5 +1,5 @@
-import {DeleteOutlined, PlusOutlined} from "@ant-design/icons";
 import {Button, Col, Form, Input, Row, Select} from "antd";
+import {Icon} from "sinking-antd";
 
 const methodOptions = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"].map((value) => ({
     label: value,
@@ -93,13 +93,13 @@ const Request = () => {
                                         <Button
                                             type="text"
                                             danger
-                                            icon={<DeleteOutlined/>}
+                                            icon={<Icon type="DeleteOutlined"/>}
                                             aria-label="删除请求头"
                                             onClick={() => remove(field.name)}/>
                                     </Col>
                                 </Row>
                             ))}
-                            <Button type="dashed" block icon={<PlusOutlined/>} onClick={() => add({name: "", value: ""})}>
+                            <Button type="dashed" block icon={<Icon type="PlusOutlined"/>} onClick={() => add({name: "", value: ""})}>
                                 添加请求头
                             </Button>
                             <Form.ErrorList errors={errors}/>

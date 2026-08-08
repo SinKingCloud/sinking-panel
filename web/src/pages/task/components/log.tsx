@@ -1,8 +1,7 @@
 import {forwardRef, memo, useImperativeHandle, useRef} from "react";
-import {DeleteOutlined, ReloadOutlined} from "@ant-design/icons";
 import {Button, Empty, Spin, Tooltip} from "antd";
 import {createStyles} from "antd-style";
-import {ProModal, ProModalRef, Title} from "sinking-antd";
+import {Icon, ProModal, ProModalRef, Title} from "sinking-antd";
 import useLog, {logLayout} from "../hooks/log";
 
 const useStyles = createStyles(({css, token}: any) => ({
@@ -202,7 +201,7 @@ const Log = forwardRef<LogRef>((_, ref) => {
                             <Button
                                 type="text"
                                 aria-label="刷新日志"
-                                icon={<ReloadOutlined/>}
+                                icon={<Icon type="ReloadOutlined"/>}
                                 loading={log.loading}
                                 disabled={log.clearing}
                                 onClick={log.refresh}/>
@@ -212,7 +211,7 @@ const Log = forwardRef<LogRef>((_, ref) => {
                                 type="text"
                                 danger
                                 aria-label="清理日志"
-                                icon={<DeleteOutlined/>}
+                                icon={<Icon type="DeleteOutlined"/>}
                                 loading={log.clearing}
                                 onClick={log.clear}/>
                         </Tooltip>

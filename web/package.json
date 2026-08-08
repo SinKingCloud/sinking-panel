@@ -10,7 +10,6 @@
   },
   "dependencies": {
     "@ant-design/charts": "^2.6.7",
-    "@ant-design/icons": "^6.3.2",
     "@umijs/plugins": "^4.7.1",
     "antd": "^6.5.3",
     "antd-style": "^4.1.0",

@@ -1,6 +1,6 @@
 import React from "react";
-import {DownOutlined, PoweroffOutlined, SearchOutlined, TagsOutlined} from "@ant-design/icons";
 import {Dropdown, Input} from "antd";
+import {Icon} from "sinking-antd";
 
 const Graphic = React.memo(() => (
     <svg className="scheduler-graphic" viewBox="0 0 430 132" aria-hidden="true" focusable="false">
@@ -66,7 +66,7 @@ const Header = ({
                     className={styles.searchBox}
                     value={keyword}
                     allowClear
-                    prefix={<SearchOutlined/>}
+                    prefix={<Icon type="SearchOutlined"/>}
                     placeholder="搜索任务名称"
                     onChange={(event) => onKeywordChange(event.target.value)}
                     onPressEnter={(event) => onSearch(event.currentTarget.value)}
@@ -83,9 +83,9 @@ const Header = ({
                             onClick: ({key}) => onTypeChange(key === "all" ? "" : key),
                         }}>
                         <button className={`${styles.toolbarTrigger} type-trigger`} type="button" aria-label="任务类型筛选">
-                            <TagsOutlined className="marker"/>
+                            <Icon type="TagsOutlined" className="marker"/>
                             <span className="value">{activeType}</span>
-                            <DownOutlined className="arrow"/>
+                            <Icon type="DownOutlined" className="arrow"/>
                         </button>
                     </Dropdown>
                     <Dropdown
@@ -99,9 +99,9 @@ const Header = ({
                             onClick: ({key}) => onStatusChange(key === "all" ? "" : key),
                         }}>
                         <button className={`${styles.toolbarTrigger} status-trigger`} type="button" aria-label="任务状态筛选">
-                            <PoweroffOutlined className="marker"/>
+                            <Icon type="FlagOutlined" className="marker"/>
                             <span className="value">{activeStatus}</span>
-                            <DownOutlined className="arrow"/>
+                            <Icon type="DownOutlined" className="arrow"/>
                         </button>
                     </Dropdown>
                 </div>

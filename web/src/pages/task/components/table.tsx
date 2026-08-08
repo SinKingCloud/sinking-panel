@@ -33,7 +33,7 @@ const Table = ({
             className: "task-name-cell",
             render: (_: any, record: any) => (
                 <div className="task-name">
-                    <button type="button" onClick={() => onEdit(record)}>
+                    <button type="button" onClick={() => onLog(record)}>
                         {record.name || "未命名任务"}
                     </button>
                 </div>
@@ -43,7 +43,7 @@ const Table = ({
             title: "类型",
             dataIndex: "type",
             key: "type",
-            width: 100,
+            width: 90,
             className: "type-cell",
             sorter: true,
             sortOrder: sort === "type" ? (order === "asc" ? "ascend" : "descend") : null,
@@ -55,7 +55,7 @@ const Table = ({
             title: "执行周期",
             dataIndex: "spec",
             key: "spec",
-            width: 220,
+            width: 150,
             className: "schedule-cell",
             render: (value: any) => (
                 <span className="schedule-value">{describeTaskSchedule(value)}</span>
@@ -65,7 +65,7 @@ const Table = ({
             title: "状态",
             dataIndex: "status",
             key: "status",
-            width: 90,
+            width: 80,
             className: "status-cell",
             sorter: true,
             sortOrder: sort === "status" ? (order === "asc" ? "ascend" : "descend") : null,
@@ -82,7 +82,7 @@ const Table = ({
             title: "最近执行",
             dataIndex: "run_time",
             key: "run_time",
-            width: 130,
+            width: 110,
             className: "runtime-cell",
             sorter: true,
             sortOrder: sort === "run_time" ? (order === "asc" ? "ascend" : "descend") : null,
@@ -149,7 +149,7 @@ const Table = ({
             onChange={change}
             rowKey={(record) => String(record.id)}
             rowClassName={(record) => openRowId === String(record.id) ? "action-menu-open" : ""}
-            scroll={{x: 800}}
+            scroll={{x: "max-content"}}
             showSorterTooltip={false}
             tableLayout="fixed"
             size="middle"

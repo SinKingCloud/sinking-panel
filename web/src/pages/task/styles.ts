@@ -495,10 +495,6 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
             font-size: ${token.fontSize}px;
         }
 
-        .ant-table-thead > tr > th::before {
-            display: none;
-        }
-
         .ant-table-thead > tr > th.ant-table-column-sort,
         .ant-table-thead > tr > th.ant-table-column-has-sorters:hover {
             background: ${tableHighlight};

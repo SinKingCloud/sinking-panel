@@ -1,4 +1,3 @@
-import {LockOutlined, UserOutlined} from '@ant-design/icons';
 import {App, Button, Form, Input} from 'antd';
 import React, {useRef, useState} from 'react';
 import {Body, Icon} from 'sinking-antd';
@@ -130,11 +129,11 @@ const Login: React.FC = () => {
                             );
                         }}>
                             <Form.Item name='account' rules={[{required: true, message: '请输入账户'}]}>
-                                <Input prefix={<UserOutlined className='site-form-item-icon'/>}
+                                <Input prefix={<Icon type="UserOutlined" className='site-form-item-icon'/>}
                                        placeholder='请输入账户' size={'large'}/>
                             </Form.Item>
                             <Form.Item name='password' rules={[{required: true, message: '请输入账户密码'}]}>
-                                <Input.Password prefix={<LockOutlined className='site-form-item-icon'/>}
+                                <Input.Password prefix={<Icon type="LockOutlined" className='site-form-item-icon'/>}
                                                 size={'large'}
                                                 placeholder='请输入账户密码'/>
                             </Form.Item>

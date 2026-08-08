@@ -1,8 +1,7 @@
 import {forwardRef, memo, useEffect, useMemo, useState} from "react";
-import {ClockCircleOutlined} from "@ant-design/icons";
 import {Input, InputNumber, Select, TimePicker, Typography} from "antd";
 import {createStyles} from "antd-style";
-import {useTheme} from "sinking-antd";
+import {Icon, useTheme} from "sinking-antd";
 import dayjs from "dayjs";
 import {describeSchedule, parseSchedule} from "../utils";
 
@@ -361,7 +360,7 @@ const Schedule = forwardRef<HTMLDivElement, any>(({value, onChange}, ref) => {
             </div>
             <div className={styles.preview}>
                 <Typography.Text type="secondary" className="schedule-description">
-                    <ClockCircleOutlined/>
+                    <Icon type="ClockCircleOutlined"/>
                     {description}
                 </Typography.Text>
                 <Typography.Text type="secondary" className="schedule-expression" copyable={{text: String(value || "")}}>
