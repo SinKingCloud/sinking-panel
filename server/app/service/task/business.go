@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"os"
+	"path/filepath"
 	"server/app/constant"
 	"server/app/enum/task_status"
 	"server/app/model"
@@ -258,6 +259,7 @@ func (s *service) ReadLog(id int64, cursor int64, before int64, pageSize int) ma
 	f, err := os.Open(fileName)
 	if err != nil {
 		return map[string]interface{}{
+			"file_name":    filepath.Base(fileName),
 			"lines":        []string{},
 			"cursor":       cursor,
 			"start_cursor": cursor,
@@ -272,6 +274,7 @@ func (s *service) ReadLog(id int64, cursor int64, before int64, pageSize int) ma
 	stat, err := f.Stat()
 	if err != nil {
 		return map[string]interface{}{
+			"file_name":    filepath.Base(fileName),
 			"lines":        []string{},
 			"cursor":       cursor,
 			"start_cursor": cursor,
@@ -280,6 +283,7 @@ func (s *service) ReadLog(id int64, cursor int64, before int64, pageSize int) ma
 		}
 	}
 	result := map[string]interface{}{
+		"file_name":    filepath.Base(fileName),
 		"lines":        []string{},
 		"cursor":       cursor,
 		"start_cursor": cursor,
