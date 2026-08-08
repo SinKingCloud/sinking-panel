@@ -244,8 +244,8 @@ func (s *service) getTaskLogFile(id int64) string {
 	return s.getTaskLogFilePath(id)
 }
 
-// ReadLog 读取日志。首次读取最新内容，cursor 读取新增内容，before 读取更早内容。
-func (s *service) ReadLog(id int64, cursor int64, before int64, pageSize int) map[string]interface{} {
+// ReadLog 读取日志。首次读取最新内容，after 读取新增内容，before 读取更早内容。
+func (s *service) ReadLog(id int64, after int64, before int64, pageSize int) map[string]interface{} {
 	s.logLock.RLock()
 	defer s.logLock.RUnlock()
 
@@ -261,8 +261,8 @@ func (s *service) ReadLog(id int64, cursor int64, before int64, pageSize int) ma
 		return map[string]interface{}{
 			"file_name":    filepath.Base(fileName),
 			"lines":        []string{},
-			"cursor":       cursor,
-			"start_cursor": cursor,
+			"cursor":       after,
+			"start_cursor": after,
 			"has_previous": false,
 			"end":          false,
 		}
@@ -276,8 +276,8 @@ func (s *service) ReadLog(id int64, cursor int64, before int64, pageSize int) ma
 		return map[string]interface{}{
 			"file_name":    filepath.Base(fileName),
 			"lines":        []string{},
-			"cursor":       cursor,
-			"start_cursor": cursor,
+			"cursor":       after,
+			"start_cursor": after,
 			"has_previous": false,
 			"end":          false,
 		}
@@ -285,9 +285,9 @@ func (s *service) ReadLog(id int64, cursor int64, before int64, pageSize int) ma
 	result := map[string]interface{}{
 		"file_name":    filepath.Base(fileName),
 		"lines":        []string{},
-		"cursor":       cursor,
-		"start_cursor": cursor,
-		"has_previous": cursor > 0,
+		"cursor":       after,
+		"start_cursor": after,
+		"has_previous": after > 0,
 		"end":          false,
 	}
 	if stat.Size() == 0 {
@@ -391,8 +391,8 @@ func (s *service) ReadLog(id int64, cursor int64, before int64, pageSize int) ma
 		return lines, next
 	}
 
-	if cursor > 0 {
-		if cursor > stat.Size() {
+	if after > 0 {
+		if after > stat.Size() {
 			lines, starts := readBefore(stat.Size())
 			result["lines"] = lines
 			result["cursor"] = stat.Size()
@@ -403,11 +403,11 @@ func (s *service) ReadLog(id int64, cursor int64, before int64, pageSize int) ma
 			}
 			return result
 		}
-		lines, next := readAfter(cursor)
+		lines, next := readAfter(after)
 		result["lines"] = lines
 		result["cursor"] = next
-		result["start_cursor"] = cursor
-		result["has_previous"] = cursor > 0
+		result["start_cursor"] = after
+		result["has_previous"] = after > 0
 		return result
 	}
 

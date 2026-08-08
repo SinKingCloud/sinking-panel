@@ -10,7 +10,7 @@ func Log(c *context.Context) {
 	var form struct {
 		Id       int64  `json:"id" default:"" validate:"required,numeric,min=1" label:"记录ID"`
 		Action   string `json:"action" default:"read" validate:"omitempty,oneof=read clear" label:"操作类型"`
-		Cursor   int64  `json:"cursor" default:"0" validate:"numeric,min=0" label:"日志游标"`
+		After    int64  `json:"after" default:"0" validate:"numeric,min=0" label:"增量游标"`
 		Before   int64  `json:"before" default:"0" validate:"numeric,min=0" label:"历史游标"`
 		PageSize int    `json:"page_size" default:"300" validate:"numeric,min=1,max=10000" label:"读取行数"`
 	}
@@ -32,6 +32,6 @@ func Log(c *context.Context) {
 		c.Success("清理成功")
 		return
 	}
-	logs := service.Task.ReadLog(data.Id, form.Cursor, form.Before, form.PageSize)
+	logs := service.Task.ReadLog(data.Id, form.After, form.Before, form.PageSize)
 	c.SuccessWithData("获取成功", logs)
 }

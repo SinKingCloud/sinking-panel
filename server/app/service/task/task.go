@@ -20,7 +20,7 @@ type Service interface {
 	Start()
 	FindById(id int64) (*Info, error)
 	Select(where *repositoryTask.SelectTask, queryPage *page.Query) (*page.Result[*repositoryTask.Task], error)
-	ReadLog(id int64, cursor int64, before int64, pageSize int) map[string]interface{}
+	ReadLog(id int64, after int64, before int64, pageSize int) map[string]interface{}
 	ClearLog(id int64) error
 	WriteLog(id int64, content string) error
 	ValidateCron(expr string) bool
