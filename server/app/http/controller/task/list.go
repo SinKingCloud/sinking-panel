@@ -1,6 +1,7 @@
 package task
 
 import (
+	"server/app/enum/log_type"
 	repositoryTask "server/app/repository/task"
 	"server/app/service"
 	"server/app/util/context"
@@ -56,6 +57,7 @@ func List(c *context.Context) {
 	if err != nil {
 		c.Error("获取失败")
 	} else {
+		service.Log.Create(c.GetRequestIp(), log_type.EventShow, "查看计划任务", "查看计划任务列表")
 		c.SuccessWithData("获取成功", data)
 	}
 }

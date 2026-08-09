@@ -1,6 +1,7 @@
 package system
 
 import (
+	"server/app/enum/log_type"
 	repositoryLog "server/app/repository/log"
 	"server/app/service"
 	"server/app/util/context"
@@ -55,6 +56,7 @@ func Log(c *context.Context) {
 	if err != nil {
 		c.Error("获取日志失败")
 	} else {
+		service.Log.Create(c.GetRequestIp(), log_type.EventShow, "查看操作日志", "查看操作日志列表")
 		c.SuccessWithData("获取日志成功", data)
 	}
 }

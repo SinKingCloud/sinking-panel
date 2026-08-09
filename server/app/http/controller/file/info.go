@@ -1,6 +1,8 @@
 package file
 
 import (
+	"server/app/enum/log_type"
+	"server/app/service"
 	"server/app/util/context"
 	"server/app/util/file"
 	"time"
@@ -46,6 +48,13 @@ func Info(c *context.Context) {
 		data["next_cursor"] = nextCursor
 		data["eof"] = eof
 		data["version"] = version
+	}
+	if form.Cursor == 0 {
+		title := "查看文件信息"
+		if form.Read {
+			title = "读取文件内容"
+		}
+		service.Log.Create(c.GetRequestIp(), log_type.EventShow, title, title+"["+form.Path+"]")
 	}
 	c.SuccessWithData("获取成功", data)
 }

@@ -1,6 +1,7 @@
 package recycle
 
 import (
+	"server/app/enum/log_type"
 	"server/app/service"
 	"server/app/util/context"
 	"server/app/util/page"
@@ -22,6 +23,7 @@ func List(c *context.Context) {
 		c.Error("获取失败")
 		return
 	}
+	service.Log.Create(c.GetRequestIp(), log_type.EventShow, "查看回收站", "查看回收站文件列表")
 	c.SuccessWithData("获取成功", page.New(&page.Query{
 		Page:         form.Page,
 		PageSize:     form.PageSize,

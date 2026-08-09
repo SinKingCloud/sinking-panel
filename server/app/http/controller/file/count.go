@@ -1,6 +1,8 @@
 package file
 
 import (
+	"server/app/enum/log_type"
+	"server/app/service"
 	"server/app/util/context"
 	"server/app/util/file"
 )
@@ -24,6 +26,7 @@ func Count(c *context.Context) {
 		c.Error("获取失败")
 		return
 	}
+	service.Log.Create(c.GetRequestIp(), log_type.EventShow, "统计文件数据", "统计文件或目录["+form.Path+"]数据")
 	c.SuccessWithData("获取成功", map[string]int64{
 		"size": totalSize,
 		"file": fileCount,

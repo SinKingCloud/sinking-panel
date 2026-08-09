@@ -1,6 +1,7 @@
 package server
 
 import (
+	"server/app/enum/log_type"
 	"server/app/service"
 	"server/app/util/context"
 )
@@ -16,6 +17,7 @@ func Info(c *context.Context) {
 	}
 	data, err := service.Server.FindById(form.Id)
 	if err == nil && data != nil {
+		service.Log.Create(c.GetRequestIp(), log_type.EventShow, "查看服务器详情", "查看服务器["+data.Name+"]详情")
 		c.SuccessWithData("获取成功", data)
 	} else {
 		c.Error("获取失败")

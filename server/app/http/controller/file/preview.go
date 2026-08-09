@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"server/app/enum/log_type"
 	"server/app/service"
 	"server/app/util/context"
 	"server/app/util/file"
@@ -64,5 +65,10 @@ func Preview(c *context.Context) {
 	}
 	c.Writer.Header().Set("Content-Length", strconv.FormatInt(fileInfo.Size, 10))
 	c.SetStatus(http.StatusOK)
+	title := "预览文件"
+	if form.Download {
+		title = "下载文件"
+	}
+	service.Log.Create(c.GetRequestIp(), log_type.EventShow, title, title+"["+form.Path+"]")
 	_, _ = io.Copy(c.Writer, f2)
 }

@@ -1,6 +1,7 @@
 package system
 
 import (
+	"server/app/enum/log_type"
 	"server/app/service"
 	"server/app/util/context"
 	"strconv"
@@ -23,6 +24,7 @@ func Task(c *context.Context) {
 			c.Error("取消任务失败，任务可能不存在或已结束")
 			return
 		}
+		service.Log.Create(c.GetRequestIp(), log_type.EventUpdate, "取消系统任务", "取消系统任务["+form.ID+"]")
 		c.Success("任务已取消")
 		return
 	}

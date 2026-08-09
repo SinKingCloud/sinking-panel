@@ -2,6 +2,7 @@ package config
 
 import (
 	"server/app/constant"
+	"server/app/enum/log_type"
 	"server/app/service"
 	"server/app/util/context"
 
@@ -22,6 +23,11 @@ func Get(c *context.Context) {
 		c.Error("配置不存在")
 		return
 	}
+	content := "查看系统配置[" + form.Group + "]数据"
+	if form.Key != "" {
+		content = "查看系统配置[" + form.Group + "." + form.Key + "]数据"
+	}
+	service.Log.Create(c.GetRequestIp(), log_type.EventShow, "查看系统配置", content)
 	if form.Key != "" {
 		c.SuccessWithData("获取数据成功", sinking_web.H{
 			form.Key: service.Config.Get(form.Group, form.Key),

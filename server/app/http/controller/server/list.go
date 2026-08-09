@@ -1,6 +1,7 @@
 package server
 
 import (
+	"server/app/enum/log_type"
 	repositoryServer "server/app/repository/server"
 	"server/app/service"
 	"server/app/util/context"
@@ -56,6 +57,7 @@ func List(c *context.Context) {
 	if err != nil {
 		c.Error("获取失败")
 	} else {
+		service.Log.Create(c.GetRequestIp(), log_type.EventShow, "查看服务器列表", "查看服务器列表数据")
 		c.SuccessWithData("获取成功", data)
 	}
 }
