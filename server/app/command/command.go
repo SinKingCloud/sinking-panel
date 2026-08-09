@@ -1,7 +1,125 @@
 package command
 
-import "server/app/service"
+import (
+	"fmt"
+	"log"
+	"os"
+	"runtime"
 
-func Init() {
-	service.Task.Start()
+	"server/app"
+	"server/app/util/daemon"
+	"server/bootstrap"
+	"server/global"
+)
+
+const (
+	pidFileName = "server.pid"
+	logFileName = "server.log"
+	usage       = `使用方法:
+  server [command]
+
+可用命令:
+  start   启动服务
+  stop    停止服务
+  restart 重启服务
+  run     直接运行(非守护进程模式)
+  user    修改登录账号
+  pwd     修改登录密码`
+)
+
+// Server 管理服务运行命令。
+type Server struct {
+	daemon *daemon.UnixDaemon
+}
+
+// NewServer 创建服务命令。
+func NewServer() (*Server, error) {
+	server := &Server{}
+	d, err := daemon.NewUnixDaemon(pidFileName, logFileName, server.run)
+	if err != nil {
+		return nil, fmt.Errorf("创建守护进程管理器失败: %w", err)
+	}
+	server.daemon = d.SetChildArgs(os.Args[0], "start")
+	return server, nil
+}
+
+// Execute 执行服务命令。
+func (s *Server) Execute(args []string) error {
+	if len(args) > 1 {
+		return fmt.Errorf("参数数量不合法\n%s", usage)
+	}
+	if len(args) == 0 {
+		if runtime.GOOS == "windows" {
+			log.Println("Windows系统启动...")
+			s.run()
+			return nil
+		}
+		bootstrap.LoadConf()
+		if global.App.IsDebug() {
+			log.Println("调试模式启动...")
+			s.run()
+			return nil
+		}
+		log.Println(usage)
+		return nil
+	}
+
+	switch args[0] {
+	case "run":
+		log.Println("以前台模式运行服务...")
+		s.run()
+		return nil
+	case "user":
+		return s.user()
+	case "pwd":
+		return s.pwd()
+	case "start", "stop", "restart":
+		if runtime.GOOS == "windows" {
+			return fmt.Errorf("Windows系统不支持%s命令，请使用run命令", args[0])
+		}
+		switch args[0] {
+		case "start":
+			return s.start()
+		case "stop":
+			return s.stop()
+		default:
+			return s.restart()
+		}
+	default:
+		return fmt.Errorf("未知命令: %s\n%s", args[0], usage)
+	}
+}
+
+func (s *Server) run() {
+	bootstrap.Load()
+	app.Run()
+}
+
+func (s *Server) start() error {
+	log.Println("正在启动服务...")
+	if err := s.daemon.Start(); err != nil {
+		return fmt.Errorf("启动失败: %w", err)
+	}
+	if !s.daemon.IsChildProcess() {
+		log.Println("服务已启动")
+	}
+	return nil
+}
+
+func (s *Server) stop() error {
+	log.Println("正在停止服务...")
+	if err := s.daemon.Stop(); err != nil {
+		return fmt.Errorf("停止失败: %w", err)
+	}
+	log.Println("服务已停止")
+	return nil
+}
+
+func (s *Server) restart() error {
+	log.Println("正在重启服务...")
+	if err := s.daemon.Reload(); err != nil {
+		return fmt.Errorf("重启失败: %w", err)
+	}
+	log.Println("服务已重启")
+	return nil
 }

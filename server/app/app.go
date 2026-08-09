@@ -1,13 +1,13 @@
 package app
 
 import (
-	"server/app/command"
 	"server/app/http/route"
 	"server/app/service"
+	"server/app/task"
 )
 
 func Run() {
 	service.Init()
-	command.Init()
+	task.Init()
 	route.Init()
 }

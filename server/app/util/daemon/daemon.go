@@ -15,7 +15,19 @@ import (
 type UnixDaemon struct {
 	PidFileName string
 	LogFileName string
+	childArgs   []string
 	Service     func()
+}
+
+// SetChildArgs 设置守护进程子进程参数。
+func (u *UnixDaemon) SetChildArgs(args ...string) *UnixDaemon {
+	u.childArgs = append([]string(nil), args...)
+	return u
+}
+
+// IsChildProcess 是否为守护进程子进程。
+func (u *UnixDaemon) IsChildProcess() bool {
+	return daemon.WasReborn()
 }
 
 // NewUnixDaemon 实例化进程守护
@@ -37,12 +49,13 @@ func (u *UnixDaemon) Start() error {
 		PidFileName: u.PidFileName,
 		LogFileName: u.LogFileName,
 		WorkDir:     "./",
+		Args:        u.childArgs,
 		Umask:       027,
 	}
 	// 启动守护进程并获取新的进程上下文和PID
 	d, err := daemonCtx.Reborn()
 	if err != nil {
-		return fmt.Errorf("启动失败: %v", err)
+		return fmt.Errorf("创建守护进程失败: %w", err)
 	}
 	// 父进程，已经启动了守护进程，直接返回
 	if d != nil {
@@ -70,11 +83,11 @@ func (u *UnixDaemon) Stop() error {
 	// 读取PID文件获取守护进程的PID
 	pid, err := u.readPidFile()
 	if err != nil {
-		return fmt.Errorf("无法读取PID文件: %v", err)
+		return fmt.Errorf("无法读取PID文件: %w", err)
 	}
 	process, err := os.FindProcess(pid)
 	if err != nil {
-		return fmt.Errorf("无法获取守护进程: %v", err)
+		return fmt.Errorf("无法获取守护进程: %w", err)
 	}
 	defer func() {
 		_ = process.Release()
@@ -86,11 +99,11 @@ func (u *UnixDaemon) Stop() error {
 		err = process.Signal(syscall.SIGTERM)
 	}
 	if err != nil {
-		return fmt.Errorf("无法停止守护进程: %v", err)
+		return fmt.Errorf("无法停止守护进程: %w", err)
 	}
 	// 删除PID文件
-	if err = os.Remove(u.PidFileName); err != nil {
-		return fmt.Errorf("无法删除PID文件: %v", err)
+	if err = os.Remove(u.PidFileName); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("无法删除PID文件: %w", err)
 	}
 	return nil
 }
@@ -98,11 +111,15 @@ func (u *UnixDaemon) Stop() error {
 // Reload 重启
 func (u *UnixDaemon) Reload() error {
 	// 先停止守护进程
-	_ = u.Stop()
+	if err := u.Stop(); err != nil {
+		if !errors.Is(err, os.ErrNotExist) && !errors.Is(err, os.ErrProcessDone) {
+			return fmt.Errorf("无法停止守护进程: %w", err)
+		}
+	}
 	time.Sleep(time.Second)
 	// 再启动守护进程
 	if err := u.Start(); err != nil {
-		return fmt.Errorf("无法重新启动守护进程: %v", err)
+		return fmt.Errorf("无法重新启动守护进程: %w", err)
 	}
 	return nil
 }

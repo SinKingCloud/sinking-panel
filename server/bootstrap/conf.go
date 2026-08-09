@@ -10,6 +10,9 @@ import (
 
 // LoadConf 加载本地配置
 func LoadConf() {
+	if global.App.Config != nil {
+		return
+	}
 	path := constant.ConfPath
 	if !strings.HasSuffix(path, "/") {
 		path += "/"

@@ -10,13 +10,13 @@
   },
   "dependencies": {
     "@ant-design/charts": "^2.6.7",
-    "@umijs/plugins": "^4.7.1",
-    "antd": "^6.5.3",
+    "@umijs/plugins": "^4.7.2",
+    "antd": "^6.5.4",
     "antd-style": "^4.1.0",
     "dayjs": "^1.11.19",
     "go-captcha-react": "^1.0.5",
-    "sinking-antd": "^1.1.4",
-    "umi": "^4.7.1",
+    "sinking-antd": "^1.1.6",
+    "umi": "^4.7.2",
     "umi-request": "^1.4.0"
   },
   "devDependencies": {
