@@ -95,76 +95,73 @@ export default ({styles}: any): React.ReactNode => {
         setSaving(false);
     }, [form, message, user]);
 
-    if (error && !loading) {
-        return <Error styles={styles} message={error} onRetry={load}/>;
-    }
-    if (loading) {
-        return <Loading styles={styles}/>;
-    }
-
     return (
         <Form form={form} layout="vertical" onFinish={save}>
-            <Form.Item
-                name="account"
-                label="登录账号"
-                tooltip="用于登录面板的账号"
-                style={fieldStyle}
-                rules={[
-                    {required: true, whitespace: true, message: "请输入登录账号"},
-                    {
-                        validator: (_, value) => {
-                            if (value === accountRef.current) {
+            {loading ? <Loading styles={styles}/> : error ? (
+                <Error styles={styles} message={error} onRetry={load}/>
+            ) : <>
+                <Form.Item
+                    name="account"
+                    label="登录账号"
+                    tooltip="用于登录面板的账号"
+                    style={fieldStyle}
+                    rules={[
+                        {required: true, whitespace: true, message: "请输入登录账号"},
+                        {
+                            validator: (_, value) => {
+                                if (value === accountRef.current) {
+                                    return Promise.resolve();
+                                }
+                                if (!/^[A-Za-z0-9]+$/.test(value || "")) {
+                                    return Promise.reject(new Error("登录账号只能包含字母和数字"));
+                                }
+                                if (String(value).length > 20) {
+                                    return Promise.reject(new Error("登录账号不能超过20个字符"));
+                                }
                                 return Promise.resolve();
-                            }
-                            if (!/^[A-Za-z0-9]+$/.test(value || "")) {
-                                return Promise.reject(new Error("登录账号只能包含字母和数字"));
-                            }
-                            if (String(value).length > 20) {
-                                return Promise.reject(new Error("登录账号不能超过20个字符"));
-                            }
-                            return Promise.resolve();
+                            },
                         },
-                    },
-                ]}>
-                <Input placeholder="请输入登录账号" maxLength={20} autoComplete="username"/>
-            </Form.Item>
-            <Form.Item
-                name="password"
-                label="新密码"
-                tooltip="不修改密码时请留空"
-                style={fieldStyle}
-                rules={[
-                    {min: 6, message: "密码至少6个字符"},
-                    {max: 20, message: "密码不能超过20个字符"},
-                ]}>
-                <Input.Password placeholder="不修改请留空" maxLength={20} autoComplete="new-password"/>
-            </Form.Item>
-            <Form.Item
-                name="confirm"
-                label="确认密码"
-                tooltip="再次输入新密码"
-                style={fieldStyle}
-                dependencies={["password"]}
-                rules={[
-                    ({getFieldValue}) => ({
-                        validator(_, value) {
-                            const password = getFieldValue("password");
-                            if (!password && !value) {
-                                return Promise.resolve();
-                            }
-                            if (!password) {
-                                return Promise.reject(new Error("请先输入新密码"));
-                            }
-                            if (value === password) {
-                                return Promise.resolve();
-                            }
-                            return Promise.reject(new Error("两次输入的密码不一致"));
-                        },
-                    }),
-                ]}>
-                <Input.Password placeholder="再次输入新密码" maxLength={20} autoComplete="new-password"/>
-            </Form.Item>
-            <Actions styles={styles} saving={saving} onReset={reset}/>
+                    ]}>
+                    <Input placeholder="请输入登录账号" maxLength={20} autoComplete="username"/>
+                </Form.Item>
+                <Form.Item
+                    name="password"
+                    label="新密码"
+                    tooltip="不修改密码时请留空"
+                    style={fieldStyle}
+                    rules={[
+                        {min: 6, message: "密码至少6个字符"},
+                        {max: 20, message: "密码不能超过20个字符"},
+                    ]}>
+                    <Input.Password placeholder="不修改请留空" maxLength={20} autoComplete="new-password"/>
+                </Form.Item>
+                <Form.Item
+                    name="confirm"
+                    label="确认密码"
+                    tooltip="再次输入新密码"
+                    style={fieldStyle}
+                    dependencies={["password"]}
+                    rules={[
+                        ({getFieldValue}) => ({
+                            validator(_, value) {
+                                const password = getFieldValue("password");
+                                if (!password && !value) {
+                                    return Promise.resolve();
+                                }
+                                if (!password) {
+                                    return Promise.reject(new Error("请先输入新密码"));
+                                }
+                                if (value === password) {
+                                    return Promise.resolve();
+                                }
+                                return Promise.reject(new Error("两次输入的密码不一致"));
+                            },
+                        }),
+                    ]}>
+                    <Input.Password placeholder="再次输入新密码" maxLength={20} autoComplete="new-password"/>
+                </Form.Item>
+                <Actions styles={styles} saving={saving} onReset={reset}/>
+            </>}
         </Form>
     );
 };
