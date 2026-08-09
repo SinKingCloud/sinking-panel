@@ -1,153 +1,120 @@
-import {App, Button, Form, Input} from 'antd';
-import React, {useRef, useState} from 'react';
-import {Body, Icon} from 'sinking-antd';
+import React, {useRef, useState} from "react";
+import {App, Button, Form, Input} from "antd";
+import {Body, Icon, useTheme} from "sinking-antd";
 import {useModel} from "umi";
-import {login} from "@/service/auth/login";
-import {loginDevice, setLoginToken} from "@/utils/auth";
 import Captcha, {CaptchaRef} from "@/components/captcha";
-import {createStyles} from "antd-style";
 import Settings from "@/../config/defaultSettings";
+import {login} from "@/service/auth/login";
+import {deleteHeader, loginDevice, setLoginToken} from "@/utils/auth";
 import {historyPush} from "@/utils/route";
+import useStyles from "./styles";
 
-const useStyles = createStyles(({css, responsive, token}): any => {
-    return {
-        container: {
-            display: "flex",
-            flexDirection: "column",
-            height: "100vh",
-            backgroundImage: "url('https://gw.alipayobjects.com/zos/rmsportal/TVYTbAXWheQpRcWDaDMu.svg')",
-            backgroundRepeat: "no-repeat",
-            backgroundPosition: "center 110px",
-            backgroundSize: "100%",
-        },
-        content: {
-            flex: 1,
-            padding: "120px 0 32px 0"
-        },
-        main: css`
-            width: 328px;
-            margin: 0 auto;
-
-            ${responsive.md} {
-                width: 95%;
-                max-width: 300px;
-            }
-        `,
-        top: {
-            textAlign: "center"
-        },
-        header: {
-            height: 40,
-            lineHeight: "40px",
-            a: {
-                textDecoration: "none"
-            },
-            span: {
-                fontSize: "30px",
-                fontWeight: "bolder"
-            }
-        },
-        logo: {
-            height: 40,
-            marginRight: 16,
-            verticalAlign: "top",
-            fontSize: 27,
-            color: token?.colorPrimary,
-        },
-        desc: {
-            marginTop: 12,
-            marginBottom: 20,
-            color: "@text-color-secondary",
-            fontSize: 14,
-        },
-    };
-});
-
-const Login: React.FC = () => {
-    const {
-        styles: {
-            container, content, top, header, logo, desc, main
-        }
-    } = useStyles();
+export default (): React.ReactNode => {
     const {message} = App.useApp();
     const captcha = useRef<CaptchaRef>({});
-    const [isLoading, setIsLoading] = useState(false);
-    /**
-     * 表单
-     */
-    const [form] = Form.useForm<{ account: string; password: string }>();
-    /**
-     * 获取当前用户信息
-     */
-    const user = useModel("user");
+    const submitting = useRef(false);
+    const [loading, setLoading] = useState(false);
     const web = useModel("web");
+    const user = useModel("user");
+    const theme = useTheme();
+    const isCompactMode = theme?.isCompactTheme?.() || false;
+    const isDarkMode = Boolean(theme?.isDarkMode?.() || theme?.isDarkTheme?.());
+    const {styles} = useStyles({isCompactMode, isDarkMode});
+    const name = web?.info?.name || Settings?.name || Settings?.title;
+
+    const finish = () => {
+        submitting.current = false;
+        setLoading(false);
+    };
+
+    const submit = (values: any) => {
+        if (submitting.current) {
+            return;
+        }
+        submitting.current = true;
+        setLoading(true);
+        if (!captcha.current?.Show) {
+            finish();
+            return;
+        }
+        captcha.current.Show(async (result) => {
+            try {
+                const response = await login({
+                    body: {
+                        account: values.account,
+                        password: values.password,
+                        device: loginDevice,
+                        token: result.token,
+                        captcha_x: result.x,
+                        captcha_y: result.y,
+                    },
+                });
+                if (response?.code != 200 || !response.data) {
+                    message.error(response?.message || "登录失败");
+                    return;
+                }
+                setLoginToken(response.data);
+                const data = await user?.getWebUser();
+                if (!data) {
+                    deleteHeader();
+                    message.error("账户信息加载失败，请重试");
+                    return;
+                }
+                user?.setWeb(data);
+                message.success(response?.message || "登录成功");
+                historyPush("index");
+            } finally {
+                finish();
+            }
+        }, finish);
+    };
 
     return (
-        <Body>
-            <div className={container}>
+        <Body space={false} className={styles.body}>
+            <main className={styles.screen}>
                 <Captcha ref={captcha}/>
-                <div className={content}>
-                    <div className={top}>
-                        <div className={header}>
-                            <Icon type={"icon-logo"}
-                                  className={logo}/>
-                            <span>{web?.info?.name || Settings?.title}</span>
-                        </div>
-                        <div className={desc}>
-                            服务器管理面板
-                        </div>
+                <div className={styles.backdrop} aria-hidden="true"/>
+                <section className={styles.loginPanel}>
+                    <div className="brand">
+                        <Icon type="icon-logo"/>
+                        <h1 title={name}>{name}</h1>
                     </div>
-                    <div className={main}>
-                        <Form form={form} size="large" onFinish={async (values) => {
-                            captcha?.current?.Show?.(
-                                async (res) => {
-                                    setIsLoading(true);
-                                    await login({
-                                        body: {
-                                            account: values.account,
-                                            password: values.password,
-                                            device: loginDevice,
-                                            token: res.token,
-                                            captcha_x: res.x,
-                                            captcha_y: res.y
-                                        },
-                                        onSuccess: (r) => {
-                                            setLoginToken(r.data);
-                                            user?.refreshWebUser(() => {
-                                                message?.success(r?.message);
-                                                historyPush("index");
-                                            });
-                                        },
-                                        onFail: (r) => {
-                                            message?.error(r?.message || "登录失败")
-                                        },
-                                        onFinally: () => {
-                                            setIsLoading(false);
-                                        }
-                                    });
-                                }
-                            );
-                        }}>
-                            <Form.Item name='account' rules={[{required: true, message: '请输入账户'}]}>
-                                <Input prefix={<Icon type="UserOutlined" className='site-form-item-icon'/>}
-                                       placeholder='请输入账户' size={'large'}/>
-                            </Form.Item>
-                            <Form.Item name='password' rules={[{required: true, message: '请输入账户密码'}]}>
-                                <Input.Password prefix={<Icon type="LockOutlined" className='site-form-item-icon'/>}
-                                                size={'large'}
-                                                placeholder='请输入账户密码'/>
-                            </Form.Item>
-                            <Form.Item>
-                                <Button type='primary' loading={isLoading} htmlType='submit' size={'large'} block>
-                                    登 录
-                                </Button>
-                            </Form.Item>
-                        </Form>
-                    </div>
-                </div>
-            </div>
+                    <p className="product">服务器管理面板</p>
+                    <Form className={styles.form} layout="vertical" requiredMark={false} onFinish={submit}>
+                        <Form.Item
+                            className="field-item"
+                            name="account"
+                            rules={[{required: true, message: "请输入登录账号"}]}
+                        >
+                            <Input
+                                className={styles.input}
+                                prefix={<Icon type="UserOutlined"/>}
+                                aria-label="登录账号"
+                                placeholder="登录账号"
+                                autoComplete="username"
+                            />
+                        </Form.Item>
+                        <Form.Item
+                            className="field-item"
+                            name="password"
+                            rules={[{required: true, message: "请输入登录密码"}]}
+                        >
+                            <Input.Password
+                                className={styles.input}
+                                prefix={<Icon type="LockOutlined"/>}
+                                aria-label="登录密码"
+                                placeholder="登录密码"
+                                autoComplete="current-password"
+                            />
+                        </Form.Item>
+                        <Form.Item className="submit-item">
+                            <Button className={styles.submit} type="primary" htmlType="submit" loading={loading} block>
+                                登录
+                            </Button>
+                        </Form.Item>
+                    </Form>
+                </section>
+            </main>
         </Body>
     );
 };
-
-export default Login;

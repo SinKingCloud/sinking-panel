@@ -108,7 +108,11 @@ const useLog = () => {
     }, [message]);
 
     const loadLatest = useCallback(async (taskId: any, silent = false) => {
-        const data = await requestLogs({id: taskId, page_size: pageSize}, silent);
+        const data = await requestLogs({
+            id: taskId,
+            page_size: pageSize,
+            ...(silent ? {after: 0} : {}),
+        }, silent);
         if (!data) {
             return;
         }
