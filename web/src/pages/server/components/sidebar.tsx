@@ -162,17 +162,15 @@ const Sidebar = ({
                 <div className="panel-heading">
                     <Title size="small">终端列表</Title>
                 </div>
-                <Tooltip title={collapsed ? "展开终端列表" : "收起终端列表"}>
-                    <Button
-                        className="collapse-trigger"
-                        type="text"
-                        aria-label={collapsed ? "展开终端列表" : "收起终端列表"}
-                        icon={<Icon type={collapsed ? "MenuUnfoldOutlined" : "MenuFoldOutlined"}/>}
-                        onClick={() => {
-                            if (!collapsed) onKeywordChange("");
-                            onCollapsedChange(!collapsed);
-                        }}/>
-                </Tooltip>
+                <Button
+                    className="collapse-trigger"
+                    type="text"
+                    aria-label={collapsed ? "展开终端列表" : "收起终端列表"}
+                    icon={<Icon type={collapsed ? "MenuUnfoldOutlined" : "MenuFoldOutlined"}/>}
+                    onClick={() => {
+                        if (!collapsed) onKeywordChange("");
+                        onCollapsedChange(!collapsed);
+                    }}/>
             </header>
             <div className={styles.serverToolbar}>
                 <Input

@@ -579,8 +579,8 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
                 right: 3px;
                 bottom: 3px;
                 left: auto;
-                width: 5px;
-                height: 5px;
+                width: 8px;
+                height: 8px;
                 border: 1px solid ${token.colorBgContainer};
                 box-shadow: none;
                 transform: none;

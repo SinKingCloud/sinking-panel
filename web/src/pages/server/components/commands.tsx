@@ -91,14 +91,12 @@ const Commands = ({styles, collapsed, onCollapsedChange, onInsert}: CommandsProp
                 <div className="panel-heading">
                     <Title size="small">操作面板</Title>
                 </div>
-                <Tooltip title={collapsed ? "展开操作面板" : "收起操作面板"}>
-                    <Button
-                        className="collapse-trigger"
-                        type="text"
-                        aria-label={collapsed ? "展开操作面板" : "收起操作面板"}
-                        icon={<Icon type={collapsed ? "MenuFoldOutlined" : "MenuUnfoldOutlined"}/>}
-                        onClick={() => onCollapsedChange(!collapsed)}/>
-                </Tooltip>
+                <Button
+                    className="collapse-trigger"
+                    type="text"
+                    aria-label={collapsed ? "展开操作面板" : "收起操作面板"}
+                    icon={<Icon type={collapsed ? "MenuFoldOutlined" : "MenuUnfoldOutlined"}/>}
+                    onClick={() => onCollapsedChange(!collapsed)}/>
             </header>
             <div className={styles.commandBody}>
                 <Collapse
