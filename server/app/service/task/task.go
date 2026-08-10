@@ -3,6 +3,7 @@ package task
 import (
 	"server/app/model"
 	repositoryTask "server/app/repository/task"
+	typeService "server/app/service/types"
 	"server/app/util/page"
 	"sync"
 
@@ -29,6 +30,7 @@ type Service interface {
 // service 注入结构
 type service struct {
 	repositoryTask repositoryTask.Interface
+	typeService    typeService.Service
 	instance       *cron.Cron
 	startOnce      sync.Once
 	taskLock       sync.Mutex
@@ -36,9 +38,10 @@ type service struct {
 }
 
 // NewService 实例化service
-func NewService(repository repositoryTask.Interface) *service {
+func NewService(repository repositoryTask.Interface, typeService typeService.Service) *service {
 	return &service{
 		repositoryTask: repository,
+		typeService:    typeService,
 		instance: cron.New(
 			cron.WithSeconds(),
 			cron.WithChain(

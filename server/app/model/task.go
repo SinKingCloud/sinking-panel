@@ -10,7 +10,8 @@ import (
 type Task struct {
 	Id         int64        `gorm:"column:id;PRIMARY_KEY" json:"id"`
 	EntryID    int          `gorm:"column:entry_id" json:"entry_id"`
-	Type       int          `gorm:"column:type" json:"type"`
+	TypeId     int64        `gorm:"column:type_id" json:"type_id"`
+	ExecType   int          `gorm:"column:exec_type" json:"exec_type"`
 	Name       string       `gorm:"column:name" json:"name"`
 	Spec       string       `gorm:"column:spec" json:"spec"`
 	Script     string       `gorm:"column:script" json:"script"`

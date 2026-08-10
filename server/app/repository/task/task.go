@@ -12,6 +12,7 @@ import (
 
 // Interface 任务仓储接口
 type Interface interface {
+	ClearTypeId(typeIds []int64, tx ...*gorm.DB) error
 	Create(data *model.Task) error
 	DeleteByIds(ids []int64, tx ...*gorm.DB) error
 	FindById(id int64) (*model.Task, error)

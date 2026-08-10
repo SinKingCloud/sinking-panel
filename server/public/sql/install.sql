@@ -75,7 +75,8 @@ create table if not exists cloud_tasks
     entry_id    integer default 0 not null,
     name        varchar(50)       not null,
     spec        varchar(50)       not null,
-    type        integer default 0 not null,
+    type_id     bigint  default 0 not null,
+    exec_type   integer default 0 not null,
     script      text              not null,
     run_time    text,
     status      integer default 0 not null,
@@ -89,8 +90,11 @@ create index if not exists cloud_tasks_createTime_index
 create index if not exists cloud_tasks_status_index
     on cloud_tasks (status);
 
-create index if not exists cloud_tasks_type_index
-    on cloud_tasks (type);
+create index if not exists cloud_tasks_execType_index
+    on cloud_tasks (exec_type);
+
+create index if not exists cloud_tasks_typeId_index
+    on cloud_tasks (type_id);
 
 create index if not exists cloud_tasks_updateTime_index
     on cloud_tasks (update_time);

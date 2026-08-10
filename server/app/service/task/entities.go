@@ -5,7 +5,8 @@ import "server/app/util/str"
 // Info 任务详情
 type Info struct {
 	Id         int64        `json:"id"`
-	Type       int          `json:"type"`
+	TypeId     int64        `json:"type_id"`
+	ExecType   int          `json:"exec_type"`
 	Name       string       `json:"name"`
 	Spec       string       `json:"spec"`
 	Script     interface{}  `json:"script"`

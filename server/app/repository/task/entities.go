@@ -4,7 +4,8 @@ import "server/app/util/str"
 
 // SelectTask 任务查询条件
 type SelectTask struct {
-	Type            string
+	TypeId          string
+	ExecType        string
 	Name            string
 	Status          string
 	RunTimeStart    string
@@ -17,17 +18,19 @@ type SelectTask struct {
 
 // UpdateTask 任务更新
 type UpdateTask struct {
-	Type   interface{}
-	Name   interface{}
-	Spec   interface{}
-	Script interface{}
-	Status interface{}
+	TypeId   interface{}
+	ExecType interface{}
+	Name     interface{}
+	Spec     interface{}
+	Script   interface{}
+	Status   interface{}
 }
 
 // Task 计划任务表
 type Task struct {
 	Id         int64        `gorm:"column:id;PRIMARY_KEY" json:"id"`
-	Type       int          `gorm:"column:type" json:"type"`
+	TypeId     int64        `gorm:"column:type_id" json:"type_id"`
+	ExecType   int          `gorm:"column:exec_type" json:"exec_type"`
 	Name       string       `gorm:"column:name" json:"name"`
 	Spec       string       `gorm:"column:spec" json:"spec"`
 	Status     string       `gorm:"column:status" json:"status"`

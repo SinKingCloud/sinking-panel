@@ -10,8 +10,9 @@ import (
 	"os"
 	"path/filepath"
 	"server/app/constant"
+	"server/app/enum/task_exec_type"
 	"server/app/enum/task_status"
-	"server/app/enum/task_type"
+	"server/app/enum/type_module"
 	"server/app/model"
 	"server/app/util/file"
 	"server/app/util/str"
@@ -22,15 +23,30 @@ import (
 	"github.com/robfig/cron/v3"
 )
 
+// validateTypeId 校验任务分类
+func (s *service) validateTypeId(typeId int64) error {
+	if typeId < 0 {
+		return errors.New("任务分类不合法")
+	}
+	if typeId == 0 {
+		return nil
+	}
+	data, err := s.typeService.FindById(typeId)
+	if err != nil || data == nil || data.Module != type_module.Task {
+		return errors.New("任务分类不合法")
+	}
+	return nil
+}
+
 // checkContent 判断任务内容
-func (s *service) checkContent(content string, Type int) (string, error) {
+func (s *service) checkContent(content string, execType int) (string, error) {
 	if strings.TrimSpace(content) == "" {
 		return "", errors.New("任务内容不能为空")
 	}
-	switch Type {
-	case task_type.Script:
+	switch execType {
+	case task_exec_type.Script:
 		return content, nil
-	case task_type.Request:
+	case task_exec_type.Request:
 		data := Request{}
 		if err := json.Unmarshal([]byte(content), &data); err != nil {
 			data = Request{Method: http.MethodGet, Url: strings.TrimSpace(content)}
@@ -115,12 +131,12 @@ func (s *service) checkContent(content string, Type int) (string, error) {
 }
 
 // formatContent 格式化任务内容
-func (s *service) formatContent(content string, Type int) interface{} {
-	if Type == task_type.Script {
+func (s *service) formatContent(content string, execType int) interface{} {
+	if execType == task_exec_type.Script {
 		return content
 	}
-	if Type == task_type.Request {
-		content, err := s.checkContent(content, Type)
+	if execType == task_exec_type.Request {
+		content, err := s.checkContent(content, execType)
 		if err == nil {
 			data := Request{}
 			if json.Unmarshal([]byte(content), &data) == nil {
@@ -282,8 +298,11 @@ func (s *service) Add(data *model.Task) error {
 	if data == nil {
 		return errors.New("任务数据不能为空")
 	}
-	if _, ok := task_type.Map()[data.Type]; !ok {
-		return errors.New("任务类型不合法")
+	if err := s.validateTypeId(data.TypeId); err != nil {
+		return err
+	}
+	if _, ok := task_exec_type.Map()[data.ExecType]; !ok {
+		return errors.New("任务执行类型不合法")
 	}
 	if _, ok := task_status.Map()[data.Status]; !ok {
 		return errors.New("任务状态不合法")
@@ -294,7 +313,7 @@ func (s *service) Add(data *model.Task) error {
 	if !s.validateCron(data.Spec) {
 		return errors.New("任务表达式不合法")
 	}
-	content, err := s.checkContent(data.Script, data.Type)
+	content, err := s.checkContent(data.Script, data.ExecType)
 	if err != nil {
 		return err
 	}

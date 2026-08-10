@@ -7,7 +7,7 @@ import (
 	"io"
 	"net/http"
 	"server/app/constant"
-	"server/app/enum/task_type"
+	"server/app/enum/task_exec_type"
 	"server/app/model"
 	"server/app/util/cmd"
 	"strings"
@@ -23,7 +23,7 @@ func newJob(task *model.Task, service *service) *job {
 	if task == nil || service == nil || task.Spec == "" {
 		return nil
 	}
-	content, err := service.checkContent(task.Script, task.Type)
+	content, err := service.checkContent(task.Script, task.ExecType)
 	if err != nil {
 		return nil
 	}
@@ -35,13 +35,13 @@ func (j *job) Run() {
 	defer func() {
 		_ = j.service.updateRuntimeById(j.Id, time.Now())
 	}()
-	switch j.Type {
-	case task_type.Script:
+	switch j.ExecType {
+	case task_exec_type.Script:
 		c := cmd.NewScriptExec(constant.TempPath, 43200, func(s string) {
 			_ = j.service.WriteLog(j.Id, s)
 		})
 		_, _, _ = c.Execute(j.Script)
-	case task_type.Request:
+	case task_exec_type.Request:
 		data := Request{}
 		if json.Unmarshal([]byte(j.Script), &data) != nil || data.Url == "" {
 			_ = j.service.WriteLog(j.Id, "请求配置不合法")

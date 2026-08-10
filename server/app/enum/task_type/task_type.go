@@ -1,14 +1,15 @@
 package task_type
 
-const (
-	Script  = iota //脚本
-	Request        //HTTP请求
+import (
+	"server/app/enum/type_module"
+	"server/app/service"
 )
 
-// Map 任务类型数据
-func Map() map[int]string {
-	return map[int]string{
-		Script:  "系统脚本",
-		Request: "HTTP请求",
+// Map 任务分类数据
+func Map() map[int64]string {
+	data, err := service.Type.GetEnum(type_module.Task)
+	if err != nil {
+		return make(map[int64]string)
 	}
+	return data
 }

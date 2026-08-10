@@ -61,7 +61,8 @@ const useList = () => {
         page: 1,
         pageSize: 10,
         name: "",
-        type: "",
+        typeId: "",
+        execType: "",
         status: "",
         sort: "id",
         order: "desc",
@@ -69,7 +70,7 @@ const useList = () => {
     const [loading, setLoading] = useState(true);
     const [reloadKey, setReloadKey] = useState(0);
     const [operating, setOperating] = useState(() => new Set<string>());
-    const {page, pageSize, name, type, status, sort, order} = query;
+    const {page, pageSize, name, typeId, execType, status, sort, order} = query;
 
     useEffect(() => {
         const requestId = ++requestRef.current;
@@ -84,7 +85,8 @@ const useList = () => {
                 order_by_field: sort,
                 order_by_type: order,
                 name,
-                type,
+                type_id: typeId,
+                exec_type: execType,
                 status,
             },
         }).then((response) => {
@@ -122,7 +124,7 @@ const useList = () => {
         return () => {
             active = false;
         };
-    }, [message, name, order, page, pageSize, reloadKey, sort, status, type]);
+    }, [execType, message, name, order, page, pageSize, reloadKey, sort, status, typeId]);
 
     const reload = useCallback(() => {
         requestRef.current += 1;
@@ -140,8 +142,12 @@ const useList = () => {
         setQuery((current) => ({...current, page: 1, name: value.trim()}));
     }, []);
 
-    const changeType = useCallback((value: string) => {
-        setQuery((current) => ({...current, page: 1, type: value}));
+    const changeTypeId = useCallback((value: string) => {
+        setQuery((current) => ({...current, page: 1, typeId: value}));
+    }, []);
+
+    const changeExecType = useCallback((value: string) => {
+        setQuery((current) => ({...current, page: 1, execType: value}));
     }, []);
 
     const changeStatus = useCallback((value: string) => {
@@ -231,7 +237,8 @@ const useList = () => {
         page,
         pageSize,
         keyword,
-        type,
+        typeId,
+        execType,
         status,
         sort,
         order,
@@ -240,7 +247,8 @@ const useList = () => {
         reload,
         changeKeyword,
         search,
-        changeType,
+        changeTypeId,
+        changeExecType,
         changeStatus,
         changeSort,
         changePage,

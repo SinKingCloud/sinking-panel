@@ -9,10 +9,11 @@ import (
 
 // List 获取计划任务列表
 func List(c *context.Context) {
-	query := c.ValidatePage("id", "desc", "id", "id,type,status,run_time,create_time,update_time")
+	query := c.ValidatePage("id", "desc", "id", "id,type_id,exec_type,status,run_time,create_time,update_time")
 	var form struct {
 		Name            string `json:"name" default:"" validate:"omitempty" label:"任务名称"`
-		Type            string `json:"type" default:"" validate:"omitempty,numeric" label:"任务类型"`
+		TypeId          string `json:"type_id" default:"" validate:"omitempty,numeric" label:"任务分类ID"`
+		ExecType        string `json:"exec_type" default:"" validate:"omitempty,numeric" label:"任务执行类型"`
 		Status          string `json:"status" default:"" validate:"omitempty,numeric" label:"任务状态"`
 		RunTimeStart    string `json:"run_time_start" default:"" validate:"omitempty,datetime=2006-01-02 15:04:05" label:"运行起始时间"`
 		RunTimeEnd      string `json:"run_time_end" default:"" validate:"omitempty,datetime=2006-01-02 15:04:05" label:"运行结束时间"`
@@ -26,8 +27,11 @@ func List(c *context.Context) {
 		return
 	}
 	where := &repositoryTask.SelectTask{}
-	if form.Type != "" {
-		where.Type = form.Type
+	if form.TypeId != "" {
+		where.TypeId = form.TypeId
+	}
+	if form.ExecType != "" {
+		where.ExecType = form.ExecType
 	}
 	if form.Name != "" {
 		where.Name = form.Name

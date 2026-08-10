@@ -17,10 +17,11 @@ func (s *service) FindById(id int64) (*Info, error) {
 	}
 	return &Info{
 		Id:         data.Id,
-		Type:       data.Type,
+		TypeId:     data.TypeId,
+		ExecType:   data.ExecType,
 		Name:       data.Name,
 		Spec:       data.Spec,
-		Script:     s.formatContent(data.Script, data.Type),
+		Script:     s.formatContent(data.Script, data.ExecType),
 		Status:     data.Status,
 		RunTime:    data.RunTime,
 		CreateTime: data.CreateTime,

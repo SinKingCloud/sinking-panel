@@ -15,8 +15,11 @@ func (r *Repository) SelectAll() (list []*model.Task, err error) {
 func (r *Repository) Select(where *SelectTask, queryPage *page.Query) (*page.Result[*Task], error) {
 	query := r.Database.Db.Model(&model.Task{})
 	if where != nil {
-		if where.Type != "" {
-			query = query.Where("type = ?", where.Type)
+		if where.TypeId != "" {
+			query = query.Where("type_id = ?", where.TypeId)
+		}
+		if where.ExecType != "" {
+			query = query.Where("exec_type = ?", where.ExecType)
 		}
 		if where.Name != "" {
 			query = query.Where("name LIKE ?", "%"+where.Name+"%")

@@ -2,8 +2,8 @@ package task
 
 import (
 	"errors"
+	"server/app/enum/task_exec_type"
 	"server/app/enum/task_status"
-	"server/app/enum/task_type"
 	repositoryTask "server/app/repository/task"
 	"strings"
 	"time"
@@ -29,13 +29,22 @@ func (s *service) UpdateByIds(ids []int64, data *repositoryTask.UpdateTask) (err
 	if len(ids) == 0 || data == nil {
 		return errors.New("更新数据不能为空")
 	}
-	if data.Type != nil {
-		value, ok := data.Type.(int)
+	if data.TypeId != nil {
+		value, ok := data.TypeId.(int64)
 		if !ok {
-			return errors.New("任务类型不合法")
+			return errors.New("任务分类不合法")
 		}
-		if _, ok = task_type.Map()[value]; !ok {
-			return errors.New("任务类型不合法")
+		if err = s.validateTypeId(value); err != nil {
+			return err
+		}
+	}
+	if data.ExecType != nil {
+		value, ok := data.ExecType.(int)
+		if !ok {
+			return errors.New("任务执行类型不合法")
+		}
+		if _, ok = task_exec_type.Map()[value]; !ok {
+			return errors.New("任务执行类型不合法")
 		}
 	}
 	if data.Status != nil {
@@ -67,30 +76,30 @@ func (s *service) UpdateByIds(ids []int64, data *repositoryTask.UpdateTask) (err
 	defer s.taskLock.Unlock()
 	var normalizedContent string
 	contentType := -1
-	if data.Type != nil || data.Script != nil {
+	if data.ExecType != nil || data.Script != nil {
 		for _, id := range ids {
 			task, findErr := s.findById(id)
 			if findErr != nil {
 				return findErr
 			}
-			taskType := task.Type
+			execType := task.ExecType
 			content := task.Script
-			if data.Type != nil {
-				taskType = data.Type.(int)
-				if taskType != task.Type && data.Script == nil {
-					return errors.New("修改任务类型时必须同时提交任务内容")
+			if data.ExecType != nil {
+				execType = data.ExecType.(int)
+				if execType != task.ExecType && data.Script == nil {
+					return errors.New("修改任务执行类型时必须同时提交任务内容")
 				}
 			}
 			if data.Script != nil {
 				content = data.Script.(string)
-				if data.Type == nil {
-					if contentType >= 0 && contentType != taskType {
-						return errors.New("不同类型任务不能批量修改内容")
+				if data.ExecType == nil {
+					if contentType >= 0 && contentType != execType {
+						return errors.New("不同执行类型的任务不能批量修改内容")
 					}
-					contentType = taskType
+					contentType = execType
 				}
 			}
-			value, checkErr := s.checkContent(content, taskType)
+			value, checkErr := s.checkContent(content, execType)
 			if checkErr != nil {
 				return checkErr
 			}

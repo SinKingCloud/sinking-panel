@@ -6,6 +6,7 @@ import (
 	"server/app/enum/script_type"
 	"server/app/enum/server_auth_type"
 	"server/app/enum/system_task_status"
+	"server/app/enum/task_exec_type"
 	"server/app/enum/task_status"
 	"server/app/enum/task_type"
 	"server/app/enum/type_module"
@@ -24,9 +25,12 @@ var Data = map[string]interface{}{
 			"type": script_type.Map(), //脚本类型
 		}
 	},
-	"task": map[string]interface{}{
-		"type":   task_type.Map(),   //计划任务类型
-		"status": task_status.Map(), //计划任务状态
+	"task": func() interface{} {
+		return map[string]interface{}{
+			"exec_type": task_exec_type.Map(), //计划任务执行类型
+			"type":      task_type.Map(),      //计划任务分类
+			"status":    task_status.Map(),    //计划任务状态
+		}
 	},
 	"type": map[string]interface{}{
 		"module": type_module.Map(), //类型所属模块
