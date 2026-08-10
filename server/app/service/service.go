@@ -37,7 +37,7 @@ func Init() {
 
 	Config = config.NewService(configRepo, global.App.Cache)
 	Auth = auth.NewService(Config, global.App.Cache)
-	Server = serverService.NewService(serverRepo)
+	Server = serverService.NewService(serverRepo, Config)
 	Log = logService.NewService(logRepo)
 	Task = taskService.NewService(taskRepo)
 	File = file.NewService()

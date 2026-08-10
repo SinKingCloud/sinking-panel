@@ -8,7 +8,7 @@ import (
 
 // Service service接口
 type Service interface {
-	Create(ip string, types int, title string, content string) error
+	Create(ip string, types int, title string, content string)
 	Select(where *repositoryLog.SelectLog, queryPage *page.Query) (*page.Result[*model.Log], error)
 }
 

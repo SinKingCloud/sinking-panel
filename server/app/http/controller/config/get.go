@@ -19,7 +19,7 @@ func Get(c *context.Context) {
 		c.Error(msg)
 		return
 	}
-	if form.Group == constant.LoginGroup {
+	if form.Group == constant.LoginGroup || form.Group == constant.SshGroup {
 		c.Error("配置不存在")
 		return
 	}

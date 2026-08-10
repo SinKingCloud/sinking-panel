@@ -25,4 +25,5 @@ const (
 	SshPort     = SshGroup + ".port"      //本地ssh 端口
 	SshAuthType = SshGroup + ".auth_type" //本地ssh 验证方式
 	SshPassword = SshGroup + ".password"  //本地ssh 密码
+	SshName     = SshGroup + ".name"      //本地ssh 名称
 )

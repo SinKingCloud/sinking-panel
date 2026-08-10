@@ -24,7 +24,7 @@ export default () => {
                 subTitle="对不起,您访问的页面不存在"
                 extra={<Button type="primary" onClick={() => {
                     historyPush("index");
-                }}>返回系统概览</Button>}
+                }}>返回首页</Button>}
             />
         </Body>
     );

@@ -2,6 +2,9 @@ package server
 
 import (
 	"errors"
+	"strconv"
+
+	"server/app/constant"
 	"server/app/enum/server_auth_type"
 	repositoryServer "server/app/repository/server"
 )
@@ -19,6 +22,31 @@ func (s *service) UpdateByIds(ids []int64, data *repositoryServer.UpdateServer) 
 		if _, ok = server_auth_type.Map()[value]; !ok {
 			return errors.New("服务器验证类型不合法")
 		}
+	}
+	if len(ids) == 1 && ids[0] == 0 {
+		configs := make(map[string]string)
+		if data.Ip != nil {
+			configs[constant.SshIP] = data.Ip.(string)
+		}
+		if data.Port != nil {
+			configs[constant.SshPort] = strconv.Itoa(data.Port.(int))
+		}
+		if data.User != nil {
+			configs[constant.SshUser] = data.User.(string)
+		}
+		if data.AuthType != nil {
+			configs[constant.SshAuthType] = strconv.Itoa(data.AuthType.(int))
+		}
+		if data.Password != nil {
+			configs[constant.SshPassword] = data.Password.(string)
+		}
+		if data.Name != nil {
+			configs[constant.SshName] = data.Name.(string)
+		}
+		if len(configs) == 0 {
+			return nil
+		}
+		return s.configService.Sets(configs)
 	}
 	return s.repositoryServer.UpdateByIds(ids, data)
 }

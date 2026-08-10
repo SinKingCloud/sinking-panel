@@ -11,6 +11,7 @@ import (
 func List(c *context.Context) {
 	query := c.ValidatePage("id", "desc", "id", "id,ip,create_time,update_time")
 	var form struct {
+		Keyword         string `json:"keyword" default:"" validate:"omitempty" label:"关键词"`
 		Ip              string `json:"ip" default:"" validate:"omitempty" label:"IP地址"`
 		Port            string `json:"port" default:"" validate:"omitempty,numeric" label:"端口号"`
 		User            string `json:"user" default:"" validate:"omitempty" label:"账号"`
@@ -26,6 +27,9 @@ func List(c *context.Context) {
 		return
 	}
 	where := &repositoryServer.SelectServer{}
+	if form.Keyword != "" {
+		where.Keyword = form.Keyword
+	}
 	if form.Ip != "" {
 		where.Ip = form.Ip
 	}

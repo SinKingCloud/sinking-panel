@@ -2,9 +2,10 @@ package config
 
 import (
 	"errors"
+	"strings"
+
 	"server/app/constant"
 	"server/app/model"
-	"strings"
 )
 
 // Group 获取group所有数据

@@ -28,12 +28,12 @@ export default [
         component: "@/pages/task",
     },
     {
-        path: "terminal",
+        path: "server",
         title: "终端管理",
-        name: "terminal",
+        name: "server",
         icon: "CodeOutlined",
         hideInMenu: false,
-        component: "@/pages/test",
+        component: "@/pages/server",
     },
     {
         path: "log",

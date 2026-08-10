@@ -43,7 +43,13 @@ func Update(c *context.Context) {
 	}
 	err := service.Server.UpdateByIds(form.Ids, data)
 	if err == nil {
-		service.Log.Create(c.GetRequestIp(), log_type.EventUpdate, "修改服务器", "修改服务器数据")
+		title := "修改服务器"
+		content := "修改服务器数据"
+		if len(form.Ids) == 1 && form.Ids[0] == 0 {
+			title = "修改本机连接"
+			content = "修改本机SSH连接配置"
+		}
+		service.Log.Create(c.GetRequestIp(), log_type.EventUpdate, title, content)
 		c.Success("修改成功")
 	} else {
 		c.Error("修改失败")

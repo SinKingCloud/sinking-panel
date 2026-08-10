@@ -5,10 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"server/app/constant"
 	"server/app/enum/log_type"
 	"server/app/enum/server_auth_type"
-	"server/app/model"
 	"server/app/service"
 	"server/app/util/context"
 	"server/app/util/webssh"
@@ -23,10 +21,12 @@ import (
 type sshContextKey struct{}
 
 type sshConnection struct {
-	client  *webssh.SshClient
-	session *webssh.SshSession
-	width   int
-	height  int
+	client    *webssh.SshClient
+	session   *webssh.SshSession
+	width     int
+	height    int
+	requestIP string
+	name      string
 }
 
 var sshServer = sinking_websocket.NewServer(
@@ -41,19 +41,19 @@ var sshServer = sinking_websocket.NewServer(
 		if err != nil {
 			return err
 		}
+		service.Log.Create(ssh.requestIP, log_type.EventLogin, "连接SSH终端", "连接服务器["+ssh.name+"]")
 		sessionDone := make(chan struct{})
 		go func() {
 			_ = ssh.session.Wait()
 			close(sessionDone)
 		}()
 		go func() {
-			tick := time.NewTicker(10 * time.Millisecond)
-			defer tick.Stop()
 			for {
 				select {
-				case <-tick.C:
+				case <-ssh.session.OutputReady():
 					if payload := ssh.session.Read(); payload != nil {
 						if connection.Send(sinking_websocket.TextMessage, payload) != nil {
+							_ = connection.Close()
 							return
 						}
 					}
@@ -89,9 +89,9 @@ var sshServer = sinking_websocket.NewServer(
 		case "resize":
 			arr := strings.Split(data.Content, "|")
 			if len(arr) == 2 {
-				width, _ := strconv.Atoi(arr[0])
-				height, _ := strconv.Atoi(arr[1])
-				if width > 0 && height > 0 {
+				width, widthErr := strconv.Atoi(arr[0])
+				height, heightErr := strconv.Atoi(arr[1])
+				if widthErr == nil && heightErr == nil && width >= 1 && width <= 1000 && height >= 1 && height <= 1000 {
 					return ssh.session.Resize(height, width)
 				}
 			}
@@ -110,35 +110,22 @@ var sshServer = sinking_websocket.NewServer(
 
 func Ssh(c *context.Context) {
 	var form struct {
-		Id     int64 `json:"id" default:"" validate:"omitempty,numeric,min=1" label:"记录ID"`
-		Width  int   `json:"width" default:"200" validate:"omitempty,numeric,min=1" label:"宽度"`
-		Height int   `json:"height" default:"120" validate:"omitempty,numeric,min=1" label:"高度"`
+		Id     int64 `json:"id" default:"0" validate:"gte=0" label:"记录ID"`
+		Width  int   `json:"width" default:"200" validate:"min=1,max=1000" label:"宽度"`
+		Height int   `json:"height" default:"120" validate:"min=1,max=1000" label:"高度"`
 	}
 	if ok, msg := c.ValidatorAll(&form); !ok {
 		c.Error(msg)
 		return
 	}
-	var s *model.Server
-	var err error
-	if form.Id > 0 {
-		s, err = service.Server.FindById(form.Id)
-		if err != nil || s == nil {
-			c.Error("获取服务器信息失败")
-			return
-		}
-	} else {
-		configs := service.Config.Group(constant.SshGroup)
-		s = &model.Server{
-			Ip:       configs[constant.SshIP],
-			Port:     c.GetIntWithDefault(configs[constant.SshPort], 22),
-			User:     configs[constant.SshUser],
-			AuthType: c.GetIntWithDefault(configs[constant.SshAuthType], server_auth_type.Password),
-			Password: configs[constant.SshPassword],
-		}
-		if s.Ip == "" || s.User == "" {
-			c.Error("获取服务器信息失败")
-			return
-		}
+	s, err := service.Server.FindById(form.Id)
+	if err != nil || s == nil {
+		c.Error("获取服务器信息失败")
+		return
+	}
+	if strings.TrimSpace(s.User) == "" || strings.TrimSpace(s.Password) == "" {
+		c.Error("SSH连接配置不完整")
+		return
 	}
 	client := webssh.NewSshClient(s.Ip, s.Port, 10*time.Second)
 	defer func() {
@@ -157,11 +144,12 @@ func Ssh(c *context.Context) {
 	if name == "" {
 		name = s.Ip
 	}
-	service.Log.Create(c.GetRequestIp(), log_type.EventLogin, "连接SSH终端", "连接服务器["+name+"]")
 	ssh := &sshConnection{
-		client: client,
-		width:  form.Width,
-		height: form.Height,
+		client:    client,
+		width:     form.Width,
+		height:    form.Height,
+		requestIP: c.GetRequestIp(),
+		name:      name,
 	}
 	resp := make(http.Header)
 	protocols := websocket.Subprotocols(c.Request)

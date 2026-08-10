@@ -3,8 +3,9 @@ package webssh
 import (
 	"bytes"
 	"errors"
-	"fmt"
 	"io"
+	"net"
+	"strconv"
 	"sync"
 	"time"
 
@@ -13,22 +14,20 @@ import (
 
 func NewSshClient(ip string, port int, timeout time.Duration) *SshClient {
 	return &SshClient{
-		Addr:       ip,
-		Port:       port,
-		Timeout:    timeout,
-		sessionMap: &sync.Map{},
+		Addr:    ip,
+		Port:    port,
+		Timeout: timeout,
 	}
 }
 
 type SshClient struct {
-	Addr       string //连接地址
-	Port       int    //连接端口
-	User       string //账户
-	Password   string //密码
-	Key        string //密钥
-	Timeout    time.Duration
-	client     *ssh.Client
-	sessionMap *sync.Map
+	Addr     string //连接地址
+	Port     int    //连接端口
+	User     string //账户
+	Password string //密码
+	Key      string //密钥
+	Timeout  time.Duration
+	client   *ssh.Client
 }
 
 type SshSession struct {
@@ -41,11 +40,12 @@ type sshBufWriter struct {
 	buffer bytes.Buffer
 	mu     sync.Mutex
 	cond   *sync.Cond
+	ready  chan struct{}
 	closed bool
 }
 
 func newSshBufWriter() *sshBufWriter {
-	write := new(sshBufWriter)
+	write := &sshBufWriter{ready: make(chan struct{}, 1)}
 	write.cond = sync.NewCond(&write.mu)
 	return write
 }
@@ -70,6 +70,10 @@ func (w *sshBufWriter) Write(p []byte) (int, error) {
 		p = p[n:]
 		if err != nil {
 			return written, err
+		}
+		select {
+		case w.ready <- struct{}{}:
+		default:
 		}
 	}
 	return written, nil
@@ -121,32 +125,13 @@ func (s *SshClient) Auth(user string, method ssh.AuthMethod) error {
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 	}
 	config.Auth = []ssh.AuthMethod{method}
-	addr := fmt.Sprintf("%s:%d", s.Addr, s.Port)
+	addr := net.JoinHostPort(s.Addr, strconv.Itoa(s.Port))
 	c, err := ssh.Dial("tcp", addr, config)
 	if err == nil {
 		s.client = c
 		return nil
 	}
 	return err
-}
-
-// Session 获取一个session
-func (s *SshClient) Session(sessionID string, height int, width int) (*SshSession, error) {
-	if s.sessionMap == nil {
-		s.sessionMap = &sync.Map{}
-	}
-	var session *SshSession
-	var err error
-	if values, ok := s.sessionMap.Load(sessionID); ok {
-		session = values.(*SshSession)
-	} else {
-		session, err = s.NewSession(height, width)
-		if err != nil {
-			return nil, err
-		}
-		s.sessionMap.Store(sessionID, session)
-	}
-	return session, err
 }
 
 // NewSession 新建session
@@ -198,6 +183,9 @@ func (s *SshClient) Exec(cmd string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	defer func() {
+		_ = session.Close()
+	}()
 	output, err := session.Output(cmd)
 	if err != nil {
 		return "", err
@@ -234,6 +222,14 @@ func (s *SshSession) Read() []byte {
 		return s.write.Read()
 	}
 	return nil
+}
+
+// OutputReady 终端有可读输出时通知。
+func (s *SshSession) OutputReady() <-chan struct{} {
+	if s == nil || s.write == nil {
+		return nil
+	}
+	return s.write.ready
 }
 
 // Wait 等待session

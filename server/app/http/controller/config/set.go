@@ -1,11 +1,12 @@
 package config
 
 import (
+	"strings"
+
 	"server/app/constant"
 	"server/app/enum/log_type"
 	"server/app/service"
 	"server/app/util/context"
-	"strings"
 )
 
 // Set 修改配置
@@ -15,7 +16,7 @@ func Set(c *context.Context) {
 		Value string `json:"value" default:"" validate:"omitempty" label:"配置内容"`
 	}
 	var form struct {
-		Configs []*Config `json:"configs" default:"" validate:"gte=1" label:"配置标识"`
+		Configs []*Config `json:"configs" default:"" validate:"required,min=1,max=1000,dive,required" label:"配置标识"`
 	}
 	if ok, msg := c.ValidatorAll(&form); !ok {
 		c.Error(msg)
@@ -23,7 +24,11 @@ func Set(c *context.Context) {
 	}
 	configs := make(map[string]string)
 	for _, v := range form.Configs {
-		if v == nil || v.Key == constant.LoginGroup || strings.HasPrefix(v.Key, constant.LoginGroup+".") {
+		if v == nil {
+			continue
+		}
+		if v.Key == constant.LoginGroup || strings.HasPrefix(v.Key, constant.LoginGroup+".") ||
+			v.Key == constant.SshGroup || strings.HasPrefix(v.Key, constant.SshGroup+".") {
 			continue
 		}
 		configs[v.Key] = v.Value

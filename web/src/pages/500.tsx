@@ -24,7 +24,7 @@ export default () => {
                 subTitle="服务器连接失败,请返回系统概览稍后重试"
                 extra={<Button type="primary" onClick={() => {
                     historyPush("index");
-                }}>返回系统概览</Button>}
+                }}>返回首页</Button>}
             />
         </Body>
     );

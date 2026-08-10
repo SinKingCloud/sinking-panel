@@ -43,9 +43,7 @@ func (s *Server) user() error {
 	if err = service.Auth.UpdateAccount(form.Account, ""); err != nil {
 		return err
 	}
-	if err = service.Log.Create("", log_type.EventUpdate, "修改登录信息", "通过命令行修改登录账号"); err != nil {
-		return fmt.Errorf("登录账号已修改，但记录操作日志失败: %w", err)
-	}
+	service.Log.Create("127.0.0.1", log_type.EventUpdate, "修改登录信息", "通过命令行修改登录账号")
 	log.Println("登录账号修改成功；服务运行中时，请重新启动服务使修改立即生效")
 	if service.Config.Get(constant.LoginGroup, constant.LoginPassword) == "" {
 		log.Printf("登录密码尚未设置，请继续执行 %s pwd\n", os.Args[0])
@@ -85,9 +83,7 @@ func (s *Server) pwd() error {
 	if err = service.Auth.UpdateAccount("", string(password)); err != nil {
 		return err
 	}
-	if err = service.Log.Create("", log_type.EventUpdate, "修改登录信息", "通过命令行修改登录密码"); err != nil {
-		return fmt.Errorf("登录密码已修改，但记录操作日志失败: %w", err)
-	}
+	service.Log.Create("127.0.0.1", log_type.EventUpdate, "修改登录信息", "通过命令行修改登录密码")
 	log.Println("登录密码修改成功；服务运行中时，请重新启动服务使修改立即生效")
 	if service.Config.Get(constant.LoginGroup, constant.LoginAccount) == "" {
 		log.Printf("登录账号尚未设置，请继续执行 %s user\n", os.Args[0])

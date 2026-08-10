@@ -4,6 +4,7 @@ import "server/app/util/str"
 
 // SelectServer 服务器查询条件
 type SelectServer struct {
+	Keyword         string
 	Ip              string
 	Port            string
 	User            string
