@@ -47,7 +47,7 @@ func Init() {
 	Auth = auth.NewService(Config, global.App.Cache)
 	Server = serverService.NewService(serverRepo, Config)
 	Script = scriptService.NewService(scriptRepo)
-	Type = typeService.NewService(typeRepo, global.App.Database)
+	Type = typeService.NewService(typeRepo, scriptRepo, global.App.Database, global.App.Cache)
 	Log = logService.NewService(logRepo)
 	Task = taskService.NewService(taskRepo)
 	File = file.NewService()

@@ -3,10 +3,7 @@ package types
 import (
 	"errors"
 	"server/app/enum/type_module"
-	"server/app/model"
 	repositoryTypes "server/app/repository/types"
-	"server/app/util/str"
-	"time"
 
 	"gorm.io/gorm"
 )
@@ -16,6 +13,7 @@ func (s *service) UpdateByIds(ids []int64, data *repositoryTypes.UpdateType) err
 	if len(ids) == 0 || data == nil {
 		return errors.New("更新数据不能为空")
 	}
+	var module string
 	if data.Module != nil {
 		value, ok := data.Module.(string)
 		if !ok {
@@ -24,25 +22,34 @@ func (s *service) UpdateByIds(ids []int64, data *repositoryTypes.UpdateType) err
 		if _, ok = type_module.Map()[value]; !ok {
 			return errors.New("所属模块不合法")
 		}
-		if value != type_module.Script {
-			return s.database.Transaction(func(tx *gorm.DB) error {
-				return s.database.BatchExecute(ids, 1000, func(batch interface{}) error {
-					batchIds := batch.([]int64)
-					typeIds := tx.Model(&model.Type{}).
-						Select("id").
-						Where("id IN ? AND module = ?", batchIds, type_module.Script)
-					if err := tx.Model(&model.Script{}).
-						Where("type_id IN (?)", typeIds).
-						Updates(map[string]interface{}{
-							"type_id":     int64(0),
-							"update_time": str.DateTime(time.Now()),
-						}).Error; err != nil {
-						return err
-					}
-					return s.repositoryTypes.UpdateByIds(batchIds, data, tx)
-				})
-			})
-		}
+		module = value
 	}
-	return s.repositoryTypes.UpdateByIds(ids, data)
+	modules := make([]string, 0)
+	err := s.database.Transaction(func(tx *gorm.DB) error {
+		types, err := s.repositoryTypes.SelectByIds(ids, tx)
+		if err != nil {
+			return err
+		}
+		scriptTypeIds := make([]int64, 0)
+		for _, item := range types {
+			modules = append(modules, item.Module)
+			if item.Module == type_module.Script {
+				scriptTypeIds = append(scriptTypeIds, item.Id)
+			}
+		}
+		if module != "" && module != type_module.Script {
+			if err := s.repositoryScript.ClearTypeId(scriptTypeIds, tx); err != nil {
+				return err
+			}
+		}
+		return s.repositoryTypes.UpdateByIds(ids, data, tx)
+	})
+	if err != nil {
+		return err
+	}
+	if module != "" {
+		modules = append(modules, module)
+	}
+	s.clearTypeEnumCache(modules...)
+	return nil
 }

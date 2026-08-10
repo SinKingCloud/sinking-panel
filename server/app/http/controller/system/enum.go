@@ -14,6 +14,9 @@ func Enum(c *context.Context) {
 		return
 	}
 	if value, ok := enum.Data[form.Name]; ok {
+		if fn, dynamic := value.(func() interface{}); dynamic {
+			value = fn()
+		}
 		c.SuccessWithData("获取数据成功", value)
 	} else {
 		c.Error("枚举类型不存在")

@@ -2,30 +2,33 @@ package types
 
 import (
 	"server/app/enum/type_module"
-	"server/app/model"
-	"server/app/util/str"
-	"time"
 
 	"gorm.io/gorm"
 )
 
 // DeleteByIds 通过ID列表删除
 func (s *service) DeleteByIds(ids []int64) error {
-	return s.database.Transaction(func(tx *gorm.DB) error {
-		return s.database.BatchExecute(ids, 1000, func(batch interface{}) error {
-			batchIds := batch.([]int64)
-			typeIds := tx.Model(&model.Type{}).
-				Select("id").
-				Where("id IN ? AND module = ?", batchIds, type_module.Script)
-			if err := tx.Model(&model.Script{}).
-				Where("type_id IN (?)", typeIds).
-				Updates(map[string]interface{}{
-					"type_id":     int64(0),
-					"update_time": str.DateTime(time.Now()),
-				}).Error; err != nil {
-				return err
+	modules := make([]string, 0)
+	err := s.database.Transaction(func(tx *gorm.DB) error {
+		types, err := s.repositoryTypes.SelectByIds(ids, tx)
+		if err != nil {
+			return err
+		}
+		scriptTypeIds := make([]int64, 0)
+		for _, item := range types {
+			modules = append(modules, item.Module)
+			if item.Module == type_module.Script {
+				scriptTypeIds = append(scriptTypeIds, item.Id)
 			}
-			return s.repositoryTypes.DeleteByIds(batchIds, tx)
-		})
+		}
+		if err := s.repositoryScript.ClearTypeId(scriptTypeIds, tx); err != nil {
+			return err
+		}
+		return s.repositoryTypes.DeleteByIds(ids, tx)
 	})
+	if err != nil {
+		return err
+	}
+	s.clearTypeEnumCache(modules...)
+	return nil
 }

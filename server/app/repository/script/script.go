@@ -14,6 +14,7 @@ type Interface interface {
 	Create(data *model.Script) error
 	DeleteByIds(ids []int64, tx ...*gorm.DB) error
 	Select(where *SelectScript, queryPage *page.Query) (*page.Result[*model.Script], error)
+	ClearTypeId(typeIds []int64, tx ...*gorm.DB) error
 	UpdateByIds(ids []int64, data *UpdateScript) error
 }
 

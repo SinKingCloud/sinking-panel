@@ -38,3 +38,26 @@ func (r *Repository) UpdateByIds(ids []int64, data *UpdateScript) error {
 		})
 	})
 }
+
+// ClearTypeId 清除指定类型的脚本分类
+func (r *Repository) ClearTypeId(typeIds []int64, tx ...*gorm.DB) error {
+	if len(typeIds) == 0 {
+		return nil
+	}
+	execute := func(db *gorm.DB) error {
+		return r.Database.BatchExecute(typeIds, 1000, func(batch interface{}) error {
+			return db.Model(&model.Script{}).
+				Where("type_id IN ?", batch.([]int64)).
+				Updates(map[string]interface{}{
+					"type_id":     int64(0),
+					"update_time": str.DateTime(time.Now()),
+				}).Error
+		})
+	}
+	if len(tx) > 0 && tx[0] != nil {
+		return execute(tx[0])
+	}
+	return r.Database.Transaction(func(tx *gorm.DB) error {
+		return execute(tx)
+	})
+}

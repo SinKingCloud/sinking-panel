@@ -8,4 +8,7 @@ const (
 
 	CacheNameWithCaptcha = "Captcha_"        //验证码
 	CacheTimeWithCaptcha = 600 * time.Second //验证码缓存时间
+
+	CacheNameWithTypeEnum = "TypeEnum_"       //类型枚举
+	CacheTimeWithTypeEnum = 600 * time.Second //类型枚举储存时间
 )

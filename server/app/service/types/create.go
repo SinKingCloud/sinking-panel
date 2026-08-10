@@ -16,5 +16,9 @@ func (s *service) Create(data *model.Type) error {
 		return errors.New("所属模块不合法")
 	}
 	data.Id = str.GetSnowWorkIns().GetId()
-	return s.repositoryTypes.Create(data)
+	if err := s.repositoryTypes.Create(data); err != nil {
+		return err
+	}
+	s.clearTypeEnumCache(data.Module)
+	return nil
 }

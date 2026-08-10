@@ -3,6 +3,7 @@ package enum
 import (
 	"server/app/enum/file_format"
 	"server/app/enum/log_type"
+	"server/app/enum/script_type"
 	"server/app/enum/server_auth_type"
 	"server/app/enum/system_task_status"
 	"server/app/enum/task_status"
@@ -17,6 +18,11 @@ var Data = map[string]interface{}{
 	},
 	"server": map[string]interface{}{
 		"auth_type": server_auth_type.Map(), //服务器验证类型
+	},
+	"script": func() interface{} {
+		return map[string]interface{}{
+			"type": script_type.Map(), //脚本类型
+		}
 	},
 	"task": map[string]interface{}{
 		"type":   task_type.Map(),   //计划任务类型
