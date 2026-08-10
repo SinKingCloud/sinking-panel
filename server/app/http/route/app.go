@@ -5,9 +5,11 @@ import (
 	"server/app/http/controller/config"
 	"server/app/http/controller/file"
 	"server/app/http/controller/recycle"
+	scriptController "server/app/http/controller/script"
 	"server/app/http/controller/server"
 	"server/app/http/controller/system"
 	"server/app/http/controller/task"
+	typeController "server/app/http/controller/types"
 	"server/app/http/middleware"
 	"server/app/util/context"
 	"server/public"
@@ -21,9 +23,11 @@ func loadApp(s *sinking_web.Engine) {
 	loadFileRoute(s)
 	loadRecycleRoute(s)
 	loadServerRoute(s)
+	loadScriptRoute(s)
 	loadConfigRoute(s)
 	loadSystemRoute(s)
 	loadTaskRoute(s)
+	loadTypeRoute(s)
 	loadStaticRoute(s)
 }
 
@@ -70,6 +74,26 @@ func loadServerRoute(s *sinking_web.Engine) {
 	g.ANY("/create", context.HandleFunc(server.Create)) //添加服务器
 	g.ANY("/update", context.HandleFunc(server.Update)) //更新服务器
 	g.ANY("/delete", context.HandleFunc(server.Delete)) //删除服务器
+}
+
+// loadScriptRoute 常用脚本路由
+func loadScriptRoute(s *sinking_web.Engine) {
+	g := s.Group("/script")
+	g.Use(context.HandleFunc(middleware.CheckLogin))
+	g.ANY("/list", context.HandleFunc(scriptController.List))     //脚本列表
+	g.ANY("/create", context.HandleFunc(scriptController.Create)) //添加脚本
+	g.ANY("/update", context.HandleFunc(scriptController.Update)) //更新脚本
+	g.ANY("/delete", context.HandleFunc(scriptController.Delete)) //删除脚本
+}
+
+// loadTypeRoute 类型路由
+func loadTypeRoute(s *sinking_web.Engine) {
+	g := s.Group("/type")
+	g.Use(context.HandleFunc(middleware.CheckLogin))
+	g.ANY("/list", context.HandleFunc(typeController.List))     //类型列表
+	g.ANY("/create", context.HandleFunc(typeController.Create)) //添加类型
+	g.ANY("/update", context.HandleFunc(typeController.Update)) //更新类型
+	g.ANY("/delete", context.HandleFunc(typeController.Delete)) //删除类型
 }
 
 // loadTaskRoute 任务路由

@@ -3,16 +3,20 @@ package service
 import (
 	configRepository "server/app/repository/config"
 	logRepository "server/app/repository/log"
+	scriptRepository "server/app/repository/script"
 	serverRepository "server/app/repository/server"
 	taskRepository "server/app/repository/task"
+	typeRepository "server/app/repository/types"
 	"server/app/service/auth"
 	"server/app/service/config"
 	"server/app/service/file"
 	logService "server/app/service/log"
 	"server/app/service/recycle"
+	scriptService "server/app/service/script"
 	serverService "server/app/service/server"
 	"server/app/service/system"
 	taskService "server/app/service/task"
+	typeService "server/app/service/types"
 	"server/global"
 )
 
@@ -21,6 +25,8 @@ var (
 	Config  config.Service
 	Auth    auth.Service
 	Server  serverService.Service
+	Script  scriptService.Service
+	Type    typeService.Service
 	Log     logService.Service
 	Task    taskService.Service
 	File    file.Service
@@ -34,10 +40,14 @@ func Init() {
 	logRepo := logRepository.NewRepository(global.App.Database)
 	serverRepo := serverRepository.NewRepository(global.App.Database)
 	taskRepo := taskRepository.NewRepository(global.App.Database)
+	typeRepo := typeRepository.NewRepository(global.App.Database)
+	scriptRepo := scriptRepository.NewRepository(global.App.Database)
 
 	Config = config.NewService(configRepo, global.App.Cache)
 	Auth = auth.NewService(Config, global.App.Cache)
 	Server = serverService.NewService(serverRepo, Config)
+	Script = scriptService.NewService(scriptRepo)
+	Type = typeService.NewService(typeRepo, global.App.Database)
 	Log = logService.NewService(logRepo)
 	Task = taskService.NewService(taskRepo)
 	File = file.NewService()

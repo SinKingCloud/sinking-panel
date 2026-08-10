@@ -7,6 +7,7 @@ import (
 	"server/app/enum/system_task_status"
 	"server/app/enum/task_status"
 	"server/app/enum/task_type"
+	"server/app/enum/type_module"
 )
 
 // Data 枚举信息
@@ -20,6 +21,9 @@ var Data = map[string]interface{}{
 	"task": map[string]interface{}{
 		"type":   task_type.Map(),   //计划任务类型
 		"status": task_status.Map(), //计划任务状态
+	},
+	"type": map[string]interface{}{
+		"module": type_module.Map(), //类型所属模块
 	},
 	"system": map[string]interface{}{
 		"task_status": system_task_status.Map(), //任务状态
