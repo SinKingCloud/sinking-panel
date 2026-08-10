@@ -34,14 +34,13 @@ func (s *service) FindById(id int64) (*model.Server, error) {
 			name = "本机终端"
 		}
 		return &model.Server{
-			Id:                   0,
-			Ip:                   ip,
-			Port:                 port,
-			User:                 strings.TrimSpace(configs[constant.SshUser]),
-			AuthType:             authType,
-			Password:             configs[constant.SshPassword],
-			Name:                 name,
-			CredentialConfigured: strings.TrimSpace(configs[constant.SshPassword]) != "",
+			Id:       0,
+			Ip:       ip,
+			Port:     port,
+			User:     strings.TrimSpace(configs[constant.SshUser]),
+			AuthType: authType,
+			Password: configs[constant.SshPassword],
+			Name:     name,
 		}, nil
 	}
 	return s.repositoryServer.FindById(id)
