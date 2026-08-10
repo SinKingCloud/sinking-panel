@@ -35,7 +35,6 @@ const Form = forwardRef<FormRef, FormProps>(({authTypeData, onSuccess}, ref) => 
     const [initialAuthType, setInitialAuthType] = useState(0);
     const [submitting, setSubmitting] = useState(false);
     const editing = record !== undefined;
-    const localEditing = record?.id === 0;
     const authOptions = useMemo(() => {
         const data = Object.keys(authTypeData || {}).length > 0 ? authTypeData : fallbackAuthTypes;
         return Object.entries(data).map(([value, label]) => ({
@@ -43,9 +42,7 @@ const Form = forwardRef<FormRef, FormProps>(({authTypeData, onSuccess}, ref) => 
             label: String(label),
         }));
     }, [authTypeData]);
-    const credentialRequired = !editing ||
-        authType !== initialAuthType ||
-        (localEditing && !record?.credential_configured);
+    const credentialRequired = !editing || authType !== initialAuthType;
 
     const reset = useCallback(() => {
         requestRef.current += 1;
@@ -130,7 +127,6 @@ const Form = forwardRef<FormRef, FormProps>(({authTypeData, onSuccess}, ref) => 
                     port: body.port,
                     user: body.user,
                     auth_type: nextAuthType,
-                    credential_configured: record.credential_configured || Boolean(password.trim()),
                     searchText: [body.name, body.ip, String(body.port), `${body.ip}:${body.port}`]
                         .join("\n")
                         .toLocaleLowerCase(),

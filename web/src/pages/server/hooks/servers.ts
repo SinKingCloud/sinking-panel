@@ -11,7 +11,6 @@ export interface ServerRecord {
     name: string;
     create_time?: string;
     update_time?: string;
-    credential_configured?: boolean;
     searchText: string;
 }
 
@@ -30,7 +29,6 @@ const normalizeServer = (item: any): ServerRecord => {
         name,
         create_time: item?.create_time ? String(item.create_time) : undefined,
         update_time: item?.update_time ? String(item.update_time) : undefined,
-        credential_configured: Boolean(item?.credential_configured),
         searchText: [name, ip, String(port), `${ip}:${port}`].join("\n").toLocaleLowerCase(),
     };
 };
@@ -42,7 +40,6 @@ export const localServer = normalizeServer({
     user: "",
     auth_type: 0,
     name: "本机终端",
-    credential_configured: false,
 });
 
 const useServers = () => {

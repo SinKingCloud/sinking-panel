@@ -113,7 +113,7 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
         const currentServer = serverRef.current;
         const terminal = terminalRef.current;
         if (initializingRef.current || unavailableRef.current || !currentServer || !terminal ||
-            (currentServer.id === 0 && (!currentServer.ip || !currentServer.user || !currentServer.credential_configured))) {
+            (currentServer.id === 0 && (!currentServer.ip || !currentServer.user))) {
             closeSocket("idle");
             return;
         }
@@ -254,7 +254,7 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
                 ? `${server.user}@${server.ip}:${server.port}`
                 : server.id === 0 ? "尚未配置本机 SSH" : `${server.ip}:${server.port}`;
     const needsConfiguration = !localUnavailable && server.id === 0 &&
-        (!server.ip || !server.user || !server.credential_configured);
+        (!server.ip || !server.user);
 
     return (
         <section
