@@ -3,7 +3,7 @@ import {App, Card} from "antd";
 import {Body, useTheme} from "sinking-antd";
 import useEnum from "@/utils/enum";
 import {deleteServer} from "@/service/api/server";
-import Commands from "./components/commands";
+import Scripts from "./components/scripts";
 import Form from "./components/form";
 import type {FormRef, FormSuccessResult} from "./components/form";
 import Sidebar from "./components/sidebar";
@@ -50,9 +50,9 @@ export default (): React.ReactNode => {
     }));
     const {
         serverCollapsed,
-        commandsCollapsed,
+        scriptsCollapsed,
         setServerCollapsed,
-        setCommandsCollapsed,
+        setScriptsCollapsed,
     } = usePanels();
     const authTypeData = useMemo(() => ({
         ...fallbackAuthTypeData,
@@ -233,7 +233,7 @@ export default (): React.ReactNode => {
                     <main className={[
                         styles.terminalLayout,
                         serverCollapsed ? "server-collapsed" : "",
-                        commandsCollapsed ? "commands-collapsed" : "",
+                        scriptsCollapsed ? "scripts-collapsed" : "",
                     ].filter(Boolean).join(" ")}>
                         <Sidebar
                             styles={styles}
@@ -277,10 +277,10 @@ export default (): React.ReactNode => {
                                     onStatusChange={changeSessionStatus}/>
                             );
                         })}
-                        <Commands
+                        <Scripts
                             styles={styles}
-                            collapsed={commandsCollapsed}
-                            onCollapsedChange={setCommandsCollapsed}
+                            collapsed={scriptsCollapsed}
+                            onCollapsedChange={setScriptsCollapsed}
                             onInsert={insertCommand}/>
                     </main>
                 </Card>

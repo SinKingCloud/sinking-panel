@@ -2,13 +2,13 @@ import {useCallback, useEffect, useState} from "react";
 
 interface PanelState {
     server: boolean;
-    commands: boolean;
+    scripts: boolean;
 }
 
 const storageKey = "terminal.panel.collapsed";
 const defaultState: PanelState = {
     server: false,
-    commands: true,
+    scripts: true,
 };
 
 const loadState = (): PanelState => {
@@ -16,10 +16,14 @@ const loadState = (): PanelState => {
         return {...defaultState};
     }
     try {
-        const value = JSON.parse(window.localStorage.getItem(storageKey) || "{}") as Partial<PanelState>;
+        const value = JSON.parse(window.localStorage.getItem(storageKey) || "{}") as Partial<PanelState> & {
+            commands?: boolean;
+        };
         return {
             server: typeof value.server === "boolean" ? value.server : defaultState.server,
-            commands: typeof value.commands === "boolean" ? value.commands : defaultState.commands,
+            scripts: typeof value.scripts === "boolean"
+                ? value.scripts
+                : typeof value.commands === "boolean" ? value.commands : defaultState.scripts,
         };
     } catch {
         return {...defaultState};
@@ -40,15 +44,15 @@ const usePanels = () => {
     const setServerCollapsed = useCallback((collapsed: boolean) => {
         setState((current) => ({...current, server: collapsed}));
     }, []);
-    const setCommandsCollapsed = useCallback((collapsed: boolean) => {
-        setState((current) => ({...current, commands: collapsed}));
+    const setScriptsCollapsed = useCallback((collapsed: boolean) => {
+        setState((current) => ({...current, scripts: collapsed}));
     }, []);
 
     return {
         serverCollapsed: state.server,
-        commandsCollapsed: state.commands,
+        scriptsCollapsed: state.scripts,
         setServerCollapsed,
-        setCommandsCollapsed,
+        setScriptsCollapsed,
     };
 };
 

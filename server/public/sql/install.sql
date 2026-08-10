@@ -95,6 +95,48 @@ create index if not exists cloud_tasks_type_index
 create index if not exists cloud_tasks_updateTime_index
     on cloud_tasks (update_time);
 
+create table if not exists cloud_types
+(
+    id          bigint            not null
+        constraint cloud_types_pk_id
+            primary key,
+    module      varchar(50)       not null,
+    name        varchar(50)       not null,
+    sort        integer default 0 not null,
+    update_time text,
+    create_time text
+);
 
+create index if not exists cloud_types_createTime_index
+    on cloud_types (create_time);
 
+create index if not exists cloud_types_module_name_index
+    on cloud_types (module, name);
 
+create index if not exists cloud_types_module_sort_index
+    on cloud_types (module, sort);
+
+create index if not exists cloud_types_updateTime_index
+    on cloud_types (update_time);
+
+create table if not exists cloud_scripts
+(
+    id          bigint            not null
+        constraint cloud_scripts_pk_id
+            primary key,
+    type_id     bigint  default 0 not null,
+    name        varchar(100)      not null,
+    script      text              not null,
+    sort        integer default 0 not null,
+    update_time text,
+    create_time text
+);
+
+create index if not exists cloud_scripts_createTime_index
+    on cloud_scripts (create_time);
+
+create index if not exists cloud_scripts_typeId_sort_index
+    on cloud_scripts (type_id, sort);
+
+create index if not exists cloud_scripts_updateTime_index
+    on cloud_scripts (update_time);

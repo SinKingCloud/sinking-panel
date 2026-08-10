@@ -5,7 +5,7 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
     const dark = typeof props?.isDarkMode === "boolean" ? props.isDarkMode : Boolean(isDarkMode);
     const terminalBackground = "#050505";
     const serverWidth = compact ? 238 : 252;
-    const commandWidth = compact ? 270 : 286;
+    const scriptWidth = compact ? 270 : 286;
     const collapsedWidth = compact ? 42 : 46;
     const panelHeaderHeight = compact ? 46 : 50;
     const mobileHeaderHeight = compact ? 42 : 46;
@@ -61,18 +61,18 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
             min-width: 0;
             min-height: 0;
             display: grid;
-            grid-template-columns: ${serverWidth}px minmax(420px, 1fr) ${commandWidth}px;
+            grid-template-columns: ${serverWidth}px minmax(420px, 1fr) ${scriptWidth}px;
             grid-template-rows: minmax(0, 1fr);
 
             &.server-collapsed {
-                grid-template-columns: ${collapsedWidth}px minmax(420px, 1fr) ${commandWidth}px;
+                grid-template-columns: ${collapsedWidth}px minmax(420px, 1fr) ${scriptWidth}px;
             }
 
-            &.commands-collapsed {
+            &.scripts-collapsed {
                 grid-template-columns: ${serverWidth}px minmax(420px, 1fr) ${collapsedWidth}px;
             }
 
-            &.server-collapsed.commands-collapsed {
+            &.server-collapsed.scripts-collapsed {
                 grid-template-columns: ${collapsedWidth}px minmax(420px, 1fr) ${collapsedWidth}px;
             }
 
@@ -80,7 +80,7 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
                 grid-template-columns: ${compact ? 196 : 208}px minmax(300px, 1fr) ${compact ? 220 : 232}px;
                 grid-template-rows: minmax(0, 1fr);
 
-                &.commands-collapsed {
+                &.scripts-collapsed {
                     grid-template-columns: ${compact ? 196 : 208}px minmax(300px, 1fr) ${collapsedWidth}px;
                 }
 
@@ -88,7 +88,7 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
                     grid-template-columns: ${collapsedWidth}px minmax(300px, 1fr) ${compact ? 220 : 232}px;
                 }
 
-                &.server-collapsed.commands-collapsed {
+                &.server-collapsed.scripts-collapsed {
                     grid-template-columns: ${collapsedWidth}px minmax(300px, 1fr) ${collapsedWidth}px;
                 }
             }
@@ -99,11 +99,11 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
                 grid-template-rows: auto minmax(430px, auto) auto;
 
                 &.server-collapsed,
-                &.commands-collapsed {
+                &.scripts-collapsed {
                     grid-template-columns: 1fr;
                 }
 
-                &.server-collapsed.commands-collapsed {
+                &.server-collapsed.scripts-collapsed {
                     grid-template-columns: 1fr;
                 }
             }
@@ -1002,7 +1002,7 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
                 color: rgba(255, 255, 255, .52);
             }
         `,
-        commandPane: css`
+        scriptPane: css`
             min-width: 0;
             min-height: 0;
             display: flex;
@@ -1036,7 +1036,7 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
                 }
             }
         `,
-        commandHeader: css`
+        scriptHeader: css`
             height: ${panelHeaderHeight}px;
             min-height: ${panelHeaderHeight}px;
             padding: 0 ${compact ? 8 : 9}px 0 ${compact ? 11 : 13}px;
@@ -1104,7 +1104,7 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
                 }
             }
         `,
-        commandBody: css`
+        scriptBody: css`
             min-width: 0;
             min-height: 0;
             padding: ${compact ? "6px 7px 9px" : "7px 8px 10px"};
@@ -1143,25 +1143,25 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
                 padding: 2px 0 ${compact ? 5 : 7}px !important;
             }
 
-            .command-group-title {
+            .script-group-title {
                 min-width: 0;
                 display: inline-flex;
                 align-items: center;
                 gap: 7px;
             }
 
-            .command-group-title .anticon {
+            .script-group-title .anticon {
                 color: ${token.colorTextTertiary};
                 font-size: ${compact ? 12 : 13}px;
             }
 
-            .command-list {
+            .script-list {
                 display: flex;
                 flex-direction: column;
                 gap: 2px;
             }
 
-            .command-item {
+            .script-item {
                 min-width: 0;
                 min-height: ${compact ? 50 : 54}px;
                 padding: ${compact ? "3px 3px 3px 8px" : "4px 4px 4px 9px"};
@@ -1173,11 +1173,11 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
                 transition: background-color .16s ease;
             }
 
-            .command-item:hover {
+            .script-item:hover {
                 background: ${token.colorFillQuaternary};
             }
 
-            .command-copy {
+            .script-copy {
                 min-width: 0;
                 padding: 0;
                 display: flex;
@@ -1191,12 +1191,12 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
                 text-align: left;
             }
 
-            .command-copy:focus-visible {
+            .script-copy:focus-visible {
                 border-radius: ${token.borderRadiusSM}px;
                 box-shadow: 0 0 0 2px ${token.colorPrimaryBg};
             }
 
-            .command-name {
+            .script-name {
                 color: ${token.colorText};
                 font-size: ${compact ? 12 : 13}px;
                 line-height: 18px;
@@ -1213,14 +1213,14 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
                 white-space: nowrap;
             }
 
-            .command-item .ant-btn {
+            .script-item .ant-btn {
                 width: ${compact ? 29 : 32}px;
                 height: ${compact ? 29 : 32}px;
                 padding: 0;
                 color: ${token.colorTextTertiary};
             }
 
-            .command-item:hover .ant-btn {
+            .script-item:hover .ant-btn {
                 color: ${token.colorPrimary};
             }
 
@@ -1230,7 +1230,7 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
                 }
             }
         `,
-        commandRail: css`
+        scriptRail: css`
             min-width: 0;
             min-height: 0;
             padding: ${compact ? "6px" : "7px"};
