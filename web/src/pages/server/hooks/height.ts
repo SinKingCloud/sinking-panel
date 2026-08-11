@@ -13,7 +13,7 @@ const useHeight = (dependency?: unknown) => {
                 const page = pageRef.current;
                 if (!page) return;
                 const top = page.getBoundingClientRect().top;
-                const next = Math.max(320, Math.floor(window.innerHeight - top - 18));
+                const next = Math.max(320, Math.floor(window.innerHeight - top));
                 setHeight((current) => current === next ? current : next);
             });
         };

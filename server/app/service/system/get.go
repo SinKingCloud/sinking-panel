@@ -4,5 +4,10 @@ package system
 func (s *service) GetTask(id string) *Task {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.tasks[id]
+	task := s.tasks[id]
+	if task == nil {
+		return nil
+	}
+	snapshot := *task
+	return &snapshot
 }

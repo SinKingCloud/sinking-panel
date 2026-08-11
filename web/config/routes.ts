@@ -17,7 +17,7 @@ export default [
         name: "file",
         icon: "FolderOutlined",
         hideInMenu: false,
-        component: "@/pages/test",
+        component: "@/pages/file",
     },
     {
         path: "task",

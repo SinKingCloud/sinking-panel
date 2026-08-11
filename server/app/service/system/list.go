@@ -6,7 +6,8 @@ func (s *service) TaskList() []*Task {
 	defer s.mu.RUnlock()
 	tasks := make([]*Task, 0, len(s.tasks))
 	for _, task := range s.tasks {
-		tasks = append(tasks, task)
+		snapshot := *task
+		tasks = append(tasks, &snapshot)
 	}
 	return tasks
 }

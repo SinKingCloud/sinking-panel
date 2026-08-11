@@ -536,30 +536,20 @@ func (d *Disk) MoveWithProcess(ctx context.Context, src, destDir string, callbac
 		}
 		callback(size, size, baseName, 1, 0)
 	}
-	if err := os.MkdirAll(filepath.Dir(finalDest), 0755); err != nil {
-		return err
-	}
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-
-	if err := os.Rename(srcPath, finalDest); err == nil {
-		complete()
-		return nil
-	}
-
-	if err := ctx.Err(); err != nil {
-		return err
-	}
 	if err := d.prepareDestination(finalDest); err != nil {
 		return err
 	}
 	if err := ctx.Err(); err != nil {
-		return cleanPartialDestination(finalDest, err)
+		return err
 	}
+
 	if err := os.Rename(srcPath, finalDest); err == nil {
 		complete()
 		return nil
+	}
+
+	if err := ctx.Err(); err != nil {
+		return err
 	}
 	totalSize, fileCount, _, err := d.calculateTotalWithContext(ctx, srcPath)
 	if err != nil {
@@ -628,7 +618,7 @@ func (d *Disk) FileList(dir string) ([]*File, error) {
 // 同时返回该目录下的总项数，支持排序：
 // orderByField：排序字段，支持 "name", "size", "update_time"
 // orderByType：排序类型，支持 "asc"（升序）和 "desc"（降序）
-func (d *Disk) FileListWithPage(dir string, page, pageSize int, orderByField, orderByType string) ([]*File, int64, error) {
+func (d *Disk) FileListWithPage(dir string, page, pageSize int, orderByField, orderByType string, keywords ...string) ([]*File, int64, error) {
 	if page <= 0 || pageSize <= 0 {
 		return nil, 0, errors.New("无效的分页参数")
 	}
@@ -639,9 +629,15 @@ func (d *Disk) FileListWithPage(dir string, page, pageSize int, orderByField, or
 		return nil, 0, err
 	}
 
-	total := int64(len(entries))
+	keyword := ""
+	if len(keywords) > 0 {
+		keyword = strings.ToLower(strings.TrimSpace(keywords[0]))
+	}
 	var files []*File
 	for _, entry := range entries {
+		if keyword != "" && !strings.Contains(strings.ToLower(entry.Name()), keyword) {
+			continue
+		}
 		info, err := entry.Info()
 		if err != nil {
 			continue // 跳过获取信息失败的项
@@ -655,6 +651,7 @@ func (d *Disk) FileListWithPage(dir string, page, pageSize int, orderByField, or
 		}
 		files = append(files, file)
 	}
+	total := int64(len(files))
 
 	// 排序：先将排序类型转换为小写，方便比较
 	orderByType = strings.ToLower(orderByType)
@@ -715,7 +712,7 @@ func (d *Disk) fullPath(name string) string {
 }
 
 func (d *Disk) isDirPath(name string) bool {
-	return strings.HasSuffix(name, string(filepath.Separator)) || filepath.Base(name) == ""
+	return strings.HasSuffix(name, "/") || strings.HasSuffix(name, "\\") || filepath.Base(name) == ""
 }
 
 func (d *Disk) createFileIfNotExist(path string) error {
