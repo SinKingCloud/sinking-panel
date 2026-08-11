@@ -23,7 +23,7 @@ func Count(c *context.Context) {
 	}
 	totalSize, fileCount, dirCount, err := f.Count(form.Path)
 	if err != nil {
-		c.Error("获取失败")
+		c.Error("获取失败:" + err.Error())
 		return
 	}
 	service.Log.Create(c.GetRequestIp(), log_type.EventShow, "统计文件数据", "统计文件或目录["+form.Path+"]数据")
