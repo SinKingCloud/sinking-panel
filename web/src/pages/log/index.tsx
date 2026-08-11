@@ -95,7 +95,6 @@ export default (): React.ReactNode => {
                 defaultPage={1}
                 defaultPageSize={10}
                 request={(params, sort) => getData(params, sort, getLog)}
-                paginationAffix
             />
         </Body>
     );

@@ -1,7 +1,7 @@
 import {forwardRef, memo, useCallback, useEffect, useImperativeHandle, useRef, useState} from "react";
 import {Button, Spin, Tooltip} from "antd";
 import {Icon} from "sinking-antd";
-import TerminalView, {TerminalRef as TerminalViewRef} from "@/components/terminal";
+import TerminalView, {TerminalRef as TerminalViewRef} from "@/pages/components/terminal";
 import defaultSettings from "@/../config/defaultSettings";
 import {getLoginToken, loginDevice} from "@/utils/auth";
 import type {ServerRecord} from "../hooks/servers";

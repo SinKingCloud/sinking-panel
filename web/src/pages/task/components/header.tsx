@@ -3,28 +3,53 @@ import {Dropdown, Input} from "antd";
 import {Icon} from "sinking-antd";
 import HeroGraphic from "@/components/hero-graphic";
 
+const manageTypeKey = "__manage_types__";
+
 const Header = ({
     styles,
     keyword,
-    type,
+    typeId,
+    execType,
     status,
     typeData,
+    typeItems,
+    execTypeData,
     statusData,
     onKeywordChange,
     onSearch,
-    onTypeChange,
+    onTypeIdChange,
+    onManageTypes,
+    onExecTypeChange,
     onStatusChange,
     onCreate,
 }: any) => {
     const typeOptions = React.useMemo(() => [
-        {label: "全部类型", value: ""},
-        ...Object.entries(typeData || {}).map(([value, label]) => ({value, label: String(label)})),
-    ], [typeData]);
+        {label: "全部分类", value: "0"},
+        ...(typeItems
+            ? typeItems.map((item: any) => ({value: String(item.id), label: String(item.name)}))
+            : Object.entries(typeData || {})
+                .filter(([value]) => value !== "0")
+                .map(([value, label]) => ({value, label: String(label)}))),
+    ], [typeData, typeItems]);
+    const typeMenuItems = React.useMemo(() => [
+        ...typeOptions.map(({label, value}) => ({key: value, label})),
+        {type: "divider" as const},
+        {
+            key: manageTypeKey,
+            label: "分类管理",
+            icon: <Icon type="SettingOutlined"/>,
+        },
+    ], [typeOptions]);
+    const execTypeOptions = React.useMemo(() => [
+        {label: "全部方式", value: ""},
+        ...Object.entries(execTypeData || {}).map(([value, label]) => ({value, label: String(label)})),
+    ], [execTypeData]);
     const statusOptions = React.useMemo(() => [
         {label: "全部状态", value: ""},
         ...Object.entries(statusData || {}).map(([value, label]) => ({value, label: String(label)})),
     ], [statusData]);
-    const activeType = typeOptions.find((item) => item.value === type)?.label || typeOptions[0].label;
+    const activeType = typeOptions.find((item) => item.value === typeId)?.label || typeOptions[0].label;
+    const activeExecType = execTypeOptions.find((item) => item.value === execType)?.label || execTypeOptions[0].label;
     const activeStatus = statusOptions.find((item) => item.value === status)?.label || statusOptions[0].label;
 
     return (
@@ -57,13 +82,35 @@ const Header = ({
                         classNames={{root: styles.toolbarDropdown}}
                         menu={{
                             selectable: true,
-                            selectedKeys: [type || "all"],
-                            items: typeOptions.map(({label, value}) => ({key: value || "all", label})),
-                            onClick: ({key}) => onTypeChange(key === "all" ? "" : key),
+                            selectedKeys: [typeId || "0"],
+                            items: typeMenuItems,
+                            onClick: ({key}) => {
+                                if (key === manageTypeKey) {
+                                    onManageTypes();
+                                    return;
+                                }
+                                onTypeIdChange(key);
+                            },
                         }}>
-                        <button className={`${styles.toolbarTrigger} type-trigger`} type="button" aria-label="任务类型筛选">
-                            <Icon type="TagsOutlined" className="marker"/>
-                            <span className="value">{activeType}</span>
+                        <button className={`${styles.toolbarTrigger} category-trigger`} type="button" aria-label="任务分类筛选">
+                            <Icon type="FolderOutlined" className="marker"/>
+                            <span className="value" title={activeType}>{activeType}</span>
+                            <Icon type="DownOutlined" className="arrow"/>
+                        </button>
+                    </Dropdown>
+                    <Dropdown
+                        trigger={["click"]}
+                        placement="bottomRight"
+                        classNames={{root: styles.toolbarDropdown}}
+                        menu={{
+                            selectable: true,
+                            selectedKeys: [execType || "all"],
+                            items: execTypeOptions.map(({label, value}) => ({key: value || "all", label})),
+                            onClick: ({key}) => onExecTypeChange(key === "all" ? "" : key),
+                        }}>
+                        <button className={`${styles.toolbarTrigger} exec-type-trigger`} type="button" aria-label="执行方式筛选">
+                            <Icon type="CodeOutlined" className="marker"/>
+                            <span className="value" title={activeExecType}>{activeExecType}</span>
                             <Icon type="DownOutlined" className="arrow"/>
                         </button>
                     </Dropdown>
@@ -79,7 +126,7 @@ const Header = ({
                         }}>
                         <button className={`${styles.toolbarTrigger} status-trigger`} type="button" aria-label="任务状态筛选">
                             <Icon type="FlagOutlined" className="marker"/>
-                            <span className="value">{activeStatus}</span>
+                            <span className="value" title={activeStatus}>{activeStatus}</span>
                             <Icon type="DownOutlined" className="arrow"/>
                         </button>
                     </Dropdown>

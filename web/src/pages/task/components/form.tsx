@@ -43,8 +43,10 @@ export interface FormRef {
     open: (record?: any) => void;
 }
 
-const Form = forwardRef<FormRef, {typeData?: any; onSuccess?: () => void}>(({
+const Form = forwardRef<FormRef, {typeData?: any; typeItems?: any[]; execTypeData?: any; onSuccess?: () => void}>(({
     typeData,
+    typeItems,
+    execTypeData,
     onSuccess,
 }, ref) => {
     const {message} = App.useApp();
@@ -53,62 +55,79 @@ const Form = forwardRef<FormRef, {typeData?: any; onSuccess?: () => void}>(({
     const requestRef = useRef(0);
     const [form] = AntForm.useForm();
     const [taskId, setTaskId] = useState<any>();
-    const [taskType, setTaskType] = useState(0);
+    const [execType, setExecType] = useState(0);
     const [active, setActive] = useState(false);
     const [infoLoading, setInfoLoading] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const editing = taskId !== undefined && taskId !== null;
     const typeOptions = useMemo(() => {
-        return Object.entries(typeData || {}).map(([value, label]) => ({
+        return [
+            {label: "全部分类", value: 0},
+            ...(typeItems
+                ? typeItems.map((item) => ({
+                    label: String(item.name),
+                    value: Number(item.id),
+                }))
+                : Object.entries(typeData || {})
+                    .filter(([value]) => value !== "0")
+                    .map(([value, label]) => ({
+                        label: String(label),
+                        value: Number(value),
+                    }))),
+        ];
+    }, [typeData, typeItems]);
+    const execTypeOptions = useMemo(() => {
+        return Object.entries(execTypeData || {}).map(([value, label]) => ({
             label: String(label),
             value: Number(value),
         }));
-    }, [typeData]);
+    }, [execTypeData]);
 
     const reset = useCallback(() => {
         requestRef.current += 1;
         form.resetFields();
         setTaskId(undefined);
-        setTaskType(0);
+        setExecType(0);
         setActive(false);
         setInfoLoading(false);
         setSubmitting(false);
     }, [form]);
 
     const openCreate = useCallback(() => {
-        const type = Number(typeOptions[0]?.value);
-        if (!Number.isFinite(type)) {
-            message.error("任务类型尚未加载");
+        const nextExecType = Number(execTypeOptions[0]?.value);
+        if (!Number.isFinite(nextExecType)) {
+            message.error("执行方式尚未加载");
             return;
         }
         requestRef.current += 1;
         setTaskId(undefined);
-        setTaskType(type);
+        setExecType(nextExecType);
         setActive(true);
         setInfoLoading(false);
         form.resetFields();
         form.setFieldsValue({
             name: "",
-            type,
+            type_id: 0,
+            exec_type: nextExecType,
             spec: "0 */5 * * * *",
             script: "",
             request: parseRequest({method: "GET"}),
             status: 0,
         });
         modalRef.current?.show();
-    }, [form, message, typeOptions]);
+    }, [execTypeOptions, form, message]);
 
     const openEdit = useCallback((record: any) => {
         if (record?.id === undefined || record?.id === null) {
             return;
         }
-        if (typeOptions.length === 0) {
-            message.error("任务类型尚未加载");
+        if (execTypeOptions.length === 0) {
+            message.error("执行方式尚未加载");
             return;
         }
         const requestId = ++requestRef.current;
         setTaskId(record.id);
-        setTaskType(Number(record.type || 0));
+        setExecType(Number(record.exec_type || 0));
         setActive(true);
         setInfoLoading(true);
         form.resetFields();
@@ -124,14 +143,15 @@ const Form = forwardRef<FormRef, {typeData?: any; onSuccess?: () => void}>(({
                 return;
             }
             const data: any = response?.data || {};
-            const type = Number(data.type || 0);
-            setTaskType(type);
+            const nextExecType = Number(data.exec_type || 0);
+            setExecType(nextExecType);
             form.setFieldsValue({
                 name: data.name,
-                type,
+                type_id: Number(data.type_id || 0),
+                exec_type: nextExecType,
                 spec: data.spec,
-                script: type === 0 ? String(data.script || "") : "",
-                request: type === 1 ? parseRequest(data.script) : undefined,
+                script: nextExecType === 0 ? String(data.script || "") : "",
+                request: nextExecType === 1 ? parseRequest(data.script) : undefined,
                 status: Number(data.status),
             });
         }).catch(() => {
@@ -144,7 +164,7 @@ const Form = forwardRef<FormRef, {typeData?: any; onSuccess?: () => void}>(({
                 setInfoLoading(false);
             }
         });
-    }, [form, message, typeOptions.length]);
+    }, [execTypeOptions.length, form, message]);
 
     useImperativeHandle(ref, () => ({
         open: (record?: any) => record ? openEdit(record) : openCreate(),
@@ -152,9 +172,9 @@ const Form = forwardRef<FormRef, {typeData?: any; onSuccess?: () => void}>(({
 
     const submit = useCallback(async (values: any) => {
         const requestId = ++requestRef.current;
-        const type = Number(values.type);
+        const nextExecType = Number(values.exec_type);
         let script = String(values.script || "");
-        if (type === 1) {
+        if (nextExecType === 1) {
             try {
                 script = stringifyRequest(values.request);
             } catch (error: any) {
@@ -164,10 +184,11 @@ const Form = forwardRef<FormRef, {typeData?: any; onSuccess?: () => void}>(({
         }
         const body: any = {
             name: String(values.name || "").trim(),
-            type,
+            type_id: editing ? String(Number(values.type_id || 0)) : Number(values.type_id || 0),
+            exec_type: editing ? String(nextExecType) : nextExecType,
             spec: String(values.spec || "").trim(),
             script,
-            status: Number(values.status),
+            status: editing ? String(Number(values.status)) : Number(values.status),
         };
         if (editing) {
             body.ids = [taskId];
@@ -230,24 +251,36 @@ const Form = forwardRef<FormRef, {typeData?: any; onSuccess?: () => void}>(({
                                     <Input placeholder="请输入任务名称"/>
                                 </AntForm.Item>
                             </Col>
-                            <Col xs={24} sm={6}>
+                            <Col xs={24} sm={12}>
                                 <AntForm.Item
-                                    name="type"
-                                    label="任务类型"
-                                    rules={[{required: true, message: "请选择任务类型"}]}>
+                                    name="type_id"
+                                    label="任务分类">
                                     <Select
+                                        showSearch
+                                        optionFilterProp="label"
+                                        placeholder="全部分类"
                                         options={typeOptions}
+                                    />
+                                </AntForm.Item>
+                            </Col>
+                            <Col xs={24} sm={12}>
+                                <AntForm.Item
+                                    name="exec_type"
+                                    label="执行方式"
+                                    rules={[{required: true, message: "请选择执行方式"}]}>
+                                    <Select
+                                        options={execTypeOptions}
                                         onChange={(value) => {
-                                            const type = Number(value);
-                                            setTaskType(type);
+                                            const nextExecType = Number(value);
+                                            setExecType(nextExecType);
                                             form.setFieldsValue({
                                                 script: "",
-                                                request: type === 1 ? parseRequest({method: "GET"}) : undefined,
+                                                request: nextExecType === 1 ? parseRequest({method: "GET"}) : undefined,
                                             });
                                         }}/>
                                 </AntForm.Item>
                             </Col>
-                            <Col xs={24} sm={6}>
+                            <Col xs={24} sm={12}>
                                 <AntForm.Item
                                     name="status"
                                     label="任务状态"
@@ -262,7 +295,7 @@ const Form = forwardRef<FormRef, {typeData?: any; onSuccess?: () => void}>(({
                             rules={[{required: true, whitespace: true, message: "请设置执行周期"}]}>
                             <Schedule/>
                         </AntForm.Item>
-                        {taskType === 0 ? (
+                        {execType === 0 ? (
                             <AntForm.Item
                                 name="script"
                                 label="任务内容"
@@ -277,7 +310,7 @@ const Form = forwardRef<FormRef, {typeData?: any; onSuccess?: () => void}>(({
                                     acePath={acePath}
                                     className={styles.editor}/>
                             </AntForm.Item>
-                        ) : taskType === 1 ? (
+                        ) : execType === 1 ? (
                             <Request/>
                         ) : (
                             <AntForm.Item

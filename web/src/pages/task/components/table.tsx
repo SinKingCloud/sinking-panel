@@ -13,6 +13,7 @@ const Table = ({
     tasks,
     loading,
     typeData,
+    execTypeData,
     statusData,
     sort,
     order,
@@ -40,15 +41,32 @@ const Table = ({
             ),
         },
         {
-            title: "类型",
-            dataIndex: "type",
-            key: "type",
-            width: 90,
-            className: "type-cell",
+            title: "分类",
+            dataIndex: "type_id",
+            key: "type_id",
+            width: 110,
+            className: "category-cell",
             sorter: true,
-            sortOrder: sort === "type" ? (order === "asc" ? "ascend" : "descend") : null,
+            sortOrder: sort === "type_id" ? (order === "asc" ? "ascend" : "descend") : null,
+            render: (value: any) => {
+                const label = Number(value) === 0 ? "全部分类" : (typeData[String(value)] || "未知分类");
+                return (
+                    <Tooltip title={label}>
+                        <span className="task-category">{label}</span>
+                    </Tooltip>
+                );
+            },
+        },
+        {
+            title: "执行方式",
+            dataIndex: "exec_type",
+            key: "exec_type",
+            width: 100,
+            className: "exec-type-cell",
+            sorter: true,
+            sortOrder: sort === "exec_type" ? (order === "asc" ? "ascend" : "descend") : null,
             render: (value: any) => (
-                <span className="task-type">{typeData[String(value)] || "-"}</span>
+                <span className="task-exec-type">{execTypeData[String(value)] || "-"}</span>
             ),
         },
         {
@@ -129,7 +147,7 @@ const Table = ({
                 );
             },
         },
-    ], [onAction, onEdit, onLog, openRowId, operating, order, sort, statusData, typeData]);
+    ], [execTypeData, onAction, onEdit, onLog, openRowId, operating, order, sort, statusData, typeData]);
 
     const change = useCallback((_: any, __: any, sorter: any, extra: any) => {
         if (extra?.action !== "sort") {

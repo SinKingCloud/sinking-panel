@@ -233,11 +233,11 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
             gap: 6px;
         }
 
-        @container task-workspace (max-width: 430px) {
-            min-height: ${compact ? 48 : 54}px;
+        @container task-workspace (max-width: 680px) {
+            min-height: auto;
             padding: ${compact ? 8 : 11}px;
             display: grid;
-            grid-template-columns: minmax(0, 1fr) auto;
+            grid-template-columns: minmax(0, 1fr);
             gap: 6px;
 
             > .ant-input-affix-wrapper {
@@ -248,23 +248,30 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
             }
 
             .command-actions {
-                width: auto;
+                width: 100%;
+                min-width: 0;
                 margin-left: 0;
-                gap: 3px;
+                display: grid;
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+                gap: 4px;
             }
 
-            .command-actions .type-trigger,
+            .command-actions .category-trigger,
+            .command-actions .exec-type-trigger,
             .command-actions .status-trigger {
-                width: 80px;
-                min-width: 80px;
-                padding: 0 4px;
-                flex: 0 0 80px;
+                width: 100%;
+                min-width: 0;
+                padding: 0 5px;
                 gap: 3px;
             }
 
             .command-actions .value {
-                display: inline;
+                display: block;
             }
+        }
+
+        @container task-workspace (max-width: 430px) {
+            padding: ${compact ? 8 : 10}px;
         }
     `,
     searchBox: css`
@@ -315,9 +322,10 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
             width: ${compact ? 260 : 280}px;
         }
 
-        @container task-workspace (max-width: 430px) {
-            width: auto;
-            flex: 1 1 auto;
+        @container task-workspace (max-width: 680px) {
+            width: 100%;
+            max-width: none;
+            flex: none;
         }
     `,
     toolbarTrigger: css`
@@ -339,7 +347,8 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
         line-height: 1;
         transition: background-color 0.16s ease, color 0.16s ease;
 
-        &.type-trigger,
+        &.category-trigger,
+        &.exec-type-trigger,
         &.status-trigger {
             min-width: ${compact ? 100 : 108}px;
         }
@@ -350,9 +359,14 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
         }
 
         .value {
+            min-width: 0;
+            max-width: 132px;
+            flex: 1 1 auto;
+            overflow: hidden;
             color: ${token.colorTextSecondary};
             font-size: ${compact ? 11 : 12}px;
             font-weight: 400;
+            text-overflow: ellipsis;
             white-space: nowrap;
             transition: color 0.16s ease;
         }
@@ -609,7 +623,8 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
             color: ${token.colorWarning};
         }
 
-        .task-type {
+        .task-category,
+        .task-exec-type {
             display: block;
             min-width: 0;
             overflow: hidden;

@@ -97,14 +97,15 @@ const Form = forwardRef<FormRef, FormProps>(({authTypeData, onSuccess}, ref) => 
         setSubmitting(true);
         const requestId = ++requestRef.current;
         const nextAuthType = Number(values.auth_type || 0);
+        const nextPort = Number(values.port || 22);
         const body: any = {
             name: String(values.name || "").trim(),
             ip: String(values.ip || "").trim(),
-            port: Number(values.port || 22),
+            port: editing ? String(nextPort) : nextPort,
             user: String(values.user || "").trim(),
         };
         if (!editing || nextAuthType !== Number(record?.auth_type || 0)) {
-            body.auth_type = nextAuthType;
+            body.auth_type = editing ? String(nextAuthType) : nextAuthType;
         }
         const password = String(values.password || "");
         if (password.trim()) {
@@ -124,16 +125,16 @@ const Form = forwardRef<FormRef, FormProps>(({authTypeData, onSuccess}, ref) => 
                     ...record,
                     name: body.name,
                     ip: body.ip,
-                    port: body.port,
+                    port: nextPort,
                     user: body.user,
                     auth_type: nextAuthType,
-                    searchText: [body.name, body.ip, String(body.port), `${body.ip}:${body.port}`]
+                    searchText: [body.name, body.ip, String(nextPort), `${body.ip}:${nextPort}`]
                         .join("\n")
                         .toLocaleLowerCase(),
                 } : undefined;
                 const reconnectRequired = Boolean(editing && record && (
                     record.ip !== body.ip ||
-                    record.port !== body.port ||
+                    record.port !== nextPort ||
                     record.user !== body.user ||
                     record.auth_type !== nextAuthType ||
                     password.trim()

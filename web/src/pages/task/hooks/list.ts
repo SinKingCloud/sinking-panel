@@ -61,7 +61,7 @@ const useList = () => {
         page: 1,
         pageSize: 10,
         name: "",
-        typeId: "",
+        typeId: "0",
         execType: "",
         status: "",
         sort: "id",
