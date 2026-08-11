@@ -13,17 +13,18 @@ import (
 type Interface interface {
 	Create(data *model.Script) error
 	DeleteByIds(ids []int64, tx ...*gorm.DB) error
-	Select(where *SelectScript, queryPage *page.Query) (*page.Result[*model.Script], error)
+	FindById(id int64) (*model.Script, error)
+	Select(where *SelectScript, queryPage *page.Query) (*page.Result[*Script], error)
 	ClearTypeId(typeIds []int64, tx ...*gorm.DB) error
 	UpdateByIds(ids []int64, data *UpdateScript) error
 }
 
 // Repository 仓储
 type Repository struct {
-	*repository.Repository[*model.Script]
+	*repository.Repository[*Script]
 }
 
 // NewRepository 创建仓储
 func NewRepository(db *database.Database) *Repository {
-	return &Repository{Repository: repository.NewRepository[*model.Script](db)}
+	return &Repository{Repository: repository.NewRepository[*Script](db)}
 }

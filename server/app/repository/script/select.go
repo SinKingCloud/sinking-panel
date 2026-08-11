@@ -6,7 +6,7 @@ import (
 )
 
 // Select 查询常用脚本
-func (r *Repository) Select(where *SelectScript, queryPage *page.Query) (*page.Result[*model.Script], error) {
+func (r *Repository) Select(where *SelectScript, queryPage *page.Query) (*page.Result[*Script], error) {
 	query := r.Database.Db.Model(&model.Script{})
 	if where != nil {
 		if where.TypeId != "" {

@@ -10,7 +10,8 @@ import (
 type Service interface {
 	Create(data *model.Script) error
 	DeleteByIds(ids []int64) error
-	Select(where *repositoryScript.SelectScript, queryPage *page.Query) (*page.Result[*model.Script], error)
+	FindById(id int64) (*model.Script, error)
+	Select(where *repositoryScript.SelectScript, queryPage *page.Query) (*page.Result[*repositoryScript.Script], error)
 	UpdateByIds(ids []int64, data *repositoryScript.UpdateScript) error
 }
 

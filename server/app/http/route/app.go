@@ -81,6 +81,7 @@ func loadScriptRoute(s *sinking_web.Engine) {
 	g := s.Group("/script")
 	g.Use(context.HandleFunc(middleware.CheckLogin))
 	g.ANY("/list", context.HandleFunc(scriptController.List))     //脚本列表
+	g.ANY("/info", context.HandleFunc(scriptController.Info))     //脚本详情
 	g.ANY("/create", context.HandleFunc(scriptController.Create)) //添加脚本
 	g.ANY("/update", context.HandleFunc(scriptController.Update)) //更新脚本
 	g.ANY("/delete", context.HandleFunc(scriptController.Delete)) //删除脚本
