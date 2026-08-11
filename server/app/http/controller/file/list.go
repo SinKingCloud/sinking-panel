@@ -14,8 +14,8 @@ func List(c *context.Context) {
 		Keyword      string `json:"keyword" default:"" validate:"omitempty,max=255" label:"关键词"`
 		Page         int    `json:"page" default:"1" validate:"numeric,min=1" label:"分页页码"`
 		PageSize     int    `json:"page_size" default:"20" validate:"numeric,min=1,max=1000" label:"分页容量"`
-		OrderByField string `json:"order_by_field" default:"name" validate:"required,oneof=name size update_time" label:"排序字段"`
-		OrderByType  string `json:"order_by_type" default:"asc" validate:"required,oneof=asc desc" label:"排序类型"`
+		OrderByField string `json:"order_by_field" default:"" validate:"omitempty,oneof=name size update_time" label:"排序字段"`
+		OrderByType  string `json:"order_by_type" default:"" validate:"omitempty,oneof=asc desc" label:"排序类型"`
 	}
 	if ok, msg := c.ValidatorAll(&form); !ok {
 		c.Error(msg)

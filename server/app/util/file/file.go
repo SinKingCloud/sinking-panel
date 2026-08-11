@@ -615,7 +615,7 @@ func (d *Disk) FileList(dir string) ([]*File, error) {
 }
 
 // FileListWithPage 分页获取指定目录下的文件或目录列表（非递归），
-// 同时返回该目录下的总项数，支持排序：
+// 同时返回该目录下的总项数，可选排序：
 // orderByField：排序字段，支持 "name", "size", "update_time"
 // orderByType：排序类型，支持 "asc"（升序）和 "desc"（降序）
 func (d *Disk) FileListWithPage(dir string, page, pageSize int, orderByField, orderByType string, keywords ...string) ([]*File, int64, error) {
