@@ -27,14 +27,6 @@ const check = async (ctx: any, next: any) => {
 }
 request.use(check);
 
-const initialTheme = {
-    token: {
-        colorPrimary: defaultSettings.color,
-        colorInfo: defaultSettings.color,
-        borderRadius: defaultSettings.radius,
-    },
-};
-
 const useStyles = createStyles((): any => {
     return {
         load: {
@@ -94,6 +86,7 @@ const ProLayout = () => {
     }
     if (isPublic) {
         return <>
+            <Title/>
             <App>
                 <Outlet/>
             </App>
@@ -106,12 +99,9 @@ const ProLayout = () => {
 }
 
 export default () => {
-    const themeMode = localStorage?.getItem("theme");
     return (
         <ConfigProvider locale={zhCN}>
-            <Theme theme={initialTheme}
-                   mode={themeMode == "light" || themeMode == "auto" ? themeMode : "dark"}>
-                <Title/>
+            <Theme>
                 <ProLayout/>
             </Theme>
         </ConfigProvider>

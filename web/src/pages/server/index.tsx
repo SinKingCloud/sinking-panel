@@ -35,12 +35,12 @@ export default (): React.ReactNode => {
     const styleProps = useMemo(() => ({isCompactMode, isDarkMode}), [isCompactMode, isDarkMode]);
     const {styles} = useStyles(styleProps);
     const {message, modal} = App.useApp();
-    const [enumData, , enumError] = useEnum("server");
+    const [enumData, enumLoading, enumError] = useEnum("server");
     const list = useServers();
     const formRef = useRef<FormRef>({} as FormRef);
     const terminalRefs = useRef(new Map<number, TerminalRef>());
     const terminalRefCallbacks = useRef(new Map<number, (value: TerminalRef | null) => void>());
-    const {pageRef, pageStyle} = useHeight(isCompactMode);
+    const {pageRef, pageStyle} = useHeight(`${isCompactMode}:${enumLoading}`);
     const [selectedId, setSelectedId] = useState(localServer.id);
     const [sessions, setSessions] = useState<TerminalSessions>(() => ({
         [String(localServer.id)]: {server: localServer, resetKey: 0},
@@ -225,7 +225,7 @@ export default (): React.ReactNode => {
         } as any);
     }, [modal, remove]);
     return (
-        <Body space={false}>
+        <Body loading={enumLoading}>
             <div ref={pageRef} className={styles.page} style={pageStyle}>
                 <Card className={styles.workspace} variant="borderless">
                     <main className={[

@@ -1,5 +1,5 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from "react";
-import {Col, Empty, Row, Spin} from "antd";
+import {Col, Empty, Row} from "antd";
 import {Body, useTheme} from "sinking-antd";
 import useEnum from "@/utils/enum";
 import TypeManager, {
@@ -69,7 +69,7 @@ export default (): React.ReactNode => {
     }, [list.changeTypeId, list.typeId]);
 
     return (
-        <Body space={false}>
+        <Body loading={enumLoading}>
             <Row className={styles.page} gutter={[0, isCompactMode ? 10 : 12]}>
                 <Col span={24}>
                     <section className={styles.workspace}>
@@ -92,9 +92,7 @@ export default (): React.ReactNode => {
                             onCreate={openCreate}/>
 
                         <main className={styles.dataPanel}>
-                            {enumLoading ? (
-                                <div className={styles.loadingState}><Spin/></div>
-                            ) : list.loading || list.tasks.length > 0 ? (
+                            {list.loading || list.tasks.length > 0 ? (
                                 <Table
                                     className={styles.taskTable}
                                     tasks={list.tasks}

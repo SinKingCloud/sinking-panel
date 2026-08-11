@@ -10,6 +10,7 @@ import {
 import type {CSSProperties} from "react";
 import {theme as antTheme} from "antd";
 import {createStyles} from "antd-style";
+import {useTheme} from "sinking-antd";
 import {Terminal as XTerm} from "@xterm/xterm";
 import {FitAddon} from "@xterm/addon-fit";
 import "@xterm/xterm/css/xterm.css";
@@ -38,7 +39,7 @@ export interface TerminalProps {
     style?: CSSProperties;
 }
 
-const useStyles = createStyles(({css}: any, props: {compact: boolean}) => ({
+const useStyles = createStyles(({css}: any, props: {compact: boolean; background: string}) => ({
     terminal: css`
         width: 100%;
         height: 100%;
@@ -46,7 +47,7 @@ const useStyles = createStyles(({css}: any, props: {compact: boolean}) => ({
         min-height: 0;
         overflow: hidden;
         flex: 1;
-        background: #050505;
+        background: ${props.background};
 
         .xterm {
             height: 100%;
@@ -55,6 +56,7 @@ const useStyles = createStyles(({css}: any, props: {compact: boolean}) => ({
         }
 
         .xterm-viewport {
+            background: ${props.background} !important;
             scrollbar-width: thin;
             scrollbar-color: rgba(255, 255, 255, .18) transparent;
         }
@@ -79,7 +81,10 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
     style,
 }, ref) => {
     const {token} = antTheme.useToken();
-    const styleProps = useMemo(() => ({compact}), [compact]);
+    const appTheme = useTheme();
+    const dark = Boolean(appTheme?.isDarkMode?.() || appTheme?.isDarkTheme?.());
+    const terminalBackground = dark ? "#101214" : "#000000";
+    const styleProps = useMemo(() => ({compact, background: terminalBackground}), [compact, terminalBackground]);
     const {styles} = useStyles(styleProps);
     const hostRef = useRef<HTMLDivElement>(null);
     const terminalRef = useRef<XTerm | undefined>(undefined);
@@ -90,10 +95,10 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
     socketRef.current = socket;
 
     const terminalTheme = useMemo(() => ({
-        background: "#050505",
+        background: terminalBackground,
         foreground: "#dedede",
         cursor: token.colorPrimary,
-        cursorAccent: "#050505",
+        cursorAccent: terminalBackground,
         selectionBackground: token.colorPrimary,
         selectionForeground: "#ffffff",
         black: "#111111",
@@ -112,7 +117,7 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
         brightMagenta: "#e2c5ff",
         brightCyan: "#b6e3ff",
         brightWhite: "#ffffff",
-    }), [token.colorPrimary]);
+    }), [terminalBackground, token.colorPrimary]);
     const themeRef = useRef(terminalTheme);
     themeRef.current = terminalTheme;
 

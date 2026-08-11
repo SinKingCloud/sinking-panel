@@ -31,7 +31,7 @@ export default (): React.ReactNode => {
         history.replace({pathname: location.pathname, search: `?${search.toString()}`});
     };
     return (
-        <Body space={false}>
+        <Body>
             <Row className={styles.page} gutter={[0, isCompactMode ? 10 : 12]}>
                 <Col span={24}>
                     <section className={styles.workspace}>

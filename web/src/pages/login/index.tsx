@@ -70,7 +70,7 @@ export default (): React.ReactNode => {
     };
 
     return (
-        <Body space={false} className={styles.body}>
+        <Body className={styles.body}>
             <main className={styles.screen}>
                 <Captcha ref={captcha}/>
                 <div className={styles.backdrop} aria-hidden="true"/>

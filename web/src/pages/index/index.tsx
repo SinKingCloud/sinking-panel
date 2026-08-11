@@ -256,7 +256,7 @@ export default (): React.ReactNode => {
     }, [loadData]);
 
     return (
-        <Body loading={loading} space={false}>
+        <Body loading={loading}>
             <Row className={styles.page} gutter={[0, gutter]}>
                 {error && (
                     <Col span={24}>

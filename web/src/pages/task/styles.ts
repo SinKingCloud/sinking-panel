@@ -448,13 +448,6 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
             padding: 0 10px 10px;
         }
     `,
-    loadingState: css`
-        min-height: ${compact ? 200 : 240}px;
-        padding: 24px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    `,
     taskTable: css`
         --task-table-text: ${dark ? "rgba(255,255,255,0.65)" : "rgba(0,0,0,0.65)"};
         min-width: 0;

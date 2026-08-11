@@ -8,6 +8,7 @@ import {createStyles} from "antd-style";
 import Settings from "@/../config/defaultSettings";
 import {logout} from "@/service/auth/login";
 import defaultSettings from "@/../config/defaultSettings";
+import Title from "../title";
 
 /**
  * 样式
@@ -348,41 +349,44 @@ const SKLayout: React.FC = () => {
         return temp;
     }, [location?.pathname, match, menusWithHidden]);
     return (
-        <Layout
-            pathname={location?.pathname}
-            matchedRoutes={match || []}
-            onNavigate={(path) => history.push(path)}
-            breadCrumbItems={breadCrumbItems}
-            hideBreadCrumb={currentRoute?.hideBreadCrumb}
-            waterMark={web?.info?.ui?.watermark ? [web?.info?.name, user?.web?.account] : ""}
-            menus={menus}
-            layout={isTopLayout ? "horizontal" : "inline"}
-            flowLayout={isTopLayout}
-            menuTheme={web?.info?.ui?.theme == "dark" ? "dark" : "light"}
-            footer={<>©{new Date().getFullYear()} {web?.info?.name || Settings?.title}</>}
-            headerHidden={false}
-            headerFixed={false}
-            headerRight={<RightTop/>}
-            menuCollapsedWidth={60}
-            menuUnCollapsedWidth={210}
-            collapsedLogo={() => {
-                return <Icon type={"icon-logo"} style={{color: web?.info?.ui?.color || defaultSettings?.color}}
-                             className={collapsedLogo}/>;
-            }}
-            unCollapsedLogo={() => {
-                return (
-                    <div className={unCollapsed}>
-                        <Icon type={"icon-logo"}
-                              style={{color: web?.info?.ui?.color || defaultSettings?.color}}/>
-                        <div style={{color: web?.info?.ui?.color || defaultSettings?.color}}>
-                            {web?.info?.name || Settings?.title}
-                        </div>
-                    </div>)
-            }}>
-            <div className={content}>
-                <Outlet/>
-            </div>
-        </Layout>
+        <>
+            <Title/>
+            <Layout
+                pathname={location?.pathname}
+                matchedRoutes={match || []}
+                onNavigate={(path) => history.push(path)}
+                breadCrumbItems={breadCrumbItems}
+                hideBreadCrumb={currentRoute?.hideBreadCrumb}
+                waterMark={web?.info?.ui?.watermark ? [web?.info?.name, user?.web?.account] : ""}
+                menus={menus}
+                layout={isTopLayout ? "horizontal" : "inline"}
+                flowLayout={isTopLayout}
+                menuTheme={web?.info?.ui?.theme == "dark" ? "dark" : "light"}
+                footer={<>©{new Date().getFullYear()} {web?.info?.name || Settings?.title}</>}
+                headerHidden={false}
+                headerFixed={false}
+                headerRight={<RightTop/>}
+                menuCollapsedWidth={60}
+                menuUnCollapsedWidth={210}
+                collapsedLogo={() => {
+                    return <Icon type={"icon-logo"} style={{color: web?.info?.ui?.color || defaultSettings?.color}}
+                                 className={collapsedLogo}/>;
+                }}
+                unCollapsedLogo={() => {
+                    return (
+                        <div className={unCollapsed}>
+                            <Icon type={"icon-logo"}
+                                  style={{color: web?.info?.ui?.color || defaultSettings?.color}}/>
+                            <div style={{color: web?.info?.ui?.color || defaultSettings?.color}}>
+                                {web?.info?.name || Settings?.title}
+                            </div>
+                        </div>)
+                }}>
+                <div className={content}>
+                    <Outlet/>
+                </div>
+            </Layout>
+        </>
     );
 }
 export default SKLayout;
