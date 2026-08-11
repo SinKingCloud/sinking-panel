@@ -23,9 +23,6 @@ func (r *Repository) UpdateByIds(ids []int64, data *UpdateScript) error {
 	if data.Script != nil {
 		updates["script"] = data.Script
 	}
-	if data.Sort != nil {
-		updates["sort"] = data.Sort
-	}
 	if len(updates) == 0 {
 		return nil
 	}

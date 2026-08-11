@@ -12,7 +12,7 @@ type Type struct {
 	Id         int64        `gorm:"column:id;PRIMARY_KEY" json:"id"`
 	Module     string       `gorm:"column:module" json:"module"`
 	Name       string       `gorm:"column:name" json:"name"`
-	Sort       int          `gorm:"column:sort" json:"sort"`
+	Sort       int64        `gorm:"column:sort" json:"sort"`
 	CreateTime str.DateTime `gorm:"column:create_time" json:"create_time"`
 	UpdateTime str.DateTime `gorm:"column:update_time" json:"update_time"`
 }

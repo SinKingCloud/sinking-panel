@@ -13,7 +13,6 @@ type Script struct {
 	TypeId     int64        `gorm:"column:type_id" json:"type_id"`
 	Name       string       `gorm:"column:name" json:"name"`
 	Script     string       `gorm:"column:script" json:"script"`
-	Sort       int          `gorm:"column:sort" json:"sort"`
 	CreateTime str.DateTime `gorm:"column:create_time" json:"create_time"`
 	UpdateTime str.DateTime `gorm:"column:update_time" json:"update_time"`
 }

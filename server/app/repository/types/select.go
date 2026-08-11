@@ -41,7 +41,7 @@ func (r *Repository) SelectIdNameMap(module string) (map[int64]string, error) {
 		Model(&model.Type{}).
 		Select("id", "name").
 		Where("module = ?", module).
-		Order("id ASC").
+		Order("sort ASC, id ASC").
 		Find(&data).Error
 	if err != nil {
 		return nil, err

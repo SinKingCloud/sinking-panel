@@ -9,7 +9,7 @@ import (
 
 // List 获取常用脚本列表
 func List(c *context.Context) {
-	query := c.ValidatePage("sort", "asc", "id,sort", "id,type_id,name,sort,create_time,update_time")
+	query := c.ValidatePage("id", "desc", "id", "id,type_id,name,create_time,update_time")
 	var form struct {
 		TypeId  string `json:"type_id" default:"" validate:"omitempty,numeric" label:"类型ID"`
 		Keyword string `json:"keyword" default:"" validate:"omitempty" label:"关键词"`

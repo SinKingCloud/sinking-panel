@@ -131,7 +131,6 @@ create table if not exists cloud_scripts
     type_id     bigint  default 0 not null,
     name        varchar(100)      not null,
     script      text              not null,
-    sort        integer default 0 not null,
     update_time text,
     create_time text
 );
@@ -139,8 +138,8 @@ create table if not exists cloud_scripts
 create index if not exists cloud_scripts_createTime_index
     on cloud_scripts (create_time);
 
-create index if not exists cloud_scripts_typeId_sort_index
-    on cloud_scripts (type_id, sort);
+create index if not exists cloud_scripts_typeId_index
+    on cloud_scripts (type_id);
 
 create index if not exists cloud_scripts_updateTime_index
     on cloud_scripts (update_time);

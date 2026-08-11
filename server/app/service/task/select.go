@@ -22,6 +22,9 @@ func (s *service) Select(where *repositoryTask.SelectTask, queryPage *page.Query
 		if err != nil || value < 0 {
 			return nil, errors.New("任务分类参数错误")
 		}
+		if value == 0 {
+			where.TypeId = ""
+		}
 	}
 	if where != nil && where.ExecType != "" {
 		value, err := strconv.Atoi(where.ExecType)

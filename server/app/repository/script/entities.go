@@ -13,5 +13,4 @@ type UpdateScript struct {
 	TypeId interface{}
 	Name   interface{}
 	Script interface{}
-	Sort   interface{}
 }
