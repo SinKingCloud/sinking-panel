@@ -7,7 +7,7 @@ export default createStyles(({css, token, isDarkMode}: any, props: any = {}) => 
     return {
         page: css`
             width: 100%;
-            max-width: 1440px;
+            max-width: 1450px;
             margin: 0 auto;
 
             > .ant-col {

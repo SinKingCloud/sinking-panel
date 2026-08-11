@@ -240,7 +240,7 @@ const Log = forwardRef<LogRef>((_, ref) => {
                         <div className={styles.state}><Spin/></div>
                     ) : (
                         <div className={styles.state}>
-                            <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无任务日志"/>
+                            <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无数据"/>
                         </div>
                     )}
                 </div>

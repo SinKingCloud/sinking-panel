@@ -191,6 +191,27 @@ const useStyles = createStyles(({css, token, isDarkMode}: any) => ({
             font-weight: 500;
         }
 
+        .disk-item-capacity {
+            min-width: 0;
+            margin-top: 3px;
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+            color: ${token.colorTextQuaternary};
+            font-size: 9px;
+            line-height: 14px;
+        }
+
+        .disk-item-capacity span:last-child {
+            text-align: right;
+        }
+
+        .disk-item-capacity b {
+            margin-left: 3px;
+            color: ${token.colorTextSecondary};
+            font-weight: 500;
+        }
+
         .disk-track {
             height: 3px;
             margin-top: 7px;
@@ -262,6 +283,9 @@ const DiskPopover = React.memo(({
                         const value = percentValue(item?.size?.percentage);
                         const total = numberValue(item?.size?.total);
                         const used = numberValue(item?.size?.used);
+                        const free = item?.size?.un_used === undefined
+                            ? Math.max(0, total - used)
+                            : numberValue(item.size.un_used);
                         const color = value >= 90
                             ? token.colorError
                             : (value >= 75 ? token.colorWarning : token.colorPrimary);
@@ -282,14 +306,18 @@ const DiskPopover = React.memo(({
                                 </div>
                                 <div className="disk-item-meta">
                                     <span>{item.filesystem || "--"} · {item.type || "未知类型"}</span>
-                                    <span>已用 <b>{formatSize(used)}</b> / {formatSize(total)}</span>
+                                    <span>总计 <b>{formatSize(total)}</b></span>
+                                </div>
+                                <div className="disk-item-capacity">
+                                    <span>已用<b>{formatSize(used)}</b></span>
+                                    <span>可用<b>{formatSize(free)}</b></span>
                                 </div>
                                 <div className="disk-track"><i/></div>
                             </div>
                         );
                     })}
                 </div>
-            ) : <Empty className={styles.empty} image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无磁盘信息"/>}
+            ) : <Empty className={styles.empty} image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无数据"/>}
         </div>
     );
 });

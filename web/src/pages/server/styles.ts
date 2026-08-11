@@ -9,13 +9,13 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
     const collapsedWidth = compact ? 42 : 46;
     const panelHeaderHeight = compact ? 46 : 50;
     const mobileHeaderHeight = compact ? 42 : 46;
-    const serverToolbarHeight = compact ? 46 : 50;
+    const panelToolbarHeight = compact ? 46 : 50;
 
     return {
         page: css`
             --terminal-page-height: calc(100dvh - 92px);
             width: 100%;
-            max-width: 1440px;
+            max-width: 1450px;
             min-height: var(--terminal-page-height);
             margin: 0 auto;
 
@@ -96,7 +96,7 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
             @container terminal-workspace (max-width: 760px) {
                 height: auto;
                 grid-template-columns: 1fr;
-                grid-template-rows: auto minmax(430px, auto) auto;
+                grid-template-rows: auto auto minmax(430px, auto);
 
                 &.server-collapsed,
                 &.scripts-collapsed {
@@ -226,11 +226,11 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
         `,
         serverToolbar: css`
             min-width: 0;
-            height: ${serverToolbarHeight}px;
-            min-height: ${serverToolbarHeight}px;
+            height: ${panelToolbarHeight}px;
+            min-height: ${panelToolbarHeight}px;
             padding: 8px;
             display: grid;
-            flex: 0 0 ${serverToolbarHeight}px;
+            flex: 0 0 ${panelToolbarHeight}px;
             grid-template-columns: minmax(0, 1fr) ${compact ? 30 : 34}px;
             align-items: center;
             gap: 6px;
@@ -331,6 +331,7 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
             }
 
             .server-loading,
+            .server-initial-loading,
             .server-empty {
                 min-height: 110px;
                 display: flex;
@@ -389,6 +390,13 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
                     min-width: 144px;
                     min-height: ${compact ? 48 : 52}px;
                     flex: 0 0 144px;
+                }
+
+                .server-initial-loading {
+                    width: 100%;
+                    min-width: 100%;
+                    min-height: ${compact ? 48 : 52}px;
+                    flex: 0 0 100%;
                 }
 
                 .server-empty .ant-empty-image {
@@ -712,15 +720,16 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
                 border: 0;
             }
 
-            .collapsed & > button span {
+            .collapsed & > button .add-label {
                 display: none;
+            }
+
+            .collapsed &.script-footer {
+                margin-top: auto;
             }
 
             @container terminal-workspace (max-width: 760px) {
                 display: none;
-                .collapsed & {
-                    display: none;
-                }
             }
         `,
         serverAdd: css`
@@ -785,8 +794,12 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
 
             @container terminal-workspace (max-width: 760px) {
                 grid-column: 1;
-                grid-row: 2;
+                grid-row: 3;
+                width: 100%;
+                max-width: 100%;
                 min-height: max(430px, calc(100dvh - 230px));
+                overflow: hidden;
+                box-sizing: border-box;
             }
 
             @media (max-height: 600px) and (orientation: landscape) {
@@ -1008,7 +1021,7 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
             display: flex;
             flex-direction: column;
             border-left: 1px solid ${token.colorSplit};
-            background: color-mix(in srgb, ${token.colorFillQuaternary}, ${token.colorBgContainer} 62%);
+            background: ${token.colorBgContainer};
 
             &.collapsed {
                 align-items: stretch;
@@ -1016,30 +1029,31 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
 
             @container terminal-workspace (max-width: 760px) {
                 grid-column: 1;
-                grid-row: 3;
-                max-height: 280px;
-                border-top: 1px solid ${token.colorSplit};
+                grid-row: 2;
+                max-height: none;
+                border-top: 0;
+                border-bottom: 1px solid ${token.colorSplit};
                 border-left: 0;
 
                 &.collapsed {
-                    max-height: 280px;
+                    max-height: none;
                     flex-direction: column;
                     align-items: stretch;
                 }
             }
 
             @media (max-width: 760px) and (max-height: 600px) and (orientation: landscape) {
-                max-height: 150px;
+                max-height: none;
 
                 &.collapsed {
-                    max-height: 150px;
+                    max-height: none;
                 }
             }
         `,
         scriptHeader: css`
             height: ${panelHeaderHeight}px;
             min-height: ${panelHeaderHeight}px;
-            padding: 0 ${compact ? 8 : 9}px 0 ${compact ? 11 : 13}px;
+            padding: 0 ${compact ? 11 : 13}px;
             display: flex;
             align-items: center;
             justify-content: space-between;
@@ -1052,11 +1066,9 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
                 min-width: 0;
                 display: flex;
                 align-items: center;
-                gap: 7px;
                 color: ${token.colorTextHeading};
                 font-size: ${compact ? 13 : 14}px;
                 font-weight: 600;
-                white-space: nowrap;
             }
 
             .panel-heading > div {
@@ -1084,6 +1096,7 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
                 height: ${mobileHeaderHeight}px;
                 min-height: ${mobileHeaderHeight}px;
                 flex-basis: ${mobileHeaderHeight}px;
+                padding-inline: ${compact ? 9 : 11}px;
 
                 .collapse-trigger {
                     display: none;
@@ -1092,7 +1105,7 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
                 .collapsed & {
                     width: auto;
                     min-width: 0;
-                    padding: 0 ${compact ? 8 : 9}px 0 ${compact ? 11 : 13}px;
+                    padding-inline: ${compact ? 9 : 11}px;
                     flex: none;
                     justify-content: space-between;
                     border-right: 0;
@@ -1107,82 +1120,194 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
         scriptBody: css`
             min-width: 0;
             min-height: 0;
-            padding: ${compact ? "6px 7px 9px" : "7px 8px 10px"};
+            display: flex;
+            flex-direction: column;
             flex: 1;
-            overflow-y: auto;
-            scrollbar-width: thin;
-            scrollbar-color: ${token.colorBorderSecondary} transparent;
+            overflow: hidden;
 
             .collapsed & {
                 display: none;
             }
 
-            .ant-collapse {
-                border: 0;
-                background: transparent;
-            }
-
-            .ant-collapse-item {
-                border-bottom-color: ${token.colorSplit};
-            }
-
-            .ant-collapse-header {
-                min-height: ${compact ? 38 : 42}px;
-                padding: ${compact ? "8px 7px" : "9px 8px"} !important;
-                align-items: center !important;
-                border-radius: ${token.borderRadiusSM}px !important;
-                color: ${token.colorTextSecondary} !important;
-                font-size: ${compact ? 12 : 13}px;
-            }
-
-            .ant-collapse-header:hover {
-                background: ${token.colorFillQuaternary};
-            }
-
-            .ant-collapse-content-box {
-                padding: 2px 0 ${compact ? 5 : 7}px !important;
-            }
-
-            .script-group-title {
+            .script-toolbar {
                 min-width: 0;
+                height: ${panelToolbarHeight}px;
+                min-height: ${panelToolbarHeight}px;
+                padding: 8px;
+                display: grid;
+                grid-template-columns: minmax(0, 1fr) ${compact ? 100 : 108}px;
+                align-items: center;
+                gap: 6px;
+                flex: 0 0 ${panelToolbarHeight}px;
+                box-sizing: border-box;
+            }
+
+            .script-toolbar .ant-input-affix-wrapper {
+                min-width: 0;
+                height: ${compact ? 30 : 34}px;
+                padding-inline: ${compact ? 9 : 10}px;
+                border-color: transparent;
+                border-radius: ${token.borderRadiusSM}px;
+                background: ${token.colorFillQuaternary};
+                box-shadow: none;
+            }
+
+            .script-toolbar .ant-input-affix-wrapper:hover {
+                border-color: ${token.colorPrimaryBorder};
+            }
+
+            .script-toolbar .ant-input-affix-wrapper-focused {
+                border-color: ${token.colorPrimary};
+                background: ${token.colorBgContainer};
+                box-shadow: 0 0 0 2px ${token.colorPrimaryBg};
+            }
+
+            .script-toolbar .ant-input-prefix {
+                color: ${token.colorTextTertiary};
+                font-size: 12px;
+            }
+
+            .script-toolbar .ant-input {
+                background: transparent;
+                font-size: ${compact ? 11 : 12}px;
+            }
+
+            .script-toolbar .ant-input::placeholder {
+                color: ${token.colorTextQuaternary};
+                font-size: ${compact ? 10 : 11}px;
+            }
+
+            .script-type-trigger {
+                width: 100%;
+                min-width: 0;
+                height: ${compact ? 30 : 34}px;
+                padding: 0 ${compact ? 7 : 10}px;
                 display: inline-flex;
                 align-items: center;
-                gap: 7px;
+                justify-content: center;
+                gap: 5px;
+                border: 1px solid transparent;
+                border-radius: ${token.borderRadiusSM}px;
+                outline: none;
+                background: ${token.colorFillQuaternary};
+                color: ${token.colorTextSecondary};
+                cursor: pointer;
+                font: inherit;
+                line-height: 1;
+                transition: background-color .16s ease, color .16s ease;
             }
 
-            .script-group-title .anticon {
+            .script-type-trigger .marker {
+                color: ${token.colorTextQuaternary};
+                font-size: ${compact ? 11 : 12}px;
+            }
+
+            .script-type-trigger .value {
+                min-width: 0;
+                flex: 1 1 auto;
+                overflow: hidden;
+                color: ${token.colorTextSecondary};
+                font-size: ${compact ? 11 : 12}px;
+                font-weight: 400;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+                transition: color .16s ease;
+            }
+
+            .script-type-trigger .arrow {
+                color: ${token.colorTextQuaternary};
+                font-size: ${compact ? 9 : 10}px;
+                transition: color .16s ease, transform .16s ease;
+            }
+
+            .script-type-trigger:hover,
+            .script-type-trigger.ant-dropdown-open {
+                background: ${token.colorFillSecondary};
+            }
+
+            .script-type-trigger.ant-dropdown-open .arrow {
                 color: ${token.colorTextTertiary};
-                font-size: ${compact ? 12 : 13}px;
+                transform: rotate(180deg);
+            }
+
+            .script-type-trigger:focus-visible {
+                border-color: ${token.colorPrimaryBorder};
+                background: ${token.colorBgContainer};
+                box-shadow: 0 0 0 3px ${token.colorPrimaryBg};
+            }
+
+            .script-scroll {
+                min-width: 0;
+                min-height: 0;
+                flex: 1;
+                overflow-x: hidden;
+                overflow-y: auto;
+                overscroll-behavior: contain;
+                scrollbar-width: thin;
+                scrollbar-color: ${token.colorBorderSecondary} transparent;
+            }
+
+            .script-scroll::-webkit-scrollbar {
+                width: 6px !important;
+            }
+
+            .script-scroll::-webkit-scrollbar-thumb {
+                border-radius: ${token.borderRadiusSM}px;
+                background: ${token.colorBorderSecondary};
             }
 
             .script-list {
+                min-width: 0;
+                padding: 0 ${compact ? 7 : 9}px;
                 display: flex;
                 flex-direction: column;
-                gap: 2px;
+                gap: 3px;
             }
 
             .script-item {
                 min-width: 0;
                 min-height: ${compact ? 50 : 54}px;
-                padding: ${compact ? "3px 3px 3px 8px" : "4px 4px 4px 9px"};
+                padding: ${compact ? "4px 2px 4px 8px" : "5px 3px 5px 9px"};
                 display: grid;
-                grid-template-columns: minmax(0, 1fr) ${compact ? 29 : 32}px;
+                grid-template-columns: minmax(0, 1fr) ${compact ? 28 : 30}px ${compact ? 28 : 30}px;
                 align-items: center;
-                gap: 3px;
-                border-radius: ${token.borderRadiusSM}px;
+                gap: 2px;
+                position: relative;
+                border-radius: ${token.borderRadius}px;
+                background: transparent;
+                content-visibility: auto;
+                contain-intrinsic-size: auto ${compact ? 50 : 54}px;
                 transition: background-color .16s ease;
             }
 
-            .script-item:hover {
+            .script-item:hover,
+            .script-item:focus-within {
                 background: ${token.colorFillQuaternary};
+            }
+
+            .script-item.copying {
+                background: ${token.colorFillQuaternary};
+            }
+
+            .script-copying {
+                position: absolute;
+                inset: 0;
+                z-index: 2;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                border-radius: inherit;
+                cursor: wait;
             }
 
             .script-copy {
                 min-width: 0;
+                height: 100%;
                 padding: 0;
-                display: flex;
-                flex-direction: column;
-                align-items: flex-start;
+                display: grid;
+                grid-template-columns: minmax(0, 1fr) auto;
+                align-items: center;
+                gap: 5px;
                 border: 0;
                 outline: none;
                 background: transparent;
@@ -1192,41 +1317,192 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
             }
 
             .script-copy:focus-visible {
-                border-radius: ${token.borderRadiusSM}px;
-                box-shadow: 0 0 0 2px ${token.colorPrimaryBg};
+                border-radius: ${token.borderRadius}px;
+                box-shadow: inset 0 0 0 1px ${token.colorPrimaryBorder};
+            }
+
+            .script-copy-content {
+                min-width: 0;
+                display: flex;
+                flex-direction: column;
+                align-items: flex-start;
             }
 
             .script-name {
-                color: ${token.colorText};
-                font-size: ${compact ? 12 : 13}px;
-                line-height: 18px;
-            }
-
-            code {
-                width: 100%;
+                max-width: 100%;
                 overflow: hidden;
-                color: ${token.colorTextTertiary};
-                font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-                font-size: ${compact ? 10 : 11}px;
-                line-height: 16px;
+                color: ${token.colorTextHeading};
+                font-size: ${compact ? 12 : 13}px;
+                font-weight: 500;
+                line-height: ${compact ? 18 : 19}px;
                 text-overflow: ellipsis;
                 white-space: nowrap;
             }
 
-            .script-item .ant-btn {
-                width: ${compact ? 29 : 32}px;
-                height: ${compact ? 29 : 32}px;
+            .script-type {
+                max-width: 100%;
+                overflow: hidden;
+                color: ${token.colorTextTertiary};
+                font-size: 11px;
+                line-height: ${compact ? 15 : 16}px;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+
+            .script-terminal,
+            .script-action {
+                width: ${compact ? 28 : 30}px !important;
+                height: ${compact ? 28 : 30}px !important;
                 padding: 0;
                 color: ${token.colorTextTertiary};
             }
 
-            .script-item:hover .ant-btn {
+            .script-terminal:hover,
+            .script-terminal:focus-visible {
                 color: ${token.colorPrimary};
             }
 
+            .script-action {
+                opacity: 0;
+                transition: opacity .16s ease;
+            }
+
+            .script-item:hover .script-action,
+            .script-item:focus-within .script-action {
+                opacity: 1;
+            }
+
+            .script-action:hover,
+            .script-action:focus-visible {
+                color: ${token.colorText};
+            }
+
+            .script-state {
+                min-height: 110px;
+                padding: 16px 10px;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                gap: 6px;
+                color: ${token.colorTextTertiary};
+                font-size: 12px;
+                text-align: center;
+            }
+
+            .script-state .ant-empty {
+                margin-block: 0;
+            }
+
+            .script-state .ant-empty-description {
+                color: ${token.colorTextTertiary};
+                font-size: 11px;
+            }
+
+            .script-state .ant-btn {
+                color: ${token.colorPrimary};
+            }
+
+            .script-load-more {
+                min-height: 32px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+
+            .script-load-more .ant-btn {
+                width: 32px;
+                height: 28px;
+                padding: 0;
+                color: ${token.colorTextTertiary};
+            }
+
+            @media (pointer: coarse) {
+                .script-item {
+                    min-height: ${compact ? 48 : 52}px;
+                    grid-template-columns: minmax(0, 1fr) 36px 36px;
+                }
+
+                .script-terminal,
+                .script-action {
+                    width: 36px !important;
+                    height: 36px !important;
+                    opacity: 1;
+                }
+            }
+
             @container terminal-workspace (max-width: 760px) {
+                flex: none;
+
                 .collapsed & {
-                    display: block;
+                    display: flex;
+                }
+
+                .script-scroll {
+                    min-width: 0;
+                    padding: 0 ${compact ? 9 : 11}px ${compact ? 9 : 11}px 0;
+                    display: flex;
+                    flex: none;
+                    flex-direction: row;
+                    align-items: stretch;
+                    gap: 6px;
+                    overflow-x: auto;
+                    overflow-y: hidden;
+                    overscroll-behavior-x: contain;
+                    scroll-padding-left: ${compact ? 12 : 14}px;
+                    scroll-snap-type: x proximity;
+                    scrollbar-width: none;
+                    touch-action: pan-x pan-y;
+                    -webkit-overflow-scrolling: touch;
+                }
+
+                .script-scroll::-webkit-scrollbar {
+                    display: none;
+                }
+
+                .script-list {
+                    width: max-content;
+                    padding: 0;
+                    display: flex;
+                    flex: 0 0 auto;
+                    flex-direction: row;
+                    gap: 6px;
+                }
+
+                .script-item {
+                    min-height: ${compact ? 48 : 52}px;
+                    flex: 0 0 ${compact ? 196 : 208}px;
+                    grid-template-columns: minmax(0, 1fr) 36px 36px;
+                    overflow: hidden;
+                    background: ${token.colorFillQuaternary};
+                    contain-intrinsic-size: auto ${compact ? 48 : 52}px;
+                    scroll-snap-align: start;
+                }
+
+                .script-terminal,
+                .script-action {
+                    width: 36px !important;
+                    height: 36px !important;
+                    opacity: 1;
+                }
+
+                .script-state {
+                    min-width: 144px;
+                    min-height: ${compact ? 48 : 52}px;
+                    padding: 0 10px;
+                    flex: 0 0 144px;
+                    scroll-snap-align: start;
+                }
+
+                .script-state .ant-empty-image {
+                    display: none;
+                }
+
+                .script-load-more {
+                    min-width: 52px;
+                    min-height: ${compact ? 48 : 52}px;
+                    flex: 0 0 52px;
+                    scroll-snap-align: start;
                 }
             }
         `,
@@ -1241,6 +1517,7 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
             gap: 4px;
             overflow-x: hidden;
             overflow-y: auto;
+            overscroll-behavior: contain;
             scrollbar-width: none;
 
             .collapsed & {
@@ -1279,10 +1556,63 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
                 box-shadow: 0 0 0 2px ${token.colorPrimaryBg};
             }
 
+            .rail-load-more {
+                margin-top: 2px;
+                color: ${token.colorTextQuaternary};
+                font-size: ${compact ? 10 : 11}px;
+            }
+
+            .rail-loading {
+                padding-block: 7px;
+                flex: none;
+                color: ${token.colorPrimary};
+                font-size: ${compact ? 12 : 13}px;
+            }
+
             @container terminal-workspace (max-width: 760px) {
                 .collapsed & {
                     display: none;
                 }
+            }
+        `,
+        scriptDropdown: css`
+            && {
+                min-width: ${compact ? 100 : 112}px;
+                max-width: calc(100vw - 24px);
+                padding: 0;
+                border-radius: ${token.borderRadius}px;
+            }
+
+            && .ant-dropdown-menu {
+                max-height: min(320px, calc(100dvh - 24px));
+                padding: 2px !important;
+                overflow-y: auto;
+                overscroll-behavior: contain;
+                border-radius: ${token.borderRadius}px !important;
+                background: ${token.colorBgElevated};
+                box-shadow: ${token.boxShadowSecondary};
+            }
+
+            && .ant-dropdown-menu-item,
+            && .ant-dropdown-menu-title-content {
+                min-width: 0;
+            }
+
+            && .ant-dropdown-menu-item {
+                min-height: ${compact ? 24 : 30}px !important;
+                margin: 0 !important;
+                padding: 0 6px !important;
+                border-radius: ${token.borderRadiusSM}px !important;
+                color: ${token.colorTextSecondary};
+                font-size: ${compact ? 11 : 12}px !important;
+                font-weight: 400;
+                line-height: ${compact ? 24 : 30}px !important;
+            }
+
+            && .ant-dropdown-menu-title-content {
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
             }
         `,
     };

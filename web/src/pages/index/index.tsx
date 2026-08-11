@@ -16,7 +16,7 @@ const throughputInitialPointCount = 30;
 const useStyles = createStyles(({css}: any) => ({
     page: css`
         width: 100%;
-        max-width: 1440px;
+        max-width: 1450px;
         margin: 0 auto;
         font-variant-numeric: tabular-nums;
 

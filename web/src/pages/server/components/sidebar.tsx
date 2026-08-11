@@ -11,6 +11,7 @@ interface SidebarProps {
     loading: boolean;
     loadingMore: boolean;
     loaded: boolean;
+    initializing: boolean;
     hasMore: boolean;
     localLoading: boolean;
     localError: boolean;
@@ -38,6 +39,7 @@ const Sidebar = ({
     loading,
     loadingMore,
     loaded,
+    initializing,
     hasMore,
     localLoading,
     localError,
@@ -157,7 +159,7 @@ const Sidebar = ({
     };
 
     return (
-        <aside className={`${styles.serverPane} ${collapsed ? "collapsed" : ""}`}>
+        <aside className={`${styles.serverPane} ${collapsed ? "collapsed" : ""}`} aria-label="终端列表">
             <header className={styles.serverHeader}>
                 <div className="panel-heading">
                     <Title size="small">终端列表</Title>
@@ -166,6 +168,8 @@ const Sidebar = ({
                     className="collapse-trigger"
                     type="text"
                     aria-label={collapsed ? "展开终端列表" : "收起终端列表"}
+                    aria-controls="terminal-server-panel"
+                    aria-expanded={!collapsed}
                     icon={<Icon type={collapsed ? "MenuUnfoldOutlined" : "MenuFoldOutlined"}/>}
                     onClick={() => {
                         if (!collapsed) onKeywordChange("");
@@ -176,55 +180,62 @@ const Sidebar = ({
                 <Input
                     allowClear
                     value={keyword}
+                    aria-label="搜索终端"
                     prefix={<Icon type="SearchOutlined"/>}
                     placeholder="搜索终端"
                     onChange={(event) => onKeywordChange(event.target.value)}/>
-                <Tooltip title="刷新终端列表">
-                    <Button
-                        type="text"
-                        disabled={loading}
-                        aria-label="刷新终端列表"
-                        icon={<Icon type="ReloadOutlined"/>}
-                        onClick={onReload}/>
-                </Tooltip>
+                <Button
+                    type="text"
+                    disabled={loading}
+                    aria-label="刷新终端列表"
+                    icon={<Icon type="ReloadOutlined"/>}
+                    onClick={onReload}/>
             </div>
-            <div className={styles.serverListArea} aria-busy={loading}>
+            <div id="terminal-server-panel" className={styles.serverListArea} aria-busy={loading}>
                 <div className={styles.serverList} onScroll={loadVisibleItems}>
-                    <button className={`${styles.serverAdd} mobile`} type="button" onClick={onCreate}>
-                        <Icon type="PlusOutlined"/>
-                        <span>添加终端</span>
-                    </button>
-                    {visibleItems.map(renderServer)}
-                    {loaded && servers.length === 0 && keyword.trim() && !loading && (
-                        <div className="server-empty">
-                            <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="没有匹配的终端"/>
+                    {initializing ? (
+                        <div className="server-initial-loading" role="status" aria-label="正在加载终端列表">
+                            <Spin size="small"/>
                         </div>
-                    )}
-                    {loaded && loadingMore && (
-                        <div className="server-loading"><Spin size="small"/></div>
-                    )}
-                    {loaded && hasMore && !loadingMore && (
-                        <div className="server-load-more">
-                            <Tooltip title="加载更多终端">
-                                <Button
-                                    type="text"
-                                    aria-label="加载更多终端"
-                                    icon={<Icon type="DownOutlined"/>}
-                                    onClick={onLoadMore}/>
-                            </Tooltip>
-                        </div>
+                    ) : (
+                        <>
+                            <button className={`${styles.serverAdd} mobile`} type="button" onClick={onCreate}>
+                                <Icon type="PlusOutlined"/>
+                                <span>添加终端</span>
+                            </button>
+                            {visibleItems.map(renderServer)}
+                            {loaded && servers.length === 0 && keyword.trim() && !loading && (
+                                <div className="server-empty">
+                                    <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无数据"/>
+                                </div>
+                            )}
+                            {loaded && loadingMore && (
+                                <div className="server-loading"><Spin size="small"/></div>
+                            )}
+                            {loaded && hasMore && !loadingMore && (
+                                <div className="server-load-more">
+                                    <Tooltip title="加载更多终端">
+                                        <Button
+                                            type="text"
+                                            aria-label="加载更多终端"
+                                            icon={<Icon type="DownOutlined"/>}
+                                            onClick={onLoadMore}/>
+                                    </Tooltip>
+                                </div>
+                            )}
+                        </>
                     )}
                 </div>
-                {loading && (
+                {loading && !initializing && (
                     <div className={styles.serverLoadingOverlay} role="status" aria-label="正在加载终端列表">
                         <Spin size="small"/>
                     </div>
                 )}
             </div>
             <footer className={styles.serverFooter}>
-                <button className={styles.serverAdd} type="button" onClick={onCreate}>
+                <button className={styles.serverAdd} type="button" aria-label="添加终端" onClick={onCreate}>
                     <Icon type="PlusOutlined"/>
-                    <span>添加终端</span>
+                    <span className="add-label">添加终端</span>
                 </button>
             </footer>
         </aside>

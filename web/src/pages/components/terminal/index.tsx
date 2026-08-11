@@ -27,6 +27,7 @@ export interface TerminalRef {
     fit: (focus?: boolean) => void;
     getSize: () => TerminalSize;
     sendInput: (content: string) => boolean;
+    paste: (content: string) => boolean;
 }
 
 export interface TerminalProps {
@@ -173,6 +174,17 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
         }
     }, []);
 
+    const paste = useCallback((content: string) => {
+        const currentSocket = socketRef.current;
+        const terminal = terminalRef.current;
+        if (!content || !terminal || currentSocket?.readyState !== WebSocket.OPEN) {
+            return false;
+        }
+        terminal.paste(content);
+        terminal.focus();
+        return true;
+    }, []);
+
     useImperativeHandle(ref, () => ({
         clear: () => terminalRef.current?.clear(),
         reset: () => terminalRef.current?.reset(),
@@ -187,7 +199,8 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
             };
         },
         sendInput,
-    }), [fitNow, scheduleFit, sendInput]);
+        paste,
+    }), [fitNow, paste, scheduleFit, sendInput]);
 
     useEffect(() => {
         const host = hostRef.current;

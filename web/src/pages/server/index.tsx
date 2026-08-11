@@ -168,11 +168,9 @@ export default (): React.ReactNode => {
         }
         list.reload();
     }, [changeSessionStatus, list.reload]);
-    const insertCommand = useCallback((command: string) => {
-        if (!terminalRefs.current.get(selectedId)?.insertCommand(command)) {
-            message.warning("请先连接终端");
-        }
-    }, [message, selectedId]);
+    const insertCommand = useCallback((command: string, serverId: number) => {
+        return terminalRefs.current.get(serverId)?.insertCommand(command) || false;
+    }, []);
 
     const remove = useCallback(async (server: ServerRecord) => {
         const key = `server-delete-${server.id}`;
@@ -242,6 +240,7 @@ export default (): React.ReactNode => {
                             loading={list.loading || list.localRefreshing}
                             loadingMore={list.loadingMore}
                             loaded={list.loaded}
+                            initializing={!list.loaded || (!list.localLoaded && list.localRefreshing)}
                             hasMore={list.hasMore}
                             localLoading={list.localRefreshing && !list.localLoaded}
                             localError={list.localError}
@@ -280,6 +279,8 @@ export default (): React.ReactNode => {
                         <Scripts
                             styles={styles}
                             collapsed={scriptsCollapsed}
+                            connected={connectionStatuses[String(selectedId)] === "connected"}
+                            selectedId={selectedId}
                             onCollapsedChange={setScriptsCollapsed}
                             onInsert={insertCommand}/>
                     </main>

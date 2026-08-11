@@ -276,7 +276,7 @@ const useSKLayoutStyles = createStyles((): any => {
         },
         content: {
             width: "100%",
-            maxWidth: "1440px",
+            maxWidth: "1450px",
             minWidth: 0,
             margin: "0 auto",
         },

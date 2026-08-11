@@ -106,7 +106,7 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
     }, [changeStatus]);
 
     const insertCommand = useCallback((command: string) => {
-        return terminalRef.current?.sendInput(command) || false;
+        return terminalRef.current?.paste(command) || false;
     }, []);
 
     const connect = useCallback(() => {
@@ -304,7 +304,9 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
                     {(initializing || localUnavailable || status !== "connected") && (
                         <div className={`${styles.terminalOverlay} ${status}`}>
                             {initializing ? (
-                                <Spin size="small" description="正在加载..."/>
+                                <Button type="text" disabled>
+                                    正在加载本机连接
+                                </Button>
                             ) : localUnavailable ? (
                                 <Button type="text" disabled icon={<Icon type="WarningOutlined"/>}>
                                     本机连接加载失败

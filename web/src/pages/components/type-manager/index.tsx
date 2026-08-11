@@ -1282,7 +1282,7 @@ const TypeManager = forwardRef<TypeManagerRef, TypeManagerProps>(({module, onCha
                                 <div className={styles.loading}><Spin size="small"/></div>
                             ) : items.length === 0 ? (
                                 <div className={styles.empty}>
-                                    <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无分类"/>
+                                    <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无数据"/>
                                 </div>
                             ) : (
                                 <>

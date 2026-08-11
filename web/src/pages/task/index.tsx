@@ -111,7 +111,7 @@ export default (): React.ReactNode => {
                                     onLog={openLog}/>
                             ) : (
                                 <div className={styles.state}>
-                                    <Empty image={Empty.PRESENTED_IMAGE_SIMPLE}/>
+                                    <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无数据"/>
                                 </div>
                             )}
                         </main>
