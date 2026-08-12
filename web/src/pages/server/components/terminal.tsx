@@ -3,7 +3,7 @@ import {Button, Spin, Tooltip} from "antd";
 import {Icon} from "sinking-antd";
 import TerminalView, {TerminalRef as TerminalViewRef} from "@/pages/components/terminal";
 import defaultSettings from "@/../config/defaultSettings";
-import {getLoginToken, loginDevice} from "@/utils/auth";
+import {getHeaders} from "@/utils/auth";
 import type {ServerRecord} from "../hooks/servers";
 
 export type ConnectionStatus = "idle" | "connecting" | "connected" | "disconnected" | "error";
@@ -44,6 +44,11 @@ const createSocketUrl = (server: ServerRecord, cols: number, rows: number) => {
     gateway.searchParams.set("height", String(rows));
     return gateway.toString();
 };
+
+const createSocketProtocol = (headers: Record<string, string>) => btoa(JSON.stringify(headers))
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
 
 const Terminal = forwardRef<TerminalRef, TerminalProps>(({
     styles,
@@ -121,8 +126,8 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
         if (currentSocket?.readyState === WebSocket.CONNECTING || currentSocket?.readyState === WebSocket.OPEN) {
             return;
         }
-        const loginToken = getLoginToken();
-        if (!loginToken) {
+        const headers = getHeaders();
+        if (!headers.token) {
             closeSocket("error");
             return;
         }
@@ -136,7 +141,7 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
         try {
             nextSocket = new WebSocket(
                 createSocketUrl(currentServer, cols, rows),
-                [loginToken, loginDevice],
+                createSocketProtocol(headers),
             );
         } catch {
             changeStatus("error");

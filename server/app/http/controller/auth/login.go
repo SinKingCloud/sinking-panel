@@ -41,7 +41,7 @@ func Logout(c *context.Context) {
 	if c.IsAborted() {
 		return
 	}
-	if err := service.Auth.Logout(c.Request.Header.Get(constant.JwtDeviceName)); err != nil {
+	if err := service.Auth.Logout(c.GetString(constant.JwtDeviceName)); err != nil {
 		c.Error(err.Error())
 		return
 	}

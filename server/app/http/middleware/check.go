@@ -1,11 +1,12 @@
 package middleware
 
 import (
+	"encoding/base64"
+	"encoding/json"
 	"server/app/constant"
 	"server/app/service"
 	"server/app/util/context"
 	"server/app/util/jwt"
-	"strings"
 
 	"github.com/gorilla/websocket"
 )
@@ -14,30 +15,40 @@ import (
 func CheckLogin(c *context.Context) {
 	token := c.Request.Header.Get(constant.JwtTokenName)
 	types := c.Request.Header.Get(constant.JwtDeviceName)
-	isWebSocket := websocket.IsWebSocketUpgrade(c.Request)
-	if isWebSocket {
-		protocols := websocket.Subprotocols(c.Request)
-		if token == "" && len(protocols) > 0 {
-			token = protocols[0]
+	if token == "" || types == "" {
+		if token == "" {
+			if cookie, err := c.Request.Cookie(constant.JwtTokenName); err == nil {
+				token = cookie.Value
+			}
 		}
-		if types == "" && len(protocols) > 1 {
-			types = protocols[1]
+		if types == "" {
+			if cookie, err := c.Request.Cookie(constant.JwtDeviceName); err == nil {
+				types = cookie.Value
+			}
 		}
 	}
 	if token == "" || types == "" {
-		var form struct {
-			Token  string `json:"token"`
-			Device string `json:"device"`
-		}
-		_ = c.BindAll(&form)
-		if token == "" && form.Token != "" {
-			token = form.Token
-		}
-		if types == "" && form.Device != "" {
-			types = form.Device
+		isWebSocket := websocket.IsWebSocketUpgrade(c.Request)
+		if isWebSocket {
+			protocols := websocket.Subprotocols(c.Request)
+			if len(protocols) > 0 {
+				var form struct {
+					Token  string `json:"token"`
+					Device string `json:"device"`
+				}
+				if data, err := base64.RawURLEncoding.DecodeString(protocols[0]); err == nil {
+					_ = json.Unmarshal(data, &form)
+				}
+				if token == "" && form.Token != "" {
+					token = form.Token
+				}
+				if types == "" && form.Device != "" {
+					types = form.Device
+				}
+			}
 		}
 	}
-	if token == "" || (types == "" && !isWebSocket) {
+	if token == "" || types == "" {
 		c.NotLogin("您还未登陆,请先登陆账户", nil)
 		c.Abort()
 		return
@@ -47,15 +58,6 @@ func CheckLogin(c *context.Context) {
 		c.TokenError("登陆超时,请重新登陆", nil)
 		c.Abort()
 		return
-	}
-	if types == "" {
-		prefix := constant.LoginToken + "."
-		for configKey, configValue := range service.Config.Group(constant.LoginGroup) {
-			if configValue == key.User.LoginToken && strings.HasPrefix(configKey, prefix) {
-				types = strings.TrimPrefix(configKey, prefix)
-				break
-			}
-		}
 	}
 	loginToken := service.Config.Get(constant.LoginGroup, constant.LoginToken+"."+types)
 	if loginToken == "" {
@@ -68,6 +70,8 @@ func CheckLogin(c *context.Context) {
 		c.Abort()
 		return
 	}
+	c.Set(constant.JwtTokenName, token)
+	c.Set(constant.JwtDeviceName, types)
 	c.SetUserInfo(key.User)
 	c.Next()
 }
