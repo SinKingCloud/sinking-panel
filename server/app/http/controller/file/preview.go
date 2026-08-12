@@ -1,7 +1,6 @@
 package file
 
 import (
-	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -9,7 +8,7 @@ import (
 	"server/app/service"
 	"server/app/util/context"
 	"server/app/util/file"
-	"strconv"
+	"time"
 )
 
 func Preview(c *context.Context) {
@@ -63,12 +62,11 @@ func Preview(c *context.Context) {
 			c.Writer.Header().Set("Content-Disposition", "attachment; filename=\""+fileName+"\"; filename*=UTF-8''"+encodedFileName)
 		}
 	}
-	c.Writer.Header().Set("Content-Length", strconv.FormatInt(fileInfo.Size, 10))
-	c.SetStatus(http.StatusOK)
 	title := "预览文件"
 	if form.Download {
 		title = "下载文件"
 	}
 	service.Log.Create(c.GetRequestIp(), log_type.EventShow, title, title+"["+form.Path+"]")
-	_, _ = io.Copy(c.Writer, f2)
+	_ = http.NewResponseController(c.Writer).SetWriteDeadline(time.Time{})
+	http.ServeContent(c.Writer, c.Request, fileName, time.Unix(fileInfo.UpdateTime, 0), f2)
 }

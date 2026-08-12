@@ -23,12 +23,18 @@ func CheckLogin(c *context.Context) {
 		if types == "" && len(protocols) > 1 {
 			types = protocols[1]
 		}
-		query := c.Request.URL.Query()
-		if token == "" {
-			token = query.Get(constant.JwtTokenName)
+	}
+	if token == "" || types == "" {
+		var form struct {
+			Token  string `json:"token"`
+			Device string `json:"device"`
 		}
-		if types == "" {
-			types = query.Get(constant.JwtDeviceName)
+		_ = c.BindAll(&form)
+		if token == "" && form.Token != "" {
+			token = form.Token
+		}
+		if types == "" && form.Device != "" {
+			types = form.Device
 		}
 	}
 	if token == "" || (types == "" && !isWebSocket) {
