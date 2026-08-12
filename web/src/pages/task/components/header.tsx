@@ -1,8 +1,8 @@
 import React from "react";
 import {Input} from "antd";
 import {Icon} from "sinking-antd";
-import Dropdown from "@/components/stable-dropdown";
-import HeroGraphic from "@/components/hero-graphic";
+import Dropdown from "@/pages/components/stable-dropdown";
+import HeroGraphic from "@/pages/components/hero-graphic";
 
 const manageTypeKey = "__manage_types__";
 

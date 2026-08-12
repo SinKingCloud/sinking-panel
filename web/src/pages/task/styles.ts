@@ -777,7 +777,9 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
             width: ${compact ? 30 : 34}px;
             height: ${compact ? 22 : 26}px;
             margin-inline: 4px;
+            border-color: transparent;
             border-radius: ${token.borderRadiusSM}px;
+            background: ${dark ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.05)"} !important;
             color: ${token.colorTextSecondary};
             font-size: ${compact ? 11 : 12}px;
         }

@@ -5,7 +5,7 @@ import {history, useLocation, useModel} from "umi";
 import Account from "./components/account";
 import Ui from "./components/ui";
 import Web from "./components/web";
-import HeroGraphic from "@/components/hero-graphic";
+import HeroGraphic from "@/pages/components/hero-graphic";
 import useStyles from "./styles";
 
 const items = [
