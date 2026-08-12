@@ -13,54 +13,11 @@ import (
 	"runtime"
 	"server/app/constant"
 	"strings"
-	"sync"
 	"time"
 )
 
-const (
-	uploadMetaFileName = "meta.json"
-	uploadDoneFileName = "completed.json"
-	uploadChunksDir    = "chunks"
-	maxUploadChunks    = 1000000
-	maxUploadChunkSize = 64 << 20
-	uploadSessionTTL   = 30 * 24 * time.Hour
-	uploadCleanupDelay = time.Hour
-)
-
-type UploadMeta struct {
-	UploadID    string `json:"upload_id"`
-	Path        string `json:"path"`
-	FileName    string `json:"file_name"`
-	TotalSize   int64  `json:"total_size"`
-	ChunkSize   int64  `json:"chunk_size"`
-	TotalChunks int    `json:"total_chunks"`
-	FileHash    string `json:"file_hash"`
-}
-
-type UploadedFile struct {
-	Name     string `json:"name"`
-	Path     string `json:"path"`
-	Size     int64  `json:"size"`
-	FileHash string `json:"file_hash"`
-}
-
-type uploadSessionLock struct {
-	mutex sync.Mutex
-	refs  int
-}
-
-var uploadSessionLockMap = struct {
-	sync.Mutex
-	items map[string]*uploadSessionLock
-}{items: make(map[string]*uploadSessionLock)}
-
-var uploadCleanupState struct {
-	sync.Mutex
-	last time.Time
-}
-
 func (s *service) Upload(ctx context.Context, fileHeader *multipart.FileHeader, path string) (*UploadedFile, error) {
-	cleanupExpiredUploadSessions()
+	s.cleanupExpiredUploadSessions()
 	fileName := fileHeader.Filename
 	if err := validateUploadFileName(fileName); err != nil {
 		return nil, err
@@ -83,7 +40,7 @@ func (s *service) Upload(ctx context.Context, fileHeader *multipart.FileHeader, 
 		return nil, fmt.Errorf("path参数不合法")
 	}
 	destPath := filepath.Join(uploadPath, fileName)
-	targetUnlock := lockUploadTarget(destPath)
+	targetUnlock := s.lockUploadTarget(destPath)
 	defer targetUnlock()
 	if err = commitUploadedFile(ctx, tempPath, destPath); err != nil {
 		return nil, fmt.Errorf("保存文件失败: %w", err)
@@ -92,20 +49,20 @@ func (s *service) Upload(ctx context.Context, fileHeader *multipart.FileHeader, 
 }
 
 func (s *service) UploadChunk(fileHeader *multipart.FileHeader, meta UploadMeta, chunkIndex int) (*UploadedFile, bool, error) {
-	cleanupExpiredUploadSessions()
+	s.cleanupExpiredUploadSessions()
 	if err := meta.validate(); err != nil {
 		return nil, false, err
 	}
 	if chunkIndex < 0 || chunkIndex >= meta.TotalChunks {
 		return nil, false, fmt.Errorf("chunk_index参数不合法")
 	}
-	unlock := lockUploadSession(meta.UploadID)
+	unlock := s.lockUploadSession(meta.UploadID)
 	defer unlock()
 	if err := verifyUploadSession(meta); err != nil {
 		return nil, false, err
 	}
 	touchUploadSession(meta.UploadID)
-	targetUnlock := lockUploadTarget(filepath.Join(meta.Path, meta.FileName))
+	targetUnlock := s.lockUploadTarget(filepath.Join(meta.Path, meta.FileName))
 	completed, found, completedErr := readCompletedUpload(meta)
 	targetUnlock()
 	if completedErr != nil {
@@ -122,17 +79,17 @@ func (s *service) UploadChunk(fileHeader *multipart.FileHeader, meta UploadMeta,
 }
 
 func (s *service) CheckUpload(meta UploadMeta) ([]int, *UploadedFile, error) {
-	cleanupExpiredUploadSessions()
+	s.cleanupExpiredUploadSessions()
 	if err := meta.validate(); err != nil {
 		return nil, nil, err
 	}
-	unlock := lockUploadSession(meta.UploadID)
+	unlock := s.lockUploadSession(meta.UploadID)
 	defer unlock()
 	if err := ensureUploadSession(meta); err != nil {
 		return nil, nil, err
 	}
 	touchUploadSession(meta.UploadID)
-	targetUnlock := lockUploadTarget(filepath.Join(meta.Path, meta.FileName))
+	targetUnlock := s.lockUploadTarget(filepath.Join(meta.Path, meta.FileName))
 	completed, found, completedErr := readCompletedUpload(meta)
 	targetUnlock()
 	if completedErr != nil {
@@ -149,17 +106,17 @@ func (s *service) CheckUpload(meta UploadMeta) ([]int, *UploadedFile, error) {
 }
 
 func (s *service) MergeUpload(ctx context.Context, meta UploadMeta) (*UploadedFile, bool, error) {
-	cleanupExpiredUploadSessions()
+	s.cleanupExpiredUploadSessions()
 	if err := meta.validate(); err != nil {
 		return nil, false, err
 	}
-	unlock := lockUploadSession(meta.UploadID)
+	unlock := s.lockUploadSession(meta.UploadID)
 	defer unlock()
 	if err := verifyUploadSession(meta); err != nil {
 		return nil, false, err
 	}
 	touchUploadSession(meta.UploadID)
-	targetUnlock := lockUploadTarget(filepath.Join(meta.Path, meta.FileName))
+	targetUnlock := s.lockUploadTarget(filepath.Join(meta.Path, meta.FileName))
 	defer targetUnlock()
 	completed, found, completedErr := readCompletedUpload(meta)
 	if completedErr != nil {
@@ -180,17 +137,17 @@ func (s *service) MergeUpload(ctx context.Context, meta UploadMeta) (*UploadedFi
 	if err = writeCompletedUpload(meta.UploadID, completed); err != nil {
 		return nil, false, fmt.Errorf("记录上传结果失败: %w", err)
 	}
-	_ = os.RemoveAll(filepath.Join(uploadSessionPath(meta.UploadID), uploadChunksDir))
+	_ = os.RemoveAll(uploadChunksPath(meta.UploadID))
 	_ = os.Remove(mergedPath)
 	return completed, false, nil
 }
 
 func (s *service) ClearUpload(uploadID string) error {
-	cleanupExpiredUploadSessions()
+	s.cleanupExpiredUploadSessions()
 	if uploadID == "" || len(uploadID) > 128 || uploadID == "." || uploadID == ".." || strings.ContainsAny(uploadID, `/\`) {
 		return fmt.Errorf("upload_id参数不合法")
 	}
-	unlock := lockUploadSession(uploadID)
+	unlock := s.lockUploadSession(uploadID)
 	defer unlock()
 	if err := os.RemoveAll(uploadSessionPath(uploadID)); err != nil {
 		return fmt.Errorf("清理上传缓存失败: %w", err)
@@ -198,20 +155,20 @@ func (s *service) ClearUpload(uploadID string) error {
 	return nil
 }
 
-func cleanupExpiredUploadSessions() {
-	uploadCleanupState.Lock()
-	if time.Since(uploadCleanupState.last) < uploadCleanupDelay {
-		uploadCleanupState.Unlock()
+func (s *service) cleanupExpiredUploadSessions() {
+	s.upload.Lock()
+	if time.Since(s.upload.lastCleanup) < time.Hour {
+		s.upload.Unlock()
 		return
 	}
-	uploadCleanupState.last = time.Now()
-	uploadCleanupState.Unlock()
+	s.upload.lastCleanup = time.Now()
+	s.upload.Unlock()
 
 	entries, err := os.ReadDir(uploadRootPath())
 	if err != nil {
 		return
 	}
-	cutoff := time.Now().Add(-uploadSessionTTL)
+	cutoff := time.Now().Add(-30 * 24 * time.Hour)
 	for _, entry := range entries {
 		if !entry.IsDir() {
 			continue
@@ -220,7 +177,7 @@ func cleanupExpiredUploadSessions() {
 		if infoErr != nil || !info.ModTime().Before(cutoff) {
 			continue
 		}
-		unlock := lockUploadSession(entry.Name())
+		unlock := s.lockUploadSession(entry.Name())
 		info, infoErr = os.Stat(uploadSessionPath(entry.Name()))
 		if infoErr == nil && info.ModTime().Before(cutoff) {
 			_ = os.RemoveAll(uploadSessionPath(entry.Name()))
@@ -229,29 +186,29 @@ func cleanupExpiredUploadSessions() {
 	}
 }
 
-func lockUploadSession(uploadID string) func() {
-	uploadSessionLockMap.Lock()
-	entry := uploadSessionLockMap.items[uploadID]
+func (s *service) lockUploadSession(uploadID string) func() {
+	s.upload.Lock()
+	entry := s.upload.locks[uploadID]
 	if entry == nil {
 		entry = &uploadSessionLock{}
-		uploadSessionLockMap.items[uploadID] = entry
+		s.upload.locks[uploadID] = entry
 	}
 	entry.refs++
-	uploadSessionLockMap.Unlock()
+	s.upload.Unlock()
 
 	entry.mutex.Lock()
 	return func() {
 		entry.mutex.Unlock()
-		uploadSessionLockMap.Lock()
+		s.upload.Lock()
 		entry.refs--
 		if entry.refs == 0 {
-			delete(uploadSessionLockMap.items, uploadID)
+			delete(s.upload.locks, uploadID)
 		}
-		uploadSessionLockMap.Unlock()
+		s.upload.Unlock()
 	}
 }
 
-func lockUploadTarget(path string) func() {
+func (s *service) lockUploadTarget(path string) func() {
 	absolutePath, err := filepath.Abs(path)
 	if err != nil {
 		absolutePath = filepath.Clean(path)
@@ -260,7 +217,7 @@ func lockUploadTarget(path string) func() {
 	if runtime.GOOS == "windows" {
 		absolutePath = strings.ToLower(absolutePath)
 	}
-	return lockUploadSession("target\x00" + absolutePath)
+	return s.lockUploadSession("target\x00" + absolutePath)
 }
 
 func resolveUploadLockDirectory(path string) string {
@@ -299,10 +256,10 @@ func (meta UploadMeta) validate() error {
 	if meta.TotalSize < 0 {
 		return fmt.Errorf("total_size参数不合法")
 	}
-	if meta.ChunkSize <= 0 || meta.ChunkSize > maxUploadChunkSize {
+	if meta.ChunkSize <= 0 || meta.ChunkSize > 64<<20 {
 		return fmt.Errorf("chunk_size参数不合法")
 	}
-	if meta.TotalChunks <= 0 || meta.TotalChunks > maxUploadChunks {
+	if meta.TotalChunks <= 0 || meta.TotalChunks > 1_000_000 {
 		return fmt.Errorf("total_chunks参数不合法")
 	}
 	decodedHash, err := hex.DecodeString(meta.FileHash)
@@ -347,15 +304,19 @@ func uploadSessionPath(uploadID string) string {
 }
 
 func uploadMetadataPath(uploadID string) string {
-	return filepath.Join(uploadSessionPath(uploadID), uploadMetaFileName)
+	return filepath.Join(uploadSessionPath(uploadID), "meta.json")
 }
 
 func completedUploadPath(uploadID string) string {
-	return filepath.Join(uploadSessionPath(uploadID), uploadDoneFileName)
+	return filepath.Join(uploadSessionPath(uploadID), "completed.json")
+}
+
+func uploadChunksPath(uploadID string) string {
+	return filepath.Join(uploadSessionPath(uploadID), "chunks")
 }
 
 func uploadChunkPath(uploadID string, chunkIndex int) string {
-	return filepath.Join(uploadSessionPath(uploadID), uploadChunksDir, fmt.Sprintf("%d.part", chunkIndex))
+	return filepath.Join(uploadChunksPath(uploadID), fmt.Sprintf("%d.part", chunkIndex))
 }
 
 func ensureUploadSession(meta UploadMeta) error {
@@ -374,7 +335,7 @@ func ensureUploadSession(meta UploadMeta) error {
 	if err = os.RemoveAll(sessionPath); err != nil {
 		return err
 	}
-	if err = os.MkdirAll(filepath.Join(sessionPath, uploadChunksDir), 0755); err != nil {
+	if err = os.MkdirAll(uploadChunksPath(meta.UploadID), 0755); err != nil {
 		return err
 	}
 	data, err := json.Marshal(meta)

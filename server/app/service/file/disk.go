@@ -8,24 +8,6 @@ import (
 	"strings"
 )
 
-type Disk struct {
-	Filesystem string   `json:"filesystem"` //分区
-	Type       string   `json:"type"`       //文件系统类型
-	Path       string   `json:"path"`       //路径
-	Size       struct { //存储信息
-		Total      int64 `json:"total"`      //总空间大小
-		Used       int64 `json:"used"`       //已用大小
-		UnUsed     int64 `json:"un_used"`    //可用大小
-		Percentage int   `json:"percentage"` //已用百分比(0-100)
-	} `json:"size"`
-	Inodes struct { //inode信息
-		Total      int64 `json:"total"`      //Inode总数
-		Used       int64 `json:"used"`       //已用Inode
-		UnUsed     int64 `json:"un_used"`    //可用Inode
-		Percentage int   `json:"percentage"` //已用百分比
-	} `json:"inodes"`
-}
-
 func (s *service) GetDisks() ([]Disk, error) {
 	partitions, err := disk.Partitions(true)
 	if err != nil {

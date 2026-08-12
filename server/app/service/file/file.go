@@ -27,9 +27,11 @@ type Service interface {
 }
 
 // service 注入结构
-type service struct{}
+type service struct {
+	upload uploadState
+}
 
 // NewService 实例化service
 func NewService() *service {
-	return &service{}
+	return &service{upload: uploadState{locks: make(map[string]*uploadSessionLock)}}
 }
