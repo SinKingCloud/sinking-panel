@@ -1,6 +1,9 @@
 package file
 
-import "context"
+import (
+	"context"
+	"mime/multipart"
+)
 
 // Service service接口
 type Service interface {
@@ -16,6 +19,11 @@ type Service interface {
 	FormatSize(bytes int64) string
 	IsViewableInBrowser(contentType string) bool
 	GetContentType(fileName string) string
+	Upload(ctx context.Context, fileHeader *multipart.FileHeader, path string) (*UploadedFile, error)
+	UploadChunk(fileHeader *multipart.FileHeader, meta UploadMeta, chunkIndex int) (*UploadedFile, bool, error)
+	CheckUpload(meta UploadMeta) ([]int, *UploadedFile, error)
+	MergeUpload(ctx context.Context, meta UploadMeta) (*UploadedFile, bool, error)
+	ClearUpload(uploadID string) error
 }
 
 // service 注入结构
