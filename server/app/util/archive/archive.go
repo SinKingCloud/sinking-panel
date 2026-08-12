@@ -120,7 +120,7 @@ func (s *Service) CompressFiles(ctx context.Context, srcPaths []string, destPath
 			err = errors.New("gzip格式只支持压缩单个文件")
 			return err
 		}
-		err = s.compressGzip(ctx, srcPaths[0], destPath)
+		err = s.compressGzip(ctx, srcPaths[0], destPath, callback)
 	case FormatTgz:
 		err = s.compressTar(ctx, srcPaths, destPath, true, callback)
 	default:
@@ -173,7 +173,7 @@ func (s *Service) Extract(ctx context.Context, srcPath, destPath string, callbac
 		if strings.HasSuffix(strings.ToLower(srcPath), ".tar.gz") {
 			err = s.extractTar(ctx, srcPath, destPath, true, callback)
 		} else {
-			err = s.extractGzip(ctx, srcPath, destPath)
+			err = s.extractGzip(ctx, srcPath, destPath, callback)
 		}
 	case FormatTgz:
 		err = s.extractTar(ctx, srcPath, destPath, true, callback)
@@ -354,12 +354,18 @@ func (s *Service) compressZip(ctx context.Context, srcPaths []string, destPath s
 			}
 
 			// 复制文件内容
-			written, err := io.Copy(writer, file)
+			reader := &progressReader{
+				reader:   file,
+				current:  &processedSize,
+				reported: processedSize,
+				report: func() bool {
+					return callback == nil || callback(processedSize, totalSize, path, int64(totalFiles), fileIndex)
+				},
+			}
+			_, err = io.Copy(writer, reader)
 			if err != nil {
 				return err
 			}
-
-			processedSize += written
 			fileIndex++
 
 			// 最终更新进度
@@ -510,16 +516,21 @@ func (s *Service) extractZip(ctx context.Context, srcPath, destPath string, call
 		}
 
 		// 复制文件内容
-		written, err := io.Copy(destFile, srcFile)
+		progress := &progressReader{
+			reader:   srcFile,
+			current:  &processedSize,
+			reported: processedSize,
+			report: func() bool {
+				return callback == nil || callback(processedSize, totalSize, file.Name, totalFiles, int64(i))
+			},
+		}
+		_, err = io.Copy(destFile, progress)
 		srcFile.Close()
 		destFile.Close()
 
 		if err != nil {
 			return err
 		}
-
-		processedSize += written
-
 		// 最终更新进度
 		if callback != nil {
 			if !callback(processedSize, totalSize, file.Name, totalFiles, int64(i)) {
@@ -669,12 +680,18 @@ func (s *Service) compressTar(ctx context.Context, srcPaths []string, destPath s
 					return ctx.Err()
 				}
 
-				written, err := io.Copy(tarWriter, file)
+				reader := &progressReader{
+					reader:   file,
+					current:  &processedSize,
+					reported: processedSize,
+					report: func() bool {
+						return callback == nil || callback(processedSize, totalSize, path, int64(totalFiles), fileIndex)
+					},
+				}
+				_, err = io.Copy(tarWriter, reader)
 				if err != nil {
 					return err
 				}
-
-				processedSize += written
 			}
 
 			fileIndex++
@@ -721,12 +738,7 @@ func (s *Service) extractTar(ctx context.Context, srcPath, destPath string, isGz
 	}
 	defer file.Close()
 
-	// 获取源文件大小作为总大小的估计值
-	fileInfo, err := file.Stat()
-	if err != nil {
-		return err
-	}
-	totalSize := fileInfo.Size()
+	var totalSize int64
 
 	var tarReader *tar.Reader
 	if isGzipped {
@@ -765,6 +777,9 @@ func (s *Service) extractTar(ctx context.Context, srcPath, destPath string, isGz
 		}
 		headers = append(headers, header)
 		fileCount++
+		if header.Typeflag == tar.TypeReg {
+			totalSize += header.Size
+		}
 	}
 
 	// 检查上下文是否已取消
@@ -864,12 +879,19 @@ func (s *Service) extractTar(ctx context.Context, srcPath, destPath string, isGz
 			}
 
 			// 复制文件内容
-			written, err := io.Copy(file, tarReader)
+			progress := &progressReader{
+				reader:   tarReader,
+				current:  &processedSize,
+				reported: processedSize,
+				report: func() bool {
+					return callback == nil || callback(processedSize, totalSize, header.Name, int64(fileCount), int64(i))
+				},
+			}
+			_, err = io.Copy(file, progress)
 			file.Close()
 			if err != nil {
 				return err
 			}
-			processedSize += written
 		case tar.TypeSymlink:
 			if err = s.createExtractSymlink(rootPath, destFilePath, header.Linkname); err != nil {
 				return err
@@ -997,7 +1019,7 @@ func (s *Service) resolvePath(path string) (string, error) {
 
 // compressGzip 使用gzip压缩单个文件
 // ctx: 上下文，用于取消操作
-func (s *Service) compressGzip(ctx context.Context, srcPath string, destPath string) error {
+func (s *Service) compressGzip(ctx context.Context, srcPath string, destPath string, callback func(current, total int64, currentFile string, totalFiles, currentIndex int64) bool) error {
 	// 检查上下文是否已取消
 	if ctx.Err() != nil {
 		return ctx.Err()
@@ -1047,6 +1069,15 @@ func (s *Service) compressGzip(ctx context.Context, srcPath string, destPath str
 	// 设置文件名
 	gzipWriter.Name = filepath.Base(srcPath)
 
+	var processedSize int64
+	progress := &progressReader{
+		reader:  srcFile,
+		current: &processedSize,
+		report: func() bool {
+			return callback == nil || callback(processedSize, srcInfo.Size(), srcPath, 1, 0)
+		},
+	}
+
 	// 使用缓冲区进行复制，并定期检查上下文状态
 	buf := make([]byte, 32*1024) // 32KB 缓冲区
 	for {
@@ -1055,7 +1086,7 @@ func (s *Service) compressGzip(ctx context.Context, srcPath string, destPath str
 			return ctx.Err()
 		}
 
-		n, readErr := srcFile.Read(buf)
+		n, readErr := progress.Read(buf)
 		if n > 0 {
 			// 写入前再次检查上下文
 			if ctx.Err() != nil {
@@ -1074,6 +1105,9 @@ func (s *Service) compressGzip(ctx context.Context, srcPath string, destPath str
 			return readErr
 		}
 	}
+	if callback != nil && !callback(processedSize, srcInfo.Size(), srcPath, 1, 0) {
+		return errors.New("操作被取消")
+	}
 
 	// 标记操作成功完成
 	success = true
@@ -1082,7 +1116,7 @@ func (s *Service) compressGzip(ctx context.Context, srcPath string, destPath str
 
 // extractGzip 解压GZIP文件到指定目录
 // ctx: 上下文，用于取消操作
-func (s *Service) extractGzip(ctx context.Context, srcPath string, destPath string) error {
+func (s *Service) extractGzip(ctx context.Context, srcPath string, destPath string, callback func(current, total int64, currentFile string, totalFiles, currentIndex int64) bool) error {
 	// 检查上下文是否已取消
 	if ctx.Err() != nil {
 		return ctx.Err()
@@ -1096,9 +1130,21 @@ func (s *Service) extractGzip(ctx context.Context, srcPath string, destPath stri
 	defer func() {
 		_ = srcFile.Close()
 	}()
+	srcInfo, err := srcFile.Stat()
+	if err != nil {
+		return err
+	}
+	var processedSize int64
+	progress := &progressReader{
+		reader:  srcFile,
+		current: &processedSize,
+		report: func() bool {
+			return callback == nil || callback(processedSize, srcInfo.Size(), srcPath, 1, 0)
+		},
+	}
 
 	// 创建gzip读取器
-	gzipReader, err := gzip.NewReader(srcFile)
+	gzipReader, err := gzip.NewReader(progress)
 	if err != nil {
 		return err
 	}
@@ -1172,6 +1218,9 @@ func (s *Service) extractGzip(ctx context.Context, srcPath string, destPath stri
 		if readErr != nil {
 			return readErr
 		}
+	}
+	if callback != nil && !callback(processedSize, srcInfo.Size(), srcPath, 1, 0) {
+		return errors.New("操作被取消")
 	}
 
 	// 标记操作成功完成

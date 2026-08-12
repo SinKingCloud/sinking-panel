@@ -251,16 +251,22 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
                 width: 100%;
                 min-width: 0;
                 margin-left: 0;
-                display: grid;
-                grid-template-columns: repeat(3, minmax(0, 1fr));
+                display: flex;
+                overflow-x: auto;
+                overscroll-behavior-inline: contain;
+                scrollbar-width: none;
                 gap: 4px;
+            }
+
+            .command-actions::-webkit-scrollbar {
+                display: none;
             }
 
             .command-actions .category-trigger,
             .command-actions .exec-type-trigger,
             .command-actions .status-trigger {
-                width: 100%;
-                min-width: 0;
+                width: auto;
+                min-width: max-content;
                 padding: 0 5px;
                 gap: 3px;
             }
@@ -350,7 +356,8 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
         &.category-trigger,
         &.exec-type-trigger,
         &.status-trigger {
-            min-width: ${compact ? 100 : 108}px;
+            width: auto;
+            min-width: max-content;
         }
 
         .marker {
@@ -359,14 +366,10 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
         }
 
         .value {
-            min-width: 0;
-            max-width: 132px;
-            flex: 1 1 auto;
-            overflow: hidden;
+            flex: none;
             color: ${token.colorTextSecondary};
             font-size: ${compact ? 11 : 12}px;
             font-weight: 400;
-            text-overflow: ellipsis;
             white-space: nowrap;
             transition: color 0.16s ease;
         }
@@ -400,12 +403,15 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
     `,
     toolbarDropdown: css`
         && {
-            min-width: ${compact ? 100 : 112}px;
+            max-width: calc(100vw - 24px);
+            box-sizing: border-box;
             padding: 0;
             border-radius: ${token.borderRadius}px;
         }
 
         && .ant-dropdown-menu {
+            width: 100%;
+            min-width: 0 !important;
             padding: 2px !important;
             border-radius: ${token.borderRadius}px !important;
             background: ${token.colorBgElevated};
@@ -424,8 +430,12 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
         }
 
         && .ant-dropdown-menu .ant-dropdown-menu-item .ant-dropdown-menu-title-content {
+            min-width: 0;
+            overflow: hidden;
             font-size: ${compact ? 11 : 12}px !important;
             line-height: ${compact ? 24 : 30}px !important;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
 
         && .ant-dropdown-menu .ant-dropdown-menu-item:hover {
@@ -672,6 +682,8 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
         justify-content: center;
     `,
     paginationCard: css`
+        container-name: task-pagination;
+        container-type: inline-size;
         width: 100%;
         margin-top: ${compact ? 10 : 12}px;
         border-radius: ${token.borderRadiusLG}px;
@@ -770,8 +782,16 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
             font-size: ${compact ? 11 : 12}px;
         }
 
-        @container task-workspace (max-width: 780px) {
-            padding: ${compact ? 12 : 14}px;
+        @container task-pagination (max-width: 767px) {
+            .ant-pagination-total-text,
+            .ant-pagination-options-quick-jumper {
+                display: none;
+            }
+
+            .ant-pagination-options {
+                display: block;
+                margin-inline-start: ${compact ? 8 : 10}px;
+            }
         }
     `,
     pageSizeSelect: css`

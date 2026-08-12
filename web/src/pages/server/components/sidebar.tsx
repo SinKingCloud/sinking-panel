@@ -1,6 +1,7 @@
 import React, {useCallback, useEffect, useMemo, useState} from "react";
-import {Button, Dropdown, Empty, Input, Spin, Tooltip} from "antd";
+import {Button, Empty, Input, Spin, Tooltip} from "antd";
 import {Icon, Title} from "sinking-antd";
+import Dropdown from "@/components/stable-dropdown";
 import type {ConnectionStatus} from "./terminal";
 import type {ServerRecord} from "../hooks/servers";
 

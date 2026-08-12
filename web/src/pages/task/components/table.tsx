@@ -1,5 +1,6 @@
 import React, {useCallback, useMemo, useState} from "react";
-import {Button, Dropdown, Table as AntTable, Tooltip} from "antd";
+import {Button, Table as AntTable, Tooltip} from "antd";
+import Dropdown from "@/components/stable-dropdown";
 import {ago} from "@/utils/time";
 import {describeTaskSchedule} from "../utils";
 

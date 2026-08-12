@@ -13,9 +13,10 @@ import type {
     KeyboardEvent as ReactKeyboardEvent,
     PointerEvent as ReactPointerEvent,
 } from "react";
-import {App, Button, Dropdown, Empty, Form as AntForm, Input, Modal as AntModal, Spin} from "antd";
+import {App, Button, Empty, Form as AntForm, Input, Modal as AntModal, Spin} from "antd";
 import {createStyles} from "antd-style";
 import {Icon, ProModal, ProModalRef, Title, useTheme} from "sinking-antd";
+import Dropdown from "@/components/stable-dropdown";
 import {
     createType,
     deleteType,

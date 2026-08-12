@@ -1,6 +1,7 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from "react";
-import {App, Button, Dropdown, Empty, Input, Spin, Tooltip} from "antd";
+import {App, Button, Empty, Input, Spin, Tooltip} from "antd";
 import {Icon, Title} from "sinking-antd";
+import Dropdown from "@/components/stable-dropdown";
 import TypeManager from "@/pages/components/type-manager";
 import type {TypeManagerRef} from "@/pages/components/type-manager";
 import {deleteScript, getScriptInfo} from "@/service/api/script";

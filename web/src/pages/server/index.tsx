@@ -42,10 +42,10 @@ export default (): React.ReactNode => {
     const terminalRefCallbacks = useRef(new Map<number, (value: TerminalRef | null) => void>());
     const {pageRef, pageStyle} = useHeight(`${isCompactMode}:${enumLoading}`);
     const [selectedId, setSelectedId] = useState(localServer.id);
-    const [sessions, setSessions] = useState<TerminalSessions>(() => ({
+    const [sessions, setSessions] = useState<TerminalSessions | any>(() => ({
         [String(localServer.id)]: {server: localServer, resetKey: 0},
     }));
-    const [connectionStatuses, setConnectionStatuses] = useState<ConnectionStatuses>(() => ({
+    const [connectionStatuses, setConnectionStatuses] = useState<ConnectionStatuses | any>(() => ({
         [String(localServer.id)]: "idle",
     }));
     const {

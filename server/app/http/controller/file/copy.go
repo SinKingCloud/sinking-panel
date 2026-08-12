@@ -14,23 +14,25 @@ import (
 
 func Copy(c *context.Context) {
 	var form struct {
-		SourcePath string `json:"source_path" default:"" validate:"required" label:"源文件路径"`
-		TargetPath string `json:"target_path" default:"" validate:"required" label:"目标路径"`
+		SourcePaths []string `json:"source_paths" default:"" validate:"required,min=1,max=1000,unique" label:"源文件路径列表"`
+		TargetPath  string   `json:"target_path" default:"" validate:"required" label:"目标路径"`
 	}
 	if ok, msg := c.ValidatorAll(&form); !ok {
 		c.Error(msg)
 		return
 	}
 	f := file.NewDisk("")
-	if !f.Exists(form.SourcePath) {
-		c.Error("源文件或目录不存在")
-		return
+	for _, sourcePath := range form.SourcePaths {
+		if sourcePath == "" || !f.Exists(sourcePath) {
+			c.Error("源文件或目录不存在: " + sourcePath)
+			return
+		}
 	}
 	taskID := str.GetSnowWorkIns().GetUuid()
-	taskName := "复制文件: " + form.SourcePath + " -> " + form.TargetPath
+	taskName := "复制文件: " + form.SourcePaths[0] + " -> " + form.TargetPath
 	taskData := map[string]interface{}{
-		"source_path": form.SourcePath,
-		"target_path": form.TargetPath,
+		"source_paths": form.SourcePaths,
+		"target_path":  form.TargetPath,
 	}
 	_ = service.System.TaskCreate(taskID, taskName, taskData)
 	service.System.SetTaskCancelFunc(taskID, nil)
@@ -44,15 +46,20 @@ func Copy(c *context.Context) {
 			return
 		}
 		service.System.TaskUpdate(taskID, system_task_status.Running, 0, "开始复制")
-		err := service.File.CopyWithContext(taskInfo.Context, form.SourcePath, form.TargetPath, func(current, total int64, currentFile string, totalFiles, currentIndex int64) bool {
-			progress := float64(0)
-			if total > 0 {
-				progress = float64(current) / float64(total) * 100
+		var err error
+		for index, sourcePath := range form.SourcePaths {
+			err = service.File.CopyWithContext(taskInfo.Context, sourcePath, form.TargetPath, func(current, total int64, currentFile string, totalFiles, currentIndex int64) bool {
+				progress := float64(index) / float64(len(form.SourcePaths)) * 100
+				if total > 0 {
+					progress = (float64(index) + float64(current)/float64(total)) / float64(len(form.SourcePaths)) * 100
+				}
+				service.System.TaskUpdate(taskID, system_task_status.Running, progress, "正在复制: "+currentFile)
+				return true
+			})
+			if err != nil {
+				break
 			}
-			message := "正在复制: " + currentFile
-			service.System.TaskUpdate(taskID, system_task_status.Running, progress, message)
-			return true
-		})
+		}
 		if errors.Is(err, stdContext.Canceled) {
 			service.System.TaskUpdate(taskID, system_task_status.Canceled, 0, "任务已取消")
 			return

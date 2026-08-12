@@ -1134,11 +1134,18 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
                 min-height: ${panelToolbarHeight}px;
                 padding: 8px;
                 display: grid;
-                grid-template-columns: minmax(0, 1fr) ${compact ? 100 : 108}px;
+                grid-template-columns: minmax(0, 1fr) auto;
                 align-items: center;
                 gap: 6px;
                 flex: 0 0 ${panelToolbarHeight}px;
                 box-sizing: border-box;
+                overflow-x: auto;
+                overscroll-behavior-inline: contain;
+                scrollbar-width: none;
+            }
+
+            .script-toolbar::-webkit-scrollbar {
+                display: none;
             }
 
             .script-toolbar .ant-input-affix-wrapper {
@@ -1177,8 +1184,8 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
             }
 
             .script-type-trigger {
-                width: 100%;
-                min-width: 0;
+                width: auto;
+                min-width: max-content;
                 height: ${compact ? 30 : 34}px;
                 padding: 0 ${compact ? 7 : 10}px;
                 display: inline-flex;
@@ -1202,13 +1209,10 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
             }
 
             .script-type-trigger .value {
-                min-width: 0;
-                flex: 1 1 auto;
-                overflow: hidden;
+                flex: none;
                 color: ${token.colorTextSecondary};
                 font-size: ${compact ? 11 : 12}px;
                 font-weight: 400;
-                text-overflow: ellipsis;
                 white-space: nowrap;
                 transition: color .16s ease;
             }
@@ -1576,13 +1580,15 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
         `,
         scriptDropdown: css`
             && {
-                min-width: ${compact ? 100 : 112}px;
                 max-width: calc(100vw - 24px);
+                box-sizing: border-box;
                 padding: 0;
                 border-radius: ${token.borderRadius}px;
             }
 
             && .ant-dropdown-menu {
+                width: 100%;
+                min-width: 0 !important;
                 max-height: min(320px, calc(100dvh - 24px));
                 padding: 2px !important;
                 overflow-y: auto;

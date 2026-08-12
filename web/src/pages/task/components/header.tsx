@@ -1,6 +1,7 @@
 import React from "react";
-import {Dropdown, Input} from "antd";
+import {Input} from "antd";
 import {Icon} from "sinking-antd";
+import Dropdown from "@/components/stable-dropdown";
 import HeroGraphic from "@/components/hero-graphic";
 
 const manageTypeKey = "__manage_types__";
