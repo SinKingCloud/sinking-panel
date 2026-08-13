@@ -120,9 +120,8 @@ func loadRecycleRoute(s *sinking_web.Engine) {
 	g.ANY("/list", context.HandleFunc(recycle.List))       //回收站列表
 	g.ANY("/count", context.HandleFunc(recycle.Count))     //数据统计
 	g.ANY("/clear", context.HandleFunc(recycle.Clear))     //清空回收站
-	g.ANY("/create", context.HandleFunc(recycle.Create))   //添加文件
-	g.ANY("/delete", context.HandleFunc(recycle.Delete))   //删除文件
-	g.ANY("/restore", context.HandleFunc(recycle.Restore)) //恢复文件
+	g.ANY("/delete", context.HandleFunc(recycle.Delete))   //批量删除文件
+	g.ANY("/restore", context.HandleFunc(recycle.Restore)) //批量恢复文件
 }
 
 // loadFileRoute 文件路由
