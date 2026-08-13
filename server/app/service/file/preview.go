@@ -1,10 +1,65 @@
 package file
 
 import (
+	"crypto/md5"
+	"crypto/rand"
+	"encoding/hex"
+	"errors"
 	"mime"
 	"path/filepath"
+	"server/app/constant"
 	"strings"
+	"time"
 )
+
+// CreatePreviewSign 创建文件预览签名
+func (s *service) CreatePreviewSign(path, fileName string, download bool) (string, error) {
+	path = filepath.Clean(path)
+	if path == "." {
+		return "", errors.New("文件路径不合法")
+	}
+	fileName = filepath.Base(fileName)
+	if fileName == "." || fileName == string(filepath.Separator) {
+		return "", errors.New("文件名称不合法")
+	}
+	random := make([]byte, 32)
+	if _, err := rand.Read(random); err != nil {
+		return "", errors.New("生成预览签名失败")
+	}
+	hash := md5.Sum(random)
+	key := hex.EncodeToString(hash[:])
+	value := PreviewSign{
+		Path:      path,
+		FileName:  fileName,
+		Download:  download,
+		ExpiresAt: time.Now().Add(constant.CacheTimeWithFilePreview),
+	}
+	s.cache.SetWithExpire(constant.CacheNameWithFilePreview+key, value, constant.CacheTimeWithFilePreview)
+	return key, nil
+}
+
+// CheckPreviewSign 校验文件预览签名
+func (s *service) CheckPreviewSign(key string) (PreviewSign, error) {
+	if len(key) != 32 {
+		return PreviewSign{}, errors.New("预览签名无效或已过期")
+	}
+	decoded, err := hex.DecodeString(key)
+	if err != nil || len(decoded) != md5.Size {
+		return PreviewSign{}, errors.New("预览签名无效或已过期")
+	}
+	cacheKey := constant.CacheNameWithFilePreview + key
+	value := s.cache.Get(cacheKey)
+	sign, ok := value.(PreviewSign)
+	if !ok || sign.Path == "" || !sign.ExpiresAt.After(time.Now()) {
+		s.cache.Delete(cacheKey)
+		return PreviewSign{}, errors.New("预览签名无效或已过期")
+	}
+	if time.Until(sign.ExpiresAt) < constant.CacheTimeWithFilePreviewRenewBefore {
+		sign.ExpiresAt = time.Now().Add(constant.CacheTimeWithFilePreviewRenew)
+		s.cache.SetWithExpire(cacheKey, sign, constant.CacheTimeWithFilePreviewRenew)
+	}
+	return sign, nil
+}
 
 // IsViewableInBrowser 判断是否能在浏览器预览
 func (s *service) IsViewableInBrowser(contentType string) bool {

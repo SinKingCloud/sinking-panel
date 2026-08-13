@@ -40,6 +40,13 @@ type UploadedFile struct {
 	FileHash string `json:"file_hash"`
 }
 
+type PreviewSign struct {
+	Path      string
+	FileName  string
+	Download  bool
+	ExpiresAt time.Time
+}
+
 type uploadState struct {
 	sync.Mutex
 	locks       map[string]*uploadSessionLock

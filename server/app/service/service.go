@@ -50,7 +50,7 @@ func Init() {
 	Type = typeService.NewService(typeRepo, scriptRepo, taskRepo, global.App.Database, global.App.Cache)
 	Log = logService.NewService(logRepo)
 	Task = taskService.NewService(taskRepo, Type)
-	File = file.NewService()
+	File = file.NewService(global.App.Cache)
 	Recycle = recycle.NewService()
 	System = system.NewService(File)
 }

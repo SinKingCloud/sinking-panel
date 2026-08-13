@@ -3,6 +3,7 @@ package file
 import (
 	"context"
 	"mime/multipart"
+	"server/app/util/cache"
 )
 
 // Service service接口
@@ -24,14 +25,20 @@ type Service interface {
 	CheckUpload(meta UploadMeta) ([]int, *UploadedFile, error)
 	MergeUpload(ctx context.Context, meta UploadMeta) (*UploadedFile, bool, error)
 	ClearUpload(uploadID string) error
+	CreatePreviewSign(path, fileName string, download bool) (string, error)
+	CheckPreviewSign(key string) (PreviewSign, error)
 }
 
 // service 注入结构
 type service struct {
+	cache  cache.Interface
 	upload uploadState
 }
 
 // NewService 实例化service
-func NewService() *service {
-	return &service{upload: uploadState{locks: make(map[string]*uploadSessionLock)}}
+func NewService(cache cache.Interface) *service {
+	return &service{
+		cache:  cache,
+		upload: uploadState{locks: make(map[string]*uploadSessionLock)},
+	}
 }

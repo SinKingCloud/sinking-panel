@@ -11,4 +11,9 @@ const (
 
 	CacheNameWithTypeEnum = "TypeEnum_"       //类型枚举
 	CacheTimeWithTypeEnum = 600 * time.Second //类型枚举储存时间
+
+	CacheNameWithFilePreview            = "FilePreview_"     //文件预览签名
+	CacheTimeWithFilePreview            = 3600 * time.Second //文件预览签名储存时间
+	CacheTimeWithFilePreviewRenewBefore = 600 * time.Second  //文件预览签名续期阈值
+	CacheTimeWithFilePreviewRenew       = 1800 * time.Second //文件预览签名续期时间
 )

@@ -54,6 +54,7 @@ func loadAuthRoute(s *sinking_web.Engine) {
 	s.ANY("/login", context.HandleFunc(auth.Login))     //账号登录
 	s.ANY("/logout", context.HandleFunc(auth.Logout))   //注销登录
 	s.ANY("/captcha", context.HandleFunc(auth.Captcha)) //验证码
+	s.ANY("/preview", context.HandleFunc(auth.Preview)) //预览文件
 }
 
 // loadConfigRoute 配置路由
@@ -135,7 +136,7 @@ func loadFileRoute(s *sinking_web.Engine) {
 	g.ANY("/count", context.HandleFunc(file.Count))       //统计信息
 	g.ANY("/delete", context.HandleFunc(file.Delete))     //删除文件
 	g.ANY("/update", context.HandleFunc(file.Update))     //更新信息
-	g.ANY("/preview", context.HandleFunc(file.Preview))   //预览文件
+	g.GET("/sign", context.HandleFunc(file.Sign))         //获取预览签名
 	g.ANY("/copy", context.HandleFunc(file.Copy))         //复制文件
 	g.ANY("/move", context.HandleFunc(file.Move))         //移动文件
 	g.ANY("/extract", context.HandleFunc(file.Extract))   //解压文件
