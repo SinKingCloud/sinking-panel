@@ -15,6 +15,7 @@ type File struct {
 	Name       string       `json:"name"`        // 原始名称
 	Path       string       `json:"path"`        // 原始路径
 	Size       int64        `json:"size"`        // 文件大小（字节），目录为0
+	IsDir      bool         `json:"is_dir"`      // 是否为目录类型
 	DeleteTime str.DateTime `json:"update_time"` //删除时间
 }
 
@@ -43,6 +44,7 @@ func (s *service) Select(page int, pageSize int, orderByField string, orderByTyp
 			Name:       filepath.Base(old),
 			Path:       old,
 			Size:       v.Size,
+			IsDir:      v.IsDir,
 			DeleteTime: str.DateTime(time.Unix(deleteTime, 0)),
 		})
 	}
