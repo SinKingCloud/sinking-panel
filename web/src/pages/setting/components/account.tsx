@@ -109,6 +109,9 @@ export default ({styles}: any): React.ReactNode => {
                         {required: true, whitespace: true, message: "请输入登录账号"},
                         {
                             validator: (_, value) => {
+                                if (!String(value ?? "").trim()) {
+                                    return Promise.resolve();
+                                }
                                 if (value === accountRef.current) {
                                     return Promise.resolve();
                                 }
@@ -140,7 +143,7 @@ export default ({styles}: any): React.ReactNode => {
                     label="确认密码"
                     tooltip="再次输入新密码"
                     style={fieldStyle}
-                    dependencies={["password"]}
+                    dependencies={["password"] as any}
                     rules={[
                         ({getFieldValue}) => ({
                             validator(_, value) {

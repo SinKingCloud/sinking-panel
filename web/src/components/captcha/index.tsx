@@ -1,5 +1,6 @@
 import {forwardRef, useState, useImperativeHandle, useRef} from "react";
-import {Modal, Spin, App} from "antd";
+import {Spin, App} from "antd";
+import {ProModal} from "sinking-antd";
 import GoCaptcha from "go-captcha-react";
 import {getCaptcha} from "@/service/common/captcha";
 import {getRandStr} from "@/utils/string";
@@ -170,16 +171,17 @@ const Captcha = forwardRef<CaptchaRef>((_, ref): any => {
     }));
 
     return (
-        <Modal
-            open={visible}
-            destroyOnHidden={true}
+        <ProModal
             onCancel={() => close()}
-            footer={null}
-            closable={false}
-            mask={{closable: false}}
-            keyboard={false}
-            rootClassName={styles?.modal}
-        >
+            modalProps={{
+                open: visible,
+                destroyOnHidden: true,
+                footer: null,
+                closable: false,
+                mask: {closable: false},
+                keyboard: false,
+                rootClassName: styles?.modal,
+            }}>
             <Spin spinning={loading} size={"large"}>
                 <GoCaptcha.Slide
                     ref={slideRef}
@@ -213,7 +215,7 @@ const Captcha = forwardRef<CaptchaRef>((_, ref): any => {
                     }}
                 />
             </Spin>
-        </Modal>
+        </ProModal>
     );
 });
 

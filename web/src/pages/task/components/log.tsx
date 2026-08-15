@@ -168,7 +168,7 @@ export interface LogRef {
     open: (record: any) => void;
 }
 
-const Log = forwardRef<LogRef>((_, ref) => {
+const Log = forwardRef<LogRef>((_, ref):any => {
     const {styles} = useStyles();
     const modalRef = useRef<ProModalRef>({} as ProModalRef);
     const log = useLog();

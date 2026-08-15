@@ -13,7 +13,7 @@ import type {
     KeyboardEvent as ReactKeyboardEvent,
     PointerEvent as ReactPointerEvent,
 } from "react";
-import {App, Button, Empty, Form as AntForm, Input, Modal as AntModal, Spin} from "antd";
+import {App, Button, Empty, Form as AntForm, Input, Spin} from "antd";
 import {createStyles} from "antd-style";
 import {Icon, ProModal, ProModalRef, Title, useTheme} from "sinking-antd";
 import Dropdown from "@/pages/components/stable-dropdown";
@@ -152,7 +152,7 @@ const animateRowsFrom = (list: HTMLElement, firstRects: Map<number, DOMRect>) =>
             elements.set(id, element);
         }
     });
-    const movements: Array<{deltaX: number; deltaY: number; element: HTMLElement}> = [];
+    const movements: Array<{ deltaX: number; deltaY: number; element: HTMLElement }> = [];
     firstRects.forEach((first, id) => {
         const element = elements.get(id);
         if (!element) {
@@ -290,17 +290,17 @@ const updateDragPreview = (
             continue;
         }
         const previousOffset = previousOverIndex > state.activeIndex
-            && index > state.activeIndex && index <= previousOverIndex
+        && index > state.activeIndex && index <= previousOverIndex
             ? -span
             : previousOverIndex >= 0 && previousOverIndex < state.activeIndex
-                && index >= previousOverIndex && index < state.activeIndex
+            && index >= previousOverIndex && index < state.activeIndex
                 ? span
                 : 0;
         const nextOffset = nextOverIndex > state.activeIndex
-            && index > state.activeIndex && index <= nextOverIndex
+        && index > state.activeIndex && index <= nextOverIndex
             ? -span
             : nextOverIndex >= 0 && nextOverIndex < state.activeIndex
-                && index >= nextOverIndex && index < state.activeIndex
+            && index >= nextOverIndex && index < state.activeIndex
                 ? span
                 : 0;
         if (previousOffset === nextOffset) {
@@ -378,7 +378,7 @@ const scheduleDragFrame = (state: DragState) => {
     }
 };
 
-const useStyles = createStyles(({css, token}: any, props: {compact: boolean}) => ({
+const useStyles = createStyles(({css, token}: any, props: { compact: boolean }) => ({
     modal: css`
         .ant-modal {
             max-width: calc(100vw - 24px);
@@ -410,9 +410,9 @@ const useStyles = createStyles(({css, token}: any, props: {compact: boolean}) =>
         display: flex;
         min-width: 0;
         max-height: clamp(
-            ${props.compact ? 120 : 132}px,
-            calc(100dvh - ${props.compact ? 176 : 192}px),
-            ${props.compact ? 300 : 340}px
+                ${props.compact ? 120 : 132}px,
+                calc(100dvh - ${props.compact ? 176 : 192}px),
+                ${props.compact ? 300 : 340}px
         );
         flex-direction: column;
         gap: ${props.compact ? 3 : 4}px;
@@ -454,10 +454,9 @@ const useStyles = createStyles(({css, token}: any, props: {compact: boolean}) =>
         padding: ${props.compact ? "3px 6px 3px 4px" : "4px 8px 4px 5px"};
         border-radius: ${token.borderRadiusSM}px;
         background: ${token.colorFillQuaternary};
-        transition:
-            transform ${dragAnimationDuration}ms ${dragAnimationEasing},
-            background-color 120ms ease,
-            box-shadow 120ms ease;
+        transition: transform ${dragAnimationDuration}ms ${dragAnimationEasing},
+        background-color 120ms ease,
+        box-shadow 120ms ease;
 
         &:hover,
         &:focus-within {
@@ -575,21 +574,21 @@ const useStyles = createStyles(({css, token}: any, props: {compact: boolean}) =>
 }));
 
 const DraggableRow = memo(({
-    actionDisabled,
-    actionButtonClassName,
-    actionsClassName,
-    disabled,
-    handleClassName,
-    itemClassName,
-    nameClassName,
-    operating,
-    record,
-    onEdit,
-    onRemove,
-    onPointerDown,
-    onCancelDrag,
-    onKeyboardMove,
-}: DraggableRowProps) => {
+                               actionDisabled,
+                               actionButtonClassName,
+                               actionsClassName,
+                               disabled,
+                               handleClassName,
+                               itemClassName,
+                               nameClassName,
+                               operating,
+                               record,
+                               onEdit,
+                               onRemove,
+                               onPointerDown,
+                               onCancelDrag,
+                               onKeyboardMove,
+                           }: DraggableRowProps): any => {
     return (
         <div
             data-type-id={String(record.id)}
@@ -649,7 +648,7 @@ const DraggableRow = memo(({
 
 DraggableRow.displayName = "DraggableRow";
 
-const TypeManager = forwardRef<TypeManagerRef, TypeManagerProps>(({module, onChange, onMutation}, ref) => {
+const TypeManager = forwardRef<TypeManagerRef, TypeManagerProps>(({module, onChange, onMutation}, ref): any => {
     const {message, modal} = App.useApp();
     const theme = useTheme();
     const compact = Boolean(theme?.isCompactTheme?.());
@@ -1311,41 +1310,44 @@ const TypeManager = forwardRef<TypeManagerRef, TypeManagerProps>(({module, onCha
                     </div>
                 </div>
 
-                <AntModal
-                    rootClassName={styles.modal}
+                <ProModal
                     title={<Title>{editing ? "编辑分类" : "添加分类"}</Title>}
-                    width={360}
-                    open={formOpen}
+                    width="360px"
                     onOk={form.submit}
                     onCancel={closeForm}
                     okText={editing ? "保存" : "添加"}
-                    cancelText="取消"
-                    confirmLoading={formSubmitting}
-                    closable={!formSubmitting}
-                    keyboard={!formSubmitting}
-                    mask={{closable: !formSubmitting}}
-                    forceRender
-                    focusable={{focusTriggerAfterClose: false}}
-                    afterClose={resetForm}>
+                    afterClose={resetForm}
+                    modalProps={{
+                        rootClassName: styles.modal,
+                        open: formOpen,
+                        cancelText: "取消",
+                        confirmLoading: formSubmitting,
+                        closable: !formSubmitting,
+                        keyboard: !formSubmitting,
+                        mask: {closable: !formSubmitting},
+                        forceRender: true,
+                        focusable: {focusTriggerAfterClose: false},
+                        styles: {body: {paddingTop: compact ? 10 : 15}},
+                    }}>
                     <AntForm<TypeFormValues>
                         form={form}
                         layout="vertical"
                         onFinish={submitForm}>
                         <AntForm.Item
                             name="name"
-                            label="分类名称"
                             rules={[
                                 {required: true, whitespace: true, message: "请输入分类名称"},
                                 {max: 50, message: "分类名称不能超过 50 个字符"},
                             ]}>
                             <Input
                                 maxLength={50}
+                                aria-label="分类名称"
                                 placeholder="请输入分类名称"
                                 autoComplete="off"
                                 onPressEnter={form.submit}/>
                         </AntForm.Item>
                     </AntForm>
-                </AntModal>
+                </ProModal>
             </>
         </ProModal>
     );

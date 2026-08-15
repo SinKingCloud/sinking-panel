@@ -199,7 +199,7 @@ const useStyles = createStyles(({css, token}: any, props: any = {}) => {
     };
 });
 
-const Schedule = forwardRef<HTMLDivElement, any>(({value, onChange}, ref) => {
+const Schedule = forwardRef<HTMLDivElement, any>(({value, onChange}, ref):any => {
     const theme = useTheme();
     const isCompactMode = theme?.isCompactTheme?.() || false;
     const {styles} = useStyles({isCompactMode});

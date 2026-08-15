@@ -185,9 +185,9 @@ const RightTop: React.FC = () => {
         modal.confirm({
             title: "退出登录",
             content: "确定退出当前账号吗？",
-            okText: "确 定",
+            okText: "确定",
             okButtonProps: {danger: true, type: "default"},
-            cancelText: "取 消",
+            cancelText: "取消",
             mask: {
                 closable: true,
             },

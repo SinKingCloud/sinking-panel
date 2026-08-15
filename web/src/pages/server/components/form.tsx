@@ -24,7 +24,7 @@ const fallbackAuthTypes = {
     "1": "证书验证",
 };
 
-const Form = forwardRef<FormRef, FormProps>(({authTypeData, onSuccess}, ref) => {
+const Form = forwardRef<FormRef, FormProps>(({authTypeData, onSuccess}, ref): any => {
     const {message} = App.useApp();
     const modalRef = useRef<ProModalRef>({} as ProModalRef);
     const requestRef = useRef(0);

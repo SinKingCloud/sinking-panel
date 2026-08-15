@@ -65,7 +65,7 @@ interface ScriptFormProps {
     onSuccess?: () => void;
 }
 
-const ScriptForm = forwardRef<ScriptFormRef, ScriptFormProps>(({typeItems, onSuccess}, ref) => {
+const ScriptForm = forwardRef<ScriptFormRef, ScriptFormProps>(({typeItems, onSuccess}, ref): any => {
     const {message} = App.useApp();
     const theme = useTheme();
     const compact = Boolean(theme?.isCompactTheme?.());
@@ -153,17 +153,21 @@ const ScriptForm = forwardRef<ScriptFormRef, ScriptFormProps>(({typeItems, onSuc
         setSubmitting(true);
         try {
             const response = editing
-                ? await updateScript({body: {
-                    ids: [scriptId as number],
-                    type_id: String(typeId),
-                    name,
-                    script,
-                }})
-                : await createScript({body: {
-                    type_id: typeId,
-                    name,
-                    script,
-                }});
+                ? await updateScript({
+                    body: {
+                        ids: [scriptId as number],
+                        type_id: String(typeId),
+                        name,
+                        script,
+                    }
+                })
+                : await createScript({
+                    body: {
+                        type_id: typeId,
+                        name,
+                        script,
+                    }
+                });
             const current = requestRef.current === requestId;
             if (response?.code !== 200) {
                 if (current && response) {

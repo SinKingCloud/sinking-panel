@@ -39,7 +39,7 @@ export interface TerminalProps {
     style?: CSSProperties;
 }
 
-const useStyles = createStyles(({css}: any, props: {compact: boolean; background: string}) => ({
+const useStyles = createStyles(({css}: any, props: { compact: boolean; background: string }) => ({
     terminal: css`
         width: 100%;
         height: 100%;
@@ -74,19 +74,19 @@ const useStyles = createStyles(({css}: any, props: {compact: boolean; background
 }));
 
 const Terminal = forwardRef<TerminalRef, TerminalProps>(({
-    socket,
-    active = true,
-    compact = false,
-    className,
-    style,
-}, ref) => {
+                                                             socket,
+                                                             active = true,
+                                                             compact = false,
+                                                             className,
+                                                             style
+                                                         }, ref): any => {
     const {token} = antTheme.useToken();
     const appTheme = useTheme();
     const dark = Boolean(appTheme?.isDarkMode?.() || appTheme?.isDarkTheme?.());
     const terminalBackground = dark ? "#101214" : "#000000";
     const styleProps = useMemo(() => ({compact, background: terminalBackground}), [compact, terminalBackground]);
     const {styles} = useStyles(styleProps);
-    const hostRef = useRef<HTMLDivElement>(null);
+    const hostRef = useRef<HTMLDivElement | any>(null);
     const terminalRef = useRef<XTerm | undefined>(undefined);
     const fitAddonRef = useRef<FitAddon | undefined>(undefined);
     const socketRef = useRef<WebSocket | undefined>(undefined);

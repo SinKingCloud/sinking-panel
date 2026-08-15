@@ -17,7 +17,10 @@ func Restore(c *context.Context) {
 		return
 	}
 	for _, name := range form.Names {
-		_ = service.Recycle.Restore(name, form.Path)
+		if err := service.Recycle.Restore(name, form.Path); err != nil {
+			c.Error("恢复失败: " + err.Error())
+			return
+		}
 	}
 	service.Log.Create(c.GetRequestIp(), log_type.EventUpdate, "恢复回收站文件", "恢复回收站文件")
 	c.Success("恢复成功")

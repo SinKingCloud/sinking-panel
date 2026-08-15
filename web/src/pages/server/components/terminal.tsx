@@ -51,17 +51,17 @@ const createSocketProtocol = (headers: Record<string, string>) => btoa(JSON.stri
     .replace(/=+$/, "");
 
 const Terminal = forwardRef<TerminalRef, TerminalProps>(({
-    styles,
-    server,
-    active,
-    initializing,
-    unavailable,
-    resetKey,
-    compact,
-    onStatusChange,
-}, ref) => {
-    const screenRef = useRef<HTMLDivElement>(null);
-    const terminalRef = useRef<TerminalViewRef>(null);
+                                                             styles,
+                                                             server,
+                                                             active,
+                                                             initializing,
+                                                             unavailable,
+                                                             resetKey,
+                                                             compact,
+                                                             onStatusChange,
+                                                         }, ref): any => {
+    const screenRef = useRef<HTMLDivElement | any>(null);
+    const terminalRef = useRef<TerminalViewRef | any>(null);
     const socketRef = useRef<WebSocket | undefined>(undefined);
     const serverRef = useRef(server);
     const activeRef = useRef(active);
@@ -137,7 +137,7 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
         const {cols, rows} = terminal.getSize();
         changeStatus("connecting");
         const generation = ++generationRef.current;
-        let nextSocket: WebSocket;
+        let nextSocket: WebSocket | any;
         try {
             nextSocket = new WebSocket(
                 createSocketUrl(currentServer, cols, rows),
@@ -282,7 +282,8 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
                             icon={<Icon type="ClearOutlined"/>}
                             onClick={() => terminalRef.current?.clear()}/>
                     </Tooltip>
-                    <Tooltip title={canDisconnect ? "断开连接" : initializing ? "正在加载本机连接" : localUnavailable ? "本机连接加载失败" : needsConfiguration ? "请先配置本机连接" : "连接终端"}>
+                    <Tooltip
+                        title={canDisconnect ? "断开连接" : initializing ? "正在加载本机连接" : localUnavailable ? "本机连接加载失败" : needsConfiguration ? "请先配置本机连接" : "连接终端"}>
                         <Button
                             type="text"
                             disabled={!canDisconnect && (initializing || localUnavailable || needsConfiguration)}

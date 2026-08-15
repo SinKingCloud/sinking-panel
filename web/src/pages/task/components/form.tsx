@@ -48,7 +48,7 @@ const Form = forwardRef<FormRef, {typeData?: any; typeItems?: any[]; execTypeDat
     typeItems,
     execTypeData,
     onSuccess,
-}, ref) => {
+}, ref):any => {
     const {message} = App.useApp();
     const {styles} = useStyles();
     const modalRef = useRef<ProModalRef>({} as ProModalRef);
