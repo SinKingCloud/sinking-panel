@@ -19,6 +19,8 @@ import type {
 import {joinFilePath} from "../utils";
 import FileForm from "./form";
 import type {FileFormRef} from "./form";
+import FileEditor from "./editor";
+import type {FileEditorRef} from "./editor";
 import FileOperationForm from "./operation-form";
 import type {FileOperationRef} from "./operation-form";
 import FilePermissions from "./permissions";
@@ -34,6 +36,7 @@ import type {FileUploadRef} from "./upload";
 
 export interface FileDialogHostRef {
     openCreate: (mode: FileCreateMode) => void;
+    openEditor: (path?: string, name?: string) => void;
     openProperties: (record: FileRecord) => void;
     openPreview: (files: readonly FilePreviewItem[], active: string) => void;
     openOperation: (mode: FileOperationMode, record?: FileRecord) => void;
@@ -50,6 +53,7 @@ export interface FileDialogHostRef {
 
 export interface FileDialogHostProps {
     path: string;
+    roots: string[];
     loaded: boolean;
     loading: boolean;
     navigating: boolean;
@@ -61,6 +65,7 @@ export interface FileDialogHostProps {
 
 const FileDialogHost = forwardRef<FileDialogHostRef, FileDialogHostProps>(({
     path,
+    roots,
     loaded,
     loading,
     navigating,
@@ -71,6 +76,7 @@ const FileDialogHost = forwardRef<FileDialogHostRef, FileDialogHostProps>(({
 }, ref) => {
     const {message} = App.useApp();
     const formRef = useRef<FileFormRef | null>(null);
+    const editorRef = useRef<FileEditorRef | null>(null);
     const propertiesRef = useRef<FilePropertiesRef | null>(null);
     const previewRef = useRef<FilePreviewRef | null>(null);
     const permissionsRef = useRef<FilePermissionsRef | null>(null);
@@ -128,6 +134,14 @@ const FileDialogHost = forwardRef<FileDialogHostRef, FileDialogHostProps>(({
     const openProperties = useCallback((record: FileRecord) => {
         propertiesRef.current?.open(joinFilePath(path, record.name), record);
     }, [path]);
+
+    const openEditor = useCallback((targetPath?: string, name?: string) => {
+        if (!loaded || loading || navigating) {
+            message.info("目录正在加载");
+            return;
+        }
+        editorRef.current?.open(targetPath || path, name);
+    }, [loaded, loading, message, navigating, path]);
 
     const openPreview = useCallback((files: readonly FilePreviewItem[], active: string) => {
         if (!loaded || loading || navigating) {
@@ -187,6 +201,7 @@ const FileDialogHost = forwardRef<FileDialogHostRef, FileDialogHostProps>(({
 
     useImperativeHandle(ref, () => ({
         openCreate,
+        openEditor,
         openProperties,
         openPreview,
         openOperation,
@@ -198,6 +213,7 @@ const FileDialogHost = forwardRef<FileDialogHostRef, FileDialogHostProps>(({
     }), [
         closePathBound,
         openCreate,
+        openEditor,
         openOperation,
         openOperationMany,
         openProperties,
@@ -247,6 +263,7 @@ const FileDialogHost = forwardRef<FileDialogHostRef, FileDialogHostProps>(({
     return (
         <>
             <FileForm ref={formRef} onSuccess={handleFormSuccess}/>
+            <FileEditor ref={editorRef} roots={roots} onMutation={scheduleReload}/>
             <FileProperties
                 ref={propertiesRef}
                 onRename={renameFromProperties}

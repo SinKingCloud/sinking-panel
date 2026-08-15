@@ -33,6 +33,7 @@ export interface FileTableProps {
     onSelectionChange: (paths: string[]) => void;
     onSortChange: (field?: FileOrderField, order?: "ascend" | "descend") => void;
     onOpen: (record: FileRecord) => void;
+    onEdit: (path: string, name: string) => void;
     onPreview: (files: readonly FilePreviewItem[], active: string) => void;
     onDownload: (record: FileRecord) => void;
     onCopy: (record: FileRecord) => void;
@@ -65,12 +66,12 @@ interface FileContextMenuValue {
 
 const FileContextMenu = React.createContext<FileContextMenuValue | undefined>(undefined);
 
-const ContextMenuRow = (rowProps: FileTableRowProps) => {
+const ContextMenuRow = React.forwardRef<HTMLTableRowElement, FileTableRowProps>((rowProps, ref) => {
     const context = React.useContext(FileContextMenu);
     const recordPath = String(rowProps["data-row-key"] || "");
     const record = context?.recordsByPath.get(recordPath);
     if (!context || !record) {
-        return <tr {...rowProps}/>;
+        return <tr {...rowProps} ref={ref}/>;
     }
     const disabled = context.actionsDisabled || Boolean(context.operatingPaths?.has(recordPath));
     return (
@@ -81,10 +82,12 @@ const ContextMenuRow = (rowProps: FileTableRowProps) => {
             classNames={{root: context.fileMenuClassName}}
             menu={{items: context.getMenuItems(record, recordPath, disabled)}}
             trigger={["contextMenu"]}>
-            <tr {...rowProps}/>
+            <tr {...rowProps} ref={ref}/>
         </Dropdown>
     );
-};
+});
+
+ContextMenuRow.displayName = "ContextMenuRow";
 
 const tableComponents = {body: {row: ContextMenuRow}};
 
@@ -103,6 +106,7 @@ const FileTable = ({
     onSelectionChange,
     onSortChange,
     onOpen,
+    onEdit,
     onPreview,
     onDownload,
     onCopy,
@@ -141,6 +145,7 @@ const FileTable = ({
         const previewable = !record.is_dir && isFilePreviewable(record.name);
         const items: MenuProps["items"] = [
             ...(!record.is_dir ? [
+                {key: "edit", label: "编辑", onClick: () => onEdit(recordPath, record.name)},
                 ...(previewable ? [
                     {key: "preview", label: "预览", onClick: () => onPreview(previewFiles, recordPath)},
                 ] : []),
@@ -169,6 +174,7 @@ const FileTable = ({
         onCopy,
         onDelete,
         onDownload,
+        onEdit,
         onMove,
         onOpen,
         onOperation,
@@ -217,7 +223,7 @@ const FileTable = ({
                 const previewable = !record.is_dir && isFilePreviewable(record.name);
                 const label = record.is_dir
                     ? `打开目录 ${record.name}`
-                    : previewable ? `预览文件 ${record.name}` : `查看文件属性 ${record.name}`;
+                    : previewable ? `预览文件 ${record.name}` : `编辑文件 ${record.name}`;
                 return (
                     <button
                         className={styles.fileNameButton}
@@ -228,7 +234,7 @@ const FileTable = ({
                             if (rowDisabled) return;
                             if (record.is_dir) onOpen(record);
                             else if (previewable) onPreview(previewFiles, recordPath);
-                            else onProperties(record);
+                            else onEdit(recordPath, record.name);
                         }}>
                         <span className={styles.fileNameContent}>
                             <Icon
@@ -310,6 +316,7 @@ const FileTable = ({
         directoryCounts,
         getMenuItems,
         onCountDirectory,
+        onEdit,
         onOpen,
         onPreview,
         onProperties,

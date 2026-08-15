@@ -61,9 +61,13 @@ export interface AceEditorProps {
     onError?: (error: Error) => void; // 错误处理回调
 }
 
+const EMPTY_COMMANDS: NonNullable<AceEditorProps['commands']> = [];
+const EMPTY_ANNOTATIONS: NonNullable<AceEditorProps['annotations']> = [];
+const EMPTY_MARKERS: NonNullable<AceEditorProps['markers']> = [];
+
 
 const AceEditor: React.FC<AceEditorProps> = ({
-                                                 value = '',
+                                                 value,
                                                  defaultValue = '',
                                                  mode = 'text',
                                                  theme = 'monokai',
@@ -92,9 +96,9 @@ const AceEditor: React.FC<AceEditorProps> = ({
                                                  onFocus,
                                                  onLoad,
                                                  onBeforeLoad,
-                                                 commands = [],
-                                                 annotations = [],
-                                                 markers = [],
+                                                 commands = EMPTY_COMMANDS,
+                                                 annotations = EMPTY_ANNOTATIONS,
+                                                 markers = EMPTY_MARKERS,
                                                  enableBasicAutocompletion = true,
                                                  enableLiveAutocompletion = true,
                                                  enableSnippets = true,
@@ -106,15 +110,50 @@ const AceEditor: React.FC<AceEditorProps> = ({
     const editorRef = useRef<any>(null);
     const [aceLoaded, setAceLoaded] = useState(false);
     const [hasScriptLoaded, setHasScriptLoaded] = useState(false); // 仅首次加载展示 loading
-    const [editorValue, setEditorValue] = useState(value || defaultValue);
+    const editorValueRef = useRef(value ?? defaultValue);
 
     // 创建一个稳定的容器元素，避免 React 重新创建
     const stableContainer = useRef<HTMLDivElement | null>(null);
     const mountedRef = useRef(false);
     const [containerMounted, setContainerMounted] = useState(false);
     const outerContainerRef = useRef<any>(null);
+    const activeRef = useRef(true);
     const commandNamesRef = useRef<string[]>([]);
     const markerIdsRef = useRef<number[]>([]);
+    const modeRequestRef = useRef(0);
+    const themeRequestRef = useRef(0);
+    const callbacksRef = useRef({
+        onChange,
+        onSelectionChange,
+        onCursorChange,
+        onBlur,
+        onFocus,
+        onLoad,
+        onBeforeLoad,
+        onError,
+    });
+
+    useLayoutEffect(() => {
+        callbacksRef.current = {
+            onChange,
+            onSelectionChange,
+            onCursorChange,
+            onBlur,
+            onFocus,
+            onLoad,
+            onBeforeLoad,
+            onError,
+        };
+    }, [
+        onBeforeLoad,
+        onBlur,
+        onChange,
+        onCursorChange,
+        onError,
+        onFocus,
+        onLoad,
+        onSelectionChange,
+    ]);
 
     // 统一应用编辑器可变配置
     const applyEditorOptions = useCallback((ed: any, options: {
@@ -242,15 +281,11 @@ const AceEditor: React.FC<AceEditorProps> = ({
 
         if (isScriptLoaded(scriptUrl)) return;
 
-        try {
-            await preloadScript(scriptUrl, {
-                cache: true,
-                timeout: 5000,
-                retryCount: 2
-            });
-        } catch (error) {
-            onError?.(error as Error);
-        }
+        await preloadScript(scriptUrl, {
+            cache: true,
+            timeout: 5000,
+            retryCount: 2
+        });
     }, [acePath]);
 
     // 动态加载主题文件
@@ -261,21 +296,18 @@ const AceEditor: React.FC<AceEditorProps> = ({
 
         if (isScriptLoaded(scriptUrl)) return;
 
-        try {
-            await preloadScript(scriptUrl, {
-                cache: true,
-                timeout: 5000,
-                retryCount: 2
-            });
-        } catch (error) {
-            onError?.(error as Error);
-        }
+        await preloadScript(scriptUrl, {
+            cache: true,
+            timeout: 5000,
+            retryCount: 2
+        });
     }, [acePath]);
 
 
     // 当 Ace 加载完成后初始化编辑器
     useEffect(() => {
         if (!aceLoaded || editorRef.current) return;
+        let cancelled = false;
 
         const initialize = async () => {
             if (!stableContainer.current || !window.ace || !mountedRef.current) return;
@@ -317,9 +349,13 @@ const AceEditor: React.FC<AceEditorProps> = ({
                     await Promise.all(loadTasks);
                 }
 
+                if (cancelled || !activeRef.current || !mountedRef.current) {
+                    return;
+                }
+
                 // 直接初始化编辑器，使用稳定容器
                 if (!editorRef.current && stableContainer.current && window.ace) {
-                    onBeforeLoad?.(window.ace);
+                    callbacksRef.current.onBeforeLoad?.(window.ace);
 
                     const editor = window.ace.edit(stableContainer.current);
                     editorRef.current = editor;
@@ -327,7 +363,7 @@ const AceEditor: React.FC<AceEditorProps> = ({
                     // 基础配置
                     editor.setTheme(`ace/theme/${theme}`);
                     editor.session.setMode(`ace/mode/${mode}`);
-                    editor.setValue(editorValue, -1);
+                    editor.setValue(editorValueRef.current, -1);
                     applyEditorOptions(editor, {
                         fontSize,
                         tabSize,
@@ -355,30 +391,25 @@ const AceEditor: React.FC<AceEditorProps> = ({
                     }
 
                     // 事件监听
-                    editor.on('change', () => {
+                    editor.on('change', (event: any) => {
                         const newValue = editor.getValue();
-                        setEditorValue(newValue);
-                        onChange?.(newValue);
+                        editorValueRef.current = newValue;
+                        callbacksRef.current.onChange?.(newValue, event);
                     });
 
-                    if (onSelectionChange) {
-                        editor.on('changeSelection', (e: any) => {
-                            onSelectionChange(editor.getSelection(), e);
-                        });
-                    }
-
-                    if (onCursorChange) {
-                        editor.on('changeCursor', (e: any) => {
-                            onCursorChange(editor.getSelection(), e);
-                        });
-                    }
-
-                    if (onBlur) editor.on('blur', onBlur);
-                    if (onFocus) editor.on('focus', onFocus);
+                    editor.on('changeSelection', (event: any) => {
+                        callbacksRef.current.onSelectionChange?.(editor.getSelection(), event);
+                    });
+                    editor.on('changeCursor', (event: any) => {
+                        callbacksRef.current.onCursorChange?.(editor.getSelection(), event);
+                    });
+                    editor.on('blur', (event: any) => callbacksRef.current.onBlur?.(event));
+                    editor.on('focus', (event: any) => callbacksRef.current.onFocus?.(event));
 
                     // 添加自定义命令
                     commands.forEach(command => {
                         editor.commands.addCommand(command);
+                        commandNamesRef.current.push(command.name);
                     });
 
                     // 设置注释和标记
@@ -393,19 +424,55 @@ const AceEditor: React.FC<AceEditorProps> = ({
                             editor.session.addMarker(range, marker.className, marker.type);
                         });
                     }
-                    onLoad?.(editor);
+                    if (!cancelled && activeRef.current) {
+                        callbacksRef.current.onLoad?.(editor);
+                    }
                 }
 
             } catch (error) {
-                onError?.(error as Error);
+                if (!cancelled && activeRef.current) {
+                    callbacksRef.current.onError?.(error as Error);
+                }
             }
         };
 
-        initialize();
-    }, [aceLoaded, containerMounted]); // 依赖 aceLoaded 和容器挂载状态
+        void initialize();
+        return () => {
+            cancelled = true;
+        };
+    }, [
+        aceLoaded,
+        acePath,
+        annotations,
+        applyEditorOptions,
+        autoScrollEditorIntoView,
+        commands,
+        containerMounted,
+        enableBasicAutocompletion,
+        enableLiveAutocompletion,
+        enableSnippets,
+        fontSize,
+        highlightActiveLine,
+        highlightSelectedWord,
+        markers,
+        maxLines,
+        minLines,
+        mode,
+        placeholder,
+        readOnly,
+        showGutter,
+        showLineNumbers,
+        showPrintMargin,
+        tabSize,
+        theme,
+        wrapEnabled,
+    ]);
 
     // 更新编辑器配置
     useEffect(() => {
+        if (value !== undefined) {
+            editorValueRef.current = value;
+        }
         if (!editorRef.current) return;
 
         const editor = editorRef.current;
@@ -415,7 +482,7 @@ const AceEditor: React.FC<AceEditorProps> = ({
             const cursorPosition = editor.getCursorPosition();
             editor.setValue(value, -1);
             editor.moveCursorToPosition(cursorPosition);
-            setEditorValue(value);
+            editorValueRef.current = value;
         }
 
         // 更新其他配置
@@ -534,41 +601,139 @@ const AceEditor: React.FC<AceEditorProps> = ({
         }
     }, [width, height]);
 
+    // 容器可能因弹窗、侧栏或响应式布局变化，需按实际尺寸通知 Ace 重排
+    useLayoutEffect(() => {
+        const container = outerContainerRef.current;
+        if (!container || typeof ResizeObserver === 'undefined') return;
+
+        let resizeFrame: number | undefined;
+        const observer = new ResizeObserver(() => {
+            if (resizeFrame !== undefined) {
+                cancelAnimationFrame(resizeFrame);
+            }
+            resizeFrame = requestAnimationFrame(() => {
+                resizeFrame = undefined;
+                editorRef.current?.resize();
+            });
+        });
+        observer.observe(container);
+
+        return () => {
+            observer.disconnect();
+            if (resizeFrame !== undefined) {
+                cancelAnimationFrame(resizeFrame);
+            }
+        };
+    }, []);
+
     // 处理模式变化
     useEffect(() => {
-        if (editorRef.current && mode) {
-            const updateMode = async () => {
+        const editor = editorRef.current;
+        if (!editor || !mode) return;
+        const requestId = ++modeRequestRef.current;
+        let cancelled = false;
+
+        const updateMode = async () => {
+            try {
                 await loadMode(mode);
-                if (editorRef.current) {
-                    editorRef.current.session.setMode(`ace/mode/${mode}`);
+                if (
+                    !cancelled &&
+                    activeRef.current &&
+                    modeRequestRef.current === requestId &&
+                    editorRef.current === editor
+                ) {
+                    editor.session.setMode(`ace/mode/${mode}`);
                 }
-            };
-            updateMode();
-        }
-    }, [mode]);
+            } catch (error) {
+                if (
+                    !cancelled &&
+                    activeRef.current &&
+                    modeRequestRef.current === requestId &&
+                    editorRef.current === editor
+                ) {
+                    callbacksRef.current.onError?.(error as Error);
+                }
+            }
+        };
+        void updateMode();
+        return () => {
+            cancelled = true;
+            if (modeRequestRef.current === requestId) {
+                modeRequestRef.current += 1;
+            }
+        };
+    }, [loadMode, mode]);
 
     // 处理主题变化
     useEffect(() => {
-        if (editorRef.current && theme) {
-            const updateTheme = async () => {
+        const editor = editorRef.current;
+        if (!editor || !theme) return;
+        const requestId = ++themeRequestRef.current;
+        let cancelled = false;
+
+        const updateTheme = async () => {
+            try {
                 await loadTheme(theme);
-                if (editorRef.current) {
-                    editorRef.current.setTheme(`ace/theme/${theme}`);
+                if (
+                    !cancelled &&
+                    activeRef.current &&
+                    themeRequestRef.current === requestId &&
+                    editorRef.current === editor
+                ) {
+                    editor.setTheme(`ace/theme/${theme}`);
                 }
-            };
-            updateTheme();
-        }
-    }, [theme]);
+            } catch (error) {
+                if (
+                    !cancelled &&
+                    activeRef.current &&
+                    themeRequestRef.current === requestId &&
+                    editorRef.current === editor
+                ) {
+                    callbacksRef.current.onError?.(error as Error);
+                }
+            }
+        };
+        void updateTheme();
+        return () => {
+            cancelled = true;
+            if (themeRequestRef.current === requestId) {
+                themeRequestRef.current += 1;
+            }
+        };
+    }, [loadTheme, theme]);
 
     // 组件卸载时清理
     useEffect(() => {
+        activeRef.current = true;
         return () => {
+            activeRef.current = false;
+            mountedRef.current = false;
             if (editorRef.current) {
                 editorRef.current.destroy();
                 editorRef.current = null;
             }
         };
     }, []);
+
+    const handleCoreLoad = useCallback(() => {
+        if (!activeRef.current) {
+            return;
+        }
+        setAceLoaded(true);
+        setHasScriptLoaded(true);
+    }, []);
+
+    const handleCoreError = useCallback((error: Error) => {
+        if (activeRef.current) {
+            callbacksRef.current.onError?.(error);
+        }
+    }, []);
+
+    const handleCoreTimeout = useCallback(() => {
+        if (activeRef.current) {
+            callbacksRef.current.onError?.(new Error(`Script load timeout: ${coreScript}`));
+        }
+    }, [coreScript]);
 
     return (
         <div className={className} style={style} ref={outerContainerRef}>
@@ -581,10 +746,9 @@ const AceEditor: React.FC<AceEditorProps> = ({
                     timeout={10000}
                     retryCount={2}
                     cache={true}
-                    onLoad={useCallback(() => {
-                        setAceLoaded(true);
-                        setHasScriptLoaded(true);
-                    }, [])}
+                    onLoad={handleCoreLoad}
+                    onError={handleCoreError}
+                    onTimeout={handleCoreTimeout}
                     loading={hasScriptLoaded ? null : loadingContent}>
                     <div ref={containerRef} style={containerBaseStyle as any}/>
                 </Script>

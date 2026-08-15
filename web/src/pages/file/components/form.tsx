@@ -1,4 +1,4 @@
-import React, {forwardRef, useCallback, useImperativeHandle, useRef, useState} from "react";
+import React, {forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState} from "react";
 import {App, Form as AntForm, Grid, Input} from "antd";
 import {ProModal, Title, useTheme} from "sinking-antd";
 import type {FileRecord} from "@/service/api/file";
@@ -15,7 +15,7 @@ interface EditorState {
 }
 
 export interface FileFormRef {
-    open: (mode: FileFormMode, path: string, record?: FileRecord) => void;
+    open: (mode: FileFormMode, path: string, record?: FileRecord, layered?: boolean) => void;
     openRename: (path: string, record: FileRecord, layered?: boolean) => void;
     close: () => void;
 }
@@ -40,20 +40,32 @@ const FileForm = forwardRef<FileFormRef, FileFormProps>(({onSuccess}, ref) => {
     const [layered, setLayered] = useState(false);
     const [submitting, setSubmitting] = useState(false);
 
+    useEffect(() => () => {
+        generationRef.current += 1;
+        submittingRef.current = false;
+    }, []);
+
     const close = useCallback(() => {
+        generationRef.current += 1;
         setEditor(undefined);
         form.resetFields();
     }, [form]);
 
     useImperativeHandle(ref, () => ({
-        open: (mode, path, record) => {
-            setLayered(false);
+        open: (mode, path, record, nested = false) => {
+            if (submittingRef.current) {
+                return;
+            }
+            setLayered(nested);
             const generation = ++generationRef.current;
             setEditor({generation, mode, path, record});
             form.setFieldsValue({name: mode === "rename" ? record?.name || "" : ""});
             window.requestAnimationFrame(() => form.focusField("name"));
         },
         openRename: (path, record, nested = false) => {
+            if (submittingRef.current) {
+                return;
+            }
             setLayered(nested);
             const generation = ++generationRef.current;
             setEditor({generation, mode: "rename", path, targetPath: path, record});
@@ -92,6 +104,9 @@ const FileForm = forwardRef<FileFormRef, FileFormProps>(({onSuccess}, ref) => {
                         name: editor.mode === "directory" ? `${value}/` : value,
                     },
                 });
+            if (generationRef.current !== generation) {
+                return;
+            }
             if (!response) {
                 return;
             }
@@ -128,16 +143,23 @@ const FileForm = forwardRef<FileFormRef, FileFormProps>(({onSuccess}, ref) => {
             width="340px"
             okText={editor?.mode === "rename" ? "保存" : "创建"}
             onOk={() => form.submit()}
-            onCancel={close}
+            onCancel={() => {
+                if (!submittingRef.current) {
+                    close();
+                }
+            }}
             modalProps={{
                 open: Boolean(editor),
                 forceRender: true,
                 zIndex: layered ? 2000 : undefined,
+                closable: !submitting,
+                keyboard: !submitting,
                 style: {top: screens.md ? 100 : 24, paddingBottom: screens.md ? 100 : 24},
                 cancelText: "取消",
                 confirmLoading: submitting,
                 focusable: {focusTriggerAfterClose: layered},
-                mask: {closable: true},
+                mask: {closable: !submitting},
+                cancelButtonProps: {disabled: submitting},
                 styles: {body: {paddingTop: compact ? 10 : 15}},
             }}>
             <AntForm<FormValues>

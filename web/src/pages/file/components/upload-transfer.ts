@@ -53,7 +53,8 @@ const FILE_UPLOAD_CHUNK_THRESHOLD = 2 * 1024 * 1024;
 const FILE_UPLOAD_CHUNK_SIZE = 8 * 1024 * 1024;
 const FILE_UPLOAD_MAX_RETRIES = 3;
 const FILE_UPLOAD_CONCURRENCY = 2;
-const FILE_UPLOAD_RESUME_STORAGE_PREFIX = "file-upload-task:";
+const FILE_UPLOAD_RESUME_STORAGE_KEY = "file-upload-tasks";
+const FILE_UPLOAD_RESUME_LEGACY_STORAGE_PREFIX = "file-upload-task:";
 const FILE_UPLOAD_RESUME_MAX_AGE = 30 * 24 * 60 * 60 * 1000;
 const FILE_UPLOAD_RESUME_CLEANUP_INTERVAL = 60 * 60 * 1000;
 
@@ -61,6 +62,8 @@ interface FileUploadResumeItem {
     uploadId: string;
     updateTime: number;
 }
+
+type FileUploadResumeItems = Record<string, FileUploadResumeItem>;
 
 interface FileUploadQueueItem {
     run: () => Promise<void>;
@@ -153,7 +156,54 @@ const appendUploadMeta = (body: FormData, meta: FileUploadMeta) => {
     }
 };
 
-const getFileUploadResumeStorageKey = (key: string) => `${FILE_UPLOAD_RESUME_STORAGE_PREFIX}${key}`;
+const isValidFileUploadResumeItem = (value: unknown, now: number): value is FileUploadResumeItem => {
+    if (!value || typeof value !== "object") {
+        return false;
+    }
+    const item = value as Partial<FileUploadResumeItem>;
+    return typeof item.uploadId === "string"
+        && typeof item.updateTime === "number"
+        && Number.isFinite(item.updateTime)
+        && now - item.updateTime <= FILE_UPLOAD_RESUME_MAX_AGE;
+};
+
+const readFileUploadResumeItems = (now = Date.now()) => {
+    const items: FileUploadResumeItems = {};
+    const raw = localStorage.getItem(FILE_UPLOAD_RESUME_STORAGE_KEY);
+    if (!raw) {
+        return {items, changed: false};
+    }
+    try {
+        const stored = JSON.parse(raw) as Record<string, unknown> | null;
+        if (!stored || typeof stored !== "object" || Array.isArray(stored)) {
+            return {items, changed: true};
+        }
+        let changed = false;
+        Object.entries(stored).forEach(([key, value]) => {
+            if (isValidFileUploadResumeItem(value, now)) {
+                items[key] = value;
+            } else {
+                changed = true;
+            }
+        });
+        return {items, changed};
+    } catch {
+        return {items, changed: true};
+    }
+};
+
+const writeFileUploadResumeItems = (items: FileUploadResumeItems) => {
+    try {
+        if (Object.keys(items).length === 0) {
+            localStorage.removeItem(FILE_UPLOAD_RESUME_STORAGE_KEY);
+        } else {
+            localStorage.setItem(FILE_UPLOAD_RESUME_STORAGE_KEY, JSON.stringify(items));
+        }
+        return true;
+    } catch {
+        return false;
+    }
+};
 
 const cleanupExpiredFileUploadResumeItems = () => {
     const now = Date.now();
@@ -162,20 +212,31 @@ const cleanupExpiredFileUploadResumeItems = () => {
     }
     lastFileUploadResumeCleanup = now;
     try {
+        const stored = readFileUploadResumeItems(now);
+        const items = stored.items;
+        let changed = stored.changed;
+        const legacyStorageKeys: string[] = [];
         for (let index = localStorage.length - 1; index >= 0; index--) {
             const storageKey = localStorage.key(index);
-            if (!storageKey?.startsWith(FILE_UPLOAD_RESUME_STORAGE_PREFIX)) {
+            if (!storageKey?.startsWith(FILE_UPLOAD_RESUME_LEGACY_STORAGE_PREFIX)) {
                 continue;
             }
+            legacyStorageKeys.push(storageKey);
             try {
                 const item = JSON.parse(localStorage.getItem(storageKey) || "null") as FileUploadResumeItem | null;
-                if (!item || typeof item.uploadId !== "string" || !Number.isFinite(item.updateTime)
-                    || now - item.updateTime > FILE_UPLOAD_RESUME_MAX_AGE) {
-                    localStorage.removeItem(storageKey);
+                if (!isValidFileUploadResumeItem(item, now)) {
+                    continue;
+                }
+                const key = storageKey.slice(FILE_UPLOAD_RESUME_LEGACY_STORAGE_PREFIX.length);
+                if (!items[key] || items[key].updateTime < item.updateTime) {
+                    items[key] = item;
+                    changed = true;
                 }
             } catch {
-                localStorage.removeItem(storageKey);
             }
+        }
+        if ((!changed || writeFileUploadResumeItems(items))) {
+            legacyStorageKeys.forEach((storageKey) => localStorage.removeItem(storageKey));
         }
     } catch {
     }
@@ -183,13 +244,11 @@ const cleanupExpiredFileUploadResumeItems = () => {
 
 const getFileUploadResumeId = (key: string) => {
     try {
-        const storageKey = getFileUploadResumeStorageKey(key);
-        const item = JSON.parse(localStorage.getItem(storageKey) || "null") as FileUploadResumeItem | null;
-        if (item && typeof item.uploadId === "string" && Number.isFinite(item.updateTime)
-            && Date.now() - item.updateTime <= FILE_UPLOAD_RESUME_MAX_AGE) {
-            return item.uploadId;
+        const stored = readFileUploadResumeItems();
+        if (stored.changed) {
+            writeFileUploadResumeItems(stored.items);
         }
-        localStorage.removeItem(storageKey);
+        return stored.items[key]?.uploadId;
     } catch {
     }
     return undefined;
@@ -197,17 +256,21 @@ const getFileUploadResumeId = (key: string) => {
 
 const setFileUploadResumeId = (key: string, uploadId: string) => {
     try {
-        localStorage.setItem(getFileUploadResumeStorageKey(key), JSON.stringify({uploadId, updateTime: Date.now()}));
+        const stored = readFileUploadResumeItems();
+        stored.items[key] = {uploadId, updateTime: Date.now()};
+        writeFileUploadResumeItems(stored.items);
     } catch {
     }
 };
 
 const removeFileUploadResumeId = (key: string, expectedUploadId: string) => {
     try {
-        const storageKey = getFileUploadResumeStorageKey(key);
-        const item = JSON.parse(localStorage.getItem(storageKey) || "null") as FileUploadResumeItem | null;
-        if (item?.uploadId === expectedUploadId) {
-            localStorage.removeItem(storageKey);
+        const stored = readFileUploadResumeItems();
+        if (stored.items[key]?.uploadId === expectedUploadId) {
+            delete stored.items[key];
+            writeFileUploadResumeItems(stored.items);
+        } else if (stored.changed) {
+            writeFileUploadResumeItems(stored.items);
         }
     } catch {
     }

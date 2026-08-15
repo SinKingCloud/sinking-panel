@@ -183,11 +183,6 @@ export const getFileIconType = (name: string, isDir = false) => {
     return categoryIcons[getFileCategory(name, isDir)];
 };
 
-export const isTextEditableFile = (name: string) => {
-    const category = getFileCategory(name);
-    return category === "code" || category === "text" || !getFileExtension(name);
-};
-
 export const isExtractableFile = (name: string) => {
     const value = String(name || "").toLowerCase();
     return value.endsWith(".zip") || value.endsWith(".tar") || value.endsWith(".gz") ||

@@ -94,6 +94,9 @@ export default (): React.ReactNode => {
     const openCreate = useCallback((mode: FileCreateMode) => {
         dialogHostRef.current?.openCreate(mode);
     }, []);
+    const openEditor = useCallback((path?: string, name?: string) => {
+        dialogHostRef.current?.openEditor(path, name);
+    }, []);
     const openProperties = useCallback((record: FileRecord) => {
         dialogHostRef.current?.openProperties(record);
     }, []);
@@ -195,6 +198,7 @@ export default (): React.ReactNode => {
                                     onSelectionChange={selection.change}
                                     onSortChange={list.changeSort}
                                     onOpen={openDirectory}
+                                    onEdit={openEditor}
                                     onPreview={openPreview}
                                     onDownload={download}
                                     onCopy={copyRecord}
@@ -234,6 +238,7 @@ export default (): React.ReactNode => {
             <FileDialogHost
                 ref={dialogHostRef}
                 path={list.path}
+                roots={disks}
                 loaded={list.loaded}
                 loading={list.loading}
                 navigating={list.navigating}
