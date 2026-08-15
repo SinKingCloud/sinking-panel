@@ -81,6 +81,7 @@ func (s *service) IsViewableInBrowser(contentType string) bool {
 		"image/webp":             true,
 		"audio/mpeg":             true,
 		"video/mp4":              true,
+		"video/quicktime":        true,
 		"video/webm":             true,
 	}
 	return viewableTypes[contentType]
