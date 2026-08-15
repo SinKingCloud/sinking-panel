@@ -7,6 +7,8 @@ import React, {
     useRef,
 } from "react";
 import {App} from "antd";
+import FilePreview from "@/pages/components/file-preview";
+import type {FilePreviewItem, FilePreviewRef} from "@/pages/components/file-preview";
 import type {FileRecord} from "@/service/api/file";
 import type {
     FileCreateMode,
@@ -33,6 +35,7 @@ import type {FileUploadRef} from "./upload";
 export interface FileDialogHostRef {
     openCreate: (mode: FileCreateMode) => void;
     openProperties: (record: FileRecord) => void;
+    openPreview: (files: readonly FilePreviewItem[], active: string) => void;
     openOperation: (mode: FileOperationMode, record?: FileRecord) => void;
     openOperationMany: (
         mode: FileOperationMode,
@@ -69,6 +72,7 @@ const FileDialogHost = forwardRef<FileDialogHostRef, FileDialogHostProps>(({
     const {message} = App.useApp();
     const formRef = useRef<FileFormRef | null>(null);
     const propertiesRef = useRef<FilePropertiesRef | null>(null);
+    const previewRef = useRef<FilePreviewRef | null>(null);
     const permissionsRef = useRef<FilePermissionsRef | null>(null);
     const recycleBinRef = useRef<FileRecycleBinRef | null>(null);
     const operationRef = useRef<FileOperationRef | null>(null);
@@ -87,6 +91,7 @@ const FileDialogHost = forwardRef<FileDialogHostRef, FileDialogHostProps>(({
         operationRef.current?.close();
         permissionsRef.current?.close();
         propertiesRef.current?.close();
+        previewRef.current?.close();
     }, []);
 
     useEffect(() => {
@@ -123,6 +128,14 @@ const FileDialogHost = forwardRef<FileDialogHostRef, FileDialogHostProps>(({
     const openProperties = useCallback((record: FileRecord) => {
         propertiesRef.current?.open(joinFilePath(path, record.name), record);
     }, [path]);
+
+    const openPreview = useCallback((files: readonly FilePreviewItem[], active: string) => {
+        if (!loaded || loading || navigating) {
+            message.info("目录正在加载");
+            return;
+        }
+        previewRef.current?.open(files, active);
+    }, [loaded, loading, message, navigating]);
 
     const openOperationContext = useCallback((
         mode: FileOperationMode,
@@ -175,6 +188,7 @@ const FileDialogHost = forwardRef<FileDialogHostRef, FileDialogHostProps>(({
     useImperativeHandle(ref, () => ({
         openCreate,
         openProperties,
+        openPreview,
         openOperation,
         openOperationMany,
         openUpload,
@@ -187,6 +201,7 @@ const FileDialogHost = forwardRef<FileDialogHostRef, FileDialogHostProps>(({
         openOperation,
         openOperationMany,
         openProperties,
+        openPreview,
         openRecycle,
         openUpload,
         trackTask,
@@ -236,6 +251,7 @@ const FileDialogHost = forwardRef<FileDialogHostRef, FileDialogHostProps>(({
                 ref={propertiesRef}
                 onRename={renameFromProperties}
                 onPermissions={permissionsFromProperties}/>
+            <FilePreview ref={previewRef}/>
             <FilePermissions ref={permissionsRef} onSuccess={handlePermissionsSuccess}/>
             <FileRecycleBin ref={recycleBinRef} onMutation={handleRecycleMutation}/>
             <FileOperationForm

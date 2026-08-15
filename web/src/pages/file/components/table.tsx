@@ -2,6 +2,8 @@ import React, {useCallback, useEffect, useMemo, useState} from "react";
 import {Button, Table as AntTable, Tooltip} from "antd";
 import type {MenuProps, TableColumnsType, TableProps} from "antd";
 import {Icon, useTheme} from "sinking-antd";
+import {isFilePreviewable} from "@/pages/components/file-preview";
+import type {FilePreviewItem} from "@/pages/components/file-preview";
 import Dropdown from "@/pages/components/stable-dropdown";
 import type {FileOrderField, FileOrderType, FileRecord} from "@/service/api/file";
 import type {DirectoryCountMap} from "../hooks/directory-counts";
@@ -31,6 +33,7 @@ export interface FileTableProps {
     onSelectionChange: (paths: string[]) => void;
     onSortChange: (field?: FileOrderField, order?: "ascend" | "descend") => void;
     onOpen: (record: FileRecord) => void;
+    onPreview: (files: readonly FilePreviewItem[], active: string) => void;
     onDownload: (record: FileRecord) => void;
     onCopy: (record: FileRecord) => void;
     onMove: (record: FileRecord) => void;
@@ -56,7 +59,7 @@ interface FileContextMenuValue {
     operatingPaths?: ReadonlySet<string>;
     openMenu?: FileMenuState;
     fileMenuClassName: string;
-    getMenuItems: (record: FileRecord, disabled?: boolean) => MenuProps["items"];
+    getMenuItems: (record: FileRecord, recordPath: string, disabled?: boolean) => MenuProps["items"];
     changeMenuOpen: (open: boolean, recordPath: string, source: FileMenuSource) => void;
 }
 
@@ -76,7 +79,7 @@ const ContextMenuRow = (rowProps: FileTableRowProps) => {
             open={context.openMenu?.source === "context" && context.openMenu.path === recordPath}
             onOpenChange={(open) => context.changeMenuOpen(open, recordPath, "context")}
             classNames={{root: context.fileMenuClassName}}
-            menu={{items: context.getMenuItems(record, disabled)}}
+            menu={{items: context.getMenuItems(record, recordPath, disabled)}}
             trigger={["contextMenu"]}>
             <tr {...rowProps}/>
         </Dropdown>
@@ -100,6 +103,7 @@ const FileTable = ({
     onSelectionChange,
     onSortChange,
     onOpen,
+    onPreview,
     onDownload,
     onCopy,
     onMove,
@@ -121,10 +125,25 @@ const FileTable = ({
             return current?.path === recordPath && current.source === source ? undefined : current;
         });
     }, []);
-    const getMenuItems = useCallback((record: FileRecord, disabled = false): MenuProps["items"] => {
+    const previewFiles = useMemo<FilePreviewItem[]>(() => items
+        .filter((record) => !record.is_dir && isFilePreviewable(record.name))
+        .map((record) => ({
+            name: record.name,
+            path: joinFilePath(path, record.name),
+            size: record.size,
+        })), [items, path]);
+    const getMenuItems = useCallback((
+        record: FileRecord,
+        recordPath: string,
+        disabled = false,
+    ): MenuProps["items"] => {
         const archive = !record.is_dir && isExtractableFile(record.name);
+        const previewable = !record.is_dir && isFilePreviewable(record.name);
         const items: MenuProps["items"] = [
             ...(!record.is_dir ? [
+                ...(previewable ? [
+                    {key: "preview", label: "预览", onClick: () => onPreview(previewFiles, recordPath)},
+                ] : []),
                 {key: "download", label: "下载", onClick: () => onDownload(record)},
             ] : [{key: "open", label: "打开", onClick: () => onOpen(record)}]),
             {type: "divider" as const},
@@ -153,7 +172,9 @@ const FileTable = ({
         onMove,
         onOpen,
         onOperation,
+        onPreview,
         onProperties,
+        previewFiles,
     ]);
 
     const recordsByPath = useMemo(() => new Map(
@@ -191,16 +212,22 @@ const FileTable = ({
             sorter: true,
             sortOrder: sort === "name" ? (order === "asc" ? "ascend" : "descend") : null,
             render: (_, record) => {
+                const recordPath = joinFilePath(path, record.name);
+                const rowDisabled = actionsDisabled || Boolean(operatingPaths?.has(recordPath));
+                const previewable = !record.is_dir && isFilePreviewable(record.name);
                 const label = record.is_dir
                     ? `打开目录 ${record.name}`
-                    : `查看文件属性 ${record.name}`;
+                    : previewable ? `预览文件 ${record.name}` : `查看文件属性 ${record.name}`;
                 return (
                     <button
                         className={styles.fileNameButton}
                         type="button"
+                        disabled={rowDisabled}
                         aria-label={label}
                         onClick={() => {
+                            if (rowDisabled) return;
                             if (record.is_dir) onOpen(record);
+                            else if (previewable) onPreview(previewFiles, recordPath);
                             else onProperties(record);
                         }}>
                         <span className={styles.fileNameContent}>
@@ -260,7 +287,11 @@ const FileTable = ({
                         open={openMenu?.source === "action" && openMenu.path === recordPath}
                         onOpenChange={(open) => changeMenuOpen(open, recordPath, "action")}
                         classNames={{root: styles.fileMenu}}
-                        menu={{items: getMenuItems(record, Boolean(operatingPaths?.has(recordPath)))}}
+                        menu={{items: getMenuItems(
+                            record,
+                            recordPath,
+                            Boolean(operatingPaths?.has(recordPath)),
+                        )}}
                         trigger={["click"]}
                         placement="bottom"
                         arrow>
@@ -279,10 +310,14 @@ const FileTable = ({
         directoryCounts,
         getMenuItems,
         onCountDirectory,
+        onOpen,
+        onPreview,
+        onProperties,
         openMenu,
         operatingPaths,
         order,
         path,
+        previewFiles,
         sort,
         styles,
     ]);

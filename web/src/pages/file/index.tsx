@@ -1,6 +1,7 @@
 import React, {useCallback, useLayoutEffect, useRef, useState} from "react";
 import {App, Button, Col, Empty, Row} from "antd";
 import {Body, Icon, useTheme} from "sinking-antd";
+import type {FilePreviewItem} from "@/pages/components/file-preview";
 import type {FileRecord} from "@/service/api/file";
 import FileDialogHost from "./components/dialog-host";
 import type {FileDialogHostRef} from "./components/dialog-host";
@@ -95,6 +96,9 @@ export default (): React.ReactNode => {
     }, []);
     const openProperties = useCallback((record: FileRecord) => {
         dialogHostRef.current?.openProperties(record);
+    }, []);
+    const openPreview = useCallback((files: readonly FilePreviewItem[], active: string) => {
+        dialogHostRef.current?.openPreview(files, active);
     }, []);
     const openOperation = useCallback((mode: FileOperationMode, record?: FileRecord) => {
         dialogHostRef.current?.openOperation(mode, record);
@@ -191,6 +195,7 @@ export default (): React.ReactNode => {
                                     onSelectionChange={selection.change}
                                     onSortChange={list.changeSort}
                                     onOpen={openDirectory}
+                                    onPreview={openPreview}
                                     onDownload={download}
                                     onCopy={copyRecord}
                                     onMove={moveRecord}

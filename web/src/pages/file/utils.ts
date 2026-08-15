@@ -41,10 +41,6 @@ const categoryByExtension = new Map<string, FileCategory>();
     extensions.forEach((extension) => categoryByExtension.set(extension, category));
 });
 
-const previewableExtensions = new Set([
-    "bmp", "gif", "jpeg", "jpg", "mp3", "mp4", "pdf", "png", "svg", "webm", "webp",
-]);
-
 const categoryIcons: Record<FileCategory, string> = {
     folder: "FolderOutlined",
     archive: "FileZipOutlined",
@@ -190,10 +186,6 @@ export const getFileIconType = (name: string, isDir = false) => {
 export const isTextEditableFile = (name: string) => {
     const category = getFileCategory(name);
     return category === "code" || category === "text" || !getFileExtension(name);
-};
-
-export const isPreviewableFile = (name: string) => {
-    return previewableExtensions.has(getFileExtension(name));
 };
 
 export const isExtractableFile = (name: string) => {

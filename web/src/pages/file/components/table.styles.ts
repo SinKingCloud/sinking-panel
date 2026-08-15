@@ -188,6 +188,16 @@ const useStyles = createStyles<{compact?: boolean; dark?: boolean}>(({
                 border-radius: ${token.borderRadiusSM}px;
                 box-shadow: 0 0 0 2px ${token.colorPrimaryBg};
             }
+
+            &:disabled {
+                color: ${token.colorTextDisabled};
+                cursor: not-allowed;
+            }
+
+            &:disabled .file-name,
+            &:disabled:hover .file-name {
+                color: ${token.colorTextDisabled};
+            }
         `,
         fileNameContent: css`
             min-width: 0;
