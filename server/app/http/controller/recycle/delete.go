@@ -16,7 +16,10 @@ func Delete(c *context.Context) {
 		return
 	}
 	for _, name := range form.Names {
-		_ = service.Recycle.Delete(name)
+		if err := service.Recycle.Delete(name); err != nil {
+			c.Error("彻底删除失败: " + err.Error())
+			return
+		}
 	}
 	service.Log.Create(c.GetRequestIp(), log_type.EventDelete, "彻底删除文件", "彻底删除回收站文件")
 	c.Success("彻底删除成功")
