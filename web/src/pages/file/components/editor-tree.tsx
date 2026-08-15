@@ -1,6 +1,6 @@
-import React, {useCallback, useEffect, useMemo, useRef} from "react";
-import {Button, Empty, Tooltip, Tree} from "antd";
-import type {MenuProps, TreeProps} from "antd";
+import React, {useCallback, useEffect, useMemo, useRef, useState} from "react";
+import {Button, Empty, Input, Tooltip, Tree} from "antd";
+import type {InputRef, MenuProps, TreeProps} from "antd";
 import {Icon} from "sinking-antd";
 import Dropdown from "@/pages/components/stable-dropdown";
 import type {FileCreateMode} from "../types";
@@ -9,12 +9,104 @@ import type {FileEditorTreeNode} from "./editor.utils";
 
 type TreeSelectHandler = NonNullable<TreeProps<FileEditorTreeNode>["onSelect"]>;
 type TreeExpandHandler = NonNullable<TreeProps<FileEditorTreeNode>["onExpand"]>;
-type TreeDoubleClickHandler = NonNullable<TreeProps<FileEditorTreeNode>["onDoubleClick"]>;
 type MenuClickHandler = NonNullable<MenuProps["onClick"]>;
 type TreeSelectArgs = Parameters<TreeSelectHandler>;
 type TreeExpandArgs = Parameters<TreeExpandHandler>;
-type TreeDoubleClickArgs = Parameters<TreeDoubleClickHandler>;
 type MenuClickArgs = Parameters<MenuClickHandler>;
+
+interface InlineRenameInputProps {
+    node: FileEditorTreeNode;
+    onCancel: () => void;
+    onSubmit: (node: FileEditorTreeNode, name: string) => Promise<boolean>;
+}
+
+const InlineRenameInput = ({node, onCancel, onSubmit}: InlineRenameInputProps) => {
+    const inputRef = useRef<InputRef>(null);
+    const mountedRef = useRef(true);
+    const submittingRef = useRef(false);
+    const [value, setValue] = useState(node.name);
+    const [submitting, setSubmitting] = useState(false);
+
+    useEffect(() => {
+        const frame = window.requestAnimationFrame(() => {
+            inputRef.current?.focus();
+            inputRef.current?.select();
+        });
+        return () => window.cancelAnimationFrame(frame);
+    }, []);
+
+    useEffect(() => {
+        mountedRef.current = true;
+        return () => {
+            mountedRef.current = false;
+        };
+    }, []);
+
+    const submit = useCallback(async () => {
+        if (submittingRef.current) {
+            return;
+        }
+        if (value === node.name) {
+            onCancel();
+            return;
+        }
+        submittingRef.current = true;
+        setSubmitting(true);
+        let success = false;
+        try {
+            success = await onSubmit(node, value);
+        } catch {
+            success = false;
+        } finally {
+            submittingRef.current = false;
+        }
+        if (success) {
+            onCancel();
+            return;
+        }
+        if (!mountedRef.current) {
+            return;
+        }
+        setSubmitting(false);
+        window.requestAnimationFrame(() => inputRef.current?.focus({cursor: "all"}));
+    }, [node, onCancel, onSubmit, value]);
+
+    const stopPropagation = (event: React.SyntheticEvent) => event.stopPropagation();
+
+    return (
+        <Input
+            ref={inputRef}
+            className="file-editor-tree-rename"
+            size="small"
+            maxLength={255}
+            value={value}
+            readOnly={submitting}
+            aria-label={`重命名 ${node.name}`}
+            suffix={(
+                <span className="file-editor-tree-rename-status" aria-hidden>
+                    {submitting && <Icon className="anticon-spin" type="LoadingOutlined"/>}
+                </span>
+            )}
+            onChange={(event) => setValue(event.target.value)}
+            onMouseDown={stopPropagation}
+            onClick={stopPropagation}
+            onDoubleClick={stopPropagation}
+            onBlur={() => void submit()}
+            onKeyDown={(event) => {
+                event.stopPropagation();
+                if (event.nativeEvent.isComposing || event.keyCode === 229) {
+                    return;
+                }
+                if (event.key === "Enter") {
+                    event.preventDefault();
+                    void submit();
+                } else if (event.key === "Escape" && !submittingRef.current) {
+                    event.preventDefault();
+                    onCancel();
+                }
+            }}/>
+    );
+};
 
 export interface FileEditorTreeProps {
     treeData: FileEditorTreeNode[];
@@ -30,7 +122,7 @@ export interface FileEditorTreeProps {
     onLoadData: NonNullable<TreeProps<FileEditorTreeNode>["loadData"]>;
     onRefresh: () => void;
     onCreate: (mode: FileCreateMode) => void;
-    onRename: (node: FileEditorTreeNode) => void;
+    onRename: (node: FileEditorTreeNode, name: string) => Promise<boolean>;
 }
 
 const FileEditorTree = ({
@@ -52,6 +144,7 @@ const FileEditorTree = ({
     const treeBodyRef = useRef<HTMLDivElement | null>(null);
     const locatedKeyRef = useRef<string | undefined>(undefined);
     const selectTimerRef = useRef<number | undefined>(undefined);
+    const [editingNode, setEditingNode] = useState<FileEditorTreeNode>();
     const directoryName = useMemo(() => {
         const normalized = targetDirectory.replace(/[\\/]+$/, "");
         const parts = normalized.split(/[\\/]/).filter(Boolean);
@@ -62,26 +155,49 @@ const FileEditorTree = ({
         {key: "file", icon: <Icon type="FileAddOutlined"/>, label: "新建空文件"},
     ], []);
 
+    const beginRename = useCallback((event: React.MouseEvent, node: FileEditorTreeNode) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (selectTimerRef.current !== undefined) {
+            window.clearTimeout(selectTimerRef.current);
+            selectTimerRef.current = undefined;
+        }
+        if (!disabled && !editingNode && node.kind === "entry" && node.record) {
+            setEditingNode(node);
+        }
+    }, [disabled, editingNode]);
+
+    const cancelRename = useCallback(() => setEditingNode(undefined), []);
+
     const titleRender = useCallback((node: FileEditorTreeNode) => {
         const iconType = node.kind === "more"
             ? "EllipsisOutlined"
             : getFileIconType(node.name, node.isDirectory);
         const iconClassName = node.isDirectory ? "is-directory" : "";
         return (
-            <span className={`file-editor-tree-node ${node.kind === "more" ? "is-more" : ""}`}>
+            <span
+                className={`file-editor-tree-node ${node.kind === "more" ? "is-more" : ""}`}
+                onDoubleClick={(event) => beginRename(event, node)}>
                 {loadingPaths.has(node.key) && node.kind === "entry" ? (
                     <Icon className="anticon-spin" type="LoadingOutlined"/>
                 ) : (
                     <Icon className={iconClassName} type={iconType}/>
                 )}
-                <span
-                    className="file-editor-tree-name"
-                    title={tooltipsDisabled ? undefined : node.title}>
-                    {node.title}
-                </span>
+                {editingNode?.key === node.key ? (
+                    <InlineRenameInput
+                        node={editingNode}
+                        onCancel={cancelRename}
+                        onSubmit={onRename}/>
+                ) : (
+                    <span
+                        className="file-editor-tree-name"
+                        title={tooltipsDisabled ? undefined : node.title}>
+                        {node.title}
+                    </span>
+                )}
             </span>
         );
-    }, [loadingPaths, tooltipsDisabled]);
+    }, [beginRename, cancelRename, editingNode, loadingPaths, onRename, tooltipsDisabled]);
 
     useEffect(() => () => {
         if (selectTimerRef.current !== undefined) {
@@ -123,24 +239,17 @@ const FileEditorTree = ({
     }, [expandedKeys, selectedKeys, treeData]);
 
     const select = useCallback((_: TreeSelectArgs[0], info: TreeSelectArgs[1]) => {
+        if (editingNode) {
+            return;
+        }
         if (selectTimerRef.current !== undefined) {
             window.clearTimeout(selectTimerRef.current);
         }
         selectTimerRef.current = window.setTimeout(() => {
             selectTimerRef.current = undefined;
             onSelect(info.node);
-        }, 350);
-    }, [onSelect]);
-
-    const rename = useCallback((_: TreeDoubleClickArgs[0], node: TreeDoubleClickArgs[1]) => {
-        if (selectTimerRef.current !== undefined) {
-            window.clearTimeout(selectTimerRef.current);
-            selectTimerRef.current = undefined;
-        }
-        if (node.kind === "entry" && node.record) {
-            onRename(node);
-        }
-    }, [onRename]);
+        }, 600);
+    }, [editingNode, onSelect]);
 
     const expand = useCallback((keys: TreeExpandArgs[0]) => {
         onExpand(keys.map(String));
@@ -196,7 +305,6 @@ const FileEditorTree = ({
                         loadData={onLoadData}
                         titleRender={titleRender}
                         onExpand={expand}
-                        onDoubleClick={rename}
                         onSelect={select}/>
                 ) : (
                     <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无目录"/>

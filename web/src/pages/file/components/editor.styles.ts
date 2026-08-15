@@ -42,11 +42,75 @@ const useStyles = createStyles<{compact?: boolean; dark?: boolean}>(({css, token
             }
         `,
         settingsPopup: css`
+            position: absolute;
+            z-index: ${token.zIndexPopupBase + 30};
+            inset-block-start: calc(100% + ${compact ? 5 : 7}px);
+            inset-inline-end: 0;
+            --file-editor-settings-arrow-x: calc(100% - 88px);
+            width: min(${compact ? 232 : 254}px, calc(100vw - 32px));
+            box-sizing: border-box;
+            padding: ${compact ? 10 : 12}px;
+            border: 1px solid ${token.colorBorderSecondary};
+            border-radius: ${token.borderRadiusLG}px;
+            opacity: 0;
+            pointer-events: none;
+            transform: translateY(-5px) scale(0.985);
+            transform-origin: var(--file-editor-settings-arrow-x) top;
+            background: ${token.colorBgElevated};
+            box-shadow: ${token.boxShadowSecondary};
+            transition:
+                opacity ${token.motionDurationFast},
+                transform ${token.motionDurationFast};
+
+            &::before,
+            &::after {
+                content: "";
+                position: absolute;
+                z-index: 1;
+                inset-block-start: -7px;
+                left: var(--file-editor-settings-arrow-x);
+                width: 0;
+                height: 0;
+                border-right: 7px solid transparent;
+                border-bottom: 7px solid ${token.colorBorderSecondary};
+                border-left: 7px solid transparent;
+                pointer-events: none;
+                transform: translateX(-50%);
+            }
+
+            &::after {
+                inset-block-start: -6px;
+                border-right-width: 6px;
+                border-bottom: 6px solid ${token.colorBgElevated};
+                border-left-width: 6px;
+            }
+
+            &.is-open {
+                opacity: 1;
+                pointer-events: auto;
+                transform: translateY(0) scale(1);
+                animation: file-editor-settings-enter ${token.motionDurationFast};
+            }
+
+            @keyframes file-editor-settings-enter {
+                from {
+                    opacity: 0;
+                    transform: translateY(-5px) scale(0.985);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateY(0) scale(1);
+                }
+            }
+
             .file-editor-settings {
-                width: min(${compact ? 210 : 230}px, calc(100vw - 32px));
+                width: 100%;
+                max-height: calc(100dvh - ${compact ? 84 : 88}px);
                 display: flex;
                 flex-direction: column;
                 gap: ${compact ? 9 : 11}px;
+                overflow-y: auto;
+                scrollbar-width: thin;
             }
 
             .file-editor-setting-row {
@@ -66,6 +130,11 @@ const useStyles = createStyles<{compact?: boolean; dark?: boolean}>(({css, token
 
             .file-editor-setting-row .ant-switch {
                 justify-self: end;
+            }
+
+            @media (prefers-reduced-motion: reduce) {
+                transition: none;
+                animation: none;
             }
         `,
         workspace: css`
@@ -290,6 +359,11 @@ const useStyles = createStyles<{compact?: boolean; dark?: boolean}>(({css, token
                 line-height: ${compact ? 24 : 28}px;
             }
 
+            .file-editor-tree-body .ant-tree-title {
+                min-width: 0;
+                flex: 1;
+            }
+
             .file-editor-tree-body .ant-tree-node-content-wrapper:hover {
                 background: ${token.colorFillQuaternary};
             }
@@ -301,6 +375,7 @@ const useStyles = createStyles<{compact?: boolean; dark?: boolean}>(({css, token
             }
 
             .file-editor-tree-node {
+                width: 100%;
                 min-width: 0;
                 min-height: ${compact ? 24 : 28}px;
                 display: flex;
@@ -342,6 +417,29 @@ const useStyles = createStyles<{compact?: boolean; dark?: boolean}>(({css, token
                 text-overflow: ellipsis;
                 white-space: nowrap;
                 line-height: ${compact ? 18 : 20}px;
+            }
+
+            .file-editor-tree-rename.ant-input-affix-wrapper {
+                width: ${compact ? 154 : 170}px;
+                max-width: 100%;
+                height: ${compact ? 23 : 27}px;
+                padding-inline: ${compact ? 5 : 7}px;
+                border-radius: ${token.borderRadiusSM}px;
+                line-height: 1;
+            }
+
+            .file-editor-tree-rename .ant-input {
+                min-width: 0;
+                font-size: ${token.fontSizeSM}px;
+            }
+
+            .file-editor-tree-rename-status {
+                width: 14px;
+                height: 14px;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 12px;
             }
 
             .file-editor-pane {
@@ -514,6 +612,12 @@ const useStyles = createStyles<{compact?: boolean; dark?: boolean}>(({css, token
                 gap: 2px;
                 margin-inline-start: auto;
                 overflow: visible;
+            }
+
+            .file-editor-settings-trigger {
+                position: static;
+                display: inline-flex;
+                flex: none;
             }
 
             .file-editor-toolbar .file-editor-save.ant-btn-text.is-dirty:not(:disabled) {
