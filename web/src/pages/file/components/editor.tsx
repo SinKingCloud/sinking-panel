@@ -8,7 +8,7 @@ import React, {
     useRef,
     useState,
 } from "react";
-import {App, Button, ConfigProvider, Empty, Grid, Spin, Tooltip} from "antd";
+import {App, Button, ConfigProvider, Empty, Grid, message as antdMessage, Spin, Tooltip} from "antd";
 import {Icon, ProModal, useTheme} from "sinking-antd";
 import {history} from "umi";
 import defaultSettings from "@/../config/defaultSettings";
@@ -73,7 +73,7 @@ const FileEditor = forwardRef(function FileEditor(
     {roots, onMutation}: FileEditorProps,
     ref: React.ForwardedRef<FileEditorRef>,
 ) {
-    const {message, modal} = App.useApp();
+    const {modal} = App.useApp();
     const theme = useTheme();
     const compact = Boolean(theme?.isCompactTheme?.());
     const dark = Boolean(theme?.isDarkMode?.() || theme?.isDarkTheme?.());
@@ -93,10 +93,6 @@ const FileEditor = forwardRef(function FileEditor(
     const [aceError, setAceError] = useState<{key: string; message: string}>();
     const [aceAttempt, setAceAttempt] = useState(0);
     const [fullscreen, setFullscreen] = useState(false);
-    const tree = useFileEditorTree({roots});
-    const files = useFileEditorDocument({onMutation});
-    const {preferences, setPreferences, resolveTheme} = useFileEditorPreferences();
-    const hasDirtyTabs = useMemo(() => files.tabs.some((tab) => tab.dirty), [files.tabs]);
 
     const getWorkspacePopupContainer = useCallback(() => {
         const workspace = workspaceRef.current;
@@ -104,6 +100,19 @@ const FileEditor = forwardRef(function FileEditor(
             ? workspace
             : document.body;
     }, []);
+    const getWorkspaceMessageContainer = useCallback(() => (
+        workspaceRef.current || document.body
+    ), []);
+    const getSettingsPopupContainer = useCallback((triggerNode: HTMLElement) => (
+        triggerNode.parentElement || workspaceRef.current || document.body
+    ), []);
+    const [message, messageContextHolder] = antdMessage.useMessage({
+        getContainer: getWorkspaceMessageContainer,
+    });
+    const tree = useFileEditorTree({roots, message});
+    const files = useFileEditorDocument({onMutation, message});
+    const {preferences, setPreferences, resolveTheme} = useFileEditorPreferences();
+    const hasDirtyTabs = useMemo(() => files.tabs.some((tab) => tab.dirty), [files.tabs]);
 
     const captureViewState = useCallback((key = files.activeKey) => {
         const editor = aceRef.current;
@@ -533,6 +542,7 @@ const FileEditor = forwardRef(function FileEditor(
             <div
                 ref={workspaceRef}
                 className={`${styles.workspace} ${treeCollapsed ? "tree-collapsed" : ""}`}>
+                {messageContextHolder}
                 {!treeCollapsed && (
                     <FileEditorTree
                         treeData={tree.treeData}
@@ -597,8 +607,9 @@ const FileEditor = forwardRef(function FileEditor(
                                     onClick={saveCurrent}/>
                             </Tooltip>
                             <FileEditorSettings
+                                key={fullscreen ? "fullscreen" : "windowed"}
                                 value={preferences}
-                                getPopupContainer={getWorkspacePopupContainer}
+                                getPopupContainer={getSettingsPopupContainer}
                                 popupClassName={styles.settingsPopup}
                                 onChange={setPreferences}/>
                             <Tooltip

@@ -89,10 +89,6 @@ const useStyles = createStyles<{compact?: boolean; dark?: boolean}>(({css, token
                 background: ${token.colorBgContainer};
             }
 
-            &:fullscreen .ant-tooltip {
-                display: none !important;
-            }
-
             &:fullscreen::backdrop {
                 background: ${token.colorBgContainer};
             }
@@ -511,11 +507,13 @@ const useStyles = createStyles<{compact?: boolean; dark?: boolean}>(({css, token
             }
 
             .file-editor-toolbar-actions {
+                position: relative;
                 display: flex;
                 flex: none;
                 align-items: center;
                 gap: 2px;
                 margin-inline-start: auto;
+                overflow: visible;
             }
 
             .file-editor-toolbar .file-editor-save.ant-btn-text.is-dirty:not(:disabled) {

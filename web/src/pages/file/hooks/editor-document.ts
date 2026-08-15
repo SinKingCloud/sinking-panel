@@ -25,6 +25,7 @@ export type FileEditorDocument = FileEditorTab;
 
 export interface UseFileEditorDocumentOptions {
     onMutation: () => void;
+    message: ReturnType<typeof App.useApp>["message"];
 }
 
 interface FileEditorTabRuntime {
@@ -58,8 +59,7 @@ const createTab = (key: string, runtime: FileEditorTabRuntime): FileEditorTab =>
     error: "",
 });
 
-const useFileEditorDocument = ({onMutation}: UseFileEditorDocumentOptions) => {
-    const {message} = App.useApp();
+const useFileEditorDocument = ({onMutation, message}: UseFileEditorDocumentOptions) => {
     const generationRef = useRef(0);
     const runtimesRef = useRef(new Map<string, FileEditorTabRuntime>());
     const tabsRef = useRef<FileEditorTab[]>([]);

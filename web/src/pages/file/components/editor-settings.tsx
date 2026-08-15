@@ -24,7 +24,7 @@ export interface FileEditorPreferences {
 
 interface FileEditorSettingsProps {
     value: FileEditorPreferences;
-    getPopupContainer: () => HTMLElement;
+    getPopupContainer: (triggerNode: HTMLElement) => HTMLElement;
     popupClassName?: string;
     onChange: (value: FileEditorPreferences) => void;
 }
@@ -103,6 +103,7 @@ const FileEditorSettings = ({
         <Popover
             trigger="click"
             placement="bottomRight"
+            destroyOnHidden
             content={content}
             rootClassName={popupClassName}
             getPopupContainer={getPopupContainer}>

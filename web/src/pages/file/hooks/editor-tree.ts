@@ -16,6 +16,7 @@ import {normalizeFilePath, parentFilePath} from "../utils";
 
 export interface UseFileEditorTreeOptions {
     roots: readonly string[];
+    message: ReturnType<typeof App.useApp>["message"];
 }
 
 type DirectoryLoadResult = {
@@ -34,8 +35,7 @@ interface PendingDirectoryLoad {
     promise: Promise<DirectoryLoadResult>;
 }
 
-const useFileEditorTree = ({roots}: UseFileEditorTreeOptions) => {
-    const {message} = App.useApp();
+const useFileEditorTree = ({roots, message}: UseFileEditorTreeOptions) => {
     const generationRef = useRef(0);
     const selectionEpochRef = useRef(0);
     const expansionEpochRef = useRef(0);
