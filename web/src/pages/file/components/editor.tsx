@@ -99,6 +99,7 @@ const FileEditor = forwardRef(function FileEditor(
     const [aceError, setAceError] = useState<{key: string; message: string}>();
     const [aceAttempt, setAceAttempt] = useState(0);
     const [fullscreen, setFullscreen] = useState(false);
+    const [minimized, setMinimized] = useState(false);
 
     const getWorkspacePopupContainer = useCallback(() => {
         const workspace = workspaceRef.current;
@@ -157,6 +158,7 @@ const FileEditor = forwardRef(function FileEditor(
         setTreeCollapsed(false);
         setAceError(undefined);
         setFullscreen(false);
+        setMinimized(false);
         setSession(undefined);
     }, [destroyDiscardConfirm, files.reset, tree.close]);
 
@@ -246,6 +248,7 @@ const FileEditor = forwardRef(function FileEditor(
 
     const initialize = useCallback((path: string, name?: string) => {
         const normalizedPath = normalizeFilePath(path);
+        setMinimized(false);
         const hasFile = name !== undefined;
         let currentSession = sessionRef.current;
         const firstOpen = !currentSession;
@@ -611,6 +614,18 @@ const FileEditor = forwardRef(function FileEditor(
         }
     }, [fullscreen, message]);
 
+    const minimizeEditor = useCallback(async () => {
+        try {
+            await exitWorkspaceFullscreen();
+            setMinimized(true);
+        } catch {
+            message.error("最小化编辑器失败");
+        }
+    }, [exitWorkspaceFullscreen, message]);
+    const handleMinimize = useCallback(() => {
+        void minimizeEditor();
+    }, [minimizeEditor]);
+
     const afterOpenChange = useCallback((open: boolean) => {
         if (open) {
             window.requestAnimationFrame(() => aceRef.current?.resize?.());
@@ -712,6 +727,17 @@ const FileEditor = forwardRef(function FileEditor(
                                 value={preferences}
                                 popupClassName={styles.settingsPopup}
                                 onChange={setPreferences}/>
+                            <Tooltip
+                                title="最小化编辑器"
+                                open={fullscreen ? false : undefined}
+                                getPopupContainer={getWorkspacePopupContainer}>
+                                <Button
+                                    className="file-editor-minimize"
+                                    type="text"
+                                    aria-label="最小化编辑器"
+                                    icon={<Icon type="MinusOutlined"/>}
+                                    onClick={handleMinimize}/>
+                            </Tooltip>
                             <Tooltip
                                 title={fullscreen ? "退出全屏" : "全屏"}
                                 open={fullscreen ? false : undefined}
@@ -819,13 +845,14 @@ const FileEditor = forwardRef(function FileEditor(
         <>
             <ProModal
                 title={<span>文件编辑器</span>}
-                width="min(1480px, calc(100vw - 24px))"
+                width="calc(100vw - 24px)"
                 onCancel={() => requestClose()}
                 modalProps={{
                     rootClassName: styles.modal,
-                    open: Boolean(session),
+                    open: Boolean(session && !minimized),
                     footer: null,
                     closable: false,
+                    destroyOnHidden: false,
                     keyboard: !fullscreen && !anyFileSaving,
                     mask: {closable: !anyFileSaving},
                     style: {
