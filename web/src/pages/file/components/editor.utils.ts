@@ -8,7 +8,7 @@ import {
 } from "../utils";
 
 export const editorReadPageSize = 100000;
-export const editorTreePageSize = 1000;
+export const editorTreePageSize = 300;
 export const maxEditorContentSize = 8 * 1024 * 1024;
 const textEncoder = new TextEncoder();
 
