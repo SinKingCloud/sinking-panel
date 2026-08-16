@@ -220,10 +220,16 @@ const FileEditorTree = ({
                 )}
             </span>
         );
-        if (node.kind !== "entry" || !node.record) {
+        if (node.kind !== "entry") {
             return title;
         }
-        const menuItems: MenuProps["items"] = node.isDirectory ? [
+        const isRoot = !node.record;
+        const menuItems: MenuProps["items"] = isRoot ? [
+            {key: "create-directory", icon: <Icon type="FolderAddOutlined"/>, label: "新建文件夹"},
+            {key: "create-file", icon: <Icon type="FileAddOutlined"/>, label: "新建空文件"},
+            {type: "divider"},
+            {key: "copy-path", icon: <Icon type="LinkOutlined"/>, label: "复制路径"},
+        ] : node.isDirectory ? [
             {key: "create-directory", icon: <Icon type="FolderAddOutlined"/>, label: "新建文件夹"},
             {key: "create-file", icon: <Icon type="FileAddOutlined"/>, label: "新建空文件"},
             {type: "divider"},

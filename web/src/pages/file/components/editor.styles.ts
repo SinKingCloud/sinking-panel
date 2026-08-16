@@ -380,7 +380,10 @@ const useStyles = createStyles<{compact?: boolean; dark?: boolean}>(({css, token
 
             .file-editor-tree-body .ant-tree-treenode {
                 width: 100%;
+                height: ${compact ? 26 : 30}px;
                 min-height: ${compact ? 26 : 30}px;
+                margin-block: 0 !important;
+                padding-block: 0 !important;
                 align-items: center;
                 position: relative;
                 border-radius: ${token.borderRadiusSM}px;
@@ -400,7 +403,7 @@ const useStyles = createStyles<{compact?: boolean; dark?: boolean}>(({css, token
             .file-editor-tree-body .ant-tree-switcher {
                 width: ${compact ? 22 : 24}px;
                 min-width: ${compact ? 22 : 24}px;
-                height: ${compact ? 24 : 28}px;
+                height: ${compact ? 26 : 30}px;
                 margin-inline-end: 0;
                 align-self: center;
                 display: inline-flex;
@@ -435,12 +438,13 @@ const useStyles = createStyles<{compact?: boolean; dark?: boolean}>(({css, token
 
             .file-editor-tree-body .ant-tree-node-content-wrapper {
                 min-width: 0;
-                min-height: ${compact ? 24 : 28}px;
+                height: ${compact ? 26 : 30}px;
+                min-height: ${compact ? 26 : 30}px;
                 padding-inline: 2px ${compact ? 4 : 6}px;
                 display: flex;
                 align-items: center;
                 border-radius: ${token.borderRadiusSM}px;
-                line-height: ${compact ? 24 : 28}px;
+                line-height: ${compact ? 26 : 30}px;
                 position: relative;
                 z-index: 1;
                 background: transparent !important;
@@ -467,7 +471,8 @@ const useStyles = createStyles<{compact?: boolean; dark?: boolean}>(({css, token
             .file-editor-tree-node {
                 width: 100%;
                 min-width: 0;
-                min-height: ${compact ? 24 : 28}px;
+                height: ${compact ? 26 : 30}px;
+                min-height: ${compact ? 26 : 30}px;
                 display: flex;
                 align-items: center;
                 gap: ${compact ? 6 : 7}px;
@@ -479,7 +484,8 @@ const useStyles = createStyles<{compact?: boolean; dark?: boolean}>(({css, token
             .file-editor-tree-node-shell {
                 width: 100%;
                 min-width: 0;
-                min-height: ${compact ? 24 : 28}px;
+                height: ${compact ? 26 : 30}px;
+                min-height: ${compact ? 26 : 30}px;
                 display: flex;
                 align-items: center;
                 position: relative;
