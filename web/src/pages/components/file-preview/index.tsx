@@ -84,9 +84,43 @@ const FilePreview = memo(forwardRef<FilePreviewRef>((_, ref) => {
     const [error, setError] = useState("");
     const [reload, setReload] = useState(0);
     const [fullscreen, setFullscreen] = useState(false);
+    const [controlsVisible, setControlsVisible] = useState(true);
+    const controlsTimerRef = useRef<number | undefined>(undefined);
 
     const current = session?.files[session.index];
     const kind = current ? getFilePreviewKind(current.name) : undefined;
+
+    const clearControlsTimer = useCallback(() => {
+        if (controlsTimerRef.current !== undefined) {
+            window.clearTimeout(controlsTimerRef.current);
+            controlsTimerRef.current = undefined;
+        }
+    }, []);
+
+    const scheduleControlsHide = useCallback(() => {
+        clearControlsTimer();
+        if (
+            typeof window === "undefined" ||
+            !window.matchMedia("(hover: hover) and (pointer: fine)").matches
+        ) {
+            return;
+        }
+        controlsTimerRef.current = window.setTimeout(() => {
+            controlsTimerRef.current = undefined;
+            setControlsVisible(false);
+        }, 1800);
+    }, [clearControlsTimer]);
+
+    const revealControls = useCallback(() => {
+        setControlsVisible(true);
+        scheduleControlsHide();
+    }, [scheduleControlsHide]);
+
+    const handlePointerActivity = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+        if (event.pointerType === "mouse") {
+            revealControls();
+        }
+    }, [revealControls]);
 
     const close = useCallback(() => {
         if (document.fullscreenElement === stageRef.current) {
@@ -101,7 +135,9 @@ const FilePreview = memo(forwardRef<FilePreviewRef>((_, ref) => {
         setError("");
         setReload(0);
         setFullscreen(false);
-    }, []);
+        clearControlsTimer();
+        setControlsVisible(true);
+    }, [clearControlsTimer]);
 
     useImperativeHandle(ref, () => ({
         open: (files, active) => {
@@ -141,7 +177,17 @@ const FilePreview = memo(forwardRef<FilePreviewRef>((_, ref) => {
     useEffect(() => () => {
         requestRef.current += 1;
         activeUrlRef.current = "";
-    }, []);
+        clearControlsTimer();
+    }, [clearControlsTimer]);
+
+    useEffect(() => {
+        clearControlsTimer();
+        setControlsVisible(true);
+        if (session) {
+            scheduleControlsHide();
+        }
+        return clearControlsTimer;
+    }, [clearControlsTimer, fullscreen, scheduleControlsHide, session]);
 
     useEffect(() => {
         const handleFullscreenChange = () => {
@@ -327,8 +373,12 @@ const FilePreview = memo(forwardRef<FilePreviewRef>((_, ref) => {
                     </div>
                     <div
                         ref={stageRef}
-                        className="file-preview-stage"
-                        aria-busy={loading || mediaLoading}>
+                        className={`file-preview-stage ${controlsVisible ? "" : "file-preview-controls-hidden"}`}
+                        aria-busy={loading || mediaLoading}
+                        onPointerMove={handlePointerActivity}
+                        onPointerDown={handlePointerActivity}
+                        onPointerEnter={handlePointerActivity}
+                        onFocusCapture={revealControls}>
                         {media}
                         {(loading || (url && mediaLoading && !error)) && (
                             <div className="file-preview-loading" role="status" aria-label="正在加载文件预览">

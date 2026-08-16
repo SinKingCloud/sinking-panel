@@ -75,7 +75,7 @@ const useStyles = createStyles<{compact?: boolean}>(({css, token}, props = {}) =
                 width: 100vw;
                 height: 100vh;
                 border-radius: 0;
-                background: ${token.colorBgElevated};
+                background: #000;
             }
 
             .file-preview-media {
@@ -143,6 +143,7 @@ const useStyles = createStyles<{compact?: boolean}>(({css, token}, props = {}) =
                 background: ${token.colorBgElevated};
                 color: ${token.colorTextSecondary};
                 box-shadow: ${token.boxShadowSecondary};
+                transition: opacity ${token.motionDurationFast}, background-color ${token.motionDurationFast}, color ${token.motionDurationFast};
             }
 
             .file-preview-fullscreen.ant-btn:hover,
@@ -165,12 +166,41 @@ const useStyles = createStyles<{compact?: boolean}>(({css, token}, props = {}) =
                 color: ${token.colorTextSecondary};
                 box-shadow: ${token.boxShadowSecondary};
                 transform: translateY(-50%);
+                transition: opacity ${token.motionDurationFast}, background-color ${token.motionDurationFast}, color ${token.motionDurationFast};
+            }
+
+            .file-preview-stage.file-preview-controls-hidden .file-preview-fullscreen.ant-btn,
+            .file-preview-stage.file-preview-controls-hidden .file-preview-nav.ant-btn {
+                opacity: 0;
+                pointer-events: none;
+            }
+
+            .file-preview-stage.file-preview-controls-hidden .file-preview-fullscreen.ant-btn:focus-visible,
+            .file-preview-stage.file-preview-controls-hidden .file-preview-nav.ant-btn:focus-visible {
+                opacity: 1;
+                pointer-events: auto;
             }
 
             .file-preview-nav.ant-btn:not(:disabled):hover,
             .file-preview-nav.ant-btn:not(:disabled):focus-visible {
                 background: ${token.colorBgElevated};
                 color: ${token.colorPrimary};
+            }
+
+            .file-preview-stage:fullscreen .file-preview-fullscreen.ant-btn,
+            .file-preview-stage:fullscreen .file-preview-nav.ant-btn {
+                background: rgba(24, 24, 24, .46);
+                color: rgba(255, 255, 255, .9);
+                -webkit-backdrop-filter: blur(12px);
+                backdrop-filter: blur(12px);
+            }
+
+            .file-preview-stage:fullscreen .file-preview-fullscreen.ant-btn:hover,
+            .file-preview-stage:fullscreen .file-preview-fullscreen.ant-btn:focus-visible,
+            .file-preview-stage:fullscreen .file-preview-nav.ant-btn:not(:disabled):hover,
+            .file-preview-stage:fullscreen .file-preview-nav.ant-btn:not(:disabled):focus-visible {
+                background: rgba(48, 48, 48, .62);
+                color: #fff;
             }
 
             .file-preview-nav.is-previous {
