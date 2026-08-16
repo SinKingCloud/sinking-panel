@@ -2,7 +2,7 @@ import React, {forwardRef, memo, useCallback, useImperativeHandle, useRef, useSt
 import {App, Form as AntForm, Grid} from "antd";
 import type {FormInstance} from "antd";
 import {createStyles} from "antd-style";
-import {ProModal, Title} from "sinking-antd";
+import {ProModal, Title, useTheme} from "sinking-antd";
 import {
     compressFile,
     extractFile,
@@ -61,6 +61,8 @@ const useStyles = createStyles(({css}) => ({
 
 const FileOperationForm = forwardRef<FileOperationRef, FileOperationProps>(({onTask, onSuccess}, ref) => {
     const {message, modal} = App.useApp();
+    const theme = useTheme();
+    const compact = Boolean(theme?.isCompactTheme?.());
     const screens = Grid.useBreakpoint();
     const {styles} = useStyles();
     const formRef = useRef<FormInstance<FileOperationFormValues> | null>(null);
@@ -264,6 +266,9 @@ const FileOperationForm = forwardRef<FileOperationRef, FileOperationProps>(({onT
                 cancelButtonProps: {disabled: false},
                 focusable: {focusTriggerAfterClose: false},
                 mask: {closable: true},
+                styles: operation?.mode === "extract"
+                    ? {body: {paddingTop: compact ? 10 : 15}}
+                    : undefined,
             }}>
             <AntForm<FileOperationFormValues>
                 key={operation?.generation ?? 0}
