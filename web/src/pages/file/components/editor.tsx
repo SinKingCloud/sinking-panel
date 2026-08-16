@@ -765,13 +765,13 @@ const FileEditor = forwardRef(function FileEditor(
                                 onError={handleAceError}
                                 loadingContent={(
                                     <div className="file-editor-loading" role="status" aria-label="正在加载编辑器">
-                                        <Spin size="default"/>
+                                        <Spin/>
                                     </div>
                                 )}/>
                         )}
                         {activeTab?.loading && (
                             <div className="file-editor-loading" role="status" aria-label="正在读取文件内容">
-                                <Spin size="default"/>
+                                <Spin/>
                             </div>
                         )}
                         {!activeTab && (

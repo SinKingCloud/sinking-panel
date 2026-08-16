@@ -10,6 +10,7 @@ import (
 type Service interface {
 	Create(ip string, types int, title string, content string)
 	Select(where *repositoryLog.SelectLog, queryPage *page.Query) (*page.Result[*model.Log], error)
+	Clear(day int) (int64, error)
 }
 
 // service 注入结构

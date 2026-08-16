@@ -1,8 +1,11 @@
-import React from "react";
+import React, {useRef} from "react";
+import {Button} from "antd";
 import {Body, ProTable, Title} from "sinking-antd";
+import type {ProTableRef} from "sinking-antd";
 import {getLog} from "@/service/api/system";
 import useEnum from "@/utils/enum";
 import {dateRangeTransform, getData} from "@/utils/page";
+import Clear, {ClearRef} from "./components/clear";
 
 const color: Record<string, string> = {
     "0": "green",
@@ -14,6 +17,8 @@ const color: Record<string, string> = {
 
 export default (): React.ReactNode => {
     const [enumData, enumLoading] = useEnum("log");
+    const tableRef = useRef<ProTableRef | null>(null);
+    const clearRef = useRef<ClearRef | null>(null);
 
     const columns: any[] = [
         {
@@ -88,14 +93,25 @@ export default (): React.ReactNode => {
     return (
         <Body loading={enumLoading}>
             <ProTable
+                ref={tableRef}
                 extraRefreshBtn
                 title={<Title>操作日志</Title>}
+                extra={(
+                    <Button
+                        type="primary"
+                        aria-label="清理操作日志"
+                        onClick={() => clearRef.current?.open()}
+                    >
+                        清理
+                    </Button>
+                )}
                 rowKey="id"
                 columns={columns}
                 defaultPage={1}
                 defaultPageSize={10}
                 request={(params, sort) => getData(params, sort, getLog)}
             />
+            <Clear ref={clearRef} onSuccess={() => tableRef.current?.refreshTableData?.()}/>
         </Body>
     );
 };
