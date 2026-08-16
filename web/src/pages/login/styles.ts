@@ -60,7 +60,7 @@ export default createStyles(({css, token, isDarkMode}: any, props: any = {}) => 
             position: relative;
             z-index: 1;
             width: 100%;
-            max-width: 424px;
+            max-width: ${compact ? 392 : 424}px;
             padding: ${compact ? "26px 32px 30px" : "30px 36px 34px"};
             border: 1px solid ${token.colorBorderSecondary};
             border-radius: ${token.borderRadiusLG}px;
@@ -103,7 +103,7 @@ export default createStyles(({css, token, isDarkMode}: any, props: any = {}) => 
             }
 
             @media (max-width: 640px) {
-                max-width: 360px;
+                max-width: ${compact ? 340 : 360}px;
                 padding: ${compact ? "22px 20px 24px" : "24px 20px 26px"};
 
                 .brand > .anticon {
