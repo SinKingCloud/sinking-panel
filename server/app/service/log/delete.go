@@ -9,7 +9,7 @@ func (s *service) Clear(day int) (int64, error) {
 	if day < 1 {
 		day = 1
 	}
-	ids, err := s.repositoryLog.SelectIdByCreateTime(time.Now().AddDate(0, 0, -day), 1000)
+	ids, err := s.repositoryLog.SelectIdByCreateTime(time.Now().AddDate(0, 0, -day), 10000)
 	if err != nil {
 		return 0, err
 	}
