@@ -107,7 +107,6 @@ export const RemoteDownloadOperationFields = memo(() => {
             <AntForm.Item
                 name="name"
                 label="保存名称"
-                extra="根据文件地址自动填写，可手动修改"
                 rules={[{validator: validateFileName}]}>
                 <Input
                     maxLength={255}

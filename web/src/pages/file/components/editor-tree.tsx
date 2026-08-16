@@ -381,7 +381,7 @@ const FileEditorTree = ({
             <div ref={treeBodyRef} className="file-editor-tree-body">
                 {initializing ? (
                     <div className="file-editor-tree-loading" role="status" aria-label="正在加载目录">
-                        <Spin size="large"/>
+                        <Spin size="default"/>
                     </div>
                 ) : treeData.length > 0 ? (
                     <Tree<FileEditorTreeNode>

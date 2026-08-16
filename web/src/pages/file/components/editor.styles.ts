@@ -154,8 +154,12 @@ const useStyles = createStyles<{compact?: boolean; dark?: boolean}>(({css, token
             }
 
             &&.file-editor-create-menu .ant-dropdown-menu {
-                width: ${compact ? 124 : 132}px;
-                min-width: ${compact ? 124 : 132}px;
+                width: max-content;
+                min-width: 0;
+            }
+
+            &&.file-editor-create-menu .ant-dropdown-menu-item {
+                white-space: nowrap;
             }
 
             && .ant-dropdown-menu-item,
