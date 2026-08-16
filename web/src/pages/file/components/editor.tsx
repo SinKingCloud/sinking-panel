@@ -17,6 +17,7 @@ import {deleteFile, renameFile} from "@/service/api/file";
 import useFileEditorDocument from "../hooks/editor-document";
 import useFileEditorPreferences from "../hooks/editor-preferences";
 import useFileEditorTree from "../hooks/editor-tree";
+import {readFileStorage, updateFileStorage} from "../hooks/file-storage";
 import type {FileCreateMode, FileFormMode, FileFormResult} from "../types";
 import {
     isFilePathWithin,
@@ -95,7 +96,10 @@ const FileEditor = forwardRef(function FileEditor(
     const saveCommandRef = useRef<() => void>(() => undefined);
     const viewStateRef = useRef(new Map<string, EditorViewState>());
     const [session, setSession] = useState<FileEditorSession>();
-    const [treeCollapsed, setTreeCollapsed] = useState(false);
+    const [treeCollapsed, setTreeCollapsed] = useState(() => {
+        const stored = readFileStorage().editor?.treeCollapsed;
+        return typeof stored === "boolean" ? stored : isMobileViewport();
+    });
     const [aceError, setAceError] = useState<{key: string; message: string}>();
     const [aceAttempt, setAceAttempt] = useState(0);
     const [fullscreen, setFullscreen] = useState(false);
@@ -155,7 +159,6 @@ const FileEditor = forwardRef(function FileEditor(
         viewStateRef.current.clear();
         aceRef.current = null;
         sessionRef.current = undefined;
-        setTreeCollapsed(false);
         setAceError(undefined);
         setFullscreen(false);
         setMinimized(false);
@@ -261,7 +264,6 @@ const FileEditor = forwardRef(function FileEditor(
         if (firstOpen) {
             const directoryPath = hasFile ? parentFilePath(normalizedPath) : normalizedPath;
             tree.initialize(directoryPath, hasFile ? normalizedPath : undefined);
-            setTreeCollapsed(isMobileViewport());
         }
         if (hasFile) {
             files.open(normalizedPath, String(name));
@@ -540,6 +542,16 @@ const FileEditor = forwardRef(function FileEditor(
     const toggleTree = useCallback(() => {
         setTreeCollapsed((current) => !current);
     }, []);
+
+    useEffect(() => {
+        updateFileStorage((current) => ({
+            ...current,
+            editor: {
+                ...current.editor,
+                treeCollapsed,
+            },
+        }));
+    }, [treeCollapsed]);
 
     const saveCurrent = useCallback(() => {
         if (!files.activeKey) {

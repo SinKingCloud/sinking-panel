@@ -4,13 +4,12 @@ import {history, useLocation} from "umi";
 import {getFileDisks} from "@/service/api/file";
 import useFileList from "./list";
 import {comparableFilePath, isFilePathWithin, normalizeFilePath} from "../utils";
-
-const lastPathStorageKey = "file.last.path";
+import {readFileStorage, updateFileStorage} from "./file-storage";
 
 const readLastPath = () => {
     try {
         window.localStorage.removeItem("file.selected.disk");
-        const value = window.localStorage.getItem(lastPathStorageKey);
+        const value = readFileStorage().lastPath;
         return value ? normalizeFilePath(value) : "";
     } catch {
         return "";
@@ -19,7 +18,10 @@ const readLastPath = () => {
 
 const saveLastPath = (path: string) => {
     try {
-        window.localStorage.setItem(lastPathStorageKey, normalizeFilePath(path));
+        updateFileStorage((current) => ({
+            ...current,
+            lastPath: normalizeFilePath(path),
+        }));
     } catch {
         // Storage can be disabled in restricted browser contexts.
     }
@@ -27,7 +29,11 @@ const saveLastPath = (path: string) => {
 
 const clearLastPath = () => {
     try {
-        window.localStorage.removeItem(lastPathStorageKey);
+        updateFileStorage((current) => {
+            const next = {...current};
+            delete next.lastPath;
+            return next;
+        });
     } catch {
         // Storage can be disabled in restricted browser contexts.
     }

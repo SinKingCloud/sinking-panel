@@ -5,7 +5,7 @@ interface PanelState {
     scripts: boolean;
 }
 
-const storageKey = "terminal.panel.collapsed";
+const storageKey = "terminal";
 const defaultState: PanelState = {
     server: false,
     scripts: true,

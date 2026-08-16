@@ -8,8 +8,8 @@ const useStyles = createStyles<{compact?: boolean}>(({css, token}, props = {}) =
             z-index: ${token.zIndexPopupBase + 40};
             left: 50%;
             top: 50%;
-            width: min(400px, calc(100vw - 32px));
-            max-height: min(320px, calc(100dvh - 32px));
+            width: min(440px, calc(100vw - 32px));
+            max-height: min(520px, calc(100dvh - 32px));
             overflow: hidden;
             border: 1px solid ${token.colorBorderSecondary};
             border-radius: ${token.borderRadiusLG + 2}px;
@@ -31,13 +31,70 @@ const useStyles = createStyles<{compact?: boolean}>(({css, token}, props = {}) =
                 }
             }
 
+            .file-task-progress-panel-header {
+                padding: ${compact ? 9 : 11}px ${compact ? 12 : 14}px;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                border-bottom: 1px solid ${token.colorSplit};
+                color: ${token.colorTextSecondary};
+                font-size: ${compact ? 11 : 12}px;
+                font-weight: 500;
+                line-height: 20px;
+                cursor: grab;
+                user-select: none;
+                touch-action: none;
+            }
+
+            .file-task-progress-panel-header.is-dragging {
+                cursor: grabbing;
+            }
+
+            .file-task-progress-panel-title {
+                min-width: 0;
+                flex: 1;
+            }
+
+            .file-task-progress-panel-title > div {
+                min-width: 0;
+            }
+
+            .file-task-progress-panel-close.ant-btn {
+                flex: none;
+                width: 24px;
+                min-width: 24px;
+                height: 24px;
+                padding: 0;
+                color: ${token.colorTextQuaternary};
+            }
+
+            .file-task-progress-panel-close.ant-btn:hover {
+                color: ${token.colorText};
+                background: ${token.colorFillTertiary};
+            }
+
+            .file-task-progress-list {
+                max-height: min(468px, calc(100dvh - 84px));
+                padding: ${compact ? 5 : 7}px;
+                overflow-y: auto;
+            }
+
+            .file-task-progress-item {
+                min-width: 0;
+                padding: ${compact ? 8 : 10}px ${compact ? 7 : 9}px;
+                border-radius: ${token.borderRadius}px;
+                background: ${token.colorFillQuaternary};
+            }
+
+            .file-task-progress-item + .file-task-progress-item {
+                margin-top: ${compact ? 4 : 5}px;
+            }
+
             .file-task-progress-header {
                 min-width: 0;
-                padding: ${compact ? 9 : 11}px ${compact ? 11 : 13}px ${compact ? 8 : 10}px;
                 display: flex;
                 align-items: center;
                 gap: 7px;
-                border-bottom: 1px solid ${token.colorSplit};
             }
 
             .file-task-progress-status-dot {
@@ -124,10 +181,6 @@ const useStyles = createStyles<{compact?: boolean}>(({css, token}, props = {}) =
                 -webkit-line-clamp: 4;
             }
 
-            .file-task-progress-body {
-                padding: ${compact ? 9 : 11}px ${compact ? 11 : 13}px ${compact ? 10 : 12}px;
-            }
-
             .file-task-progress-cancel.ant-btn {
                 flex: none;
                 width: 24px;
@@ -146,7 +199,7 @@ const useStyles = createStyles<{compact?: boolean}>(({css, token}, props = {}) =
             @media (max-width: 520px) {
                 left: 50%;
                 top: 50%;
-                width: min(400px, calc(100vw - 24px));
+                width: min(440px, calc(100vw - 24px));
             }
         `,
     };

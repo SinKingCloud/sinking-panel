@@ -3,8 +3,8 @@ import type {
     FileEditorPreferences,
     FileEditorTheme,
 } from "../components/editor-settings";
+import {readFileStorage, updateFileStorage} from "./file-storage";
 
-const storageKey = "file.editor.preferences";
 const preferencesVersion = 2;
 const availableThemes = new Set<FileEditorTheme>([
     "auto",
@@ -41,7 +41,7 @@ const loadPreferences = (): FileEditorPreferences => {
         return defaultPreferences;
     }
     try {
-        const stored = JSON.parse(window.localStorage.getItem(storageKey) || "null") as StoredFileEditorPreferences | null;
+        const stored = readFileStorage().editor?.preferences as StoredFileEditorPreferences | undefined;
         if (!stored || typeof stored !== "object") {
             return defaultPreferences;
         }
@@ -77,13 +77,16 @@ const useFileEditorPreferences = () => {
     const [preferences, setPreferences] = useState<FileEditorPreferences>(loadPreferences);
 
     useEffect(() => {
-        try {
-            window.localStorage.setItem(storageKey, JSON.stringify({
-                ...preferences,
-                version: preferencesVersion,
-            }));
-        } catch {
-        }
+        updateFileStorage((current) => ({
+            ...current,
+            editor: {
+                ...current.editor,
+                preferences: {
+                    ...preferences,
+                    version: preferencesVersion,
+                },
+            },
+        }));
     }, [preferences]);
 
     const resolveTheme = useCallback((dark: boolean) => (
