@@ -9,10 +9,8 @@ import type {FileEditorTreeNode} from "./editor.utils";
 
 type TreeSelectHandler = NonNullable<TreeProps<FileEditorTreeNode>["onSelect"]>;
 type TreeExpandHandler = NonNullable<TreeProps<FileEditorTreeNode>["onExpand"]>;
-type MenuClickHandler = NonNullable<MenuProps["onClick"]>;
 type TreeSelectArgs = Parameters<TreeSelectHandler>;
 type TreeExpandArgs = Parameters<TreeExpandHandler>;
-type MenuClickArgs = Parameters<MenuClickHandler>;
 
 interface InlineRenameInputProps {
     node: FileEditorTreeNode;
@@ -165,11 +163,6 @@ const FileEditorTree = ({
         const parts = normalized.split(/[\\/]/).filter(Boolean);
         return parts[parts.length - 1] || targetDirectory || "目录";
     }, [targetDirectory]);
-    const createItems: MenuProps["items"] = useMemo(() => [
-        {key: "directory", icon: <Icon type="FolderAddOutlined"/>, label: "新建文件夹"},
-        {key: "file", icon: <Icon type="FileAddOutlined"/>, label: "新建空文件"},
-    ], []);
-
     const beginRename = useCallback((node: FileEditorTreeNode) => {
         if (!disabled && !editingNode && node.kind === "entry" && node.record) {
             setEditingNode(node);
@@ -335,9 +328,6 @@ const FileEditorTree = ({
     const expand = useCallback((keys: TreeExpandArgs[0]) => {
         onExpand(keys.map(String));
     }, [onExpand]);
-    const createEntry = useCallback(({key}: MenuClickArgs[0]) => {
-        onCreate(key === "directory" ? "directory" : "file");
-    }, [onCreate]);
 
     return (
         <aside className="file-editor-sidebar" aria-label="文件目录">
@@ -362,26 +352,6 @@ const FileEditorTree = ({
                             icon={<Icon type="ReloadOutlined"/>}
                             onClick={onRefresh}/>
                     </Tooltip>
-                    <Dropdown
-                        key={`create-${tooltipsDisabled ? "fullscreen" : "window"}`}
-                        trigger={["click"]}
-                        placement="bottomRight"
-                        autoAdjustOverflow={false}
-                        classNames={{root: `${menuClassName} file-editor-create-menu`}}
-                        getPopupContainer={getPopupContainer}
-                        disabled={disabled || !targetDirectory}
-                        menu={{items: createItems, onClick: createEntry}}>
-                        <button
-                            className="file-editor-create-trigger"
-                            type="button"
-                            disabled={disabled || !targetDirectory}
-                            aria-label="在当前目录新建"
-                            aria-haspopup="menu">
-                            <Icon className="marker" type="PlusOutlined"/>
-                            <span className="value">新建</span>
-                            <Icon className="arrow" type="DownOutlined"/>
-                        </button>
-                    </Dropdown>
                 </div>
             </div>
             <div ref={treeBodyRef} className="file-editor-tree-body">

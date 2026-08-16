@@ -49,9 +49,19 @@ const useFileEditorTree = ({roots, message}: UseFileEditorTreeOptions) => {
     const [loadingPaths, setLoadingPaths] = useState<ReadonlySet<string>>(new Set());
     const [initializing, setInitializing] = useState(false);
 
-    const normalizedRoots = useMemo(() => roots
-        .map(normalizeFilePath)
-        .filter((root, index, values) => values.indexOf(root) === index), [roots]);
+    const normalizedRoots = useMemo(() => {
+        const values = roots
+            .map(normalizeFilePath)
+            .filter((root, index, all) => all.indexOf(root) === index);
+        const isWindowsRoots = values.some((root) => /^[a-z]:\//i.test(root));
+        // Linux mount enumeration may omit `/` when the root filesystem is overlay-backed.
+        if (values.length > 0
+            && !isWindowsRoots
+            && !values.some((root) => editorTreeKey(root) === editorTreeKey("/"))) {
+            values.unshift("/");
+        }
+        return values;
+    }, [roots]);
     const rootKeys = useMemo(() => new Set(normalizedRoots.map(editorTreeKey)), [normalizedRoots]);
     const rootKeysRef = useRef(rootKeys);
     rootKeysRef.current = rootKeys;

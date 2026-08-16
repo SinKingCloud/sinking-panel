@@ -146,20 +146,11 @@ const useStyles = createStyles<{compact?: boolean; dark?: boolean}>(({css, token
             }
 
             && .ant-dropdown-menu {
-                min-width: 148px;
+                min-width: 132px;
                 padding: 2px !important;
                 border-radius: ${token.borderRadius}px !important;
                 background: ${token.colorBgElevated};
                 box-shadow: ${token.boxShadowSecondary};
-            }
-
-            &&.file-editor-create-menu .ant-dropdown-menu {
-                width: max-content;
-                min-width: 0;
-            }
-
-            &&.file-editor-create-menu .ant-dropdown-menu-item {
-                white-space: nowrap;
             }
 
             && .ant-dropdown-menu-item,
@@ -275,63 +266,6 @@ const useStyles = createStyles<{compact?: boolean; dark?: boolean}>(({css, token
                 display: flex;
                 align-items: center;
                 gap: 2px;
-            }
-
-            .file-editor-create-trigger {
-                width: auto;
-                min-width: max-content;
-                height: ${compact ? 28 : 30}px;
-                padding: 0 ${compact ? 6 : 8}px;
-                display: inline-flex;
-                align-items: center;
-                justify-content: center;
-                gap: 5px;
-                border: 1px solid transparent;
-                border-radius: ${token.borderRadiusSM}px;
-                outline: none;
-                appearance: none;
-                background: ${token.colorFillQuaternary};
-                color: ${token.colorTextSecondary};
-                cursor: pointer;
-                font: inherit;
-                font-size: ${token.fontSizeSM}px;
-                line-height: 1;
-                transition: background-color ${token.motionDurationFast};
-            }
-
-            .file-editor-create-trigger .value {
-                color: ${token.colorTextSecondary};
-                white-space: nowrap;
-            }
-
-            .file-editor-create-trigger .marker {
-                color: ${token.colorTextQuaternary};
-                font-size: ${compact ? 11 : 12}px;
-            }
-
-            .file-editor-create-trigger .arrow {
-                color: ${token.colorTextQuaternary};
-                font-size: ${compact ? 8 : 9}px;
-                transition: transform ${token.motionDurationFast};
-            }
-
-            .file-editor-create-trigger:hover,
-            .file-editor-create-trigger.ant-dropdown-open {
-                background: ${token.colorFillSecondary};
-            }
-
-            .file-editor-create-trigger.ant-dropdown-open .arrow {
-                transform: rotate(180deg);
-            }
-
-            .file-editor-create-trigger:focus-visible {
-                border-color: ${token.colorPrimaryBorder};
-                box-shadow: 0 0 0 2px ${token.colorPrimaryBg};
-            }
-
-            .file-editor-create-trigger:disabled {
-                color: ${token.colorTextDisabled};
-                cursor: not-allowed;
             }
 
             .file-editor-tree-actions .ant-btn-text,
@@ -932,11 +866,6 @@ const useStyles = createStyles<{compact?: boolean; dark?: boolean}>(({css, token
                     width: 40px;
                     min-width: 40px;
                     height: 40px;
-                }
-
-                .file-editor-create-trigger {
-                    height: 34px;
-                    padding-inline: 8px;
                 }
 
                 .file-editor-tree-toolbar,
