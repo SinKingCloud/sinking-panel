@@ -10,6 +10,7 @@ import {
 export const editorReadPageSize = 100000;
 export const editorTreePageSize = 1000;
 export const maxEditorContentSize = 8 * 1024 * 1024;
+const textEncoder = new TextEncoder();
 
 export interface FileEditorTreeNode {
     key: string;
@@ -102,7 +103,7 @@ export const getEditorMode = (name: string) => {
     return extensionModes[extension] || "text";
 };
 
-export const contentByteSize = (value: string) => new TextEncoder().encode(value).byteLength;
+export const contentByteSize = (value: string) => textEncoder.encode(value).byteLength;
 
 export const editorTreeKey = (path: string) => comparableFilePath(path);
 

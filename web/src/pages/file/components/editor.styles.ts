@@ -137,6 +137,51 @@ const useStyles = createStyles<{compact?: boolean; dark?: boolean}>(({css, token
                 animation: none;
             }
         `,
+        treeMenu: css`
+            && {
+                max-width: calc(100vw - 24px);
+                box-sizing: border-box;
+                padding: 0;
+                border-radius: ${token.borderRadius}px;
+            }
+
+            && .ant-dropdown-menu {
+                min-width: 148px;
+                padding: 2px !important;
+                border-radius: ${token.borderRadius}px !important;
+                background: ${token.colorBgElevated};
+                box-shadow: ${token.boxShadowSecondary};
+            }
+
+            &&.file-editor-create-menu .ant-dropdown-menu {
+                width: ${compact ? 124 : 132}px;
+                min-width: ${compact ? 124 : 132}px;
+            }
+
+            && .ant-dropdown-menu-item,
+            && .ant-dropdown-menu-submenu-title {
+                min-height: ${compact ? 26 : 30}px !important;
+                margin: 0 !important;
+                padding: 0 8px !important;
+                border-radius: ${token.borderRadiusSM}px !important;
+                color: ${token.colorTextSecondary};
+                font-size: ${compact ? 11 : 12}px !important;
+            }
+
+            && .ant-dropdown-menu-item:hover,
+            && .ant-dropdown-menu-submenu-title:hover {
+                background: ${token.colorFillQuaternary};
+            }
+
+            && .ant-dropdown-menu-item-danger:not(.ant-dropdown-menu-item-disabled) {
+                color: ${token.colorError};
+            }
+
+            && .ant-dropdown-menu-item-danger:not(.ant-dropdown-menu-item-disabled):hover {
+                background: ${token.colorErrorBg};
+                color: ${token.colorError};
+            }
+        `,
         workspace: css`
             position: relative;
             height: calc(100dvh - 32px);
@@ -204,6 +249,9 @@ const useStyles = createStyles<{compact?: boolean; dark?: boolean}>(({css, token
                 font-size: ${token.fontSizeSM}px;
                 font-weight: 500;
                 line-height: 20px;
+                user-select: none;
+                -webkit-user-select: none;
+                cursor: copy;
             }
 
             .file-editor-tree-target > .anticon {
@@ -228,7 +276,7 @@ const useStyles = createStyles<{compact?: boolean; dark?: boolean}>(({css, token
             .file-editor-create-trigger {
                 width: auto;
                 min-width: max-content;
-                height: ${compact ? 30 : 32}px;
+                height: ${compact ? 28 : 30}px;
                 padding: 0 ${compact ? 6 : 8}px;
                 display: inline-flex;
                 align-items: center;
@@ -245,6 +293,11 @@ const useStyles = createStyles<{compact?: boolean; dark?: boolean}>(({css, token
                 font-size: ${token.fontSizeSM}px;
                 line-height: 1;
                 transition: background-color ${token.motionDurationFast};
+            }
+
+            .file-editor-create-trigger .value {
+                color: ${token.colorTextSecondary};
+                white-space: nowrap;
             }
 
             .file-editor-create-trigger .marker {
@@ -306,6 +359,14 @@ const useStyles = createStyles<{compact?: boolean; dark?: boolean}>(({css, token
                 margin-block: 72px 0;
             }
 
+            .file-editor-tree-loading {
+                min-height: 180px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                color: ${token.colorTextTertiary};
+            }
+
             .file-editor-tree-body .ant-tree {
                 min-width: max-content;
                 background: transparent;
@@ -317,22 +378,41 @@ const useStyles = createStyles<{compact?: boolean; dark?: boolean}>(({css, token
                 width: 100%;
                 min-height: ${compact ? 26 : 30}px;
                 align-items: center;
+                position: relative;
+                border-radius: ${token.borderRadiusSM}px;
+                background: transparent;
+                transition: background-color ${token.motionDurationFast};
+            }
+
+            .file-editor-tree-body .ant-tree-treenode:hover {
+                background: ${token.colorFillQuaternary};
+            }
+
+            .file-editor-tree-body .ant-tree-treenode.ant-tree-treenode-selected,
+            .file-editor-tree-body .ant-tree-treenode.ant-tree-treenode-selected:hover {
+                background: ${token.colorPrimaryBg};
             }
 
             .file-editor-tree-body .ant-tree-switcher {
+                width: ${compact ? 22 : 24}px;
+                min-width: ${compact ? 22 : 24}px;
                 height: ${compact ? 24 : 28}px;
                 margin-inline-end: 0;
                 align-self: center;
                 display: inline-flex;
                 align-items: center;
-                justify-content: flex-end;
+                justify-content: center;
                 line-height: 1;
+                position: relative;
+                z-index: 1;
+                background: transparent !important;
             }
 
             .file-editor-tree-body .ant-tree-switcher::before {
                 top: 0;
                 width: 100%;
                 height: 100%;
+                background: transparent !important;
             }
 
             .file-editor-tree-body .ant-tree-switcher-icon {
@@ -357,20 +437,26 @@ const useStyles = createStyles<{compact?: boolean; dark?: boolean}>(({css, token
                 align-items: center;
                 border-radius: ${token.borderRadiusSM}px;
                 line-height: ${compact ? 24 : 28}px;
+                position: relative;
+                z-index: 1;
+                background: transparent !important;
             }
 
             .file-editor-tree-body .ant-tree-title {
                 min-width: 0;
                 flex: 1;
+                user-select: none;
+                -webkit-user-select: none;
             }
 
-            .file-editor-tree-body .ant-tree-node-content-wrapper:hover {
-                background: ${token.colorFillQuaternary};
+            .file-editor-tree-body .ant-tree-title > .ant-dropdown-trigger {
+                display: block;
+                width: 100%;
             }
 
             .file-editor-tree-body .ant-tree-node-selected,
             .file-editor-tree-body .ant-tree-node-selected:hover {
-                background: ${token.colorPrimaryBg};
+                background: transparent !important;
                 color: ${token.colorText};
             }
 
@@ -382,6 +468,57 @@ const useStyles = createStyles<{compact?: boolean; dark?: boolean}>(({css, token
                 align-items: center;
                 gap: ${compact ? 6 : 7}px;
                 line-height: 1;
+                user-select: none;
+                -webkit-user-select: none;
+            }
+
+            .file-editor-tree-node-shell {
+                width: 100%;
+                min-width: 0;
+                min-height: ${compact ? 24 : 28}px;
+                display: flex;
+                align-items: center;
+                position: relative;
+                user-select: none;
+                -webkit-user-select: none;
+            }
+
+            .file-editor-tree-node-shell > .file-editor-tree-node {
+                flex: 1;
+                width: auto;
+            }
+
+            .file-editor-tree-node-shell > .ant-dropdown-trigger {
+                display: inline-flex;
+                flex: none;
+            }
+
+            .file-editor-tree-node-more {
+                width: ${compact ? 26 : 28}px;
+                min-width: ${compact ? 26 : 28}px;
+                height: ${compact ? 26 : 28}px;
+                flex: none;
+                padding: 0;
+                color: ${token.colorTextTertiary};
+                opacity: 0;
+                transition: opacity ${token.motionDurationFast}, background-color ${token.motionDurationFast}, color ${token.motionDurationFast};
+            }
+
+            .file-editor-tree-node-shell:hover .file-editor-tree-node-more,
+            .file-editor-tree-node-shell:focus-within .file-editor-tree-node-more,
+            .file-editor-tree-body .ant-tree-node-selected .file-editor-tree-node-more {
+                opacity: 1;
+            }
+
+            .file-editor-tree-node-more:hover,
+            .file-editor-tree-node-more:focus-visible {
+                background: ${token.colorFillSecondary};
+                color: ${token.colorText};
+            }
+
+            .file-editor-tree-node-more:disabled {
+                cursor: not-allowed;
+                opacity: .5;
             }
 
             .file-editor-tree-node > .anticon,
@@ -417,6 +554,14 @@ const useStyles = createStyles<{compact?: boolean; dark?: boolean}>(({css, token
                 text-overflow: ellipsis;
                 white-space: nowrap;
                 line-height: ${compact ? 18 : 20}px;
+                user-select: none;
+                -webkit-user-select: none;
+            }
+
+            @media (pointer: coarse) {
+                .file-editor-tree-node-more {
+                    opacity: 1;
+                }
             }
 
             .file-editor-tree-rename.ant-input-affix-wrapper {
@@ -426,11 +571,15 @@ const useStyles = createStyles<{compact?: boolean; dark?: boolean}>(({css, token
                 padding-inline: ${compact ? 5 : 7}px;
                 border-radius: ${token.borderRadiusSM}px;
                 line-height: 1;
+                user-select: text;
+                -webkit-user-select: text;
             }
 
             .file-editor-tree-rename .ant-input {
                 min-width: 0;
                 font-size: ${token.fontSizeSM}px;
+                user-select: text;
+                -webkit-user-select: text;
             }
 
             .file-editor-tree-rename-status {
@@ -776,8 +925,8 @@ const useStyles = createStyles<{compact?: boolean; dark?: boolean}>(({css, token
                 }
 
                 .file-editor-create-trigger {
-                    height: 40px;
-                    padding-inline: 9px;
+                    height: 34px;
+                    padding-inline: 8px;
                 }
 
                 .file-editor-tree-toolbar,

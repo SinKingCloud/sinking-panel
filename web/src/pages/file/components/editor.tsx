@@ -13,7 +13,7 @@ import {Icon, ProModal, useTheme} from "sinking-antd";
 import {history} from "umi";
 import defaultSettings from "@/../config/defaultSettings";
 import AceEditor from "@/components/ace-editor";
-import {renameFile} from "@/service/api/file";
+import {deleteFile, renameFile} from "@/service/api/file";
 import useFileEditorDocument from "../hooks/editor-document";
 import useFileEditorPreferences from "../hooks/editor-preferences";
 import useFileEditorTree from "../hooks/editor-tree";
@@ -31,6 +31,9 @@ import type {FileEditorTreeNode} from "./editor.utils";
 import {getEditorMode} from "./editor.utils";
 import FileForm from "./form";
 import type {FileFormRef} from "./form";
+import FilePermissions from "./permissions";
+import type {FilePermissionsRef} from "./permissions";
+import {copyTextToClipboard} from "./properties.utils";
 import useStyles from "./editor.styles";
 
 const acePath = `${defaultSettings?.basePath || "/"}ace`;
@@ -81,12 +84,14 @@ const FileEditor = forwardRef(function FileEditor(
     const screens = Grid.useBreakpoint();
     const {styles} = useStyles({compact, dark});
     const formRef = useRef<FileFormRef | null>(null);
+    const permissionsRef = useRef<FilePermissionsRef | null>(null);
     const workspaceRef = useRef<HTMLDivElement | null>(null);
     const aceRef = useRef<any>(null);
     const sessionRef = useRef<FileEditorSession | undefined>(undefined);
     const sessionGenerationRef = useRef(0);
     const formContextRef = useRef<FormContext | undefined>(undefined);
     const discardConfirmRef = useRef<Destroyable | undefined>(undefined);
+    const deletingPathsRef = useRef(new Set<string>());
     const saveCommandRef = useRef<() => void>(() => undefined);
     const viewStateRef = useRef(new Map<string, EditorViewState>());
     const [session, setSession] = useState<FileEditorSession>();
@@ -140,6 +145,7 @@ const FileEditor = forwardRef(function FileEditor(
         destroyDiscardConfirm();
         formContextRef.current = undefined;
         formRef.current?.close();
+        permissionsRef.current?.close();
         if (document.fullscreenElement === workspaceRef.current) {
             void document.exitFullscreen().catch(() => undefined);
         }
@@ -241,19 +247,22 @@ const FileEditor = forwardRef(function FileEditor(
     const initialize = useCallback((path: string, name?: string) => {
         const normalizedPath = normalizeFilePath(path);
         const hasFile = name !== undefined;
-        const directoryPath = hasFile ? parentFilePath(normalizedPath) : normalizedPath;
         let currentSession = sessionRef.current;
+        const firstOpen = !currentSession;
         if (!currentSession) {
             currentSession = {generation: ++sessionGenerationRef.current};
             sessionRef.current = currentSession;
             setSession(currentSession);
         }
         captureViewState();
-        tree.initialize(directoryPath, hasFile ? normalizedPath : undefined);
+        if (firstOpen) {
+            const directoryPath = hasFile ? parentFilePath(normalizedPath) : normalizedPath;
+            tree.initialize(directoryPath, hasFile ? normalizedPath : undefined);
+            setTreeCollapsed(isMobileViewport());
+        }
         if (hasFile) {
             files.open(normalizedPath, String(name));
         }
-        setTreeCollapsed(isMobileViewport());
     }, [captureViewState, files.open, tree.initialize]);
 
     const requestOpen = useCallback((path: string, name?: string) => {
@@ -345,11 +354,10 @@ const FileEditor = forwardRef(function FileEditor(
         }, key, `“${tab.name}”尚未保存，关闭标签将丢失修改。`);
     }, [captureViewState, files.activeKey, files.close, files.getTab, runAfterDiscard, tree.selectPath, tree.targetDirectory]);
 
-    const create = useCallback((mode: FileCreateMode) => {
+    const create = useCallback((mode: FileCreateMode, parentPath = tree.targetDirectory) => {
         if (!session) {
             return;
         }
-        const parentPath = tree.targetDirectory;
         if (!parentPath) {
             message.info("请先选择目录");
             return;
@@ -368,6 +376,18 @@ const FileEditor = forwardRef(function FileEditor(
         }
         openForm();
     }, [exitWorkspaceFullscreen, message, session, tree.targetDirectory]);
+
+    const openPermissions = useCallback((node: FileEditorTreeNode) => {
+        if (!session || !node.record) {
+            return;
+        }
+        const open = () => permissionsRef.current?.open(node.path, node.record, true);
+        if (document.fullscreenElement === workspaceRef.current) {
+            void exitWorkspaceFullscreen().then(open).catch(() => message.error("退出全屏失败"));
+            return;
+        }
+        open();
+    }, [exitWorkspaceFullscreen, message, session]);
 
     const renameTreeNode = useCallback(async (node: FileEditorTreeNode, name: string) => {
         const value = name.trim();
@@ -422,6 +442,53 @@ const FileEditor = forwardRef(function FileEditor(
         }
     }, [files.tabs, message, onMutation, session, tree.revealCreated, tree.selectPath]);
 
+    const deleteTreeNode = useCallback((node: FileEditorTreeNode) => {
+        if (!session || !node.record) {
+            return;
+        }
+        const targetPath = node.path;
+        if (files.tabs.some((tab) => isFilePathWithin(tab.path, targetPath))) {
+            message.info(node.isDirectory
+                ? "请先保存并关闭该目录下已打开的文件"
+                : "请先保存并关闭该文件的标签");
+            return;
+        }
+        modal.confirm({
+            title: "删除",
+            content: `确定将“${node.name}”移至回收站吗？`,
+            okText: "删除",
+            cancelText: "取消",
+            okButtonProps: {danger: true},
+            onOk: async () => {
+                if (deletingPathsRef.current.has(targetPath)) {
+                    return;
+                }
+                deletingPathsRef.current.add(targetPath);
+                try {
+                    const response = await deleteFile({body: {paths: [targetPath], recycle: true}});
+                    if (!response) {
+                        return;
+                    }
+                    if (response.code !== 200) {
+                        message.error(response.message || "删除失败");
+                        return;
+                    }
+                    message.success(response.message || "已移至回收站");
+                    tree.selectPath(node.parentPath, true);
+                    await tree.refresh(node.parentPath);
+                    onMutation();
+                } finally {
+                    deletingPathsRef.current.delete(targetPath);
+                }
+            },
+        });
+    }, [files.tabs, message, modal, onMutation, session, tree.refresh, tree.selectPath]);
+
+    const handlePermissionsSuccess = useCallback((targetPath: string) => {
+        void tree.refresh(parentFilePath(targetPath));
+        onMutation();
+    }, [onMutation, tree.refresh]);
+
     const handleCreateSuccess = useCallback((result: FileFormResult) => {
         const context = formContextRef.current;
         formContextRef.current = undefined;
@@ -458,6 +525,14 @@ const FileEditor = forwardRef(function FileEditor(
     const refreshTree = useCallback(() => {
         void tree.refresh();
     }, [tree.refresh]);
+
+    const copyTreeValue = useCallback(async (value: string, label: "名称" | "路径") => {
+        if (await copyTextToClipboard(value)) {
+            message.success(`${label}已复制`);
+        } else {
+            message.error(`复制${label}失败`);
+        }
+    }, [message]);
 
     const toggleTree = useCallback(() => {
         setTreeCollapsed((current) => !current);
@@ -564,23 +639,28 @@ const FileEditor = forwardRef(function FileEditor(
                 ref={workspaceRef}
                 className={`${styles.workspace} ${treeCollapsed ? "tree-collapsed" : ""}`}>
                 {messageContextHolder}
-                {!treeCollapsed && (
-                    <FileEditorTree
-                        treeData={tree.treeData}
-                        expandedKeys={tree.expandedKeys}
-                        selectedKeys={tree.selectedKeys}
-                        loadedKeys={tree.loadedKeys}
-                        loadingPaths={tree.loadingPaths}
-                        targetDirectory={tree.targetDirectory}
-                        disabled={false}
-                        tooltipsDisabled={fullscreen}
-                        onExpand={tree.setExpandedKeys}
-                        onSelect={selectTreeNode}
-                        onLoadData={tree.loadData}
-                        onRefresh={refreshTree}
-                        onCreate={create}
-                        onRename={renameTreeNode}/>
-                )}
+                <FileEditorTree
+                    treeData={tree.treeData}
+                    expandedKeys={tree.expandedKeys}
+                    selectedKeys={tree.selectedKeys}
+                    loadedKeys={tree.loadedKeys}
+                    loadingPaths={tree.loadingPaths}
+                    initializing={tree.initializing}
+                    locateToken={session.generation}
+                    targetDirectory={tree.targetDirectory}
+                    disabled={false}
+                    tooltipsDisabled={fullscreen}
+                    onExpand={tree.setExpandedKeys}
+                    onSelect={selectTreeNode}
+                    onLoadData={tree.loadData}
+                    onRefresh={refreshTree}
+                    onCreate={create}
+                    onRename={renameTreeNode}
+                    onPermissions={openPermissions}
+                    onDelete={deleteTreeNode}
+                    onCopy={copyTreeValue}
+                    getPopupContainer={getWorkspacePopupContainer}
+                    menuClassName={styles.treeMenu}/>
 
                 <section className="file-editor-pane" aria-label="文件编辑区">
                     <div className="file-editor-toolbar">
@@ -690,13 +770,13 @@ const FileEditor = forwardRef(function FileEditor(
                                 )}/>
                         )}
                         {activeTab?.loading && (
-                            <div className="file-editor-loading" role="status" aria-label="正在读取文件">
+                            <div className="file-editor-loading" role="status" aria-label="正在读取文件内容">
                                 <Spin size="large"/>
                             </div>
                         )}
                         {!activeTab && (
                             <div className="file-editor-empty">
-                                <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="请从左侧选择文件"/>
+                                <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="请选择文件"/>
                             </div>
                         )}
                         {activeTab && displayError && (
@@ -761,6 +841,7 @@ const FileEditor = forwardRef(function FileEditor(
                 {body}
             </ProModal>
             <FileForm ref={formRef} onSuccess={handleCreateSuccess}/>
+            <FilePermissions ref={permissionsRef} onSuccess={handlePermissionsSuccess}/>
         </>
     );
 });

@@ -65,6 +65,12 @@ const useFileEditorDocument = ({onMutation, message}: UseFileEditorDocumentOptio
     const tabsRef = useRef<FileEditorTab[]>([]);
     const activeKeyRef = useRef<string | undefined>(undefined);
     const onMutationRef = useRef(onMutation);
+    const contentUpdateFrameRef = useRef<number | undefined>(undefined);
+    const pendingContentUpdatesRef = useRef(new Map<string, {
+        generation: number;
+        contentLength: number;
+        dirty: boolean;
+    }>());
     const [tabs, setTabs] = useState<FileEditorTab[]>([]);
     const [activeKey, setActiveKey] = useState<string>();
 
@@ -73,6 +79,10 @@ const useFileEditorDocument = ({onMutation, message}: UseFileEditorDocumentOptio
     }, [onMutation]);
 
     useEffect(() => () => {
+        if (contentUpdateFrameRef.current !== undefined) {
+            window.cancelAnimationFrame(contentUpdateFrameRef.current);
+        }
+        pendingContentUpdatesRef.current.clear();
         runtimesRef.current.clear();
         tabsRef.current = [];
         activeKeyRef.current = undefined;
@@ -102,6 +112,26 @@ const useFileEditorDocument = ({onMutation, message}: UseFileEditorDocumentOptio
         return changed;
     }, [commitTabs]);
 
+    const flushContentUpdates = useCallback(() => {
+        contentUpdateFrameRef.current = undefined;
+        const pending = pendingContentUpdatesRef.current;
+        if (pending.size === 0) {
+            return;
+        }
+        pendingContentUpdatesRef.current = new Map();
+        let next = tabsRef.current;
+        pending.forEach((update, key) => {
+            next = next.map((tab) => tab.key === key && tab.generation === update.generation
+                ? {
+                    ...tab,
+                    contentLength: update.contentLength,
+                    dirty: update.dirty,
+                }
+                : tab);
+        });
+        commitTabs(next);
+    }, [commitTabs]);
+
     const load = useCallback(async (
         key: string,
         generation: number,
@@ -110,7 +140,7 @@ const useFileEditorDocument = ({onMutation, message}: UseFileEditorDocumentOptio
     ) => {
         let cursor = 0;
         let fileVersion = "";
-        let value = "";
+        const chunks: string[] = [];
         let loadedBytes = 0;
 
         const getCurrentRuntime = () => {
@@ -163,7 +193,7 @@ const useFileEditorDocument = ({onMutation, message}: UseFileEditorDocumentOptio
                 if (nextCursor > maxEditorContentSize || loadedBytes > maxEditorContentSize) {
                     throw new Error("文件超过 8 MiB，无法在线编辑");
                 }
-                value += chunk;
+                chunks.push(chunk);
 
                 if (data.eof) {
                     break;
@@ -178,6 +208,7 @@ const useFileEditorDocument = ({onMutation, message}: UseFileEditorDocumentOptio
             if (!runtime) {
                 return;
             }
+            const value = chunks.join("");
             runtime.content = value;
             runtime.baseline = value;
             runtime.version = fileVersion;
@@ -325,12 +356,15 @@ const useFileEditorDocument = ({onMutation, message}: UseFileEditorDocumentOptio
         }
         runtime.content = value;
         runtime.dirty = value !== runtime.baseline;
-        updateTab(key, runtime.generation, (tab) => ({
-            ...tab,
+        pendingContentUpdatesRef.current.set(key, {
+            generation: runtime.generation,
             contentLength: value.length,
             dirty: runtime.dirty,
-        }));
-    }, [updateTab]);
+        });
+        if (contentUpdateFrameRef.current === undefined) {
+            contentUpdateFrameRef.current = window.requestAnimationFrame(flushContentUpdates);
+        }
+    }, [flushContentUpdates]);
 
     const save = useCallback(async (key = activeKeyRef.current) => {
         if (!key) {
@@ -340,6 +374,7 @@ const useFileEditorDocument = ({onMutation, message}: UseFileEditorDocumentOptio
         if (!runtime || runtime.loading || runtime.saving) {
             return false;
         }
+        flushContentUpdates();
         if (!runtime.version) {
             message.error("文件内容尚未加载完成");
             return false;
@@ -405,9 +440,14 @@ const useFileEditorDocument = ({onMutation, message}: UseFileEditorDocumentOptio
                 updateTab(key, generation, (tab) => ({...tab, saving: false}));
             }
         }
-    }, [message, updateTab]);
+    }, [flushContentUpdates, message, updateTab]);
 
     const reset = useCallback(() => {
+        if (contentUpdateFrameRef.current !== undefined) {
+            window.cancelAnimationFrame(contentUpdateFrameRef.current);
+            contentUpdateFrameRef.current = undefined;
+        }
+        pendingContentUpdatesRef.current.clear();
         runtimesRef.current.clear();
         tabsRef.current = [];
         activeKeyRef.current = undefined;

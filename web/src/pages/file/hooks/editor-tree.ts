@@ -47,6 +47,7 @@ const useFileEditorTree = ({roots, message}: UseFileEditorTreeOptions) => {
     const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
     const [targetDirectory, setTargetDirectory] = useState("");
     const [loadingPaths, setLoadingPaths] = useState<ReadonlySet<string>>(new Set());
+    const [initializing, setInitializing] = useState(false);
 
     const normalizedRoots = useMemo(() => roots
         .map(normalizeFilePath)
@@ -235,36 +236,43 @@ const useFileEditorTree = ({roots, message}: UseFileEditorTreeOptions) => {
         setSelectedKeys([editorTreeKey(filePath || directory)]);
         setTargetDirectory(directory);
         setLoadingPaths(new Set());
+        setInitializing(true);
 
         void (async () => {
-            for (let index = 0; index < ancestors.length; index += 1) {
-                if (generationRef.current !== generation) {
-                    return;
-                }
-                const ancestor = ancestors[index];
-                const target = ancestors[index + 1] || filePath;
-                let page = 1;
-                while (true) {
-                    const result = await loadDirectory(ancestor, page, page > 1, generation);
-                    if (result.status !== "success" || generationRef.current !== generation) {
+            try {
+                for (let index = 0; index < ancestors.length; index += 1) {
+                    if (generationRef.current !== generation) {
                         return;
                     }
-                    if (!target || result.entries.some((node) => node.key === editorTreeKey(target)) || !result.hasMore) {
-                        break;
+                    const ancestor = ancestors[index];
+                    const target = ancestors[index + 1] || filePath;
+                    let page = 1;
+                    while (true) {
+                        const result = await loadDirectory(ancestor, page, page > 1, generation);
+                        if (result.status !== "success" || generationRef.current !== generation) {
+                            return;
+                        }
+                        if (!target || result.entries.some((node) => node.key === editorTreeKey(target)) || !result.hasMore) {
+                            break;
+                        }
+                        page += 1;
                     }
-                    page += 1;
+                }
+                if (
+                    generationRef.current !== generation ||
+                    expansionEpochRef.current !== expansionEpoch
+                ) {
+                    return;
+                }
+                setExpandedKeys((current) => Array.from(new Set([
+                    ...current,
+                    ...ancestors.map(editorTreeKey),
+                ])));
+            } finally {
+                if (generationRef.current === generation) {
+                    setInitializing(false);
                 }
             }
-            if (
-                generationRef.current !== generation ||
-                expansionEpochRef.current !== expansionEpoch
-            ) {
-                return;
-            }
-            setExpandedKeys((current) => Array.from(new Set([
-                ...current,
-                ...ancestors.map(editorTreeKey),
-            ])));
         })();
     }, [loadDirectory, normalizedRoots]);
 
@@ -279,6 +287,7 @@ const useFileEditorTree = ({roots, message}: UseFileEditorTreeOptions) => {
         setSelectedKeys([]);
         setTargetDirectory("");
         setLoadingPaths(new Set());
+        setInitializing(false);
     }, []);
 
     const loadData = useCallback(async (node: FileEditorTreeNode) => {
@@ -294,10 +303,8 @@ const useFileEditorTree = ({roots, message}: UseFileEditorTreeOptions) => {
 
     const selectDirectory = useCallback((node: FileEditorTreeNode) => {
         selectionEpochRef.current += 1;
-        expansionEpochRef.current += 1;
         setSelectedKeys([node.key]);
         setTargetDirectory(node.path);
-        setExpandedKeys((current) => current.includes(node.key) ? current : [...current, node.key]);
     }, []);
 
     const selectFile = useCallback((node: FileEditorTreeNode) => {
@@ -373,6 +380,7 @@ const useFileEditorTree = ({roots, message}: UseFileEditorTreeOptions) => {
         selectedKeys,
         loadedKeys,
         loadingPaths,
+        initializing,
         targetDirectory,
         setExpandedKeys: changeExpandedKeys,
         initialize,

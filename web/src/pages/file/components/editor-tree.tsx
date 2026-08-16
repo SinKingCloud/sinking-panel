@@ -1,5 +1,5 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from "react";
-import {Button, Empty, Input, Tooltip, Tree} from "antd";
+import {Button, Empty, Input, Spin, Tooltip, Tree} from "antd";
 import type {InputRef, MenuProps, TreeProps} from "antd";
 import {Icon} from "sinking-antd";
 import Dropdown from "@/pages/components/stable-dropdown";
@@ -90,7 +90,6 @@ const InlineRenameInput = ({node, onCancel, onSubmit}: InlineRenameInputProps) =
             onChange={(event) => setValue(event.target.value)}
             onMouseDown={stopPropagation}
             onClick={stopPropagation}
-            onDoubleClick={stopPropagation}
             onBlur={() => void submit()}
             onKeyDown={(event) => {
                 event.stopPropagation();
@@ -114,6 +113,8 @@ export interface FileEditorTreeProps {
     selectedKeys: string[];
     loadedKeys: string[];
     loadingPaths: ReadonlySet<string>;
+    initializing: boolean;
+    locateToken: number;
     targetDirectory: string;
     disabled: boolean;
     tooltipsDisabled: boolean;
@@ -121,8 +122,13 @@ export interface FileEditorTreeProps {
     onSelect: (node: FileEditorTreeNode) => void;
     onLoadData: NonNullable<TreeProps<FileEditorTreeNode>["loadData"]>;
     onRefresh: () => void;
-    onCreate: (mode: FileCreateMode) => void;
+    onCreate: (mode: FileCreateMode, parentPath?: string) => void;
     onRename: (node: FileEditorTreeNode, name: string) => Promise<boolean>;
+    onPermissions: (node: FileEditorTreeNode) => void;
+    onDelete: (node: FileEditorTreeNode) => void;
+    onCopy: (value: string, label: "名称" | "路径") => Promise<void>;
+    getPopupContainer: (triggerNode: HTMLElement) => HTMLElement;
+    menuClassName: string;
 }
 
 const FileEditorTree = ({
@@ -131,6 +137,8 @@ const FileEditorTree = ({
     selectedKeys,
     loadedKeys,
     loadingPaths,
+    initializing,
+    locateToken,
     targetDirectory,
     disabled,
     tooltipsDisabled,
@@ -140,10 +148,17 @@ const FileEditorTree = ({
     onRefresh,
     onCreate,
     onRename,
+    onPermissions,
+    onDelete,
+    onCopy,
+    getPopupContainer,
+    menuClassName,
 }: FileEditorTreeProps) => {
     const treeBodyRef = useRef<HTMLDivElement | null>(null);
-    const locatedKeyRef = useRef<string | undefined>(undefined);
-    const selectTimerRef = useRef<number | undefined>(undefined);
+    const initialLocateDoneRef = useRef(false);
+    const locateTokenRef = useRef<number | undefined>(undefined);
+    const expandedKeysRef = useRef(expandedKeys);
+    expandedKeysRef.current = expandedKeys;
     const [editingNode, setEditingNode] = useState<FileEditorTreeNode>();
     const directoryName = useMemo(() => {
         const normalized = targetDirectory.replace(/[\\/]+$/, "");
@@ -155,29 +170,37 @@ const FileEditorTree = ({
         {key: "file", icon: <Icon type="FileAddOutlined"/>, label: "新建空文件"},
     ], []);
 
-    const beginRename = useCallback((event: React.MouseEvent, node: FileEditorTreeNode) => {
-        event.preventDefault();
-        event.stopPropagation();
-        if (selectTimerRef.current !== undefined) {
-            window.clearTimeout(selectTimerRef.current);
-            selectTimerRef.current = undefined;
-        }
+    const beginRename = useCallback((node: FileEditorTreeNode) => {
         if (!disabled && !editingNode && node.kind === "entry" && node.record) {
             setEditingNode(node);
         }
     }, [disabled, editingNode]);
 
     const cancelRename = useCallback(() => setEditingNode(undefined), []);
+    const toggleDirectory = useCallback((event: React.MouseEvent, node: FileEditorTreeNode) => {
+        if (editingNode?.key === node.key) {
+            return;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        if (node.kind !== "entry" || !node.isDirectory || disabled || editingNode) {
+            return;
+        }
+        const currentKeys = expandedKeysRef.current;
+        onExpand(currentKeys.includes(node.key)
+            ? currentKeys.filter((key) => key !== node.key)
+            : [...currentKeys, node.key]);
+    }, [disabled, editingNode, onExpand]);
 
     const titleRender = useCallback((node: FileEditorTreeNode) => {
         const iconType = node.kind === "more"
             ? "EllipsisOutlined"
             : getFileIconType(node.name, node.isDirectory);
         const iconClassName = node.isDirectory ? "is-directory" : "";
-        return (
+        const title = (
             <span
                 className={`file-editor-tree-node ${node.kind === "more" ? "is-more" : ""}`}
-                onDoubleClick={(event) => beginRename(event, node)}>
+                onDoubleClick={(event) => toggleDirectory(event, node)}>
                 {loadingPaths.has(node.key) && node.kind === "entry" ? (
                     <Icon className="anticon-spin" type="LoadingOutlined"/>
                 ) : (
@@ -197,26 +220,77 @@ const FileEditorTree = ({
                 )}
             </span>
         );
-    }, [beginRename, cancelRename, editingNode, loadingPaths, onRename, tooltipsDisabled]);
-
-    useEffect(() => () => {
-        if (selectTimerRef.current !== undefined) {
-            window.clearTimeout(selectTimerRef.current);
+        if (node.kind !== "entry" || !node.record) {
+            return title;
         }
-    }, []);
+        const menuItems: MenuProps["items"] = node.isDirectory ? [
+            {key: "create-directory", icon: <Icon type="FolderAddOutlined"/>, label: "新建文件夹"},
+            {key: "create-file", icon: <Icon type="FileAddOutlined"/>, label: "新建空文件"},
+            {type: "divider"},
+            {key: "rename", icon: <Icon type="EditOutlined"/>, label: "重命名"},
+            {key: "permissions", icon: <Icon type="SafetyOutlined"/>, label: "修改权限"},
+            {key: "copy-name", icon: <Icon type="CopyOutlined"/>, label: "复制名称"},
+            {key: "copy-path", icon: <Icon type="LinkOutlined"/>, label: "复制路径"},
+            {type: "divider"},
+            {key: "delete", icon: <Icon type="DeleteOutlined"/>, label: "删除", danger: true},
+        ] : [
+            {key: "rename", icon: <Icon type="EditOutlined"/>, label: "重命名"},
+            {key: "permissions", icon: <Icon type="SafetyOutlined"/>, label: "修改权限"},
+            {key: "copy-name", icon: <Icon type="CopyOutlined"/>, label: "复制名称"},
+            {key: "copy-path", icon: <Icon type="LinkOutlined"/>, label: "复制路径"},
+            {type: "divider"},
+            {key: "delete", icon: <Icon type="DeleteOutlined"/>, label: "删除", danger: true},
+        ];
+        return (
+            <span className="file-editor-tree-node-shell">
+                {title}
+                <Dropdown
+                    key={`${node.key}-${tooltipsDisabled ? "fullscreen" : "window"}`}
+                    trigger={["click"]}
+                    autoAdjustOverflow={{adjustX: true, adjustY: true}}
+                    arrow={{pointAtCenter: true}}
+                    classNames={{root: menuClassName}}
+                    getPopupContainer={getPopupContainer}
+                    menu={{
+                        items: menuItems,
+                        onClick: (info) => {
+                            if (info.key === "create-directory") {
+                                onCreate("directory", node.path);
+                            } else if (info.key === "create-file") {
+                                onCreate("file", node.path);
+                            } else if (info.key === "rename") {
+                                beginRename(node);
+                            } else if (info.key === "permissions") {
+                                onPermissions(node);
+                            } else if (info.key === "copy-name") {
+                                void onCopy(node.name, "名称");
+                            } else if (info.key === "copy-path") {
+                                void onCopy(node.path, "路径");
+                            } else if (info.key === "delete") {
+                                onDelete(node);
+                            }
+                        },
+                    }}>
+                    <Button
+                        className="file-editor-tree-node-more"
+                        type="text"
+                        size="small"
+                        disabled={disabled}
+                        aria-label={`管理 ${node.name}`}
+                        aria-haspopup="menu"
+                        icon={<Icon type="MoreOutlined"/>}/>
+                </Dropdown>
+            </span>
+        );
+    }, [beginRename, cancelRename, disabled, editingNode, getPopupContainer, loadingPaths, menuClassName, onCopy, onCreate, onDelete, onPermissions, onRename, toggleDirectory, tooltipsDisabled]);
 
     useEffect(() => {
-        const selectedKey = selectedKeys[0];
-        if (!selectedKey || treeData.length === 0) {
-            if (treeData.length === 0) {
-                locatedKeyRef.current = undefined;
-            }
-            return;
+        if (locateTokenRef.current !== locateToken) {
+            locateTokenRef.current = locateToken;
+            initialLocateDoneRef.current = false;
         }
-        if (
-            locatedKeyRef.current === selectedKey &&
-            treeBodyRef.current?.querySelector(".ant-tree-node-selected")
-        ) {
+        const selectedKey = selectedKeys[0];
+        if (initializing || initialLocateDoneRef.current || !selectedKey || treeData.length === 0) {
             return;
         }
         let locateFrame = 0;
@@ -224,9 +298,16 @@ const FileEditorTree = ({
             locateFrame = window.requestAnimationFrame(() => {
                 const selectedNode = treeBodyRef.current
                     ?.querySelector<HTMLElement>(".ant-tree-node-selected");
-                if (selectedNode) {
-                    selectedNode.scrollIntoView({block: "center", inline: "nearest"});
-                    locatedKeyRef.current = selectedKey;
+                const treeBody = treeBodyRef.current;
+                if (selectedNode && treeBody) {
+                    const nodeRect = selectedNode.getBoundingClientRect();
+                    const bodyRect = treeBody.getBoundingClientRect();
+                    if (nodeRect.top < bodyRect.top) {
+                        treeBody.scrollTop += nodeRect.top - bodyRect.top;
+                    } else if (nodeRect.bottom > bodyRect.bottom) {
+                        treeBody.scrollTop += nodeRect.bottom - bodyRect.bottom;
+                    }
+                    initialLocateDoneRef.current = true;
                 }
             });
         });
@@ -236,19 +317,13 @@ const FileEditorTree = ({
                 window.cancelAnimationFrame(locateFrame);
             }
         };
-    }, [expandedKeys, selectedKeys, treeData]);
+    }, [expandedKeys, initializing, locateToken, selectedKeys, treeData]);
 
     const select = useCallback((_: TreeSelectArgs[0], info: TreeSelectArgs[1]) => {
         if (editingNode) {
             return;
         }
-        if (selectTimerRef.current !== undefined) {
-            window.clearTimeout(selectTimerRef.current);
-        }
-        selectTimerRef.current = window.setTimeout(() => {
-            selectTimerRef.current = undefined;
-            onSelect(info.node);
-        }, 600);
+        onSelect(info.node);
     }, [editingNode, onSelect]);
 
     const expand = useCallback((keys: TreeExpandArgs[0]) => {
@@ -261,9 +336,16 @@ const FileEditorTree = ({
     return (
         <aside className="file-editor-sidebar" aria-label="文件目录">
             <div className="file-editor-tree-toolbar">
-                <div className="file-editor-tree-target">
+                <div
+                    className="file-editor-tree-target"
+                    title={tooltipsDisabled ? undefined : `双击复制路径：${targetDirectory}`}
+                    onDoubleClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        void onCopy(targetDirectory, "路径");
+                    }}>
                     <Icon type="FolderOpenOutlined" aria-hidden/>
-                    <span title={tooltipsDisabled ? undefined : targetDirectory}>{directoryName}</span>
+                    <span>{directoryName}</span>
                 </div>
                 <div className="file-editor-tree-actions">
                     <Tooltip title="刷新目录" open={tooltipsDisabled ? false : undefined}>
@@ -275,8 +357,12 @@ const FileEditorTree = ({
                             onClick={onRefresh}/>
                     </Tooltip>
                     <Dropdown
+                        key={`create-${tooltipsDisabled ? "fullscreen" : "window"}`}
                         trigger={["click"]}
                         placement="bottomRight"
+                        autoAdjustOverflow={false}
+                        classNames={{root: `${menuClassName} file-editor-create-menu`}}
+                        getPopupContainer={getPopupContainer}
                         disabled={disabled || !targetDirectory}
                         menu={{items: createItems, onClick: createEntry}}>
                         <button
@@ -286,14 +372,18 @@ const FileEditorTree = ({
                             aria-label="在当前目录新建"
                             aria-haspopup="menu">
                             <Icon className="marker" type="PlusOutlined"/>
-                            <span>新建</span>
+                            <span className="value">新建</span>
                             <Icon className="arrow" type="DownOutlined"/>
                         </button>
                     </Dropdown>
                 </div>
             </div>
             <div ref={treeBodyRef} className="file-editor-tree-body">
-                {treeData.length > 0 ? (
+                {initializing ? (
+                    <div className="file-editor-tree-loading" role="status" aria-label="正在加载目录">
+                        <Spin size="large"/>
+                    </div>
+                ) : treeData.length > 0 ? (
                     <Tree<FileEditorTreeNode>
                         blockNode
                         showIcon={false}
