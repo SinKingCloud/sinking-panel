@@ -1,4 +1,3 @@
-import type {FileRecord} from "@/service/api/file";
 import {isAbsoluteFilePath} from "../utils";
 
 export const validatePath = async (_: unknown, value: unknown) => {
@@ -63,7 +62,7 @@ export const getRemoteFileName = (value: unknown) => {
     }
 };
 
-export const defaultArchiveName = (records: FileRecord[]) => {
+export const defaultArchiveName = (records: any[]) => {
     if (records.length !== 1) {
         return "archive";
     }

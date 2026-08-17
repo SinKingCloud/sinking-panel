@@ -1,53 +1,15 @@
 import {get, post} from "@/utils/request";
 
-export type TypeModule = "script" | "task";
-
-export interface TypeRecord {
-    id: number;
-    module: TypeModule;
-    name: string;
-    sort: number;
-    create_time?: string;
-    update_time?: string;
-}
-
-export interface TypeListData {
-    total?: number;
-    page?: number;
-    page_size: number;
-    list: TypeRecord[];
-}
-
-export interface TypeListQuery {
-    module: TypeModule;
-    name?: string;
-    page?: number;
-    page_size?: number;
-    order_by_field?: "id" | "sort";
-    order_by_type?: "asc" | "desc";
-}
-
-export interface TypeCreateBody {
-    module: TypeModule;
-    name: string;
-}
-
-export interface TypeUpdateBody {
-    ids: number[];
-    name?: string;
-    sort?: string;
-}
-
 /** 获取分类列表 GET /type/list */
-export async function getTypeList(params: API.RequestParams<TypeListQuery, TypeListData> = {}) {
-    return get<TypeListData>("/type/list", params?.body, params?.onSuccess, params?.onFail, params?.onFinally);
+export async function getTypeList(params: API.RequestParams = {}) {
+    return get("/type/list", params?.body, params?.onSuccess, params?.onFail, params?.onFinally);
 }
 
 /** 获取指定模块的全部分类 */
-export async function getAllTypes(module: TypeModule) {
-    const items: TypeRecord[] = [];
+export async function getAllTypes(module: string) {
+    const items: any[] = [];
     let page = 1;
-    let lastResponse: API.Response<TypeListData> | undefined;
+    let lastResponse: any;
     while (true) {
         const response = await getTypeList({
             body: {
@@ -79,20 +41,20 @@ export async function getAllTypes(module: TypeModule) {
             page_size: items.length,
             list: items,
         },
-    } as API.Response<TypeListData>;
+    } as any;
 }
 
 /** 创建分类 POST /type/create */
-export async function createType(params: API.RequestParams<TypeCreateBody> = {}) {
+export async function createType(params: API.RequestParams = {}) {
     return post("/type/create", params?.body, params?.onSuccess, params?.onFail, params?.onFinally);
 }
 
 /** 修改分类 POST /type/update */
-export async function updateType(params: API.RequestParams<TypeUpdateBody> = {}) {
+export async function updateType(params: API.RequestParams = {}) {
     return post("/type/update", params?.body, params?.onSuccess, params?.onFail, params?.onFinally);
 }
 
 /** 删除分类 POST /type/delete */
-export async function deleteType(params: API.RequestParams<{ids: number[]}> = {}) {
+export async function deleteType(params: API.RequestParams = {}) {
     return post("/type/delete", params?.body, params?.onSuccess, params?.onFail, params?.onFinally);
 }

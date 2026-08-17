@@ -8,7 +8,6 @@ import {
     extractFile,
     remoteDownloadFile,
 } from "@/service/api/file";
-import type {FileOperationContext, FileOperationMode} from "../types";
 import {joinFilePath, normalizeFilePath} from "../utils";
 import {
     CompressOperationFields,
@@ -19,19 +18,19 @@ import type {FileOperationFormValues} from "./operation-fields";
 import {defaultArchiveName, getRemoteFileName} from "./operation-form.utils";
 
 export interface FileOperationRef {
-    open: (mode: FileOperationMode, context: FileOperationContext) => void;
+    open: (mode: any, context: any) => void;
     close: () => void;
 }
 
 interface FileOperationProps {
     onTask: (taskId: string, title: string) => void;
-    onSuccess?: (context: FileOperationContext) => void;
+    onSuccess?: (context: any) => void;
 }
 
 interface OperationState {
     generation: number;
-    mode: FileOperationMode;
-    context: FileOperationContext;
+    mode: any;
+    context: any;
 }
 
 interface PendingConfirm {
@@ -39,7 +38,7 @@ interface PendingConfirm {
     resolve: (confirmed: boolean) => void;
 }
 
-const modeText: Record<FileOperationMode, {title: string; action: string}> = {
+const modeText: Record<any, {title: string; action: string}> = {
     compress: {title: "压缩文件", action: "压缩"},
     extract: {title: "解压文件", action: "解压"},
     "remote-download": {title: "远程下载", action: "下载"},
@@ -86,7 +85,7 @@ const FileOperationForm = forwardRef<FileOperationRef, FileOperationProps>(({onT
         setSubmitting(false);
     }, [cancelPendingConfirm]);
 
-    const open = useCallback((mode: FileOperationMode, context: FileOperationContext) => {
+    const open = useCallback((mode: any, context: any) => {
         const records = Array.isArray(context.records) ? [...context.records] : [];
         if (mode === "compress" && records.length === 0) {
             message.warning(`请选择需要${modeText[mode].action}的文件或目录`);

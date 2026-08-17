@@ -1,27 +1,25 @@
 import React, {forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState} from "react";
 import {App, Form as AntForm, Grid, Input} from "antd";
 import {ProModal, Title, useTheme} from "sinking-antd";
-import type {FileRecord} from "@/service/api/file";
 import {createFile, renameFile} from "@/service/api/file";
-import type {FileFormMode, FileFormResult} from "../types";
 import {joinFilePath, parentFilePath} from "../utils";
 
 interface EditorState {
     generation: number;
-    mode: FileFormMode;
+    mode: any;
     path: string;
     targetPath?: string;
-    record?: FileRecord;
+    record?: any;
 }
 
 export interface FileFormRef {
-    open: (mode: FileFormMode, path: string, record?: FileRecord, layered?: boolean) => void;
-    openRename: (path: string, record: FileRecord, layered?: boolean) => void;
+    open: (mode: any, path: string, record?: any, layered?: boolean) => void;
+    openRename: (path: string, record: any, layered?: boolean) => void;
     close: () => void;
 }
 
 interface FileFormProps {
-    onSuccess: (result: FileFormResult) => void;
+    onSuccess: (result: any) => void;
 }
 
 interface FormValues {

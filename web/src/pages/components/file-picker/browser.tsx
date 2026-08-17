@@ -2,7 +2,6 @@ import React, {memo, useCallback, useMemo} from "react";
 import {Button, Empty, Input, Pagination, Select, Table, Tooltip, Typography} from "antd";
 import type {InputRef, TableProps, TableRef} from "antd";
 import {Icon} from "sinking-antd";
-import type {FileRecord} from "@/service/api/file";
 import {
     comparableFilePath as comparablePath,
     formatFileSize,
@@ -12,15 +11,14 @@ import {
     joinFilePath,
 } from "@/pages/file/utils";
 import type {FileBreadcrumbItem} from "@/pages/file/utils";
-import type {FilePickerMode, SelectedFile} from "./types";
 
 interface FilePickerBrowserProps {
     className: string;
     compact: boolean;
-    mode: FilePickerMode;
+    mode: string;
     path: string;
     loadedPath: string;
-    selectedFile?: SelectedFile;
+    selectedFile?: any;
     disks: string[];
     selectedDisk?: string;
     pathBreadcrumbs: FileBreadcrumbItem[];
@@ -31,7 +29,7 @@ interface FilePickerBrowserProps {
     pathDraft: string;
     loading: boolean;
     error: string;
-    items: FileRecord[];
+    items: any[];
     page: number;
     pageSize: number;
     total: number;
@@ -44,8 +42,8 @@ interface FilePickerBrowserProps {
     onCancelPathEditor: (restoreFocus?: boolean) => void;
     onSubmitPathEditor: () => void;
     onPathDraftChange: (path: string) => void;
-    onSelectFile: (file: SelectedFile) => void;
-    onConfirm: (file: SelectedFile) => void;
+    onSelectFile: (file: any) => void;
+    onConfirm: (file: any) => void;
     onPageChange: (page: number) => void;
     onReload: () => void;
 }
@@ -85,7 +83,7 @@ const FilePickerBrowser = ({
     onPageChange,
     onReload,
 }: FilePickerBrowserProps) => {
-    const columns = useMemo<TableProps<FileRecord>["columns"]>(() => [
+    const columns = useMemo<TableProps<any>["columns"]>(() => [
         {
             title: "名称",
             dataIndex: "name",
@@ -125,7 +123,7 @@ const FilePickerBrowser = ({
         [disks],
     );
 
-    const getRowClassName = useCallback((record: FileRecord) => {
+    const getRowClassName = useCallback((record: any) => {
         if (loading) {
             return "file-picker-passive";
         }
@@ -141,7 +139,7 @@ const FilePickerBrowser = ({
         return mode === "file" ? "file-picker-selectable" : "file-picker-passive";
     }, [loading, mode, path, selectedFile?.path]);
 
-    const getRowProps = useCallback<NonNullable<TableProps<FileRecord>["onRow"]>>((record) => {
+    const getRowProps = useCallback<NonNullable<TableProps<any>["onRow"]>>((record) => {
         if (loading) {
             return {"aria-disabled": true};
         }
@@ -289,7 +287,7 @@ const FilePickerBrowser = ({
                 )}
             </div>
 
-            <Table<FileRecord>
+            <Table<any>
                 ref={tableRef}
                 className="file-picker-table"
                 rowKey="name"

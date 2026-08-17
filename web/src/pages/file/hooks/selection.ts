@@ -1,10 +1,9 @@
 import {useCallback, useEffect, useMemo, useState} from "react";
-import type {FileRecord} from "@/service/api/file";
 import {joinFilePath} from "../utils";
 
 export interface UseFileSelectionOptions {
     path: string;
-    items: readonly FileRecord[];
+    items: readonly any[];
     operatingPaths: ReadonlySet<string>;
 }
 

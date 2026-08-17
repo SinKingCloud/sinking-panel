@@ -1,12 +1,13 @@
-import React, {useMemo, useState} from "react";
-import {Layout, Icon, useTheme} from "sinking-antd";
+import React, {useCallback, useEffect, useMemo, useRef, useState} from "react";
+import {Layout, Icon, ProModal, Title as ModalTitle, useTheme} from "sinking-antd";
 import {useModel, useSelectedRoutes, useLocation, history, Outlet} from "umi";
 import {deleteHeader} from "@/utils/auth";
 import {getAllMenuItems, getFirstMenuWithoutChildren, getParentList, historyPush} from "@/utils/route";
-import {App, Popover, Tooltip} from "antd";
+import {App, Badge, Button, Empty, Popover, Progress, Spin, Tooltip} from "antd";
 import {createStyles} from "antd-style";
 import Settings from "@/../config/defaultSettings";
 import {logout} from "@/service/auth/login";
+import {cancelSystemTask, getSystemTaskList} from "@/service/api/system";
 import defaultSettings from "@/../config/defaultSettings";
 import Title from "../title";
 
@@ -141,8 +142,140 @@ const useRightTopStyles = createStyles(({css, token, isDarkMode}: any): any => {
             },
             color: isDarkMode ? token.colorTextSecondary : "rgb(150,150,150)"
         },
+        taskList: css`
+            max-height: min(520px, 58dvh);
+            overflow-y: auto;
+            padding: 6px 0 0;
+        `,
+        taskItem: css`
+            min-width: 0;
+            padding: 8px 9px;
+            border-radius: ${token.borderRadius}px;
+            background: ${isDarkMode ? token.colorFillQuaternary : token.colorFillSecondary};
+
+            & + & {
+                margin-top: 4px;
+            }
+        `,
+        taskBody: css`
+            min-width: 0;
+        `,
+        taskHeader: css`
+            min-width: 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        `,
+        taskStatusDot: css`
+            width: 7px;
+            height: 7px;
+            flex: none;
+            border-radius: 50%;
+            background: ${token.colorPrimary};
+
+            &.is-completed {
+                background: ${token.colorSuccess};
+            }
+
+            &.is-failed {
+                background: ${token.colorError};
+            }
+
+            &.is-canceled {
+                background: ${token.colorTextQuaternary};
+            }
+        `,
+        taskName: css`
+            min-width: 0;
+            flex: 1;
+            overflow: hidden;
+            color: ${token.colorText};
+            font-size: 13px;
+            font-weight: 500;
+            line-height: 22px;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        `,
+        taskStatus: css`
+            flex: none;
+            color: ${token.colorPrimary};
+            font-size: 11px;
+            font-variant-numeric: tabular-nums;
+            line-height: 22px;
+
+            &.is-completed {
+                color: ${token.colorSuccess};
+            }
+
+            &.is-failed {
+                color: ${token.colorError};
+            }
+
+            &.is-canceled {
+                color: ${token.colorTextTertiary};
+            }
+        `,
+        taskProgressRow: css`
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 5px;
+
+            .ant-progress {
+                min-width: 0;
+                flex: 1;
+                margin: 0;
+            }
+        `,
+        taskProgressValue: css`
+            flex: none;
+            min-width: 34px;
+            color: ${token.colorTextSecondary};
+            font-size: 11px;
+            font-variant-numeric: tabular-nums;
+            line-height: 16px;
+            text-align: end;
+        `,
+        taskMessage: css`
+            margin-top: 4px;
+            overflow: hidden;
+            color: ${token.colorTextTertiary};
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+            font-size: 10px;
+            line-height: 15px;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        `,
+        taskEmpty: css`
+            min-height: 150px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: ${token.colorTextTertiary};
+        `,
     };
 });
+
+const taskStatusValues = {
+    pending: 0,
+    running: 1,
+    completed: 2,
+    failed: 3,
+    canceled: 4,
+} as const;
+
+const taskTerminalStatuses = new Set([
+    taskStatusValues.completed,
+    taskStatusValues.failed,
+    taskStatusValues.canceled,
+]);
+const taskStatusMeta: Record<number, {label: string; className: string}> = {
+    [taskStatusValues.pending]: {label: "排队中", className: "running"},
+    [taskStatusValues.running]: {label: "处理中", className: "running"},
+    [taskStatusValues.completed]: {label: "已完成", className: "completed"},
+    [taskStatusValues.failed]: {label: "失败", className: "failed"},
+    [taskStatusValues.canceled]: {label: "已取消", className: "canceled"},
+};
 
 /**
  * 右侧部分组件
@@ -156,6 +289,65 @@ const RightTop: React.FC = () => {
     const theme = useTheme();//主题信息
     const {message, modal} = App.useApp();
     const [userOpen, setUserOpen] = useState(false);
+    const [taskOpen, setTaskOpen] = useState(false);
+    const [taskLoading, setTaskLoading] = useState(false);
+    const [tasks, setTasks] = useState<any[]>([]);
+    const taskRequestRef = useRef(0);
+    const taskLoadedRef = useRef(false);
+    const mountedRef = useRef(true);
+
+    const refreshTasks = useCallback(async () => {
+        const requestId = ++taskRequestRef.current;
+        if (!taskLoadedRef.current) {
+            setTaskLoading(true);
+        }
+        try {
+            const response = await getSystemTaskList();
+            if (!mountedRef.current || requestId !== taskRequestRef.current) {
+                return;
+            }
+            if (response?.code === 200 && Array.isArray(response.data)) {
+                setTasks(response.data);
+            }
+        } finally {
+            if (mountedRef.current && requestId === taskRequestRef.current) {
+                taskLoadedRef.current = true;
+                setTaskLoading(false);
+            }
+        }
+    }, []);
+
+    useEffect(() => {
+        mountedRef.current = true;
+        let stopped = false;
+        let timer = 0;
+        const poll = async () => {
+            try {
+                await refreshTasks();
+            } catch {
+                // A transient task-list failure should not stop future polling.
+            } finally {
+                if (!stopped) {
+                    timer = window.setTimeout(poll, 3000);
+                }
+            }
+        };
+        void poll();
+        return () => {
+            stopped = true;
+            mountedRef.current = false;
+            window.clearTimeout(timer);
+        };
+    }, [refreshTasks]);
+
+    const cancelTask = useCallback(async (id: string) => {
+        const response = await cancelSystemTask({body: {id}});
+        if (response?.code !== 200) {
+            message.error(response?.message || "取消任务失败");
+            return;
+        }
+        await refreshTasks();
+    }, [message, refreshTasks]);
 
     /**
      * 退出登录
@@ -210,9 +402,113 @@ const RightTop: React.FC = () => {
             icon,
             menuItemLabel,
             menuItemLeadIcon,
+            taskList,
+            taskItem,
+            taskBody,
+            taskHeader,
+            taskStatusDot,
+            taskName,
+            taskStatus,
+            taskProgressRow,
+            taskProgressValue,
+            taskMessage,
+            taskEmpty,
         }
     } = useRightTopStyles();
+
+    const pendingTaskCount = tasks.filter((task) => !taskTerminalStatuses.has(Number(task.status))).length;
+    const displayTasks = useMemo(() => tasks
+        .map((task, index) => ({task, index}))
+        .sort((first, second) => {
+            const firstStatus = Number(first.task.status);
+            const secondStatus = Number(second.task.status);
+            const firstPriority = firstStatus === taskStatusValues.running
+                ? 0
+                : firstStatus === taskStatusValues.pending ? 1 : 2;
+            const secondPriority = secondStatus === taskStatusValues.running
+                ? 0
+                : secondStatus === taskStatusValues.pending ? 1 : 2;
+            return firstPriority - secondPriority || first.index - second.index;
+        })
+        .map(({task}) => task), [tasks]);
+    const taskContent = (
+        <>
+            {taskLoading && tasks.length === 0 ? (
+                <div className={taskEmpty}>
+                    <Spin size="small"/>
+                </div>
+            ) : tasks.length === 0 ? (
+                <div className={taskEmpty}>
+                    <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无数据"/>
+                </div>
+            ) : (
+                <div className={taskList}>
+                    {displayTasks.map((task) => {
+                        const status = Number(task.status);
+                        const meta = taskStatusMeta[status] || taskStatusMeta[taskStatusValues.pending];
+                        const rawProgress = Number(task.progress);
+                        const progress = status === taskStatusValues.completed
+                            ? 100
+                            : Number.isFinite(rawProgress)
+                            ? Math.max(0, Math.min(100, rawProgress))
+                            : 0;
+                        const name = task.name || "未命名任务";
+                        return (
+                            <div className={taskItem} key={task.id}>
+                                <div className={taskBody}>
+                                    <div className={taskHeader}>
+                                        <span className={`${taskStatusDot} is-${meta.className}`} aria-hidden="true"/>
+                                        <span className={taskName} title={name}>{name}</span>
+                                        <span className={`${taskStatus} is-${meta.className}`}>
+                                            {meta.label}
+                                        </span>
+                                        {(status === taskStatusValues.pending || status === taskStatusValues.running) && (
+                                            <Tooltip title="取消任务">
+                                                <Button
+                                                    type="text"
+                                                    danger
+                                                    size="small"
+                                                    icon={<Icon type="CloseOutlined"/>}
+                                                    aria-label={`取消${name}`}
+                                                    title="取消任务"
+                                                    onClick={() => void cancelTask(task.id)}/>
+                                            </Tooltip>
+                                        )}
+                                    </div>
+                                    {status === taskStatusValues.running && (
+                                        <div className={taskProgressRow}>
+                                            <Progress
+                                                percent={progress}
+                                                size="small"
+                                                showInfo={false}/>
+                                            <span className={taskProgressValue}>{Math.floor(progress)}%</span>
+                                        </div>
+                                    )}
+                                    <div className={taskMessage} title={task.message || undefined}>
+                                        {task.message || "等待处理"}
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
+        </>
+    );
+
     return <>
+        <Tooltip title="系统任务">
+            <Badge count={pendingTaskCount} size="small" offset={[-2, 3]}>
+                <Icon
+                    type="CloudServerOutlined"
+                    className={icon}
+                    aria-label="系统任务"
+                    onClick={() => {
+                        setTaskOpen(true);
+                        void refreshTasks();
+                    }}/>
+            </Badge>
+        </Tooltip>
         <Tooltip title={theme?.getModeName(theme?.mode as any)}>
             <Icon type={theme?.isDarkMode() ? "icon-dark" : (theme?.isAutoMode() ? "icon-auto" : "icon-light")}
                   className={icon}
@@ -264,6 +560,20 @@ const RightTop: React.FC = () => {
                 <Icon className={theme?.isDarkMode() ? bottomIconDark : ""} type="DownOutlined"/>
             </div>
         </Popover>
+        <ProModal
+            title={<ModalTitle>系统任务</ModalTitle>}
+            width="min(520px, calc(100vw - 24px))"
+            onCancel={() => setTaskOpen(false)}
+            modalProps={{
+                open: taskOpen,
+                footer: null,
+                destroyOnHidden: false,
+                mask: {closable: true},
+                style: {top: 100, paddingBottom: 100},
+                styles: {body: {padding: 0}},
+            }}>
+            {taskContent}
+        </ProModal>
     </>
 }
 

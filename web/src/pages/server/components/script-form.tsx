@@ -9,8 +9,6 @@ import {
     getScriptInfo,
     updateScript,
 } from "@/service/api/script";
-import type {ScriptRecord} from "@/service/api/script";
-import type {TypeRecord} from "@/service/api/type";
 
 const acePath = `${defaultSettings?.basePath || "/"}ace`;
 
@@ -57,11 +55,11 @@ interface ScriptFormValues {
 }
 
 export interface ScriptFormRef {
-    open: (record?: ScriptRecord, defaultTypeId?: number) => void;
+    open: (record?: any, defaultTypeId?: number) => void;
 }
 
 interface ScriptFormProps {
-    typeItems: TypeRecord[];
+    typeItems: any[];
     onSuccess?: () => void;
 }
 
@@ -106,7 +104,7 @@ const ScriptForm = forwardRef<ScriptFormRef, ScriptFormProps>(({typeItems, onSuc
         modalRef.current?.show();
     }, [form]);
 
-    const openEdit = useCallback((record: ScriptRecord) => {
+    const openEdit = useCallback((record: any) => {
         const requestId = ++requestRef.current;
         setScriptId(record.id);
         setActive(true);
@@ -136,7 +134,7 @@ const ScriptForm = forwardRef<ScriptFormRef, ScriptFormProps>(({typeItems, onSuc
     }, [form, message]);
 
     useImperativeHandle(ref, () => ({
-        open: (record?: ScriptRecord, defaultTypeId = 0) => {
+        open: (record?: any, defaultTypeId = 0) => {
             if (record) {
                 openEdit(record);
             } else {

@@ -44,7 +44,7 @@ function errorHandle(): void {
  * @param onError 错误捕获
  * @param options 其他选项
  */
-export async function post<T = API.EmptyData>(url: string = "", body: any = {}, onSuccess?: (res: API.Response<T>) => void, onFail?: (res: API.Response<T>) => void, onFinally?: () => void, onError?: (error: any) => void, options?: {
+export async function post<T = any>(url: string = "", body: any = {}, onSuccess?: (res: API.Response<T>) => void, onFail?: (res: API.Response<T>) => void, onFinally?: () => void, onError?: (error: any) => void, options?: {
     [key: string]: any
 }): Promise<API.Response<T> | undefined> {
     let res: API.Response<T> | undefined;
@@ -80,7 +80,7 @@ export async function post<T = API.EmptyData>(url: string = "", body: any = {}, 
  * @param onError 错误捕获
  * @param options 其他选项
  */
-export async function get<T = API.EmptyData>(url: string = "", params?: {}, onSuccess?: (res: API.Response<T>) => void, onFail?: (res: API.Response<T>) => void, onFinally?: () => void, onError?: (error: any) => void, options?: {
+export async function get<T = any>(url: string = "", params?: {}, onSuccess?: (res: API.Response<T>) => void, onFail?: (res: API.Response<T>) => void, onFinally?: () => void, onError?: (error: any) => void, options?: {
     [key: string]: any
 }): Promise<API.Response<T> | undefined> {
     let res: API.Response<T> | undefined;

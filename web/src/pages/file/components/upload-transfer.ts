@@ -1,11 +1,25 @@
 import defaultSettings from "@/../config/defaultSettings";
 import {
-    FileUploadRequestError,
-    FileUploadTransportError,
     requestFileUpload as requestFileUploadApi,
 } from "@/service/api/file";
-import type {FileUploadData} from "@/service/api/file";
 import {getFileMd5} from "./upload-hash";
+
+interface FileUploadData {
+    name: string;
+    path: string;
+    size: number;
+    file_hash?: string;
+}
+
+const isUploadError = (error: unknown, name: string) => (
+    Boolean(error && typeof error === "object" && "name" in error && (error as {name?: unknown}).name === name)
+);
+
+const createUploadTransferError = (name: string, message: string) => {
+    const error = new Error(message);
+    error.name = name;
+    return error;
+};
 
 const apiUrl = (path: string) => {
     const origin = window.location.origin;
@@ -25,7 +39,7 @@ const requestFileUpload = <T, >(
         query?: Record<string, string>;
         onProgress?: (loaded: number, total: number) => void;
     },
-) => requestFileUploadApi<T>(apiUrl("/file/upload"), action, signal, params);
+) => requestFileUploadApi(apiUrl("/file/upload"), action, signal, params);
 
 interface FileTransferProgress {
     loaded: number;
@@ -302,13 +316,13 @@ const requestFileUploadWithRetry = async <T, >(
         try {
             return await requestFileUpload<T>(action, signal, buildParams());
         } catch (error) {
-            if (!(error instanceof FileUploadRequestError) || attempt > FILE_UPLOAD_MAX_RETRIES || signal.aborted) {
+            if ((!isUploadError(error, "FileUploadRequestError") && !isUploadError(error, "FileUploadTransportError")) || attempt > FILE_UPLOAD_MAX_RETRIES || signal.aborted) {
                 throw error;
             }
             await waitForFileUploadRetry(attempt, signal);
         }
     }
-    throw new FileUploadTransportError("上传文件失败，请检查网络连接");
+    throw createUploadTransferError("FileUploadTransportError", "上传文件失败，请检查网络连接");
 };
 
 const waitForFileUploadRetry = (attempt: number, signal: AbortSignal) => new Promise<void>((resolve, reject) => {
@@ -400,7 +414,7 @@ const uploadFileChunk = async (
             }
             return;
         } catch (error) {
-            if (!(error instanceof FileUploadTransportError) || attempt > FILE_UPLOAD_MAX_RETRIES || signal.aborted) {
+            if (!isUploadError(error, "FileUploadTransportError") || attempt > FILE_UPLOAD_MAX_RETRIES || signal.aborted) {
                 throw error;
             }
             await waitForFileUploadRetry(attempt, signal);

@@ -1,8 +1,6 @@
 import {useCallback, useEffect, useRef, useState} from "react";
 import {App} from "antd";
 import {copyFile, getFileInfo, moveFile} from "@/service/api/file";
-import type {FileRecord} from "@/service/api/file";
-import type {FileClipboardItem, FileClipboardMode, FileClipboardState} from "../types";
 import {comparableFilePath, joinFilePath} from "../utils";
 
 interface PasteConfirmState {
@@ -16,12 +14,12 @@ export interface UseFileClipboardOptions {
     loaded: boolean;
     loading: boolean;
     navigating: boolean;
-    selectedRecords: readonly FileRecord[];
+    selectedRecords: readonly any[];
     hasBusySelection: boolean;
     trackTask: (taskId: string, title: string) => void;
 }
 
-const emptyItems: FileClipboardItem[] = [];
+const emptyItems: any[] = [];
 
 const ignoreShortcut = (target: EventTarget | null) => {
     if (!(target instanceof HTMLElement)) {
@@ -42,7 +40,7 @@ const useFileClipboard = ({
     trackTask,
 }: UseFileClipboardOptions) => {
     const {message, modal} = App.useApp();
-    const [clipboard, setClipboard] = useState<FileClipboardState>();
+    const [clipboard, setClipboard] = useState<any>();
     const [pasting, setPasting] = useState(false);
     const generationRef = useRef(0);
     const startingRef = useRef(false);
@@ -65,7 +63,7 @@ const useFileClipboard = ({
         closeConfirm();
     }, [closeConfirm]);
 
-    const setRecords = useCallback((records: readonly FileRecord[], nextMode: FileClipboardMode) => {
+    const setRecords = useCallback((records: readonly any[], nextMode: any) => {
         if (records.length === 0) {
             return;
         }
@@ -80,7 +78,7 @@ const useFileClipboard = ({
                 sourceDirectory: path,
                 name: record.name,
                 isDir: record.is_dir,
-            } satisfies FileClipboardItem];
+            } satisfies any];
         })).values());
         setClipboard({mode: nextMode, items: entries});
         message.success(nextMode === "move"
@@ -88,18 +86,18 @@ const useFileClipboard = ({
             : `已复制 ${entries.length} 项，可前往目标目录粘贴`);
     }, [message, path]);
 
-    const copyRecords = useCallback((records: readonly FileRecord[]) => {
+    const copyRecords = useCallback((records: readonly any[]) => {
         setRecords(records, "copy");
     }, [setRecords]);
 
-    const moveRecords = useCallback((records: readonly FileRecord[]) => {
+    const moveRecords = useCallback((records: readonly any[]) => {
         setRecords(records, "move");
     }, [setRecords]);
 
     const copySelected = useCallback(() => copyRecords(selectedRecords), [copyRecords, selectedRecords]);
     const moveSelected = useCallback(() => moveRecords(selectedRecords), [moveRecords, selectedRecords]);
 
-    const confirmOverwrite = useCallback((names: string[], currentMode: FileClipboardMode) => new Promise<boolean>((resolve) => {
+    const confirmOverwrite = useCallback((names: string[], currentMode: any) => new Promise<boolean>((resolve) => {
         const confirmId = Symbol("paste-overwrite");
         let settled = false;
         const finish = (value: boolean) => {

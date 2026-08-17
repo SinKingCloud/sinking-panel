@@ -1,4 +1,3 @@
-import type {FileRecord} from "@/service/api/file";
 import {
     buildFileBreadcrumbs,
     comparableFilePath,
@@ -21,7 +20,7 @@ export interface FileEditorTreeNode {
     kind: "entry" | "more";
     isDirectory: boolean;
     isLeaf: boolean;
-    record?: FileRecord;
+    record?: any;
     nextPage?: number;
     remaining?: number;
     children?: FileEditorTreeNode[];
@@ -125,7 +124,7 @@ export const createEditorRootNode = (path: string): FileEditorTreeNode => {
 
 export const createEditorEntryNode = (
     parentPath: string,
-    record: FileRecord,
+    record: any,
 ): FileEditorTreeNode => {
     const path = joinFilePath(parentPath, record.name);
     return {

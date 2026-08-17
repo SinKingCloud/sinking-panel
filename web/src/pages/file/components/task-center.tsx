@@ -4,21 +4,15 @@ import React, {
     useCallback,
     useEffect,
     useImperativeHandle,
+    useMemo,
     useRef,
     useState,
 } from "react";
 import {App, Button, Progress} from "antd";
 import {Icon, Title, useTheme} from "sinking-antd";
 import {cancelSystemTask, getSystemTask} from "@/service/api/system";
-import type {SystemTaskRecord} from "@/service/api/system";
 import {readFileStorage, updateFileStorage} from "../hooks/file-storage";
 import useStyles from "./task-center.styles";
-
-interface TrackedTask extends SystemTaskRecord {
-    title: string;
-    missingCount?: number;
-    unknown?: boolean;
-}
 
 export interface FileTaskCenterRef {
     track: (id: string, title: string) => void;
@@ -49,7 +43,7 @@ const statusMeta: Record<number, {label: string; className: string}> = {
 
 const isTerminalStatus = (status: unknown) => terminalStatuses.has(Number(status));
 
-const createPendingTask = (id: string, title: string): TrackedTask => ({
+const createPendingTask = (id: string, title: string): any => ({
     id,
     title,
     name: title,
@@ -63,12 +57,12 @@ const createPendingTask = (id: string, title: string): TrackedTask => ({
     update_time: Date.now(),
 });
 
-const restoreTasks = (): TrackedTask[] => {
+const restoreTasks = (): any[] => {
     const stored = readFileStorage().tasks;
     if (!Array.isArray(stored)) {
         return [];
     }
-    const unique = new Map<string, TrackedTask>();
+    const unique = new Map<string, any>();
     stored.forEach((item) => {
         if (!item || typeof item.id !== "string" || !item.id || typeof item.title !== "string") {
             return;
@@ -78,7 +72,7 @@ const restoreTasks = (): TrackedTask[] => {
     return Array.from(unique.values());
 };
 
-const persistTasks = (tasks: TrackedTask[]) => {
+const persistTasks = (tasks: any[]) => {
     const pending = tasks
         .filter((task) => !isTerminalStatus(task.status))
         .map(({id, title}) => ({id, title}));
@@ -94,18 +88,28 @@ const FileTaskCenter = forwardRef<FileTaskCenterRef, FileTaskCenterProps>(({onSe
     const {styles} = useStyles({compact});
     const {message} = App.useApp();
     const mountedRef = useRef(true);
-    const tasksRef = useRef<TrackedTask[]>([]);
+    const tasksRef = useRef<any[]>([]);
     const dismissTimersRef = useRef(new Map<string, number>());
     const notifiedIdsRef = useRef(new Set<string>());
-    const [tasks, setTasks] = useState<TrackedTask[]>(restoreTasks);
+    const [tasks, setTasks] = useState<any[]>(restoreTasks);
     const [panelClosed, setPanelClosed] = useState(false);
     const panelRef = useRef<HTMLElement | null>(null);
     const dragRef = useRef<DragState | undefined>(undefined);
     const [dragging, setDragging] = useState(false);
     const [panelPosition, setPanelPosition] = useState<{left?: number; top?: number}>({});
     const active = tasks.some((task) => !isTerminalStatus(task.status));
+    const displayTasks = useMemo(() => tasks
+        .map((task, index) => ({task, index}))
+        .sort((first, second) => {
+            const firstStatus = Number(first.task.status);
+            const secondStatus = Number(second.task.status);
+            const firstPriority = firstStatus === 1 ? 0 : firstStatus === 0 ? 1 : 2;
+            const secondPriority = secondStatus === 1 ? 0 : secondStatus === 0 ? 1 : 2;
+            return firstPriority - secondPriority || first.index - second.index;
+        })
+        .map(({task}) => task), [tasks]);
 
-    const commitTasks = useCallback((next: TrackedTask[], persist = false) => {
+    const commitTasks = useCallback((next: any[], persist = false) => {
         tasksRef.current = next;
         if (persist) {
             persistTasks(next);
@@ -192,7 +196,7 @@ const FileTaskCenter = forwardRef<FileTaskCenterRef, FileTaskCenterProps>(({onSe
                     return;
                 }
                 const next = tasksRef.current.slice();
-                const settled: TrackedTask[] = [];
+                const settled: any[] = [];
                 responses.forEach(({task, response}) => {
                     const index = next.findIndex((item) => item.id === task.id);
                     if (index < 0) {
@@ -203,7 +207,7 @@ const FileTaskCenter = forwardRef<FileTaskCenterRef, FileTaskCenterProps>(({onSe
                     if (response?.code === 200 && response.data) {
                         updated = {
                             ...response.data,
-                            status: Number(response.data.status) as TrackedTask["status"],
+                            status: Number(response.data.status),
                             title: current.title,
                             missingCount: 0,
                         };
@@ -340,15 +344,19 @@ const FileTaskCenter = forwardRef<FileTaskCenterRef, FileTaskCenterProps>(({onSe
                     onClick={() => setPanelClosed(true)}/>
             </div>
             <div className="file-task-progress-list">
-                {tasks.map((task) => {
+                {displayTasks.map((task) => {
                     const meta = task.unknown
                         ? {label: "状态未知", className: "canceled"}
                         : statusMeta[Number(task.status)] || statusMeta[0];
+                    const taskStatus = Number(task.status);
                     const rawProgress = Number(task.progress);
-                    const progress = Number.isFinite(rawProgress)
+                    const progress = taskStatus === 2
+                        ? 100
+                        : Number.isFinite(rawProgress)
                         ? Math.max(0, Math.min(100, rawProgress))
                         : 0;
                     const terminal = isTerminalStatus(task.status);
+                    const canCancel = taskStatus === 0 || taskStatus === 1;
                     const displayName = task.name || task.title;
                     return (
                         <article
@@ -360,20 +368,22 @@ const FileTaskCenter = forwardRef<FileTaskCenterRef, FileTaskCenterProps>(({onSe
                                 {!terminal && (
                                     <span className="file-task-progress-value">{Math.floor(progress)}%</span>
                                 )}
-                                {!terminal && (
+                                {canCancel && (
                                     <Button
                                         type="text"
+                                        danger
+                                        size="small"
                                         className="file-task-progress-cancel"
+                                        icon={<Icon type="CloseOutlined"/>}
                                         aria-label={`取消${displayName}`}
                                         title="取消任务"
-                                        icon={<Icon type="CloseOutlined"/>}
                                         onClick={() => void cancel(task.id)}/>
                                 )}
                             </div>
                             {meta.className !== "running" && (
                                 <div className={`file-task-progress-state ${meta.className}`}>{meta.label}</div>
                             )}
-                            {!terminal && (
+                            {taskStatus === 1 && (
                                 <Progress
                                     className="file-task-progress-bar"
                                     percent={progress}

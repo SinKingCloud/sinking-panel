@@ -1,7 +1,6 @@
 import React, {forwardRef, useCallback, useImperativeHandle, useRef, useState} from "react";
 import {App, Form, Grid, Input} from "antd";
 import {ProModal, Title, useTheme} from "sinking-antd";
-import type {FileRecord} from "@/service/api/file";
 import {updateFile} from "@/service/api/file";
 import {formatFileMode} from "../utils";
 
@@ -15,7 +14,7 @@ interface PermissionsValues {
 }
 
 export interface FilePermissionsRef {
-    open: (path: string, record: FileRecord, layered?: boolean) => void;
+    open: (path: string, record: any, layered?: boolean) => void;
     close: () => void;
 }
 

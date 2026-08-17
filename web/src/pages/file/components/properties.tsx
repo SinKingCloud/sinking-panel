@@ -2,26 +2,25 @@ import React, {forwardRef, useCallback, useImperativeHandle, useRef, useState} f
 import {App, Button, Grid, Tooltip} from "antd";
 import {Icon, ProModal, Title, useTheme} from "sinking-antd";
 import {getFileInfo} from "@/service/api/file";
-import type {FileInfoData, FileRecord} from "@/service/api/file";
 import {formatFileMode, formatFileSize, formatFileTime, getFileIconType} from "../utils";
 import useStyles from "./properties.styles";
 import {copyTextToClipboard} from "./properties.utils";
 
 interface PropertiesState {
     path: string;
-    record: FileRecord;
+    record: any;
 }
 
 export interface FilePropertiesRef {
-    open: (path: string, record: FileRecord) => void;
+    open: (path: string, record: any) => void;
     close: () => void;
     updateRename: (sourcePath: string, targetPath: string, name: string) => void;
     updatePermissions: (path: string, permissions: string) => void;
 }
 
 interface FilePropertiesProps {
-    onRename: (path: string, record: FileRecord) => void;
-    onPermissions: (path: string, record: FileRecord) => void;
+    onRename: (path: string, record: any) => void;
+    onPermissions: (path: string, record: any) => void;
 }
 
 const FileProperties = forwardRef<FilePropertiesRef, FilePropertiesProps>(({onRename, onPermissions}, ref) => {
@@ -34,7 +33,7 @@ const FileProperties = forwardRef<FilePropertiesRef, FilePropertiesProps>(({onRe
     const generationRef = useRef(0);
     const stateRef = useRef<PropertiesState | undefined>(undefined);
     const [state, setState] = useState<PropertiesState>();
-    const [info, setInfo] = useState<FileInfoData>();
+    const [info, setInfo] = useState<any>();
 
     const close = useCallback(() => {
         generationRef.current += 1;

@@ -3,7 +3,6 @@ import {App, Button, Grid, Input, Space, Tooltip} from "antd";
 import type {InputRef, TableRef} from "antd";
 import {Icon, ProModal, Title, useTheme} from "sinking-antd";
 import {getFileDisks, getFileInfo, getFileList} from "@/service/api/file";
-import type {FileRecord} from "@/service/api/file";
 import {
     buildFileBreadcrumbs,
     comparableFilePath as comparablePath,
@@ -14,9 +13,6 @@ import {
 } from "@/pages/file/utils";
 import FilePickerBrowser from "./browser";
 import useStyles from "./styles";
-import type {FilePickerProps, SelectedFile} from "./types";
-
-export type {FilePickerMode, FilePickerProps} from "./types";
 
 const FilePicker = ({
     disabled,
@@ -25,7 +21,7 @@ const FilePicker = ({
     placeholder,
     value = "",
     ...inputProps
-}: FilePickerProps) => {
+}: any) => {
     const theme = useTheme();
     const {message} = App.useApp();
     const compact = Boolean(theme?.isCompactTheme?.());
@@ -40,9 +36,9 @@ const FilePicker = ({
     const [open, setOpen] = useState(false);
     const [path, setPath] = useState("");
     const [loadedPath, setLoadedPath] = useState("");
-    const [selectedFile, setSelectedFile] = useState<SelectedFile>();
+    const [selectedFile, setSelectedFile] = useState<any>();
     const [disks, setDisks] = useState<string[]>([]);
-    const [items, setItems] = useState<FileRecord[]>([]);
+    const [items, setItems] = useState<any[]>([]);
     const [page, setPage] = useState(1);
     const [total, setTotal] = useState(0);
     const [loading, setLoading] = useState(false);
@@ -143,7 +139,7 @@ const FilePicker = ({
         close();
     }, [close, loadedPath, mode, onChange, selectedFile]);
 
-    const selectFile = useCallback((file: SelectedFile) => {
+    const selectFile = useCallback((file: any) => {
         selectionRequestRef.current += 1;
         setSelectedFile(file);
     }, []);

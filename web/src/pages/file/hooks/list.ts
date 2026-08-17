@@ -1,14 +1,13 @@
 import {useCallback, useEffect, useRef, useState} from "react";
 import {getFileList} from "@/service/api/file";
-import type {FileOrderField, FileOrderType, FileRecord} from "@/service/api/file";
 
 interface ListQuery {
     path: string;
     keyword: string;
     page: number;
     pageSize: number;
-    sort?: FileOrderField;
-    order?: FileOrderType;
+    sort?: any;
+    order?: any;
     generation: number;
 }
 
@@ -22,7 +21,7 @@ const defaultQuery: ListQuery = {
 
 const normalizePath = (value: string) => value || "/";
 
-const normalizeOrder = (value?: string): FileOrderType => (
+const normalizeOrder = (value?: string): any => (
     value === "asc" || value === "ascend" ? "asc" : "desc"
 );
 
@@ -35,7 +34,7 @@ const useFileList = (initialPath = "/") => {
         path: normalizePath(initialPath),
     }));
     const [committedPath, setCommittedPath] = useState(committedPathRef.current);
-    const [items, setItems] = useState<FileRecord[]>([]);
+    const [items, setItems] = useState<any[]>([]);
     const [total, setTotal] = useState(0);
     const [loading, setLoading] = useState(true);
     const [loaded, setLoaded] = useState(false);
@@ -150,7 +149,7 @@ const useFileList = (initialPath = "/") => {
         }));
     }, [pageSize]);
 
-    const changeSort = useCallback((field?: FileOrderField, value?: string) => {
+    const changeSort = useCallback((field?: any, value?: string) => {
         requestRef.current += 1;
         setLoading(true);
         setError("");

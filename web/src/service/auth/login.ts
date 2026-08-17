@@ -1,8 +1,8 @@
 import {get, post} from "@/utils/request";
 
 /** 账号登录 POST /login */
-export async function login(params: API.RequestParams<any, any> = {}) {
-    return post<any>("/login", params?.body, params?.onSuccess, params?.onFail, params?.onFinally);
+export async function login(params: API.RequestParams = {}) {
+    return post("/login", params?.body, params?.onSuccess, params?.onFail, params?.onFinally);
 }
 
 /** 退出登录 GET /logout */

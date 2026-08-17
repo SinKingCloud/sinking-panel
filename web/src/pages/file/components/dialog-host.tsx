@@ -8,14 +8,6 @@ import React, {
 } from "react";
 import {App} from "antd";
 import FilePreview from "@/pages/components/file-preview";
-import type {FilePreviewItem, FilePreviewRef} from "@/pages/components/file-preview";
-import type {FileRecord} from "@/service/api/file";
-import type {
-    FileCreateMode,
-    FileFormResult,
-    FileOperationContext,
-    FileOperationMode,
-} from "../types";
 import {joinFilePath} from "../utils";
 import FileForm from "./form";
 import type {FileFormRef} from "./form";
@@ -35,14 +27,14 @@ import FileUpload from "./upload";
 import type {FileUploadRef} from "./upload";
 
 export interface FileDialogHostRef {
-    openCreate: (mode: FileCreateMode) => void;
+    openCreate: (mode: any) => void;
     openEditor: (path?: string, name?: string) => void;
-    openProperties: (record: FileRecord) => void;
-    openPreview: (files: readonly FilePreviewItem[], active: string) => void;
-    openOperation: (mode: FileOperationMode, record?: FileRecord) => void;
+    openProperties: (record: any) => void;
+    openPreview: (files: readonly any[], active: string) => void;
+    openOperation: (mode: any, record?: any) => void;
     openOperationMany: (
-        mode: FileOperationMode,
-        records: FileRecord[],
+        mode: any,
+        records: any[],
         clearSelectionOnSuccess?: boolean,
     ) => void;
     openUpload: () => void;
@@ -78,7 +70,7 @@ const FileDialogHost = forwardRef<FileDialogHostRef, FileDialogHostProps>(({
     const formRef = useRef<FileFormRef | null>(null);
     const editorRef = useRef<FileEditorRef | null>(null);
     const propertiesRef = useRef<FilePropertiesRef | null>(null);
-    const previewRef = useRef<FilePreviewRef | null>(null);
+    const previewRef = useRef<any>(null);
     const permissionsRef = useRef<FilePermissionsRef | null>(null);
     const recycleBinRef = useRef<FileRecycleBinRef | null>(null);
     const operationRef = useRef<FileOperationRef | null>(null);
@@ -123,7 +115,7 @@ const FileDialogHost = forwardRef<FileDialogHostRef, FileDialogHostProps>(({
         }, 180);
     }, []);
 
-    const openCreate = useCallback((mode: FileCreateMode) => {
+    const openCreate = useCallback((mode: any) => {
         if (!loaded || navigating) {
             message.info("目录正在加载");
             return;
@@ -131,7 +123,7 @@ const FileDialogHost = forwardRef<FileDialogHostRef, FileDialogHostProps>(({
         formRef.current?.open(mode, path);
     }, [loaded, message, navigating, path]);
 
-    const openProperties = useCallback((record: FileRecord) => {
+    const openProperties = useCallback((record: any) => {
         propertiesRef.current?.open(joinFilePath(path, record.name), record);
     }, [path]);
 
@@ -143,7 +135,7 @@ const FileDialogHost = forwardRef<FileDialogHostRef, FileDialogHostProps>(({
         editorRef.current?.open(targetPath || path, name);
     }, [loaded, loading, message, navigating, path]);
 
-    const openPreview = useCallback((files: readonly FilePreviewItem[], active: string) => {
+    const openPreview = useCallback((files: readonly any[], active: string) => {
         if (!loaded || loading || navigating) {
             message.info("目录正在加载");
             return;
@@ -152,8 +144,8 @@ const FileDialogHost = forwardRef<FileDialogHostRef, FileDialogHostProps>(({
     }, [loaded, loading, message, navigating]);
 
     const openOperationContext = useCallback((
-        mode: FileOperationMode,
-        records?: FileRecord[],
+        mode: any,
+        records?: any[],
         clearSelectionOnSuccess?: boolean,
     ) => {
         if (!loaded || navigating) {
@@ -167,13 +159,13 @@ const FileDialogHost = forwardRef<FileDialogHostRef, FileDialogHostProps>(({
         });
     }, [loaded, message, navigating, path]);
 
-    const openOperation = useCallback((mode: FileOperationMode, record?: FileRecord) => {
+    const openOperation = useCallback((mode: any, record?: any) => {
         openOperationContext(mode, record ? [record] : undefined);
     }, [openOperationContext]);
 
     const openOperationMany = useCallback((
-        mode: FileOperationMode,
-        records: FileRecord[],
+        mode: any,
+        records: any[],
         clearSelectionOnSuccess = false,
     ) => {
         openOperationContext(mode, records, clearSelectionOnSuccess);
@@ -223,15 +215,15 @@ const FileDialogHost = forwardRef<FileDialogHostRef, FileDialogHostProps>(({
         trackTask,
     ]);
 
-    const renameFromProperties = useCallback((targetPath: string, record: FileRecord) => {
+    const renameFromProperties = useCallback((targetPath: string, record: any) => {
         formRef.current?.openRename(targetPath, record, true);
     }, []);
 
-    const permissionsFromProperties = useCallback((targetPath: string, record: FileRecord) => {
+    const permissionsFromProperties = useCallback((targetPath: string, record: any) => {
         permissionsRef.current?.open(targetPath, record, true);
     }, []);
 
-    const handleFormSuccess = useCallback((result: FileFormResult) => {
+    const handleFormSuccess = useCallback((result: any) => {
         onReloadRef.current();
         if (result.mode === "rename" && result.sourcePath && result.targetPath) {
             propertiesRef.current?.updateRename(result.sourcePath, result.targetPath, result.name);
@@ -243,7 +235,7 @@ const FileDialogHost = forwardRef<FileDialogHostRef, FileDialogHostProps>(({
         propertiesRef.current?.updatePermissions(targetPath, permissions);
     }, []);
 
-    const handleOperationSuccess = useCallback((context: FileOperationContext) => {
+    const handleOperationSuccess = useCallback((context: any) => {
         if (!context.clearSelectionOnSuccess) {
             return;
         }

@@ -23,10 +23,7 @@ import {
     getAllTypes,
     updateType,
 } from "@/service/api/type";
-import type {TypeModule, TypeRecord} from "@/service/api/type";
 import {clearEnumCache} from "@/utils/enum";
-
-export type {TypeModule, TypeRecord};
 
 export interface TypeManagerRef {
     open: () => void;
@@ -34,8 +31,8 @@ export interface TypeManagerRef {
 }
 
 export interface TypeManagerProps {
-    module: TypeModule;
-    onChange?: (items: TypeRecord[]) => void;
+    module: string;
+    onChange?: (items: any[]) => void;
     onMutation?: () => void;
 }
 
@@ -48,9 +45,9 @@ interface DraggableRowProps {
     itemClassName: string;
     nameClassName: string;
     operating: boolean;
-    record: TypeRecord;
-    onEdit: (record: TypeRecord) => void;
-    onRemove: (record: TypeRecord) => void;
+    record: any;
+    onEdit: (record: any) => void;
+    onRemove: (record: any) => void;
     onPointerDown: (id: number, event: ReactPointerEvent<HTMLButtonElement>) => void;
     onCancelDrag: () => void;
     onKeyboardMove: (id: number, direction: -1 | 1) => void;
@@ -83,7 +80,7 @@ interface DragState {
     lastFrameTime: number;
     list: HTMLDivElement | null;
     listRect: DOMRect | null;
-    originItems: TypeRecord[];
+    originItems: any[];
     overIndex: number;
     pointerId: number;
     rowGap: number;
@@ -192,7 +189,7 @@ const dragRangeIds = (state: DragState): Set<number> => {
     return new Set(state.rows.slice(start, end + 1).map((row) => row.id));
 };
 
-const moveRangeIds = (items: TypeRecord[], from: number, to: number): Set<number> => {
+const moveRangeIds = (items: any[], from: number, to: number): Set<number> => {
     if (from < 0 || to < 0) {
         return new Set();
     }
@@ -201,7 +198,7 @@ const moveRangeIds = (items: TypeRecord[], from: number, to: number): Set<number
     return new Set(items.slice(start, end + 1).map((item) => item.id));
 };
 
-const changedOrderIds = (current: TypeRecord[], next: TypeRecord[]): Set<number> => {
+const changedOrderIds = (current: any[], next: any[]): Set<number> => {
     const ids = new Set<number>();
     const length = Math.max(current.length, next.length);
     for (let index = 0; index < length; index += 1) {
@@ -676,13 +673,13 @@ const TypeManager = forwardRef<TypeManagerRef, TypeManagerProps>(({module, onCha
     const mountedRef = useRef(true);
     const dragRef = useRef<DragState | null>(null);
     const listRef = useRef<HTMLDivElement | null>(null);
-    const [items, setItems] = useState<TypeRecord[]>([]);
+    const [items, setItems] = useState<any[]>([]);
     const itemsRef = useRef(items);
     itemsRef.current = items;
     const [loading, setLoading] = useState(false);
     const [formActive, setFormActive] = useState(false);
     const [formOpen, setFormOpen] = useState(false);
-    const [formRecord, setFormRecord] = useState<TypeRecord>();
+    const [formRecord, setFormRecord] = useState<any>();
     const [formSubmitting, setFormSubmitting] = useState(false);
     const [sorting, setSorting] = useState(false);
     const [operatingId, setOperatingId] = useState<number | null>(null);
@@ -725,7 +722,7 @@ const TypeManager = forwardRef<TypeManagerRef, TypeManagerProps>(({module, onCha
     }, []);
 
     const applyItemsWithAnimation = useCallback((
-        nextItems: TypeRecord[],
+        nextItems: any[],
         firstRects?: Map<number, DOMRect>,
         affectedIds?: ReadonlySet<number>,
     ) => {
@@ -775,7 +772,7 @@ const TypeManager = forwardRef<TypeManagerRef, TypeManagerProps>(({module, onCha
     const load = useCallback(async (
         notify = false,
         animate = false,
-    ): Promise<TypeRecord[] | undefined> => {
+    ): Promise<any[] | undefined> => {
         const requestId = ++requestRef.current;
         setLoading(true);
         try {
@@ -871,7 +868,7 @@ const TypeManager = forwardRef<TypeManagerRef, TypeManagerProps>(({module, onCha
         setFormOpen(true);
     }, [clearPointerDrag, form]);
 
-    const openEditForm = useCallback((record: TypeRecord) => {
+    const openEditForm = useCallback((record: any) => {
         if (
             actionRef.current
             || sortingRef.current
@@ -927,7 +924,7 @@ const TypeManager = forwardRef<TypeManagerRef, TypeManagerProps>(({module, onCha
         }
     }, [editing, formRecord, message, module, onMutation, reloadAfterChange]);
 
-    const remove = useCallback((record: TypeRecord) => {
+    const remove = useCallback((record: any) => {
         if (
             actionRef.current
             || sortingRef.current
@@ -971,8 +968,8 @@ const TypeManager = forwardRef<TypeManagerRef, TypeManagerProps>(({module, onCha
     }, [message, modal, onMutation, reloadAfterChange]);
 
     const persistMove = useCallback(async (
-        originItems: TypeRecord[],
-        nextItems: TypeRecord[],
+        originItems: any[],
+        nextItems: any[],
         activeId: number,
     ) => {
         const oldIndex = originItems.findIndex((item) => item.id === activeId);

@@ -1,4 +1,3 @@
-import type {FileClipboardMode, FileCreateMode} from "../types";
 
 export interface HeaderProps {
     path: string;
@@ -6,7 +5,7 @@ export interface HeaderProps {
     keyword: string;
     uploading: boolean;
     clipboardCount: number;
-    clipboardMode: FileClipboardMode;
+    clipboardMode: any;
     pasting: boolean;
     pasteDisabled: boolean;
     directoryActionsDisabled: boolean;
@@ -16,7 +15,7 @@ export interface HeaderProps {
     selectionClearDisabled: boolean;
     onKeywordChange: (value: string) => void;
     onNavigate: (path: string) => void;
-    onCreate: (type: FileCreateMode) => void;
+    onCreate: (type: any) => void;
     onUpload: () => void;
     onPaste: () => void;
     onCopySelected: () => void;

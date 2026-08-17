@@ -3,9 +3,7 @@ import {App, Button, Table as AntTable, Tooltip} from "antd";
 import type {MenuProps, TableColumnsType, TableProps} from "antd";
 import {Icon, useTheme} from "sinking-antd";
 import {isFilePreviewable} from "@/pages/components/file-preview";
-import type {FilePreviewItem} from "@/pages/components/file-preview";
 import Dropdown from "@/pages/components/stable-dropdown";
-import type {FileOrderField, FileOrderType, FileRecord} from "@/service/api/file";
 import type {DirectoryCountMap} from "../hooks/directory-counts";
 import DirectorySize from "./directory-size";
 import {copyTextToClipboard} from "./properties.utils";
@@ -21,27 +19,27 @@ import {
 
 export interface FileTableProps {
     path: string;
-    items: FileRecord[];
+    items: any[];
     loading: boolean;
     actionsDisabled?: boolean;
-    sort?: FileOrderField;
-    order?: FileOrderType;
+    sort?: any;
+    order?: any;
     directoryCounts?: DirectoryCountMap;
     onCountDirectory: (path: string) => void;
     operatingPaths?: ReadonlySet<string>;
     selectedPaths: ReadonlySet<string>;
     selectionDisabled: boolean;
     onSelectionChange: (paths: string[]) => void;
-    onSortChange: (field?: FileOrderField, order?: "ascend" | "descend") => void;
-    onOpen: (record: FileRecord) => void;
+    onSortChange: (field?: any, order?: "ascend" | "descend") => void;
+    onOpen: (record: any) => void;
     onEdit: (path: string, name: string) => void;
-    onPreview: (files: readonly FilePreviewItem[], active: string) => void;
-    onDownload: (record: FileRecord) => void;
-    onCopy: (record: FileRecord) => void;
-    onMove: (record: FileRecord) => void;
-    onProperties: (record: FileRecord) => void;
-    onOperation: (mode: "compress" | "extract", record: FileRecord) => void;
-    onDelete: (record: FileRecord) => void;
+    onPreview: (files: readonly any[], active: string) => void;
+    onDownload: (record: any) => void;
+    onCopy: (record: any) => void;
+    onMove: (record: any) => void;
+    onProperties: (record: any) => void;
+    onOperation: (mode: "compress" | "extract", record: any) => void;
+    onDelete: (record: any) => void;
 }
 
 type FileMenuSource = "action" | "context";
@@ -56,12 +54,12 @@ type FileTableRowProps = React.HTMLAttributes<HTMLTableRowElement> & {
 };
 
 interface FileContextMenuValue {
-    recordsByPath: ReadonlyMap<string, FileRecord>;
+    recordsByPath: ReadonlyMap<string, any>;
     actionsDisabled: boolean;
     operatingPaths?: ReadonlySet<string>;
     openMenu?: FileMenuState;
     fileMenuClassName: string;
-    getMenuItems: (record: FileRecord, recordPath: string, disabled?: boolean) => MenuProps["items"];
+    getMenuItems: (record: any, recordPath: string, disabled?: boolean) => MenuProps["items"];
     changeMenuOpen: (open: boolean, recordPath: string, source: FileMenuSource) => void;
 }
 
@@ -131,7 +129,7 @@ const FileTable = ({
             return current?.path === recordPath && current.source === source ? undefined : current;
         });
     }, []);
-    const previewFiles = useMemo<FilePreviewItem[]>(() => items
+    const previewFiles = useMemo<any[]>(() => items
         .filter((record) => !record.is_dir && isFilePreviewable(record.name))
         .map((record) => ({
             name: record.name,
@@ -146,7 +144,7 @@ const FileTable = ({
         }
     }, [message]);
     const getMenuItems = useCallback((
-        record: FileRecord,
+        record: any,
         recordPath: string,
         disabled = false,
     ): MenuProps["items"] => {
@@ -229,7 +227,7 @@ const FileTable = ({
         styles.fileMenu,
     ]);
 
-    const columns = useMemo<TableColumnsType<FileRecord>>(() => [
+    const columns = useMemo<TableColumnsType<any>>(() => [
         {
             title: "名称",
             dataIndex: "name",
@@ -349,7 +347,7 @@ const FileTable = ({
         styles,
     ]);
 
-    const change = useCallback<NonNullable<TableProps<FileRecord>["onChange"]>>((_, __, sorter, extra) => {
+    const change = useCallback<NonNullable<TableProps<any>["onChange"]>>((_, __, sorter, extra) => {
         if (extra?.action !== "sort") {
             return;
         }
@@ -361,7 +359,7 @@ const FileTable = ({
 
     return (
         <FileContextMenu.Provider value={contextMenuValue}>
-            <AntTable<FileRecord>
+            <AntTable<any>
                 className={styles.fileTable}
                 columns={columns}
                 dataSource={items}

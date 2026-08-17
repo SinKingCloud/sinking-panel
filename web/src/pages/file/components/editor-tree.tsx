@@ -3,7 +3,6 @@ import {Button, Empty, Input, Spin, Tooltip, Tree} from "antd";
 import type {InputRef, MenuProps, TreeProps} from "antd";
 import {Icon} from "sinking-antd";
 import Dropdown from "@/pages/components/stable-dropdown";
-import type {FileCreateMode} from "../types";
 import {getFileIconType} from "../utils";
 import type {FileEditorTreeNode} from "./editor.utils";
 
@@ -120,7 +119,7 @@ export interface FileEditorTreeProps {
     onSelect: (node: FileEditorTreeNode) => void;
     onLoadData: NonNullable<TreeProps<FileEditorTreeNode>["loadData"]>;
     onRefresh: () => void;
-    onCreate: (mode: FileCreateMode, parentPath?: string) => void;
+    onCreate: (mode: any, parentPath?: string) => void;
     onRename: (node: FileEditorTreeNode, name: string) => Promise<boolean>;
     onPermissions: (node: FileEditorTreeNode) => void;
     onDelete: (node: FileEditorTreeNode) => void;

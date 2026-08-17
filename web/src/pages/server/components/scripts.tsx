@@ -5,9 +5,7 @@ import Dropdown from "@/pages/components/stable-dropdown";
 import TypeManager from "@/pages/components/type-manager";
 import type {TypeManagerRef} from "@/pages/components/type-manager";
 import {deleteScript, getScriptInfo} from "@/service/api/script";
-import type {ScriptRecord} from "@/service/api/script";
 import {getAllTypes} from "@/service/api/type";
-import type {TypeRecord} from "@/service/api/type";
 import useScripts from "../hooks/scripts";
 import ScriptForm from "./script-form";
 import type {ScriptFormRef} from "./script-form";
@@ -49,7 +47,7 @@ const Scripts = ({styles, collapsed, connected, selectedId, onCollapsedChange, o
     const typeRequestRef = useRef(0);
     const insertRequestRef = useRef(0);
     const copyRequestRef = useRef(0);
-    const [typeItems, setTypeItems] = useState<TypeRecord[]>([]);
+    const [typeItems, setTypeItems] = useState<any[]>([]);
     const [insertingId, setInsertingId] = useState<number>();
     const [copyingId, setCopyingId] = useState<number>();
     const [deletingId, setDeletingId] = useState<number>();
@@ -99,11 +97,11 @@ const Scripts = ({styles, collapsed, connected, selectedId, onCollapsedChange, o
         formRef.current?.open(undefined, Number.isFinite(defaultTypeId) ? defaultTypeId : 0);
     }, [list.typeId]);
 
-    const openEdit = useCallback((record: ScriptRecord) => {
+    const openEdit = useCallback((record: any) => {
         formRef.current?.open(record);
     }, []);
 
-    const insert = useCallback(async (record: ScriptRecord) => {
+    const insert = useCallback(async (record: any) => {
         if (!connected) {
             message.warning("请先连接终端");
             return;
@@ -135,7 +133,7 @@ const Scripts = ({styles, collapsed, connected, selectedId, onCollapsedChange, o
         }
     }, [connected, message, onInsert, selectedId]);
 
-    const copy = useCallback(async (record: ScriptRecord) => {
+    const copy = useCallback(async (record: any) => {
         const requestId = ++copyRequestRef.current;
         setCopyingId(record.id);
         const responsePromise = getScriptInfo({body: {id: record.id}});
@@ -188,7 +186,7 @@ const Scripts = ({styles, collapsed, connected, selectedId, onCollapsedChange, o
         }
     }, [message]);
 
-    const remove = useCallback((record: ScriptRecord) => {
+    const remove = useCallback((record: any) => {
         modal.confirm({
             title: "删除脚本",
             content: `确定删除脚本“${record.name}”吗？`,
@@ -216,7 +214,7 @@ const Scripts = ({styles, collapsed, connected, selectedId, onCollapsedChange, o
         } as any);
     }, [list.reload, message, modal]);
 
-    const handleTypesChange = useCallback((items: TypeRecord[]) => {
+    const handleTypesChange = useCallback((items: any[]) => {
         typeRequestRef.current += 1;
         setTypeItems(items);
         if (list.typeId !== "0" && !items.some((item) => String(item.id) === list.typeId)) {

@@ -1,20 +1,19 @@
 import {useCallback, useEffect, useRef, useState} from "react";
 import {countFile} from "@/service/api/file";
-import type {FileCountData, FileRecord} from "@/service/api/file";
 import {joinFilePath} from "../utils";
 
 const maxConcurrentCounts = 2;
 
 export type DirectoryCountState =
     | {status: "loading"}
-    | {status: "success"; data: FileCountData}
+    | {status: "success"; data: any}
     | {status: "error"; message: string};
 
 export type DirectoryCountMap = ReadonlyMap<string, DirectoryCountState>;
 
 export interface UseDirectoryCountsOptions {
     path: string;
-    items: readonly FileRecord[];
+    items: readonly any[];
     enabled?: boolean;
 }
 

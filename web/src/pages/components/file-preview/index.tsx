@@ -13,16 +13,13 @@ import {Icon, ProModal, Title, useTheme} from "sinking-antd";
 import defaultSettings from "@/../config/defaultSettings";
 import {getFileSign} from "@/service/api/file";
 import useStyles from "./styles";
-import type {FilePreviewItem, FilePreviewKind, FilePreviewRef} from "./types";
-
-export type {FilePreviewItem, FilePreviewKind, FilePreviewRef} from "./types";
 
 interface PreviewSession {
-    files: FilePreviewItem[];
+    files: any[];
     index: number;
 }
 
-const previewKinds = new Map<string, FilePreviewKind>([
+const previewKinds = new Map<string, string>([
     ["bmp", "image"],
     ["gif", "image"],
     ["jpeg", "image"],
@@ -36,7 +33,7 @@ const previewKinds = new Map<string, FilePreviewKind>([
     ["mp3", "audio"],
 ]);
 
-const previewIcons: Record<FilePreviewKind, string> = {
+const previewIcons: Record<string, string> = {
     image: "FileImageOutlined",
     video: "VideoCameraOutlined",
     audio: "AudioOutlined",
@@ -68,7 +65,7 @@ const buildPreviewUrl = (key: string) => {
     return url.toString();
 };
 
-const FilePreview = memo(forwardRef<FilePreviewRef>((_, ref) => {
+const FilePreview = memo(forwardRef<any>((_, ref) => {
     const {message} = App.useApp();
     const theme = useTheme();
     const compact = Boolean(theme?.isCompactTheme?.());
@@ -142,7 +139,7 @@ const FilePreview = memo(forwardRef<FilePreviewRef>((_, ref) => {
     useImperativeHandle(ref, () => ({
         open: (files, active) => {
             const seen = new Set<string>();
-            const available = files.reduce<FilePreviewItem[]>((result, file) => {
+            const available = files.reduce<any[]>((result, file) => {
                 if (
                     file.isDirectory ||
                     !file.path ||

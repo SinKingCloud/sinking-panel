@@ -18,7 +18,6 @@ import useFileEditorDocument from "../hooks/editor-document";
 import useFileEditorPreferences from "../hooks/editor-preferences";
 import useFileEditorTree from "../hooks/editor-tree";
 import {readFileStorage, updateFileStorage} from "../hooks/file-storage";
-import type {FileCreateMode, FileFormMode, FileFormResult} from "../types";
 import {
     isFilePathWithin,
     joinFilePath,
@@ -45,7 +44,7 @@ interface FileEditorSession {
 
 interface FormContext {
     generation: number;
-    mode: FileFormMode;
+    mode: any;
     parentPath: string;
     isDirectory?: boolean;
 }
@@ -359,7 +358,7 @@ const FileEditor = forwardRef(function FileEditor(
         }, key, `“${tab.name}”尚未保存，关闭标签将丢失修改。`);
     }, [captureViewState, files.activeKey, files.close, files.getTab, runAfterDiscard, tree.selectPath, tree.targetDirectory]);
 
-    const create = useCallback((mode: FileCreateMode, parentPath = tree.targetDirectory) => {
+    const create = useCallback((mode: any, parentPath = tree.targetDirectory) => {
         if (!session) {
             return;
         }
@@ -494,7 +493,7 @@ const FileEditor = forwardRef(function FileEditor(
         onMutation();
     }, [onMutation, tree.refresh]);
 
-    const handleCreateSuccess = useCallback((result: FileFormResult) => {
+    const handleCreateSuccess = useCallback((result: any) => {
         const context = formContextRef.current;
         formContextRef.current = undefined;
         onMutation();

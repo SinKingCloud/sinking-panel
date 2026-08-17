@@ -2,7 +2,6 @@ import {useCallback} from "react";
 import {App} from "antd";
 import defaultSettings from "@/../config/defaultSettings";
 import {getFileSign} from "@/service/api/file";
-import type {FileRecord} from "@/service/api/file";
 import {joinFilePath} from "../utils";
 
 const apiUrl = (path: string) => {
@@ -18,7 +17,7 @@ const apiUrl = (path: string) => {
 const useFileDownload = (path: string) => {
     const {message} = App.useApp();
 
-    return useCallback(async (record: FileRecord) => {
+    return useCallback(async (record: any) => {
         const response = await getFileSign({
             body: {path: joinFilePath(path, record.name), download: true},
         });

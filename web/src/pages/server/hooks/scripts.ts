@@ -1,7 +1,6 @@
 import {useCallback, useEffect, useRef, useState} from "react";
 import {App} from "antd";
 import {getScriptList} from "@/service/api/script";
-import type {ScriptRecord} from "@/service/api/script";
 
 const pageSize = 50;
 
@@ -10,7 +9,7 @@ const useScripts = () => {
     const requestRef = useRef(0);
     const loadingMoreRef = useRef(false);
     const queryRef = useRef("");
-    const [items, setItems] = useState<ScriptRecord[]>([]);
+    const [items, setItems] = useState<any[]>([]);
     const [keyword, setKeyword] = useState("");
     const [queryKeyword, setQueryKeyword] = useState("");
     const [typeId, setTypeId] = useState("0");

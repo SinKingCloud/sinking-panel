@@ -11,7 +11,7 @@ namespace API {
         request_id: string;
     };
 
-    type RequestParams<TBody = any, TData = EmptyData> = {
+    type RequestParams<TBody = any, TData = any> = {
         body?: TBody;
         onSuccess?: (res: Response<TData>) => void;
         onFail?: (res: Response<TData>) => void;

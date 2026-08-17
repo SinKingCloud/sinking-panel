@@ -183,9 +183,9 @@ const useStyles = createStyles<{compact?: boolean}>(({css, token}, props = {}) =
 
             .file-task-progress-cancel.ant-btn {
                 flex: none;
-                width: 24px;
-                min-width: 24px;
-                height: 24px;
+                width: 28px;
+                min-width: 28px;
+                height: 26px;
                 padding: 0;
                 color: ${token.colorTextQuaternary};
                 border-radius: ${token.borderRadiusSM}px;

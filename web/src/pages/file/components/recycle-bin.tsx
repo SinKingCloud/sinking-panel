@@ -20,7 +20,6 @@ import {
     getRecycleList,
     restoreRecycleItem,
 } from "@/service/api/file";
-import type {FileCountData, RecycleRecord} from "@/service/api/file";
 import {getData} from "@/utils/page";
 import {formatFileSize, formatFileTime} from "../utils";
 
@@ -36,7 +35,7 @@ type RecycleAction = "restore" | "delete";
 
 interface RecycleSummaryProps {
     compact: boolean;
-    count: FileCountData;
+    count: any;
     fontSize: number;
     wide: boolean;
     onClear: () => void;
@@ -149,9 +148,9 @@ const FileRecycleBin = memo(forwardRef<FileRecycleBinRef, FileRecycleBinProps>((
     const modalRef = useRef<ProModalRef | null>(null);
     const tableRef = useRef<ProTableRef | null>(null);
     const countRequestRef = useRef(0);
-    const countRef = useRef<FileCountData | undefined>(undefined);
+    const countRef = useRef<any | undefined>(undefined);
     const [loading, setLoading] = useState(false);
-    const [count, setCount] = useState<FileCountData>();
+    const [count, setCount] = useState<any>();
 
     useEffect(() => () => {
         countRequestRef.current += 1;
@@ -279,7 +278,7 @@ const FileRecycleBin = memo(forwardRef<FileRecycleBinRef, FileRecycleBinProps>((
         }),
     }), [message, modal, onMutation]);
 
-    const columns = useMemo<ProColumns<RecycleRecord>[]>(() => [
+    const columns = useMemo<ProColumns<any>[]>(() => [
         {
             title: "名称",
             dataIndex: "name",
@@ -299,7 +298,7 @@ const FileRecycleBin = memo(forwardRef<FileRecycleBinRef, FileRecycleBinProps>((
             dataIndex: "is_dir",
             width: 90,
             hideInSearch: true,
-            render: (_: boolean, record: RecycleRecord) => (
+            render: (_: boolean, record: any) => (
                 <Space size={6}>
                     <Icon type={record.is_dir ? "FolderOutlined" : "FileOutlined"}/>
                     {record.is_dir ? "文件夹" : "文件"}
@@ -327,7 +326,7 @@ const FileRecycleBin = memo(forwardRef<FileRecycleBinRef, FileRecycleBinProps>((
             width: 80,
             fixed: "right",
             hideInSearch: true,
-            render: (_: unknown, record: RecycleRecord) => (
+            render: (_: unknown, record: any) => (
                 <RecycleRowActions
                     id={record.id}
                     name={record.name}

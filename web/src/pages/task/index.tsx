@@ -2,10 +2,7 @@ import React, {useCallback, useEffect, useMemo, useRef, useState} from "react";
 import {Col, Empty, Row} from "antd";
 import {Body, useTheme} from "sinking-antd";
 import useEnum from "@/utils/enum";
-import TypeManager, {
-    TypeManagerRef,
-    TypeRecord,
-} from "@/pages/components/type-manager";
+import TypeManager, {TypeManagerRef} from "@/pages/components/type-manager";
 import {getAllTypes} from "@/service/api/type";
 import Form, {FormRef} from "./components/form";
 import Header from "./components/header";
@@ -31,7 +28,7 @@ export default (): React.ReactNode => {
     const logRef = useRef<LogRef>({} as LogRef);
     const typeManagerRef = useRef<TypeManagerRef>({} as TypeManagerRef);
     const typeVersionRef = useRef(0);
-    const [typeItems, setTypeItems] = useState<TypeRecord[] | null>(null);
+    const [typeItems, setTypeItems] = useState<any[] | null>(null);
     const list = useList();
     const execTypeData = enumData?.exec_type && Object.keys(enumData.exec_type).length > 0
         ? enumData.exec_type
@@ -59,7 +56,7 @@ export default (): React.ReactNode => {
     const openEdit = useCallback((record: any) => formRef.current?.open(record), []);
     const openLog = useCallback((record: any) => logRef.current?.open(record), []);
     const openTypeManager = useCallback(() => typeManagerRef.current?.open(), []);
-    const handleTypesChange = useCallback((items: TypeRecord[]) => {
+    const handleTypesChange = useCallback((items: any[]) => {
         typeVersionRef.current += 1;
         const nextTypes = Object.fromEntries(items.map((item) => [String(item.id), item.name]));
         setTypeItems(items);

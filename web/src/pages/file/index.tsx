@@ -1,8 +1,6 @@
 import React, {useCallback, useLayoutEffect, useRef, useState} from "react";
 import {App, Button, Col, Empty, Row} from "antd";
 import {Body, Icon, useTheme} from "sinking-antd";
-import type {FilePreviewItem} from "@/pages/components/file-preview";
-import type {FileRecord} from "@/service/api/file";
 import FileDialogHost from "./components/dialog-host";
 import type {FileDialogHostRef} from "./components/dialog-host";
 import Header from "./components/header";
@@ -16,7 +14,6 @@ import useFileNavigation from "./hooks/navigation";
 import useFileOperationLock from "./hooks/operation-lock";
 import useFileSelection from "./hooks/selection";
 import useStyles from "./styles";
-import type {FileCreateMode, FileOperationMode} from "./types";
 import {joinFilePath} from "./utils";
 
 export default (): React.ReactNode => {
@@ -88,22 +85,22 @@ export default (): React.ReactNode => {
         };
     }, [clipboard.cancelPending, deletion.closeConfirm]);
 
-    const openDirectory = useCallback((record: FileRecord) => {
+    const openDirectory = useCallback((record: any) => {
         navigate(joinFilePath(list.path, record.name));
     }, [list.path, navigate]);
-    const openCreate = useCallback((mode: FileCreateMode) => {
+    const openCreate = useCallback((mode: any) => {
         dialogHostRef.current?.openCreate(mode);
     }, []);
     const openEditor = useCallback((path?: string, name?: string) => {
         dialogHostRef.current?.openEditor(path, name);
     }, []);
-    const openProperties = useCallback((record: FileRecord) => {
+    const openProperties = useCallback((record: any) => {
         dialogHostRef.current?.openProperties(record);
     }, []);
-    const openPreview = useCallback((files: readonly FilePreviewItem[], active: string) => {
+    const openPreview = useCallback((files: readonly any[], active: string) => {
         dialogHostRef.current?.openPreview(files, active);
     }, []);
-    const openOperation = useCallback((mode: FileOperationMode, record?: FileRecord) => {
+    const openOperation = useCallback((mode: any, record?: any) => {
         dialogHostRef.current?.openOperation(mode, record);
     }, []);
     const openRemoteDownload = useCallback(() => {
@@ -115,10 +112,10 @@ export default (): React.ReactNode => {
     const openUpload = useCallback(() => {
         dialogHostRef.current?.openUpload();
     }, []);
-    const copyRecord = useCallback((record: FileRecord) => {
+    const copyRecord = useCallback((record: any) => {
         clipboard.copyRecords([record]);
     }, [clipboard.copyRecords]);
-    const moveRecord = useCallback((record: FileRecord) => {
+    const moveRecord = useCallback((record: any) => {
         clipboard.moveRecords([record]);
     }, [clipboard.moveRecords]);
     const paste = useCallback(() => {

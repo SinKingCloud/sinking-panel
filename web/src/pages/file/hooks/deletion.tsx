@@ -1,7 +1,6 @@
 import {useCallback, useEffect, useRef} from "react";
 import {App, Checkbox} from "antd";
 import {deleteFile} from "@/service/api/file";
-import type {FileRecord} from "@/service/api/file";
 import type {FileOperationLock} from "./operation-lock";
 import {joinFilePath} from "../utils";
 
@@ -12,7 +11,7 @@ interface DeleteConfirmState {
 
 export interface UseFileDeletionOptions {
     path: string;
-    selectedRecords: readonly FileRecord[];
+    selectedRecords: readonly any[];
     navigationVersionRef: {current: number};
     operationLock: FileOperationLock;
     reload: () => void;
@@ -37,7 +36,7 @@ const useFileDeletion = ({
         current?.destroy();
     }, []);
 
-    const removeRecord = useCallback(async (record: FileRecord, permanentlyDelete: boolean) => {
+    const removeRecord = useCallback(async (record: any, permanentlyDelete: boolean) => {
         const target = joinFilePath(path, record.name);
         if (!begin(target)) {
             return;
@@ -58,7 +57,7 @@ const useFileDeletion = ({
         }
     }, [begin, finish, message, path, reload]);
 
-    const confirmRecord = useCallback((record: FileRecord) => {
+    const confirmRecord = useCallback((record: any) => {
         const navigationVersion = navigationVersionRef.current;
         closeConfirm();
         const confirmId = Symbol("delete");
@@ -100,7 +99,7 @@ const useFileDeletion = ({
         confirmRef.current = {id: confirmId, destroy: instance.destroy};
     }, [closeConfirm, message, modal, navigationVersionRef, removeRecord]);
 
-    const removeMany = useCallback(async (records: readonly FileRecord[], permanentlyDelete: boolean) => {
+    const removeMany = useCallback(async (records: readonly any[], permanentlyDelete: boolean) => {
         const targets = records.map((record) => joinFilePath(path, record.name));
         if (targets.length === 0) {
             return;

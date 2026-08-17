@@ -3,14 +3,13 @@ import {Button, Input} from "antd";
 import type {MenuProps} from "antd";
 import {Icon} from "sinking-antd";
 import Dropdown from "@/pages/components/stable-dropdown";
-import type {FileCreateMode} from "../types";
 import type {HeaderStyles} from "./header.types";
 
 interface HeaderCommandBarProps {
     keyword: string;
     uploading: boolean;
     onKeywordChange: (value: string) => void;
-    onCreate: (type: FileCreateMode) => void;
+    onCreate: (type: any) => void;
     onUpload: () => void;
     onRemoteDownload: () => void;
     onOpenRecycle: () => void;
@@ -31,7 +30,7 @@ const HeaderCommandBar = ({
     styles,
 }: HeaderCommandBarProps) => {
     const handleCreate = useCallback<NonNullable<MenuProps["onClick"]>>(({key}) => {
-        onCreate(key as FileCreateMode);
+        onCreate(key as any);
     }, [onCreate]);
     const createMenu = useMemo<MenuProps>(() => ({
         items: [
