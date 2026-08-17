@@ -15,9 +15,10 @@ type Service interface {
 // service 注入结构
 type service struct {
 	lock sync.RWMutex
+	path string // 回收站目录
 }
 
 // NewService 实例化service
 func NewService() *service {
-	return &service{}
+	return &service{path: recyclePath}
 }

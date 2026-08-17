@@ -1,6 +1,9 @@
 package system
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 // Task 任务信息
 type Task struct {
@@ -15,6 +18,7 @@ type Task struct {
 	CreateTime int64       `json:"create_time"` // 创建时间
 	UpdateTime int64       `json:"update_time"` // 更新时间
 	cancel     context.CancelFunc
+	lastLogAt  time.Time
 }
 
 type job struct {

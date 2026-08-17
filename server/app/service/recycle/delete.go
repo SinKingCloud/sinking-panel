@@ -11,7 +11,7 @@ import (
 // name: 原始目录或文件路径
 func (s *service) Delete(name string) error {
 	s.lock.Lock()
-	f := file.NewDisk(path)
+	f := file.NewDisk(s.path)
 	if name == "." || name == ".." || filepath.Base(name) != name {
 		s.lock.Unlock()
 		return errors.New("文件名称不合法")
@@ -20,12 +20,12 @@ func (s *service) Delete(name string) error {
 		s.lock.Unlock()
 		return errors.New("该目录或文件不存在")
 	}
-	tempPath, err := os.MkdirTemp(filepath.Dir(filepath.Clean(path)), ".recycle-delete-")
+	tempPath, err := os.MkdirTemp(filepath.Dir(filepath.Clean(s.path)), ".recycle-delete-")
 	if err != nil {
 		s.lock.Unlock()
 		return err
 	}
-	err = os.Rename(filepath.Join(filepath.Clean(path), name), filepath.Join(tempPath, "data"))
+	err = os.Rename(filepath.Join(filepath.Clean(s.path), name), filepath.Join(tempPath, "data"))
 	s.lock.Unlock()
 	if err != nil {
 		_ = os.Remove(tempPath)
@@ -39,11 +39,11 @@ func (s *service) Delete(name string) error {
 func (s *service) Clear() error {
 	s.lock.Lock()
 	f := file.NewDisk("")
-	if !f.Exists(path) {
+	if !f.Exists(s.path) {
 		s.lock.Unlock()
 		return nil
 	}
-	sourcePath := filepath.Clean(path)
+	sourcePath := filepath.Clean(s.path)
 	tempPath, err := os.MkdirTemp(filepath.Dir(sourcePath), ".recycle-delete-")
 	if err != nil {
 		s.lock.Unlock()

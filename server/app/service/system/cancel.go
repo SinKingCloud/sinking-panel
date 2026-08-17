@@ -31,5 +31,6 @@ func (s *service) TaskCancel(id string) bool {
 	s.queueMu.Lock()
 	delete(s.jobs, id)
 	s.queueMu.Unlock()
+	s.appendTaskLog(id, system_task_status.Canceled, 0, "任务已取消")
 	return true
 }

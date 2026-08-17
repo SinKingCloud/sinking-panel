@@ -17,7 +17,7 @@ func (s *service) Create(name string) error {
 		return errors.New("该目录或文件不存在")
 	}
 	newName := s.encodeName(f.Path(name, true, true), 0, 0)
-	if f.Rename(name, filepath.Join(path, newName)) != nil {
+	if f.Rename(name, filepath.Join(s.path, newName)) != nil {
 		return errors.New("移动文件失败")
 	}
 	return nil

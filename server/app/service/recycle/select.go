@@ -24,7 +24,7 @@ func (s *service) Select(page int, pageSize int, orderByField string, orderByTyp
 	s.lock.RLock()
 	defer s.lock.RUnlock()
 
-	f := file.NewDisk(path)
+	f := file.NewDisk(s.path)
 	if !f.Exists("./") {
 		return []*File{}, 0, nil
 	}

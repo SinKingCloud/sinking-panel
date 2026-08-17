@@ -1,6 +1,7 @@
 package system
 
 import (
+	"fmt"
 	"server/app/enum/system_task_status"
 	"time"
 )
@@ -45,13 +46,14 @@ func (s *service) runTask(job *job) {
 	task.StartTime = time.Now().Unix()
 	task.UpdateTime = task.StartTime
 	s.mu.Unlock()
+	s.appendTaskLog(job.id, system_task_status.Running, 0, "任务开始执行")
 
 	update := func(status int, progress float64, message string) {
 		s.TaskUpdate(job.id, status, progress, message)
 	}
 	defer func() {
 		if recovered := recover(); recovered != nil {
-			s.TaskUpdate(job.id, system_task_status.Failed, 0, "任务执行异常")
+			s.TaskUpdate(job.id, system_task_status.Failed, 0, "任务执行异常: "+fmt.Sprint(recovered))
 		}
 		s.finishTask(job)
 	}()
@@ -80,39 +82,4 @@ func (s *service) finishTask(job *job) {
 		return
 	}
 	s.TaskUpdate(job.id, system_task_status.Failed, 0, "任务未正常结束")
-}
-
-// taskCleanupWorker 统一清理终态任务，避免每个任务完成后额外启动延迟 goroutine。
-func (s *service) taskCleanupWorker() {
-	ticker := time.NewTicker(time.Second)
-	defer ticker.Stop()
-	for now := range ticker.C {
-		deadline := now.Unix() - int64(taskRetention/time.Second)
-		ids := make([]string, 0)
-		s.mu.RLock()
-		for id, task := range s.tasks {
-			terminal := task.Status == system_task_status.Completed || task.Status == system_task_status.Failed || task.Status == system_task_status.Canceled
-			if terminal && task.EndTime > 0 && task.EndTime <= deadline {
-				ids = append(ids, id)
-			}
-		}
-		s.mu.RUnlock()
-		for _, id := range ids {
-			s.mu.Lock()
-			task, ok := s.tasks[id]
-			if !ok {
-				s.mu.Unlock()
-				continue
-			}
-			cancel := task.cancel
-			delete(s.tasks, id)
-			s.mu.Unlock()
-			if cancel != nil {
-				cancel()
-			}
-			s.queueMu.Lock()
-			delete(s.jobs, id)
-			s.queueMu.Unlock()
-		}
-	}
 }

@@ -11,7 +11,7 @@ func (s *service) Count() (totalSize int64, fileCount int64, dirCount int64, err
 	s.lock.RLock()
 	defer s.lock.RUnlock()
 
-	f := file.NewDisk(path)
+	f := file.NewDisk(s.path)
 	if !f.Exists("./") {
 		return 0, 0, 0, nil
 	}

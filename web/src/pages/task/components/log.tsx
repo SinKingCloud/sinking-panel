@@ -168,10 +168,15 @@ export interface LogRef {
     open: (record: any) => void;
 }
 
-const Log = forwardRef<LogRef>((_, ref):any => {
+interface LogProps {
+    request?: (params: API.RequestParams) => Promise<any>;
+    showClear?: boolean;
+}
+
+const Log = forwardRef<LogRef, LogProps>(({request, showClear = true}, ref):any => {
     const {styles} = useStyles();
     const modalRef = useRef<ProModalRef>({} as ProModalRef);
-    const log = useLog();
+    const log = useLog(request);
 
     useImperativeHandle(ref, () => ({
         open: (record: any) => {
@@ -206,15 +211,17 @@ const Log = forwardRef<LogRef>((_, ref):any => {
                                 disabled={log.clearing}
                                 onClick={log.refresh}/>
                         </Tooltip>
-                        <Tooltip title="清理日志">
-                            <Button
-                                type="text"
-                                danger
-                                aria-label="清理日志"
-                                icon={<Icon type="DeleteOutlined"/>}
-                                loading={log.clearing}
-                                onClick={log.clear}/>
-                        </Tooltip>
+                        {showClear && (
+                            <Tooltip title="清理日志">
+                                <Button
+                                    type="text"
+                                    danger
+                                    aria-label="清理日志"
+                                    icon={<Icon type="DeleteOutlined"/>}
+                                    loading={log.clearing}
+                                    onClick={log.clear}/>
+                            </Tooltip>
+                        )}
                     </div>
                 </div>
                 <div ref={log.consoleRef} className={styles.console} onScroll={log.handleScroll}>

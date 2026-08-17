@@ -7,7 +7,8 @@ import {App, Button, Empty, Popover, Progress, Spin, Tooltip} from "antd";
 import {createStyles} from "antd-style";
 import Settings from "@/../config/defaultSettings";
 import {logout} from "@/service/auth/login";
-import {cancelSystemTask, getSystemTaskList} from "@/service/api/system";
+import {cancelSystemTask, getSystemTask, getSystemTaskList} from "@/service/api/system";
+import TaskLog, {LogRef as TaskLogRef} from "@/pages/task/components/log";
 import defaultSettings from "@/../config/defaultSettings";
 import Title from "../title";
 
@@ -217,6 +218,7 @@ const useRightTopStyles = createStyles(({css, token, isDarkMode}: any): any => {
             min-width: 0;
             flex: 1;
             overflow: hidden;
+            cursor: pointer;
             color: ${token.colorText};
             font-size: 13px;
             font-weight: 500;
@@ -323,6 +325,7 @@ const RightTop: React.FC = () => {
     const taskRequestRef = useRef(0);
     const taskLoadedRef = useRef(false);
     const mountedRef = useRef(true);
+    const taskLogRef = useRef<TaskLogRef>({} as TaskLogRef);
 
     const refreshTasks = useCallback(async () => {
         const requestId = ++taskRequestRef.current;
@@ -376,6 +379,25 @@ const RightTop: React.FC = () => {
         }
         await refreshTasks();
     }, [message, refreshTasks]);
+
+    const deleteTask = useCallback(async (id: string) => {
+        const response = await getSystemTask({body: {id, action: "delete"}});
+        if (response?.code !== 200) {
+            message.error(response?.message || "删除任务失败");
+            return;
+        }
+        await refreshTasks();
+    }, [message, refreshTasks]);
+
+    const openTaskLog = useCallback((task: any) => {
+        setTaskOpen(false);
+        taskLogRef.current?.open(task);
+    }, []);
+
+    const requestSystemTaskLog = useCallback((params: API.RequestParams = {}) => getSystemTask({
+        ...params,
+        body: {...(params.body || {}), action: "log"},
+    }), []);
 
     /**
      * 退出登录
@@ -488,20 +510,36 @@ const RightTop: React.FC = () => {
                                 <div className={taskBody}>
                                     <div className={taskHeader}>
                                         <span className={`${taskStatusDot} is-${meta.className}`} aria-hidden="true"/>
-                                        <span className={taskName} title={name}>{name}</span>
+                                        <span
+                                            className={taskName}
+                                            title={`${name}，点击查看日志`}
+                                            role="button"
+                                            tabIndex={0}
+                                            onClick={() => openTaskLog(task)}
+                                            onKeyDown={(event) => {
+                                                if (event.key === "Enter" || event.key === " ") {
+                                                    event.preventDefault();
+                                                    openTaskLog(task);
+                                                }
+                                            }}>{name}</span>
                                         <span className={`${taskStatus} is-${meta.className}`}>
                                             {meta.label}
                                         </span>
-                                        {(status === taskStatusValues.pending || status === taskStatusValues.running) && (
-                                            <Tooltip title="取消任务">
+                                        {(status === taskStatusValues.pending || status === taskStatusValues.running || taskTerminalStatuses.has(status)) && (
+                                            <Tooltip title={status === taskStatusValues.pending || status === taskStatusValues.running ? "取消任务" : "删除任务"}>
                                                 <Button
                                                     type="text"
                                                     danger
                                                     size="small"
-                                                    icon={<Icon type="CloseOutlined"/>}
-                                                    aria-label={`取消${name}`}
-                                                    title="取消任务"
-                                                    onClick={() => void cancelTask(task.id)}/>
+                                                    icon={<Icon type={status === taskStatusValues.pending || status === taskStatusValues.running ? "CloseOutlined" : "DeleteOutlined"}/>}
+                                                    aria-label={`${status === taskStatusValues.pending || status === taskStatusValues.running ? "取消" : "删除"}${name}`}
+                                                    title={status === taskStatusValues.pending || status === taskStatusValues.running ? "取消任务" : "删除任务"}
+                                                    onClick={(event) => {
+                                                        event.stopPropagation();
+                                                        void (status === taskStatusValues.pending || status === taskStatusValues.running
+                                                            ? cancelTask(task.id)
+                                                            : deleteTask(task.id));
+                                                    }}/>
                                             </Tooltip>
                                         )}
                                     </div>
@@ -624,6 +662,7 @@ const RightTop: React.FC = () => {
             }}>
             {taskContent}
         </ProModal>
+        <TaskLog ref={taskLogRef} request={requestSystemTaskLog} showClear={false}/>
     </>
 }
 

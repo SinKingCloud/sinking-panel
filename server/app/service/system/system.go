@@ -10,12 +10,7 @@ import (
 	"github.com/shirou/gopsutil/v4/net"
 )
 
-const (
-	maxTaskWorkers = 5
-	taskRetention  = 3 * time.Second
-)
-
-// Service 是系统信息和异步任务服务的公开契约。
+// Service 暴露方法。
 type Service interface {
 	GetInfo() map[string]interface{}
 	GetStatus(netInterface, diskName string, after int64) map[string]interface{}
@@ -24,18 +19,23 @@ type Service interface {
 	TaskCreate(id, name string, data interface{}, run func(context.Context, interface{}, func(int, float64, string)))
 	TaskUpdate(id string, status int, progress float64, message string)
 	TaskCancel(id string) bool
+	TaskDelete(id string) bool
+	TaskLog(id string, after int64, before int64, pageSize int) map[string]interface{}
 }
 
 // service 注入结构
 type service struct {
-	tasks       map[string]*Task
-	mu          sync.RWMutex
-	fileService file.Service
+	tasks                  map[string]*Task
+	mu                     sync.RWMutex
+	fileService            file.Service
+	maxTaskWorkers         int    // 系统任务并发 worker 数量
+	systemTaskLogDirectory string // 系统任务日志目录
 
 	queueMu   sync.Mutex
 	queueCond *sync.Cond
 	queue     []string
 	jobs      map[string]*job
+	logMu     sync.RWMutex
 
 	systemBaseCache      map[string]interface{}
 	systemBaseCacheLock  sync.RWMutex
@@ -70,30 +70,32 @@ type service struct {
 func NewService(fileService file.Service) *service {
 	now := time.Now()
 	s := &service{
-		tasks:              make(map[string]*Task),
-		jobs:               make(map[string]*job),
-		queue:              make([]string, 0),
-		fileService:        fileService,
-		systemBaseCache:    make(map[string]interface{}),
-		cpuInfoCache:       make(map[string]interface{}),
-		memoryInfoCache:    make(map[string]interface{}),
-		disksInfoCache:     make([]file.Disk, 0),
-		loadInfoCache:      make(map[string]interface{}),
-		runtimeInfoCache:   make(map[string]interface{}),
-		networkInfoCache:   make([]map[string]interface{}, 0),
-		netIOCache:         make(map[string]net.IOCountersStat),
-		diskIOCache:        make(map[string]disk.IOCountersStat),
-		netRateCache:       make(map[string]map[string]interface{}),
-		diskRateCache:      make(map[string]map[string]interface{}),
-		netLastUpdateTime:  now,
-		diskLastUpdateTime: now,
-		monitorHistory:     make([]map[string]interface{}, 0, 120),
+		tasks:                  make(map[string]*Task),
+		jobs:                   make(map[string]*job),
+		queue:                  make([]string, 0),
+		fileService:            fileService,
+		maxTaskWorkers:         maxTaskWorkers,
+		systemTaskLogDirectory: systemTaskLogDirectory,
+		systemBaseCache:        make(map[string]interface{}),
+		cpuInfoCache:           make(map[string]interface{}),
+		memoryInfoCache:        make(map[string]interface{}),
+		disksInfoCache:         make([]file.Disk, 0),
+		loadInfoCache:          make(map[string]interface{}),
+		runtimeInfoCache:       make(map[string]interface{}),
+		networkInfoCache:       make([]map[string]interface{}, 0),
+		netIOCache:             make(map[string]net.IOCountersStat),
+		diskIOCache:            make(map[string]disk.IOCountersStat),
+		netRateCache:           make(map[string]map[string]interface{}),
+		diskRateCache:          make(map[string]map[string]interface{}),
+		netLastUpdateTime:      now,
+		diskLastUpdateTime:     now,
+		monitorHistory:         make([]map[string]interface{}, 0, 120),
 	}
 	s.queueCond = sync.NewCond(&s.queueMu)
-	for i := 0; i < maxTaskWorkers; i++ {
+	s.resetTaskLogs()
+	for i := 0; i < s.maxTaskWorkers; i++ {
 		go s.taskWorker()
 	}
-	go s.taskCleanupWorker()
 	s.startMonitor()
 	return s
 }

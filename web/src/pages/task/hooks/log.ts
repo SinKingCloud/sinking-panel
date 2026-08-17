@@ -21,7 +21,7 @@ const toCursor = (value: any) => {
     return Number.isFinite(cursor) && cursor >= 0 ? cursor : 0;
 };
 
-const useLog = () => {
+const useLog = (request: (params: API.RequestParams) => Promise<any> = getTaskLog) => {
     const {message, modal} = App.useApp();
     const consoleRef = useRef<HTMLDivElement>(null);
     const taskRef = useRef<any>({});
@@ -83,7 +83,7 @@ const useLog = () => {
             setLoading(true);
         }
         try {
-            const response = await getTaskLog({body});
+            const response = await request({body});
             if (control.requestId !== requestId || String(taskRef.current?.id) !== String(taskId)) {
                 return null;
             }
@@ -105,7 +105,7 @@ const useLog = () => {
                 setLoading(false);
             }
         }
-    }, [message]);
+    }, [message, request]);
 
     const loadLatest = useCallback(async (taskId: any, silent = false) => {
         const data = await requestLogs({
