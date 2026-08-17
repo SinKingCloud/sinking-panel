@@ -31,9 +31,37 @@ const useStyles = createStyles<{compact?: boolean}>(({css, token}, props = {}) =
             }
 
             .ant-upload-drag-icon {
-                margin-bottom: 12px !important;
+                width: ${compact ? 42 : 48}px;
+                height: ${compact ? 42 : 48}px;
+                margin: 0 auto 12px !important;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                position: relative;
+                inset-inline-start: 0;
                 color: ${token.colorPrimary};
                 font-size: ${compact ? 32 : 38}px;
+                line-height: 1;
+                transform: translate3d(0, 0, 0);
+                animation: none !important;
+                transition: none !important;
+
+                .anticon {
+                    width: 1em;
+                    height: 1em;
+                    display: inline-flex;
+                    align-items: center;
+                    justify-content: center;
+                    line-height: 1;
+                    vertical-align: middle;
+                    transform: none;
+                    animation: none !important;
+                    transition: none !important;
+                }
+
+                .anticon > svg {
+                    display: block;
+                }
             }
 
             .ant-upload-text {
