@@ -12,6 +12,11 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
+const (
+	sshOutputBufferLimit = 1024 * 1024 // 单个 SSH 会话的输出缓冲上限
+	sshOutputChunkSize   = 32 * 1024   // WebSocket 单条输出消息大小
+)
+
 func NewSshClient(ip string, port int, timeout time.Duration) *SshClient {
 	return &SshClient{
 		Addr:    ip,
@@ -55,13 +60,13 @@ func (w *sshBufWriter) Write(p []byte) (int, error) {
 	defer w.mu.Unlock()
 	written := 0
 	for len(p) > 0 {
-		for !w.closed && w.buffer.Len() >= 1024*1024 {
+		for !w.closed && w.buffer.Len() >= sshOutputBufferLimit {
 			w.cond.Wait()
 		}
 		if w.closed {
 			return written, io.ErrClosedPipe
 		}
-		size := 1024*1024 - w.buffer.Len()
+		size := sshOutputBufferLimit - w.buffer.Len()
 		if size > len(p) {
 			size = len(p)
 		}
@@ -85,8 +90,17 @@ func (w *sshBufWriter) Read() []byte {
 	if w.buffer.Len() == 0 {
 		return nil
 	}
-	payload := append([]byte(nil), w.buffer.Bytes()...)
-	w.buffer.Reset()
+	size := w.buffer.Len()
+	if size > sshOutputChunkSize {
+		size = sshOutputChunkSize
+	}
+	payload := append([]byte(nil), w.buffer.Next(size)...)
+	if w.buffer.Len() > 0 {
+		select {
+		case w.ready <- struct{}{}:
+		default:
+		}
+	}
 	w.cond.Broadcast()
 	return payload
 }
