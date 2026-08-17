@@ -90,6 +90,7 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
     const terminalRef = useRef<XTerm | undefined>(undefined);
     const fitAddonRef = useRef<FitAddon | undefined>(undefined);
     const socketRef = useRef<WebSocket | undefined>(undefined);
+    const socketEncoderRef = useRef(new TextEncoder());
     const fitFrameRef = useRef(0);
     const lastSizeRef = useRef("");
     socketRef.current = socket;
@@ -133,7 +134,7 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
         }
         lastSizeRef.current = size;
         try {
-            currentSocket.send(JSON.stringify({event: "resize", content: size}));
+            currentSocket.send(socketEncoderRef.current.encode(JSON.stringify({event: "resize", content: size})));
         } catch {
             lastSizeRef.current = "";
         }
@@ -171,7 +172,7 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
             return false;
         }
         try {
-            currentSocket.send(JSON.stringify({event: "write", content}));
+            currentSocket.send(socketEncoderRef.current.encode(JSON.stringify({event: "write", content})));
             terminalRef.current?.focus();
             return true;
         } catch {
@@ -218,6 +219,7 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
             fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, monospace",
             fontSize: 12,
             lineHeight: 1.25,
+            logLevel: "off",
             scrollback: 10000,
             theme: themeRef.current,
         });
