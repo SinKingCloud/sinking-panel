@@ -132,6 +132,11 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
                 border-right: 0;
                 border-bottom: 1px solid ${token.colorSplit};
 
+                /* 横向终端列表已经在列表首项提供添加入口，隐藏底部重复按钮。 */
+                .serverFooter {
+                    display: none !important;
+                }
+
                 &.collapsed {
                     overflow: visible;
                 }
@@ -1033,6 +1038,11 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
                 border-top: 0;
                 border-bottom: 1px solid ${token.colorSplit};
                 border-left: 0;
+
+                /* 横向脚本列表已经在列表首项提供添加入口，隐藏底部重复按钮。 */
+                .script-footer {
+                    display: none !important;
+                }
 
                 &.collapsed {
                     max-height: none;
