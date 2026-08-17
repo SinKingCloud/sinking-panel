@@ -29,6 +29,7 @@ import type {FileUploadRef} from "./upload";
 export interface FileDialogHostRef {
     openCreate: (mode: any) => void;
     openEditor: (path?: string, name?: string) => void;
+    openRename: (record: any) => void;
     openProperties: (record: any) => void;
     openPreview: (files: readonly any[], active: string) => void;
     openOperation: (mode: any, record?: any) => void;
@@ -127,6 +128,14 @@ const FileDialogHost = forwardRef<FileDialogHostRef, FileDialogHostProps>(({
         propertiesRef.current?.open(joinFilePath(path, record.name), record);
     }, [path]);
 
+    const openRename = useCallback((record: any) => {
+        if (!loaded || navigating) {
+            message.info("目录正在加载");
+            return;
+        }
+        formRef.current?.openRename(joinFilePath(path, record.name), record);
+    }, [loaded, message, navigating, path]);
+
     const openEditor = useCallback((targetPath?: string, name?: string) => {
         if (!loaded || loading || navigating) {
             message.info("目录正在加载");
@@ -194,6 +203,7 @@ const FileDialogHost = forwardRef<FileDialogHostRef, FileDialogHostProps>(({
     useImperativeHandle(ref, () => ({
         openCreate,
         openEditor,
+        openRename,
         openProperties,
         openPreview,
         openOperation,
@@ -206,6 +216,7 @@ const FileDialogHost = forwardRef<FileDialogHostRef, FileDialogHostProps>(({
         closePathBound,
         openCreate,
         openEditor,
+        openRename,
         openOperation,
         openOperationMany,
         openProperties,

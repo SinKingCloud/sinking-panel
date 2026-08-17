@@ -35,6 +35,7 @@ export interface FileTableProps {
     onEdit: (path: string, name: string) => void;
     onPreview: (files: readonly any[], active: string) => void;
     onDownload: (record: any) => void;
+    onRename: (record: any) => void;
     onCopy: (record: any) => void;
     onMove: (record: any) => void;
     onProperties: (record: any) => void;
@@ -108,6 +109,7 @@ const FileTable = ({
     onEdit,
     onPreview,
     onDownload,
+    onRename,
     onCopy,
     onMove,
     onProperties,
@@ -171,6 +173,7 @@ const FileTable = ({
                 label: "复制路径",
                 onClick: () => void copyValue(recordPath, "路径"),
             },
+            {key: "rename", label: "重新命名", onClick: () => onRename(record)},
             {key: "properties", label: "文件属性", onClick: () => onProperties(record)},
             {key: "compress", label: "压缩文件", onClick: () => onOperation("compress", record)},
             ...(archive ? [{key: "extract", label: "解压文件", onClick: () => onOperation("extract", record)}] : []),
@@ -198,6 +201,7 @@ const FileTable = ({
         onOperation,
         onPreview,
         onProperties,
+        onRename,
         previewFiles,
     ]);
 

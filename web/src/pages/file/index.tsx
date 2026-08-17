@@ -94,6 +94,9 @@ export default (): React.ReactNode => {
     const openEditor = useCallback((path?: string, name?: string) => {
         dialogHostRef.current?.openEditor(path, name);
     }, []);
+    const openRename = useCallback((record: any) => {
+        dialogHostRef.current?.openRename(record);
+    }, []);
     const openProperties = useCallback((record: any) => {
         dialogHostRef.current?.openProperties(record);
     }, []);
@@ -198,6 +201,7 @@ export default (): React.ReactNode => {
                                     onEdit={openEditor}
                                     onPreview={openPreview}
                                     onDownload={download}
+                                    onRename={openRename}
                                     onCopy={copyRecord}
                                     onMove={moveRecord}
                                     onProperties={openProperties}
