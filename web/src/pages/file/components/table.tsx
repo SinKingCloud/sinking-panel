@@ -1,5 +1,5 @@
 import React, {useCallback, useEffect, useMemo, useState} from "react";
-import {Button, Table as AntTable, Tooltip} from "antd";
+import {App, Button, Table as AntTable, Tooltip} from "antd";
 import type {MenuProps, TableColumnsType, TableProps} from "antd";
 import {Icon, useTheme} from "sinking-antd";
 import {isFilePreviewable} from "@/pages/components/file-preview";
@@ -8,6 +8,7 @@ import Dropdown from "@/pages/components/stable-dropdown";
 import type {FileOrderField, FileOrderType, FileRecord} from "@/service/api/file";
 import type {DirectoryCountMap} from "../hooks/directory-counts";
 import DirectorySize from "./directory-size";
+import {copyTextToClipboard} from "./properties.utils";
 import useStyles from "./table.styles";
 import {
     formatFileMode,
@@ -116,6 +117,7 @@ const FileTable = ({
     onDelete,
 }: FileTableProps) => {
     const theme = useTheme();
+    const {message} = App.useApp();
     const compact = Boolean(theme?.isCompactTheme?.());
     const dark = Boolean(theme?.isDarkMode?.() || theme?.isDarkTheme?.());
     const {styles} = useStyles({compact, dark});
@@ -136,6 +138,13 @@ const FileTable = ({
             path: joinFilePath(path, record.name),
             size: record.size,
         })), [items, path]);
+    const copyValue = useCallback(async (value: string, label: string) => {
+        if (await copyTextToClipboard(value)) {
+            message.success(`${label}已复制`);
+        } else {
+            message.error(`${label}复制失败`);
+        }
+    }, [message]);
     const getMenuItems = useCallback((
         record: FileRecord,
         recordPath: string,
@@ -145,22 +154,32 @@ const FileTable = ({
         const previewable = !record.is_dir && isFilePreviewable(record.name);
         const items: MenuProps["items"] = [
             ...(!record.is_dir ? [
-                {key: "edit", label: "编辑", onClick: () => onEdit(recordPath, record.name)},
+                {key: "edit", label: "编辑文件", onClick: () => onEdit(recordPath, record.name)},
                 ...(previewable ? [
-                    {key: "preview", label: "预览", onClick: () => onPreview(previewFiles, recordPath)},
+                    {key: "preview", label: "预览文件", onClick: () => onPreview(previewFiles, recordPath)},
                 ] : []),
-                {key: "download", label: "下载", onClick: () => onDownload(record)},
-            ] : [{key: "open", label: "打开", onClick: () => onOpen(record)}]),
+                {key: "download", label: "下载文件", onClick: () => onDownload(record)},
+            ] : [{key: "open", label: "打开目录", onClick: () => onOpen(record)}]),
             {type: "divider" as const},
-            {key: "copy", label: "复制", onClick: () => onCopy(record)},
-            {key: "move", label: "移动", onClick: () => onMove(record)},
-            {key: "properties", label: "属性", onClick: () => onProperties(record)},
-            {key: "compress", label: "压缩", onClick: () => onOperation("compress", record)},
-            ...(archive ? [{key: "extract", label: "解压", onClick: () => onOperation("extract", record)}] : []),
+            {key: "copy", label: "复制文件", onClick: () => onCopy(record)},
+            {key: "move", label: "移动文件", onClick: () => onMove(record)},
+            {
+                key: "copy-name",
+                label: "复制名称",
+                onClick: () => void copyValue(record.name, "名称"),
+            },
+            {
+                key: "copy-path",
+                label: "复制路径",
+                onClick: () => void copyValue(recordPath, "路径"),
+            },
+            {key: "properties", label: "文件属性", onClick: () => onProperties(record)},
+            {key: "compress", label: "压缩文件", onClick: () => onOperation("compress", record)},
+            ...(archive ? [{key: "extract", label: "解压文件", onClick: () => onOperation("extract", record)}] : []),
             {type: "divider" as const},
             {
                 key: "delete",
-                label: "删除",
+                label: "删除文件",
                 danger: true,
                 onClick: () => onDelete(record),
             },
@@ -171,6 +190,7 @@ const FileTable = ({
         return items.map((item) => item && item.type !== "divider" ? {...item, disabled: true} : item);
     }, [
         actionsDisabled,
+        copyValue,
         onCopy,
         onDelete,
         onDownload,

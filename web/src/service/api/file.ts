@@ -113,49 +113,6 @@ export interface FileRemoteDownloadBody {
     name?: string;
 }
 
-export type SystemTaskStatus = 0 | 1 | 2 | 3 | 4;
-
-export interface FileTransferTaskData {
-    source_paths: string[];
-    target_path: string;
-}
-
-export interface FileCompressTaskData {
-    paths: string[];
-    dest_path: string;
-    format: FileCompressBody["format"];
-}
-
-export interface FileExtractTaskData {
-    path: string;
-    dest_dir: string;
-    format: FileCompressBody["format"];
-}
-
-export interface FileDownloadTaskData {
-    url: string;
-    target_path: string;
-}
-
-export type SystemTaskData = FileTransferTaskData | FileCompressTaskData | FileExtractTaskData | FileDownloadTaskData;
-
-export interface SystemTaskRecord {
-    id: string;
-    name: string;
-    status: SystemTaskStatus;
-    progress: number;
-    message: string;
-    data?: SystemTaskData;
-    start_time: number;
-    end_time: number;
-    create_time: number;
-    update_time: number;
-}
-
-export interface SystemTaskQuery {
-    id: string;
-}
-
 export interface FileDeleteBody {
     paths: string[];
     recycle?: boolean;
@@ -311,16 +268,6 @@ export async function deleteRecycleItem(params: API.RequestParams<RecycleItemBod
 /** 清空回收站 POST /recycle/clear */
 export async function clearRecycle(params: API.RequestParams = {}) {
     return post("/recycle/clear", params?.body, params?.onSuccess, params?.onFail, params?.onFinally);
-}
-
-/** 获取系统任务 GET /system/task */
-export async function getSystemTask(params: API.RequestParams<SystemTaskQuery, SystemTaskRecord> = {}) {
-    return get<SystemTaskRecord>("/system/task", params?.body, params?.onSuccess, params?.onFail, params?.onFinally);
-}
-
-/** 取消系统任务 POST /system/task */
-export async function cancelSystemTask(params: API.RequestParams<SystemTaskQuery> = {}) {
-    return post("/system/task", {...params?.body, action: "cancel"}, params?.onSuccess, params?.onFail, params?.onFinally);
 }
 
 /** 文件上传请求 GET|POST /file/upload */

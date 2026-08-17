@@ -1,5 +1,5 @@
 import {useEffect, useMemo, useState} from "react";
-import {getEnum as fetchEnum} from "@/service/common/enum";
+import {getEnum as fetchEnum} from "@/service/api/system";
 
 export type EnumValue = Record<string, string>;
 export type EnumGroup = Record<string, EnumValue>;

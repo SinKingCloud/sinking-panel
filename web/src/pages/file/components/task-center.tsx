@@ -9,8 +9,8 @@ import React, {
 } from "react";
 import {App, Button, Progress} from "antd";
 import {Icon, Title, useTheme} from "sinking-antd";
-import {cancelSystemTask, getSystemTask} from "@/service/api/file";
-import type {SystemTaskRecord} from "@/service/api/file";
+import {cancelSystemTask, getSystemTask} from "@/service/api/system";
+import type {SystemTaskRecord} from "@/service/api/system";
 import {readFileStorage, updateFileStorage} from "../hooks/file-storage";
 import useStyles from "./task-center.styles";
 
