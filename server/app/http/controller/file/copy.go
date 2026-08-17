@@ -9,7 +9,6 @@ import (
 	"server/app/util/context"
 	"server/app/util/file"
 	"server/app/util/str"
-	"time"
 )
 
 func Copy(c *context.Context) {
@@ -31,29 +30,30 @@ func Copy(c *context.Context) {
 	taskID := str.GetSnowWorkIns().GetUuid()
 	taskName := "复制文件: " + form.SourcePaths[0] + " -> " + form.TargetPath
 	taskData := map[string]interface{}{
-		"source_paths": form.SourcePaths,
+		"source_paths": append([]string(nil), form.SourcePaths...),
 		"target_path":  form.TargetPath,
 	}
-	_ = service.System.TaskCreate(taskID, taskName, taskData)
-	service.System.SetTaskCancelFunc(taskID, nil)
-	go func() {
-		defer func() {
-			time.Sleep(3 * time.Second)
-			service.System.TaskDelete(taskID)
-		}()
-		taskInfo := service.System.GetTask(taskID)
-		if taskInfo == nil || taskInfo.Context == nil {
+	service.System.TaskCreate(taskID, taskName, taskData, func(ctx stdContext.Context, rawData interface{}, update func(int, float64, string)) {
+		data, ok := rawData.(map[string]interface{})
+		if !ok {
+			update(system_task_status.Failed, 0, "复制任务数据无效")
 			return
 		}
-		service.System.TaskUpdate(taskID, system_task_status.Running, 0, "开始复制")
+		sourcePaths, sourcePathsOK := data["source_paths"].([]string)
+		targetPath, targetPathOK := data["target_path"].(string)
+		if !sourcePathsOK || !targetPathOK || len(sourcePaths) == 0 || targetPath == "" {
+			update(system_task_status.Failed, 0, "复制任务数据无效")
+			return
+		}
+		update(system_task_status.Running, 0, "开始复制")
 		var err error
-		for index, sourcePath := range form.SourcePaths {
-			err = service.File.CopyWithContext(taskInfo.Context, sourcePath, form.TargetPath, func(current, total int64, currentFile string, totalFiles, currentIndex int64) bool {
-				progress := float64(index) / float64(len(form.SourcePaths)) * 100
+		for index, sourcePath := range sourcePaths {
+			err = service.File.CopyWithContext(ctx, sourcePath, targetPath, func(current, total int64, currentFile string, totalFiles, currentIndex int64) bool {
+				progress := float64(index) / float64(len(sourcePaths)) * 100
 				if total > 0 {
-					progress = (float64(index) + float64(current)/float64(total)) / float64(len(form.SourcePaths)) * 100
+					progress = (float64(index) + float64(current)/float64(total)) / float64(len(sourcePaths)) * 100
 				}
-				service.System.TaskUpdate(taskID, system_task_status.Running, progress, "正在复制: "+currentFile)
+				update(system_task_status.Running, progress, "正在复制: "+currentFile)
 				return true
 			})
 			if err != nil {
@@ -61,15 +61,15 @@ func Copy(c *context.Context) {
 			}
 		}
 		if errors.Is(err, stdContext.Canceled) {
-			service.System.TaskUpdate(taskID, system_task_status.Canceled, 0, "任务已取消")
+			update(system_task_status.Canceled, 0, "任务已取消")
 			return
 		}
 		if err != nil {
-			service.System.TaskUpdate(taskID, system_task_status.Failed, 0, "复制失败: "+err.Error())
+			update(system_task_status.Failed, 0, "复制失败: "+err.Error())
 			return
 		}
-		service.System.TaskUpdate(taskID, system_task_status.Completed, 100, "复制完成")
-	}()
+		update(system_task_status.Completed, 100, "复制完成")
+	})
 	service.Log.Create(c.GetRequestIp(), log_type.EventCreate, "创建复制任务", taskName)
 	c.SuccessWithData("创建复制任务成功", taskID)
 }

@@ -1,6 +1,7 @@
 package system
 
 import (
+	"context"
 	"server/app/service/file"
 	"sync"
 	"time"
@@ -9,17 +10,20 @@ import (
 	"github.com/shirou/gopsutil/v4/net"
 )
 
-// Service service接口
+const (
+	maxTaskWorkers = 5
+	taskRetention  = 3 * time.Second
+)
+
+// Service 是系统信息和异步任务服务的公开契约。
 type Service interface {
 	GetInfo() map[string]interface{}
 	GetStatus(netInterface, diskName string, after int64) map[string]interface{}
 	GetTask(id string) *Task
 	TaskList() []*Task
-	TaskCreate(id, name string, data interface{}) *Task
-	TaskDelete(id string)
+	TaskCreate(id, name string, data interface{}, run func(context.Context, interface{}, func(int, float64, string)))
 	TaskUpdate(id string, status int, progress float64, message string)
 	TaskCancel(id string) bool
-	SetTaskCancelFunc(id string, cancelFunc func())
 }
 
 // service 注入结构
@@ -27,6 +31,11 @@ type service struct {
 	tasks       map[string]*Task
 	mu          sync.RWMutex
 	fileService file.Service
+
+	queueMu   sync.Mutex
+	queueCond *sync.Cond
+	queue     []string
+	jobs      map[string]*job
 
 	systemBaseCache      map[string]interface{}
 	systemBaseCacheLock  sync.RWMutex
@@ -62,6 +71,8 @@ func NewService(fileService file.Service) *service {
 	now := time.Now()
 	s := &service{
 		tasks:              make(map[string]*Task),
+		jobs:               make(map[string]*job),
+		queue:              make([]string, 0),
 		fileService:        fileService,
 		systemBaseCache:    make(map[string]interface{}),
 		cpuInfoCache:       make(map[string]interface{}),
@@ -78,6 +89,11 @@ func NewService(fileService file.Service) *service {
 		diskLastUpdateTime: now,
 		monitorHistory:     make([]map[string]interface{}, 0, 120),
 	}
+	s.queueCond = sync.NewCond(&s.queueMu)
+	for i := 0; i < maxTaskWorkers; i++ {
+		go s.taskWorker()
+	}
+	go s.taskCleanupWorker()
 	s.startMonitor()
 	return s
 }

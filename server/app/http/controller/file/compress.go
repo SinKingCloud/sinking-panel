@@ -1,14 +1,13 @@
 package file
 
 import (
+	stdContext "context"
 	"server/app/enum/log_type"
 	"server/app/enum/system_task_status"
 	"server/app/service"
 	"server/app/util/context"
 	"server/app/util/file"
 	"server/app/util/str"
-	"sync/atomic"
-	"time"
 )
 
 func Compress(c *context.Context) {
@@ -59,27 +58,27 @@ func Compress(c *context.Context) {
 	taskID := str.GetSnowWorkIns().GetUuid()
 	taskName := "压缩文件: " + form.Name + "." + form.Format
 	taskData := map[string]interface{}{
-		"paths":     form.Paths,
+		"paths":     append([]string(nil), form.Paths...),
 		"dest_path": destPath,
 		"format":    form.Format,
 	}
-	_ = service.System.TaskCreate(taskID, taskName, taskData)
-	var canceled atomic.Bool
-	service.System.SetTaskCancelFunc(taskID, func() {
-		canceled.Store(true)
-	})
-	go func() {
-		defer func() {
-			time.Sleep(3 * time.Second)
-			service.System.TaskDelete(taskID)
-		}()
-		taskInfo := service.System.GetTask(taskID)
-		if taskInfo == nil || taskInfo.Context == nil {
+	service.System.TaskCreate(taskID, taskName, taskData, func(ctx stdContext.Context, rawData interface{}, update func(int, float64, string)) {
+		data, ok := rawData.(map[string]interface{})
+		if !ok {
+			update(system_task_status.Failed, 0, "压缩任务数据无效")
 			return
 		}
-		service.System.TaskUpdate(taskID, system_task_status.Running, 0, "开始压缩")
-		err := service.File.CompressFiles(taskInfo.Context, form.Paths, destPath, form.Format, func(current, total int64, currentFile string, totalFiles, currentIndex int64) bool {
-			if canceled.Load() {
+		paths, pathsOK := data["paths"].([]string)
+		destPath, destPathOK := data["dest_path"].(string)
+		format, formatOK := data["format"].(string)
+		if !pathsOK || !destPathOK || !formatOK || len(paths) == 0 || destPath == "" || format == "" {
+			update(system_task_status.Failed, 0, "压缩任务数据无效")
+			return
+		}
+		disk := file.NewDisk("")
+		update(system_task_status.Running, 0, "开始压缩")
+		err := service.File.CompressFiles(ctx, paths, destPath, format, func(current, total int64, currentFile string, totalFiles, currentIndex int64) bool {
+			if ctx.Err() != nil {
 				return false
 			}
 			progress := float64(0)
@@ -87,28 +86,23 @@ func Compress(c *context.Context) {
 				progress = float64(current) / float64(total) * 100
 			}
 			message := "正在压缩: " + currentFile
-			service.System.TaskUpdate(taskID, system_task_status.Running, progress, message)
+			update(system_task_status.Running, progress, message)
 			return true
 		})
 		select {
-		case <-taskInfo.Context.Done():
-			service.System.TaskUpdate(taskID, system_task_status.Canceled, 0, "任务已取消")
-			_ = f.Delete(destPath)
+		case <-ctx.Done():
+			update(system_task_status.Canceled, 0, "任务已取消")
+			_ = disk.Delete(destPath)
 			return
 		default:
-			if canceled.Load() {
-				service.System.TaskUpdate(taskID, system_task_status.Canceled, 0, "任务已取消")
-				_ = f.Delete(destPath)
-				return
-			}
 			if err != nil {
-				service.System.TaskUpdate(taskID, system_task_status.Failed, 0, "压缩失败: "+err.Error())
-				_ = f.Delete(destPath)
+				update(system_task_status.Failed, 0, "压缩失败: "+err.Error())
+				_ = disk.Delete(destPath)
 				return
 			}
-			service.System.TaskUpdate(taskID, system_task_status.Completed, 100, "压缩完成")
+			update(system_task_status.Completed, 100, "压缩完成")
 		}
-	}()
+	})
 	service.Log.Create(c.GetRequestIp(), log_type.EventCreate, "创建压缩任务", taskName)
 	c.SuccessWithData("创建压缩任务成功", taskID)
 }

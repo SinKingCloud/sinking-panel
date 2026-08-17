@@ -11,10 +11,15 @@ func (s *service) TaskUpdate(id string, status int, progress float64, message st
 		return
 	}
 	s.mu.Lock()
-	defer s.mu.Unlock()
 
 	task, ok := s.tasks[id]
 	if !ok {
+		s.mu.Unlock()
+		return
+	}
+	terminal := task.Status == system_task_status.Completed || task.Status == system_task_status.Failed || task.Status == system_task_status.Canceled
+	if terminal && task.Status != status {
+		s.mu.Unlock()
 		return
 	}
 
@@ -30,4 +35,5 @@ func (s *service) TaskUpdate(id string, status int, progress float64, message st
 	if status == system_task_status.Completed || status == system_task_status.Failed || status == system_task_status.Canceled {
 		task.EndTime = task.UpdateTime
 	}
+	s.mu.Unlock()
 }

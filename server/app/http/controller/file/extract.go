@@ -1,14 +1,13 @@
 package file
 
 import (
+	stdContext "context"
 	"server/app/enum/log_type"
 	"server/app/enum/system_task_status"
 	"server/app/service"
 	"server/app/util/context"
 	"server/app/util/file"
 	"server/app/util/str"
-	"sync/atomic"
-	"time"
 )
 
 func Extract(c *context.Context) {
@@ -48,23 +47,21 @@ func Extract(c *context.Context) {
 		"dest_dir": form.Dir,
 		"format":   format,
 	}
-	_ = service.System.TaskCreate(taskID, taskName, taskData)
-	var canceled atomic.Bool
-	service.System.SetTaskCancelFunc(taskID, func() {
-		canceled.Store(true)
-	})
-	go func() {
-		defer func() {
-			time.Sleep(3 * time.Second)
-			service.System.TaskDelete(taskID)
-		}()
-		taskInfo := service.System.GetTask(taskID)
-		if taskInfo == nil || taskInfo.Context == nil {
+	service.System.TaskCreate(taskID, taskName, taskData, func(ctx stdContext.Context, rawData interface{}, update func(int, float64, string)) {
+		data, ok := rawData.(map[string]interface{})
+		if !ok {
+			update(system_task_status.Failed, 0, "解压任务数据无效")
 			return
 		}
-		service.System.TaskUpdate(taskID, system_task_status.Running, 0, "开始解压")
-		err := service.File.Extract(taskInfo.Context, form.Path, form.Dir, func(current, total int64, currentFile string, totalFiles, currentIndex int64) bool {
-			if canceled.Load() {
+		path, pathOK := data["path"].(string)
+		destDir, destDirOK := data["dest_dir"].(string)
+		if !pathOK || !destDirOK || path == "" || destDir == "" {
+			update(system_task_status.Failed, 0, "解压任务数据无效")
+			return
+		}
+		update(system_task_status.Running, 0, "开始解压")
+		err := service.File.Extract(ctx, path, destDir, func(current, total int64, currentFile string, totalFiles, currentIndex int64) bool {
+			if ctx.Err() != nil {
 				return false
 			}
 			progress := float64(0)
@@ -72,25 +69,21 @@ func Extract(c *context.Context) {
 				progress = float64(current) / float64(total) * 100
 			}
 			message := "正在解压: " + currentFile
-			service.System.TaskUpdate(taskID, system_task_status.Running, progress, message)
+			update(system_task_status.Running, progress, message)
 			return true
 		})
 		select {
-		case <-taskInfo.Context.Done():
-			service.System.TaskUpdate(taskID, system_task_status.Canceled, 0, "任务已取消")
+		case <-ctx.Done():
+			update(system_task_status.Canceled, 0, "任务已取消")
 			return
 		default:
-			if canceled.Load() {
-				service.System.TaskUpdate(taskID, system_task_status.Canceled, 0, "任务已取消")
-				return
-			}
 			if err != nil {
-				service.System.TaskUpdate(taskID, system_task_status.Failed, 0, "解压失败: "+err.Error())
+				update(system_task_status.Failed, 0, "解压失败: "+err.Error())
 				return
 			}
-			service.System.TaskUpdate(taskID, system_task_status.Completed, 100, "解压完成")
+			update(system_task_status.Completed, 100, "解压完成")
 		}
-	}()
+	})
 	service.Log.Create(c.GetRequestIp(), log_type.EventCreate, "创建解压任务", taskName)
 	c.SuccessWithData("创建解压任务成功", taskID)
 }

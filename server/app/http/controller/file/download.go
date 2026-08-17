@@ -1,6 +1,7 @@
 package file
 
 import (
+	stdContext "context"
 	"fmt"
 	"path/filepath"
 	"server/app/enum/log_type"
@@ -11,7 +12,6 @@ import (
 	"server/app/util/str"
 	"strconv"
 	"strings"
-	"sync/atomic"
 	"time"
 )
 
@@ -63,26 +63,21 @@ func Download(c *context.Context) {
 		"url":         form.URL,
 		"target_path": targetFilePath,
 	}
-	_ = service.System.TaskCreate(taskID, taskName, taskData)
-
-	// 设置取消功能
-	var canceled atomic.Bool
-	service.System.SetTaskCancelFunc(taskID, func() {
-		canceled.Store(true)
-	})
-	// 异步执行下载任务
-	go func() {
-		defer func() {
-			time.Sleep(3 * time.Second)
-			service.System.TaskDelete(taskID)
-		}()
-		taskInfo := service.System.GetTask(taskID)
-		if taskInfo == nil || taskInfo.Context == nil {
+	service.System.TaskCreate(taskID, taskName, taskData, func(ctx stdContext.Context, rawData interface{}, update func(int, float64, string)) {
+		data, ok := rawData.(map[string]interface{})
+		if !ok {
+			update(system_task_status.Failed, 0, "下载任务数据无效")
 			return
 		}
-		service.System.TaskUpdate(taskID, system_task_status.Running, 0, "开始下载")
-		err := service.File.DownloadWithProgress(taskInfo.Context, form.URL, targetFilePath, func(current, total int64, speed float64) bool {
-			if canceled.Load() {
+		url, urlOK := data["url"].(string)
+		targetPath, targetPathOK := data["target_path"].(string)
+		if !urlOK || !targetPathOK || url == "" || targetPath == "" {
+			update(system_task_status.Failed, 0, "下载任务数据无效")
+			return
+		}
+		update(system_task_status.Running, 0, "开始下载")
+		err := service.File.DownloadWithProgress(ctx, url, targetPath, func(current, total int64, speed float64) bool {
+			if ctx.Err() != nil {
 				return false
 			}
 			progress := float64(0)
@@ -98,26 +93,22 @@ func Download(c *context.Context) {
 				service.File.FormatSize(total),
 				speedStr)
 
-			service.System.TaskUpdate(taskID, system_task_status.Running, progress, message)
+			update(system_task_status.Running, progress, message)
 			return true
 		})
 		// 处理下载结果
 		select {
-		case <-taskInfo.Context.Done():
-			service.System.TaskUpdate(taskID, system_task_status.Canceled, 0, "任务已取消")
+		case <-ctx.Done():
+			update(system_task_status.Canceled, 0, "任务已取消")
 			return
 		default:
-			if canceled.Load() {
-				service.System.TaskUpdate(taskID, system_task_status.Canceled, 0, "任务已取消")
-				return
-			}
 			if err != nil {
-				service.System.TaskUpdate(taskID, system_task_status.Failed, 0, "下载失败: "+err.Error())
+				update(system_task_status.Failed, 0, "下载失败: "+err.Error())
 				return
 			}
-			service.System.TaskUpdate(taskID, system_task_status.Completed, 100, "下载完成")
+			update(system_task_status.Completed, 100, "下载完成")
 		}
-	}()
+	})
 
 	service.Log.Create(c.GetRequestIp(), log_type.EventCreate, "创建下载任务", "下载文件到["+targetFilePath+"]")
 	c.SuccessWithData("创建下载任务成功", taskID)
