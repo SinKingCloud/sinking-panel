@@ -8,7 +8,7 @@ import {createStyles} from "antd-style";
 import Settings from "@/../config/defaultSettings";
 import {logout} from "@/service/auth/login";
 import {cancelSystemTask, getSystemTask, getSystemTaskList} from "@/service/api/system";
-import TaskLog, {LogRef as TaskLogRef} from "@/pages/task/components/log";
+import TaskLog, {LogRef as TaskLogRef} from "@/pages/components/task-log";
 import defaultSettings from "@/../config/defaultSettings";
 import Title from "../title";
 

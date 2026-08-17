@@ -23,25 +23,6 @@ func Task(c *context.Context) {
 		return
 	}
 	action := strings.ToLower(strings.TrimSpace(form.Action))
-	listTasks := func() {
-		tasks := service.System.TaskList()
-		if form.Status != "" {
-			filteredTasks := make([]interface{}, 0)
-			for _, task := range tasks {
-				if strconv.Itoa(int(task.Status)) == form.Status {
-					filteredTasks = append(filteredTasks, task)
-				}
-			}
-			c.SuccessWithData("获取成功", filteredTasks)
-			return
-		}
-		result := make([]interface{}, len(tasks))
-		for i, task := range tasks {
-			result[i] = task
-		}
-		c.SuccessWithData("获取成功", result)
-	}
-
 	switch action {
 	case "cancel":
 		if form.ID == "" {
@@ -92,7 +73,22 @@ func Task(c *context.Context) {
 			c.SuccessWithData("获取成功", task)
 			return
 		}
-		listTasks()
+		tasks := service.System.TaskList()
+		if form.Status != "" {
+			filteredTasks := make([]interface{}, 0)
+			for _, task := range tasks {
+				if strconv.Itoa(task.Status) == form.Status {
+					filteredTasks = append(filteredTasks, task)
+				}
+			}
+			c.SuccessWithData("获取成功", filteredTasks)
+			return
+		}
+		result := make([]interface{}, len(tasks))
+		for i, task := range tasks {
+			result[i] = task
+		}
+		c.SuccessWithData("获取成功", result)
 	default:
 		c.Error("任务操作不支持")
 	}

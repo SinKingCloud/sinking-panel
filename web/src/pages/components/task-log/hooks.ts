@@ -146,13 +146,13 @@ const useLog = (request: (params: API.RequestParams) => Promise<any> = getTaskLo
         if (!data) {
             return;
         }
-        if (data.end) {
+        const previousCursor = control.cursor;
+        const nextCursor = toCursor(data.cursor);
+        const nextLogs = Array.isArray(data.lines) ? data.lines : [];
+        if (nextCursor < previousCursor) {
             await loadLatest(taskId, true);
             return;
         }
-
-        const nextCursor = toCursor(data.cursor);
-        const nextLogs = Array.isArray(data.lines) ? data.lines : [];
         if (nextLogs.length === 0) {
             control.cursor = nextCursor;
             return;

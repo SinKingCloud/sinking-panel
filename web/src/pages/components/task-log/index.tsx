@@ -2,7 +2,7 @@ import {forwardRef, memo, useImperativeHandle, useRef} from "react";
 import {Button, Empty, Spin, Tooltip} from "antd";
 import {createStyles} from "antd-style";
 import {Icon, ProModal, ProModalRef, Title} from "sinking-antd";
-import useLog, {logLayout} from "../hooks/log";
+import useLog, {logLayout} from "./hooks";
 
 const useStyles = createStyles(({css, token}: any) => ({
     modal: css`

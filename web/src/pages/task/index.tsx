@@ -6,7 +6,7 @@ import TypeManager, {TypeManagerRef} from "@/pages/components/type-manager";
 import {getAllTypes} from "@/service/api/type";
 import Form, {FormRef} from "./components/form";
 import Header from "./components/header";
-import Log, {LogRef} from "./components/log";
+import Log, {LogRef} from "@/pages/components/task-log";
 import Pagination from "./components/pagination";
 import Table from "./components/table";
 import useList from "./hooks/list";
