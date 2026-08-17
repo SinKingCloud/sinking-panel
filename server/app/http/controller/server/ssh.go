@@ -53,7 +53,8 @@ var sshServer = sinking_websocket.NewServer(
 				select {
 				case <-ssh.session.OutputReady():
 					if payload := ssh.session.Read(); payload != nil {
-						if connection.Send(sinking_websocket.TextMessage, payload) != nil {
+						// SSH 输出可能包含二进制内容（例如 cat SQLite、压缩包等），必须使用二进制帧。
+						if connection.Send(sinking_websocket.BinaryMessage, payload) != nil {
 							_ = connection.Close()
 							return
 						}
@@ -62,7 +63,7 @@ var sshServer = sinking_websocket.NewServer(
 					return
 				case <-sessionDone:
 					if payload := ssh.session.Read(); payload != nil {
-						_ = connection.Send(sinking_websocket.TextMessage, payload)
+						_ = connection.Send(sinking_websocket.BinaryMessage, payload)
 					}
 					time.Sleep(10 * time.Millisecond)
 					_ = connection.Close()
