@@ -36,6 +36,7 @@ export interface FileTableProps {
     onPreview: (files: readonly any[], active: string) => void;
     onDownload: (record: any) => void;
     onRename: (record: any) => void;
+    onPermissions: (record: any) => void;
     onCopy: (record: any) => void;
     onMove: (record: any) => void;
     onProperties: (record: any) => void;
@@ -110,6 +111,7 @@ const FileTable = ({
     onPreview,
     onDownload,
     onRename,
+    onPermissions,
     onCopy,
     onMove,
     onProperties,
@@ -291,7 +293,24 @@ const FileTable = ({
             dataIndex: "mode",
             key: "mode",
             width: 100,
-            render: (value) => <span className={styles.fileMeta}>{formatFileMode(value)}</span>,
+            render: (value, record) => {
+                const recordPath = joinFilePath(path, record.name);
+                const rowDisabled = actionsDisabled || Boolean(operatingPaths?.has(recordPath));
+                return (
+                    <button
+                        className={styles.fileMetaButton}
+                        type="button"
+                        disabled={rowDisabled}
+                        aria-label={`修改权限 ${record.name}`}
+                        onClick={() => {
+                            if (!rowDisabled) {
+                                onPermissions(record);
+                            }
+                        }}>
+                        <span className={styles.fileMeta}>{formatFileMode(value)}</span>
+                    </button>
+                );
+            },
         },
         {
             title: "修改时间",
@@ -341,6 +360,7 @@ const FileTable = ({
         onEdit,
         onOpen,
         onPreview,
+        onPermissions,
         onProperties,
         openMenu,
         operatingPaths,

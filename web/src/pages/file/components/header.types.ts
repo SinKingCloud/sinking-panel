@@ -24,6 +24,7 @@ export interface HeaderProps {
     onDeleteSelected: () => void;
     onClearSelection: () => void;
     onRemoteDownload: () => void;
+    onOpenTerminal: () => void;
     onOpenRecycle: () => void;
 }
 

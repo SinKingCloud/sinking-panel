@@ -236,6 +236,39 @@ const useStyles = createStyles<{compact?: boolean; dark?: boolean}>(({
             font-size: ${token.fontSizeSM}px;
             white-space: nowrap;
         `,
+        fileMetaButton: css`
+            max-width: 100%;
+            padding: 0;
+            display: inline-flex;
+            align-items: center;
+            border: 0;
+            outline: none;
+            background: transparent;
+            color: inherit;
+            cursor: pointer;
+            font: inherit;
+            text-align: left;
+
+            &:hover .file-meta,
+            &:focus-visible .file-meta {
+                color: ${token.colorPrimary};
+            }
+
+            &:focus-visible {
+                border-radius: ${token.borderRadiusSM}px;
+                box-shadow: 0 0 0 2px ${token.colorPrimaryBg};
+            }
+
+            &:disabled {
+                color: ${token.colorTextDisabled};
+                cursor: not-allowed;
+            }
+
+            &:disabled .file-meta,
+            &:disabled:hover .file-meta {
+                color: ${token.colorTextDisabled};
+            }
+        `,
         directorySize: css`
             min-width: 34px;
             min-height: 18px;

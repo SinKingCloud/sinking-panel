@@ -25,11 +25,13 @@ import FileTaskCenter from "./task-center";
 import type {FileTaskCenterRef} from "./task-center";
 import FileUpload from "./upload";
 import type {FileUploadRef} from "./upload";
+import FileTerminal from "./file-terminal";
 
 export interface FileDialogHostRef {
     openCreate: (mode: any) => void;
     openEditor: (path?: string, name?: string) => void;
     openRename: (record: any) => void;
+    openPermissions: (record: any) => void;
     openProperties: (record: any) => void;
     openPreview: (files: readonly any[], active: string) => void;
     openOperation: (mode: any, record?: any) => void;
@@ -39,6 +41,7 @@ export interface FileDialogHostRef {
         clearSelectionOnSuccess?: boolean,
     ) => void;
     openUpload: () => void;
+    openTerminal: (path?: string) => void;
     openRecycle: () => void;
     trackTask: (taskId: string, title: string) => void;
     closePathBound: () => void;
@@ -77,6 +80,8 @@ const FileDialogHost = forwardRef<FileDialogHostRef, FileDialogHostProps>(({
     const operationRef = useRef<FileOperationRef | null>(null);
     const taskCenterRef = useRef<FileTaskCenterRef | null>(null);
     const uploadRef = useRef<FileUploadRef | null>(null);
+    const [terminalPath, setTerminalPath] = React.useState("");
+    const [terminalOpen, setTerminalOpen] = React.useState(false);
     const reloadTimerRef = useRef<number | undefined>(undefined);
     const onReloadRef = useRef(onReload);
     const previousPathRef = useRef(path);
@@ -91,6 +96,8 @@ const FileDialogHost = forwardRef<FileDialogHostRef, FileDialogHostProps>(({
         permissionsRef.current?.close();
         propertiesRef.current?.close();
         previewRef.current?.close();
+        setTerminalOpen(false);
+        setTerminalPath("");
     }, []);
 
     useEffect(() => {
@@ -134,6 +141,14 @@ const FileDialogHost = forwardRef<FileDialogHostRef, FileDialogHostProps>(({
             return;
         }
         formRef.current?.openRename(joinFilePath(path, record.name), record);
+    }, [loaded, message, navigating, path]);
+
+    const openPermissions = useCallback((record: any) => {
+        if (!loaded || navigating) {
+            message.info("目录正在加载");
+            return;
+        }
+        permissionsRef.current?.open(joinFilePath(path, record.name), record);
     }, [loaded, message, navigating, path]);
 
     const openEditor = useCallback((targetPath?: string, name?: string) => {
@@ -192,6 +207,15 @@ const FileDialogHost = forwardRef<FileDialogHostRef, FileDialogHostProps>(({
         uploadRef.current?.open();
     }, [loaded, loading, message, uploading]);
 
+    const openTerminal = useCallback((targetPath = path) => {
+        if (!loaded || loading || navigating) {
+            message.info("目录正在加载");
+            return;
+        }
+        setTerminalOpen(true);
+        setTerminalPath(targetPath);
+    }, [loaded, loading, message, navigating, path]);
+
     const openRecycle = useCallback(() => {
         recycleBinRef.current?.open();
     }, []);
@@ -204,11 +228,13 @@ const FileDialogHost = forwardRef<FileDialogHostRef, FileDialogHostProps>(({
         openCreate,
         openEditor,
         openRename,
+        openPermissions,
         openProperties,
         openPreview,
         openOperation,
         openOperationMany,
         openUpload,
+        openTerminal,
         openRecycle,
         trackTask,
         closePathBound,
@@ -217,12 +243,14 @@ const FileDialogHost = forwardRef<FileDialogHostRef, FileDialogHostProps>(({
         openCreate,
         openEditor,
         openRename,
+        openPermissions,
         openOperation,
         openOperationMany,
         openProperties,
         openPreview,
         openRecycle,
         openUpload,
+        openTerminal,
         trackTask,
     ]);
 
@@ -285,6 +313,10 @@ const FileDialogHost = forwardRef<FileDialogHostRef, FileDialogHostProps>(({
                 selectionDisabled={!loaded || loading}
                 onUploaded={scheduleReload}
                 onUploadingChange={handleUploadingChange}/>
+            <FileTerminal
+                path={terminalPath}
+                open={terminalOpen}
+                onClose={() => setTerminalOpen(false)}/>
         </>
     );
 });

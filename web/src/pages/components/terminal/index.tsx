@@ -37,6 +37,8 @@ export interface TerminalProps {
     socket?: WebSocket;
     active?: boolean;
     compact?: boolean;
+    background?: string;
+    accentColor?: string;
     className?: string;
     style?: CSSProperties;
 }
@@ -79,13 +81,21 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
                                                              socket,
                                                              active = true,
                                                              compact = false,
+                                                             background,
+                                                             accentColor,
                                                              className,
                                                              style
                                                          }, ref): any => {
     const {token} = antTheme.useToken();
     const appTheme = useTheme();
     const dark = Boolean(appTheme?.isDarkMode?.() || appTheme?.isDarkTheme?.());
-    const terminalBackground = dark ? "#101214" : "#000000";
+    const terminalBackground = background || (dark ? "rgb(15, 15, 15)" : "#000000");
+    const terminalAccent = accentColor || (dark ? "#c3ccd6" : token.colorPrimary);
+    const selectionBackground = accentColor
+        ? "rgba(195, 204, 214, .28)"
+        : dark
+            ? "rgba(195, 204, 214, .28)"
+            : token.colorPrimary;
     const styleProps = useMemo(() => ({compact, background: terminalBackground}), [compact, terminalBackground]);
     const {styles} = useStyles(styleProps);
     const hostRef = useRef<HTMLDivElement | any>(null);
@@ -100,9 +110,9 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
     const terminalTheme = useMemo(() => ({
         background: terminalBackground,
         foreground: "#dedede",
-        cursor: token.colorPrimary,
+        cursor: terminalAccent,
         cursorAccent: terminalBackground,
-        selectionBackground: token.colorPrimary,
+        selectionBackground,
         selectionForeground: "#ffffff",
         black: "#111111",
         red: "#ff7b72",
@@ -120,7 +130,7 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
         brightMagenta: "#e2c5ff",
         brightCyan: "#b6e3ff",
         brightWhite: "#ffffff",
-    }), [terminalBackground, token.colorPrimary]);
+    }), [selectionBackground, terminalAccent, terminalBackground, token.colorPrimary]);
     const themeRef = useRef(terminalTheme);
     themeRef.current = terminalTheme;
 

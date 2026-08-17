@@ -16,10 +16,14 @@ interface TerminalProps {
     unavailable: boolean;
     resetKey: number;
     compact: boolean;
+    showHeader?: boolean;
+    terminalBackground?: string;
+    terminalAccent?: string;
     onStatusChange?: (serverId: number, status: ConnectionStatus) => void;
 }
 
 export interface TerminalRef {
+    clear: () => void;
     insertCommand: (command: string) => boolean;
     connect: () => void;
 }
@@ -58,6 +62,9 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
                                                              unavailable,
                                                              resetKey,
                                                              compact,
+                                                             showHeader = true,
+                                                             terminalBackground,
+                                                             terminalAccent,
                                                              onStatusChange,
                                                          }, ref): any => {
     const screenRef = useRef<HTMLDivElement | any>(null);
@@ -199,7 +206,14 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
         };
     }, [changeStatus, closeSocket]);
 
-    useImperativeHandle(ref, () => ({insertCommand, connect}), [connect, insertCommand]);
+    useImperativeHandle(ref, () => ({
+        clear: () => {
+            terminalRef.current?.reset();
+            terminalRef.current?.clear();
+        },
+        insertCommand,
+        connect,
+    }), [connect, insertCommand]);
 
     useEffect(() => {
         mountedRef.current = true;
@@ -265,7 +279,7 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
         <section
             className={`${styles.consolePane} ${active ? "" : "session-hidden"}`}
             aria-hidden={!active}>
-            <header className={styles.consoleHeader}>
+            {showHeader && <header className={styles.consoleHeader}>
                 <div className="console-title">
                     <span className={`status-dot ${status}`}/>
                     <div>
@@ -299,14 +313,16 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
                             onClick={() => void toggleFullscreen()}/>
                     </Tooltip>
                 </div>
-            </header>
+            </header>}
             <div className={styles.terminalBody}>
                 <div className={styles.terminalScreen} ref={screenRef}>
                     <TerminalView
                         ref={terminalRef}
                         socket={socket}
                         active={active}
-                        compact={compact}/>
+                        compact={compact}
+                        background={terminalBackground}
+                        accentColor={terminalAccent}/>
                     {(initializing || localUnavailable || status !== "connected") && (
                         <div className={`${styles.terminalOverlay} ${status}`}>
                             {initializing ? (

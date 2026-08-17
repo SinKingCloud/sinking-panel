@@ -31,6 +31,7 @@ const Header = ({
     onDeleteSelected,
     onClearSelection,
     onRemoteDownload,
+    onOpenTerminal,
     onOpenRecycle,
 }: HeaderProps) => {
     const theme = useTheme();
@@ -51,6 +52,7 @@ const Header = ({
                 onCreate={onCreate}
                 onUpload={onUpload}
                 onRemoteDownload={onRemoteDownload}
+                onOpenTerminal={onOpenTerminal}
                 onOpenRecycle={onOpenRecycle}
                 styles={styles}/>
             <HeaderPathBar

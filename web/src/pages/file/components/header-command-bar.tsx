@@ -12,6 +12,7 @@ interface HeaderCommandBarProps {
     onCreate: (type: any) => void;
     onUpload: () => void;
     onRemoteDownload: () => void;
+    onOpenTerminal: () => void;
     onOpenRecycle: () => void;
     styles: Pick<
         HeaderStyles,
@@ -26,6 +27,7 @@ const HeaderCommandBar = ({
     onCreate,
     onUpload,
     onRemoteDownload,
+    onOpenTerminal,
     onOpenRecycle,
     styles,
 }: HeaderCommandBarProps) => {
@@ -81,6 +83,14 @@ const HeaderCommandBar = ({
                     icon={<Icon type="CloudDownloadOutlined"/>}
                     onClick={onRemoteDownload}>
                     <span className="value">远程下载</span>
+                </Button>
+                <Button
+                    type="text"
+                    className={styles.toolbarAction}
+                    aria-label="打开终端"
+                    icon={<Icon type="CodeOutlined"/>}
+                    onClick={onOpenTerminal}>
+                    <span className="value">终端</span>
                 </Button>
                 <Button
                     type="text"

@@ -3,7 +3,7 @@ import {createStyles} from "antd-style";
 const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) => {
     const compact = Boolean(props?.isCompactMode);
     const dark = typeof props?.isDarkMode === "boolean" ? props.isDarkMode : Boolean(isDarkMode);
-    const terminalBackground = dark ? "#101214" : "#000000";
+    const terminalBackground = props?.terminalBackground || (dark ? "rgb(15, 15, 15)" : "#000000");
     const serverWidth = compact ? 238 : 252;
     const scriptWidth = compact ? 270 : 286;
     const collapsedWidth = compact ? 42 : 46;

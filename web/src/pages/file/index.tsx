@@ -97,6 +97,9 @@ export default (): React.ReactNode => {
     const openRename = useCallback((record: any) => {
         dialogHostRef.current?.openRename(record);
     }, []);
+    const openPermissions = useCallback((record: any) => {
+        dialogHostRef.current?.openPermissions(record);
+    }, []);
     const openProperties = useCallback((record: any) => {
         dialogHostRef.current?.openProperties(record);
     }, []);
@@ -109,6 +112,9 @@ export default (): React.ReactNode => {
     const openRemoteDownload = useCallback(() => {
         dialogHostRef.current?.openOperation("remote-download");
     }, []);
+    const openTerminal = useCallback(() => {
+        dialogHostRef.current?.openTerminal(list.path);
+    }, [list.path]);
     const openRecycle = useCallback(() => {
         dialogHostRef.current?.openRecycle();
     }, []);
@@ -179,6 +185,7 @@ export default (): React.ReactNode => {
                             onDeleteSelected={deletion.confirmSelection}
                             onClearSelection={selection.clear}
                             onRemoteDownload={openRemoteDownload}
+                            onOpenTerminal={openTerminal}
                             onOpenRecycle={openRecycle}/>
 
                         <main className={styles.dataPanel} aria-busy={list.loading}>
@@ -202,6 +209,7 @@ export default (): React.ReactNode => {
                                     onPreview={openPreview}
                                     onDownload={download}
                                     onRename={openRename}
+                                    onPermissions={openPermissions}
                                     onCopy={copyRecord}
                                     onMove={moveRecord}
                                     onProperties={openProperties}
