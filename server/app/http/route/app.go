@@ -1,6 +1,9 @@
 package route
 
 import (
+	"path"
+	"strings"
+
 	"server/app/http/controller/auth"
 	"server/app/http/controller/config"
 	"server/app/http/controller/file"
@@ -39,10 +42,17 @@ func loadMiddleware(s *sinking_web.Engine) {
 // loadStaticRoute 静态资源
 func loadStaticRoute(s *sinking_web.Engine) {
 	s.ANY("/", context.HandleFunc(func(c *context.Context) {
+		c.SetHeader("Cache-Control", "no-cache, must-revalidate")
 		c.SetHeader("content-type", "text/html;charset=utf-8;")
 		c.Data(200, public.ReadDistFile("index.html"))
 	}))
 	s.ANY("/*", context.HandleFunc(func(c *context.Context) {
+		switch strings.ToLower(path.Ext(c.Request.URL.Path)) {
+		case ".js", ".css", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".avif", ".svg", ".ico", ".bmp", ".tif", ".tiff":
+			c.SetHeader("Cache-Control", "public, max-age=86400")
+		case "", ".html", ".htm":
+			c.SetHeader("Cache-Control", "no-cache, must-revalidate")
+		}
 		c.Request.URL.Path = public.Path() + c.Request.URL.Path
 		public.FileServer.ServeHTTP(c.Writer, c.Request)
 	}))

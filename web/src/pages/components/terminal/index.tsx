@@ -11,9 +11,11 @@ import type {CSSProperties} from "react";
 import {theme as antTheme} from "antd";
 import {createStyles} from "antd-style";
 import {useTheme} from "sinking-antd";
-import {Terminal as XTerm} from "@xterm/xterm";
+import type {Terminal as XTermInstance} from "@xterm/xterm";
 import {FitAddon} from "@xterm/addon-fit";
 import "@xterm/xterm/css/xterm.css";
+
+const XTerm = (require("@xterm/xterm/lib/xterm.js") as typeof import("@xterm/xterm")).Terminal;
 
 export interface TerminalSize {
     cols: number;
@@ -87,7 +89,7 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
     const styleProps = useMemo(() => ({compact, background: terminalBackground}), [compact, terminalBackground]);
     const {styles} = useStyles(styleProps);
     const hostRef = useRef<HTMLDivElement | any>(null);
-    const terminalRef = useRef<XTerm | undefined>(undefined);
+    const terminalRef = useRef<XTermInstance | undefined>(undefined);
     const fitAddonRef = useRef<FitAddon | undefined>(undefined);
     const socketRef = useRef<WebSocket | undefined>(undefined);
     const socketEncoderRef = useRef(new TextEncoder());
