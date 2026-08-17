@@ -157,10 +157,11 @@ const FileTerminal = ({path, open, onClose}: FileTerminalProps) => {
     const pathRef = useRef(path);
     const requestRef = useRef(0);
     const [server, setServer] = useState(localServer);
-    const [sessionKey, setSessionKey] = useState(0);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(false);
     const [status, setStatus] = useState<ConnectionStatus>("idle");
+    const serverLoadedRef = useRef(false);
+    const enteredPathRef = useRef("");
 
     pathRef.current = path;
 
@@ -168,7 +169,12 @@ const FileTerminal = ({path, open, onClose}: FileTerminalProps) => {
         if (!path) {
             return;
         }
-        setSessionKey((value) => value + 1);
+
+        // Server information belongs to the terminal session, not to the
+        // working directory. Fetch it only when the session is first opened.
+        if (serverLoadedRef.current) {
+            return;
+        }
         const requestId = ++requestRef.current;
         setLoading(true);
         setError(false);
@@ -179,6 +185,8 @@ const FileTerminal = ({path, open, onClose}: FileTerminalProps) => {
             }
             if (response?.code === 200 && response.data) {
                 setServer(normalizeLocalServer(response.data));
+                serverLoadedRef.current = true;
+                setLoading(false);
                 return;
             }
             setError(true);
@@ -204,33 +212,40 @@ const FileTerminal = ({path, open, onClose}: FileTerminalProps) => {
     }, []);
 
     useEffect(() => {
-        if (!path || loading || error) {
+        if (!open || !path || loading || error) {
             return;
         }
         const frame = window.requestAnimationFrame(connect);
         return () => window.cancelAnimationFrame(frame);
-    }, [connect, error, loading, path, server]);
+    }, [connect, error, loading, open, path, server]);
 
     const clearAndEnterDirectory = useCallback(() => {
         const currentPath = pathRef.current;
-        if (!currentPath) {
+        if (!currentPath || status !== "connected" || enteredPathRef.current) {
             return;
         }
         terminalRef.current?.clear();
-        terminalRef.current?.insertCommand(
+        const sent = terminalRef.current?.insertCommand(
             `cd ${shellQuote(currentPath)}; printf '\\033[2J\\033[3J\\033[H'\n`,
         );
-    }, []);
+        if (sent) {
+            enteredPathRef.current = currentPath;
+        }
+    }, [status]);
 
     useEffect(() => {
-        if (status !== "connected" || !path) {
+        if (!open || status !== "connected" || !path) {
             return;
         }
         const timer = window.setTimeout(clearAndEnterDirectory, 0);
         return () => window.clearTimeout(timer);
-    }, [clearAndEnterDirectory, path, status]);
+    }, [clearAndEnterDirectory, open, status]);
 
     const handleStatusChange = useCallback((_serverId: number, nextStatus: ConnectionStatus) => {
+        if (nextStatus !== "connected") {
+            // A later reconnect must enter the current directory again.
+            enteredPathRef.current = "";
+        }
         setStatus(nextStatus);
     }, []);
 
@@ -273,14 +288,13 @@ const FileTerminal = ({path, open, onClose}: FileTerminalProps) => {
                     </div>
                 ) : (
                     <ServerTerminal
-                        key={`${path}:${sessionKey}`}
                         ref={terminalRef}
                         styles={serverStyles}
                         server={server}
                         active
                         initializing={false}
                         unavailable={error}
-                        resetKey={sessionKey}
+                        resetKey={0}
                         compact={compact}
                         showHeader={false}
                         terminalBackground={terminalBackground}

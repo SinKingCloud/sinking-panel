@@ -96,14 +96,15 @@ const FileDialogHost = forwardRef<FileDialogHostRef, FileDialogHostProps>(({
         permissionsRef.current?.close();
         propertiesRef.current?.close();
         previewRef.current?.close();
-        setTerminalOpen(false);
-        setTerminalPath("");
     }, []);
 
     useEffect(() => {
         if (previousPathRef.current !== path) {
             previousPathRef.current = path;
             closePathBound();
+            // Keep the local terminal session alive. Its shell will receive
+            // the new directory through FileTerminal without reconnecting.
+            setTerminalPath((current) => current ? path : current);
         }
     }, [closePathBound, path]);
 
