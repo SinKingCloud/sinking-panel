@@ -194,6 +194,7 @@ const Log = forwardRef<LogRef, LogProps>(({request, showClear = true}, ref):any 
             modalProps={{
                 rootClassName: styles.modal,
                 footer: null,
+                zIndex: 1200,
                 style: {top: 100, paddingBottom: 100},
                 mask: {closable: true},
                 afterClose: log.reset,

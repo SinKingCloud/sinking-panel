@@ -245,6 +245,23 @@ const useRightTopStyles = createStyles(({css, token, isDarkMode}: any): any => {
                 color: ${token.colorTextTertiary};
             }
         `,
+        taskLogAction: css`
+            flex: none;
+            width: 24px;
+            height: 24px;
+            padding: 0;
+            border-radius: ${token.borderRadiusSM}px;
+            color: ${token.colorTextTertiary};
+
+            &:hover {
+                color: ${token.colorPrimary};
+                background: ${token.colorFillQuaternary};
+            }
+
+            .anticon {
+                font-size: 10px !important;
+            }
+        `,
         taskProgressRow: css`
             display: flex;
             align-items: center;
@@ -267,7 +284,8 @@ const useRightTopStyles = createStyles(({css, token, isDarkMode}: any): any => {
             text-align: end;
         `,
         taskMessage: css`
-            margin-top: 4px;
+            min-width: 0;
+            flex: 1;
             overflow: hidden;
             color: ${token.colorTextTertiary};
             font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
@@ -275,6 +293,13 @@ const useRightTopStyles = createStyles(({css, token, isDarkMode}: any): any => {
             line-height: 15px;
             text-overflow: ellipsis;
             white-space: nowrap;
+        `,
+        taskMessageRow: css`
+            min-width: 0;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 4px;
         `,
         taskEmpty: css`
             min-height: 150px;
@@ -390,7 +415,6 @@ const RightTop: React.FC = () => {
     }, [message, refreshTasks]);
 
     const openTaskLog = useCallback((task: any) => {
-        setTaskOpen(false);
         taskLogRef.current?.open(task);
     }, []);
 
@@ -459,9 +483,11 @@ const RightTop: React.FC = () => {
             taskStatusDot,
             taskName,
             taskStatus,
+            taskLogAction,
             taskProgressRow,
             taskProgressValue,
             taskMessage,
+            taskMessageRow,
             taskEmpty,
             taskBadge,
             taskBadgeCount,
@@ -540,7 +566,7 @@ const RightTop: React.FC = () => {
                                                             ? cancelTask(task.id)
                                                             : deleteTask(task.id));
                                                     }}/>
-                                            </Tooltip>
+                                                </Tooltip>
                                         )}
                                     </div>
                                     {status === taskStatusValues.running && (
@@ -552,8 +578,22 @@ const RightTop: React.FC = () => {
                                             <span className={taskProgressValue}>{Math.floor(progress)}%</span>
                                         </div>
                                     )}
-                                    <div className={taskMessage} title={task.message || undefined}>
-                                        {task.message || "等待处理"}
+                                    <div className={taskMessageRow}>
+                                        <div className={taskMessage} title={task.message || undefined}>
+                                            {task.message || "等待处理"}
+                                        </div>
+                                        <Tooltip title="查看详细日志">
+                                            <Button
+                                                type="text"
+                                                size="small"
+                                                className={taskLogAction}
+                                                icon={<Icon type="FileTextOutlined" style={{fontSize: 10}}/>}
+                                                aria-label={`查看${name}的详细日志`}
+                                                onClick={(event) => {
+                                                    event.stopPropagation();
+                                                    openTaskLog(task);
+                                                }}/>
+                                        </Tooltip>
                                     </div>
                                 </div>
                             </div>

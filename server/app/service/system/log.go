@@ -238,9 +238,11 @@ func (s *service) TaskLog(id string, after int64, before int64, pageSize int) ma
 	if len(starts) > 0 {
 		result["start_cursor"] = starts[0]
 		result["has_previous"] = starts[0] > 0
+		result["end"] = starts[0] <= 0
 	} else {
 		result["start_cursor"] = int64(0)
 		result["has_previous"] = false
+		result["end"] = true
 	}
 	return result
 }

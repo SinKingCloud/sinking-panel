@@ -193,7 +193,7 @@ const useLog = (request: (params: API.RequestParams) => Promise<any> = getTaskLo
             }
 
             const olderLogs = Array.isArray(data.lines) ? data.lines : [];
-            const previous = Boolean(data.has_previous);
+            const previous = !data.end && Boolean(data.has_previous);
             control.startCursor = toCursor(data.start_cursor);
             if (olderLogs.length === 0) {
                 control.historyAnchor = null;
