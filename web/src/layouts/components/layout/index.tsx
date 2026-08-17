@@ -3,7 +3,7 @@ import {Layout, Icon, ProModal, Title as ModalTitle, useTheme} from "sinking-ant
 import {useModel, useSelectedRoutes, useLocation, history, Outlet} from "umi";
 import {deleteHeader} from "@/utils/auth";
 import {getAllMenuItems, getFirstMenuWithoutChildren, getParentList, historyPush} from "@/utils/route";
-import {App, Badge, Button, Empty, Popover, Progress, Spin, Tooltip} from "antd";
+import {App, Button, Empty, Popover, Progress, Spin, Tooltip} from "antd";
 import {createStyles} from "antd-style";
 import Settings from "@/../config/defaultSettings";
 import {logout} from "@/service/auth/login";
@@ -135,6 +135,7 @@ const useRightTopStyles = createStyles(({css, token, isDarkMode}: any): any => {
             padding: "7px",
             marginRight: "5px",
             cursor: "pointer",
+            verticalAlign: "middle",
             borderRadius: "5px",
             transition: "background-color 0.3s ease",
             ":hover": {
@@ -142,6 +143,33 @@ const useRightTopStyles = createStyles(({css, token, isDarkMode}: any): any => {
             },
             color: isDarkMode ? token.colorTextSecondary : "rgb(150,150,150)"
         },
+        taskBadge: css`
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            line-height: 1;
+            vertical-align: middle;
+        `,
+        taskBadgeCount: css`
+            position: absolute;
+            z-index: 1;
+            top: 3px;
+            inset-inline-end: 3px;
+            min-width: 15px;
+            height: 15px;
+            padding: 0 4px;
+            box-sizing: border-box;
+            border: 1px solid ${token.colorBgContainer};
+            border-radius: 8px;
+            color: ${token.colorTextLightSolid};
+            background: ${token.colorError};
+            font-size: 10px;
+            font-weight: 600;
+            line-height: 13px;
+            text-align: center;
+            white-space: nowrap;
+            pointer-events: none;
+        `,
         taskList: css`
             max-height: min(520px, 58dvh);
             overflow-y: auto;
@@ -413,6 +441,8 @@ const RightTop: React.FC = () => {
             taskProgressValue,
             taskMessage,
             taskEmpty,
+            taskBadge,
+            taskBadgeCount,
         }
     } = useRightTopStyles();
 
@@ -498,7 +528,15 @@ const RightTop: React.FC = () => {
 
     return <>
         <Tooltip title="系统任务">
-            <Badge count={pendingTaskCount} size="small" offset={[-2, 3]}>
+            <span
+                className={taskBadge}
+                style={{
+                    position: "relative",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    lineHeight: 1,
+                    verticalAlign: "middle",
+                }}>
                 <Icon
                     type="CloudServerOutlined"
                     className={icon}
@@ -507,7 +545,19 @@ const RightTop: React.FC = () => {
                         setTaskOpen(true);
                         void refreshTasks();
                     }}/>
-            </Badge>
+                {pendingTaskCount > 0 && (
+                    <span
+                        className={taskBadgeCount}
+                        style={{
+                            position: "absolute",
+                            top: 3,
+                            insetInlineEnd: 3,
+                        }}
+                        aria-label={`${pendingTaskCount} 个进行中的任务`}>
+                        {pendingTaskCount > 99 ? "99+" : pendingTaskCount}
+                    </span>
+                )}
+            </span>
         </Tooltip>
         <Tooltip title={theme?.getModeName(theme?.mode as any)}>
             <Icon type={theme?.isDarkMode() ? "icon-dark" : (theme?.isAutoMode() ? "icon-auto" : "icon-light")}
