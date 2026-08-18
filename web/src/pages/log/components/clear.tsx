@@ -49,7 +49,7 @@ const Clear = forwardRef<ClearRef, ClearProps>(({onSuccess}, ref) => {
     return (
         <ProModal
             ref={modalRef}
-            title={<Title>清理操作日志</Title>}
+            title={<Title>清理日志</Title>}
             width={320}
             onOk={form.submit}
             modalProps={{
