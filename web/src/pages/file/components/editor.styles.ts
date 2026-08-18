@@ -518,33 +518,6 @@ const useStyles = createStyles<{compact?: boolean; dark?: boolean}>(({css, token
                 }
             }
 
-            .file-editor-tree-rename.ant-input-affix-wrapper {
-                width: ${compact ? 154 : 170}px;
-                max-width: 100%;
-                height: ${compact ? 23 : 27}px;
-                padding-inline: ${compact ? 5 : 7}px;
-                border-radius: ${token.borderRadiusSM}px;
-                line-height: 1;
-                user-select: text;
-                -webkit-user-select: text;
-            }
-
-            .file-editor-tree-rename .ant-input {
-                min-width: 0;
-                font-size: ${token.fontSizeSM}px;
-                user-select: text;
-                -webkit-user-select: text;
-            }
-
-            .file-editor-tree-rename-status {
-                width: 14px;
-                height: 14px;
-                display: inline-flex;
-                align-items: center;
-                justify-content: center;
-                font-size: 12px;
-            }
-
             .file-editor-pane {
                 grid-column: 2;
                 min-width: 0;

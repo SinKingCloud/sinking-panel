@@ -13,7 +13,7 @@ import {Icon, ProModal, useTheme} from "sinking-antd";
 import {history} from "umi";
 import defaultSettings from "@/../config/defaultSettings";
 import AceEditor from "@/components/ace-editor";
-import {deleteFile, renameFile} from "@/service/api/file";
+import {deleteFile} from "@/service/api/file";
 import useFileEditorDocument from "../hooks/editor-document";
 import useFileEditorPreferences from "../hooks/editor-preferences";
 import useFileEditorTree from "../hooks/editor-tree";
@@ -423,25 +423,9 @@ const FileEditor = forwardRef(function FileEditor(
         open();
     }, [exitWorkspaceFullscreen, message, session]);
 
-    const renameTreeNode = useCallback(async (node: FileEditorTreeNode, name: string) => {
-        const value = name.trim();
+    const openRenameTreeNode = useCallback((node: FileEditorTreeNode) => {
         if (!session || !node.record || node.kind !== "entry") {
-            return false;
-        }
-        if (!value) {
-            message.error("请输入名称");
-            return false;
-        }
-        if (value.length > 255) {
-            message.error("名称不能超过255个字符");
-            return false;
-        }
-        if (value === "." || value === ".." || /[\\/\0]/.test(value)) {
-            message.error("名称不能包含路径分隔符");
-            return false;
-        }
-        if (value === node.name) {
-            return true;
+            return;
         }
         const hasOpenTabs = fileTabsRef.current.some((tab) => (
             isFilePathWithin(tab.path, node.path)
@@ -450,31 +434,25 @@ const FileEditor = forwardRef(function FileEditor(
             message.info(node.isDirectory
                 ? "请先保存并关闭该目录下已打开的文件"
                 : "请先保存并关闭该文件的标签");
-            return false;
+            return;
         }
-        try {
-            const response = await renameFile({body: {path: node.path, name: value}});
-            if (!response) {
-                return false;
-            }
-            if (response.code !== 200) {
-                message.error(response.message || "重命名失败");
-                return false;
-            }
-            message.success(response.message || "重命名成功");
-            onMutation();
-            if (sessionGenerationRef.current !== session.generation) {
-                return true;
-            }
-            const targetPath = joinFilePath(node.parentPath, value);
-            tree.selectPath(targetPath, node.isDirectory);
-            await tree.revealCreated(node.parentPath, targetPath, node.isDirectory, true);
-            return true;
-        } catch (reason: unknown) {
-            message.error(reason instanceof Error && reason.message ? reason.message : "重命名失败");
-            return false;
+        const openForm = () => {
+            formContextRef.current = {
+                generation: session.generation,
+                mode: "rename",
+                parentPath: node.parentPath,
+                isDirectory: node.isDirectory,
+            };
+            formRef.current?.openRename(node.path, node.record, true);
+        };
+        if (document.fullscreenElement === workspaceRef.current) {
+            void exitWorkspaceFullscreen()
+                .then((exited) => exited && openForm())
+                .catch(() => message.error("退出全屏失败"));
+            return;
         }
-    }, [message, onMutation, session, tree.revealCreated, tree.selectPath]);
+        openForm();
+    }, [exitWorkspaceFullscreen, message, session]);
 
     const deleteTreeNode = useCallback((node: FileEditorTreeNode) => {
         if (!session || !node.record) {
@@ -758,7 +736,7 @@ const FileEditor = forwardRef(function FileEditor(
                     onLoadData={tree.loadData}
                     onRefresh={refreshTree}
                     onCreate={create}
-                    onRename={renameTreeNode}
+                    onRename={openRenameTreeNode}
                     onPermissions={openPermissions}
                     onDelete={deleteTreeNode}
                     onCopy={copyTreeValue}
