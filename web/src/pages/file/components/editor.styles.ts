@@ -214,6 +214,7 @@ const useStyles = createStyles<{compact?: boolean; dark?: boolean}>(({css, token
                 flex-direction: column;
                 border-right: 1px solid ${token.colorSplit};
                 background: ${token.colorBgContainer};
+                contain: layout;
                 transition: opacity ${token.motionDurationMid}, transform ${token.motionDurationMid};
             }
 
@@ -223,7 +224,9 @@ const useStyles = createStyles<{compact?: boolean; dark?: boolean}>(({css, token
             }
 
             .file-editor-tree-toolbar {
+                width: ${compact ? 238 : 252}px;
                 min-width: 0;
+                box-sizing: border-box;
                 min-height: ${compact ? 42 : 46}px;
                 padding: 0 ${compact ? 9 : 11}px;
                 display: flex;
@@ -285,12 +288,13 @@ const useStyles = createStyles<{compact?: boolean; dark?: boolean}>(({css, token
             }
 
             .file-editor-tree-body {
+                width: ${compact ? 238 : 252}px;
                 min-width: 0;
                 min-height: 0;
+                box-sizing: border-box;
                 flex: 1;
-                overflow: auto;
+                overflow: hidden;
                 padding: ${compact ? "5px 4px 7px" : "7px 5px 9px"};
-                scrollbar-width: thin;
             }
 
             .file-editor-tree-body > .ant-empty {
@@ -306,7 +310,8 @@ const useStyles = createStyles<{compact?: boolean; dark?: boolean}>(({css, token
             }
 
             .file-editor-tree-body .ant-tree {
-                min-width: max-content;
+                width: 100%;
+                min-width: 0;
                 background: transparent;
                 color: ${token.colorTextSecondary};
                 font-size: ${token.fontSizeSM}px;
@@ -322,7 +327,12 @@ const useStyles = createStyles<{compact?: boolean; dark?: boolean}>(({css, token
                 position: relative;
                 border-radius: ${token.borderRadiusSM}px;
                 background: transparent;
-                transition: background-color ${token.motionDurationFast};
+            }
+
+            .file-editor-tree-body .ant-tree-list-holder {
+                overflow-x: hidden !important;
+                overscroll-behavior: contain;
+                scrollbar-width: thin;
             }
 
             .file-editor-tree-body .ant-tree-treenode:hover {
@@ -445,7 +455,7 @@ const useStyles = createStyles<{compact?: boolean; dark?: boolean}>(({css, token
                 padding: 0;
                 color: ${token.colorTextTertiary};
                 opacity: 0;
-                transition: opacity ${token.motionDurationFast}, background-color ${token.motionDurationFast}, color ${token.motionDurationFast};
+                transition: background-color ${token.motionDurationFast}, color ${token.motionDurationFast};
             }
 
             .file-editor-tree-node-shell:hover .file-editor-tree-node-more,
@@ -542,6 +552,7 @@ const useStyles = createStyles<{compact?: boolean; dark?: boolean}>(({css, token
                 display: grid;
                 grid-template-rows: auto minmax(0, 1fr) auto;
                 background: ${token.colorBgContainer};
+                contain: layout paint;
             }
 
             .file-editor-toolbar {
@@ -872,6 +883,11 @@ const useStyles = createStyles<{compact?: boolean; dark?: boolean}>(({css, token
                 .file-editor-toolbar {
                     min-height: 48px;
                     padding: 0 6px;
+                }
+
+                .file-editor-tree-toolbar,
+                .file-editor-tree-body {
+                    width: 100%;
                 }
 
                 .file-editor-tab {

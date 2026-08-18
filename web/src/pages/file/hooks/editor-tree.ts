@@ -48,6 +48,8 @@ const useFileEditorTree = ({roots, message}: UseFileEditorTreeOptions) => {
     const [targetDirectory, setTargetDirectory] = useState("");
     const [loadingPaths, setLoadingPaths] = useState<ReadonlySet<string>>(new Set());
     const [initializing, setInitializing] = useState(false);
+    const loadingPathsRef = useRef(loadingPaths);
+    loadingPathsRef.current = loadingPaths;
 
     const normalizedRoots = useMemo(() => {
         const values = roots
@@ -335,11 +337,11 @@ const useFileEditorTree = ({roots, message}: UseFileEditorTreeOptions) => {
             return;
         }
         const parentKey = editorTreeKey(node.parentPath);
-        if (loadingPaths.has(parentKey)) {
+        if (loadingPathsRef.current.has(parentKey)) {
             return;
         }
         void loadDirectory(node.parentPath, node.nextPage, true);
-    }, [loadDirectory, loadingPaths]);
+    }, [loadDirectory]);
 
     const refresh = useCallback((path = targetDirectory) => {
         if (!path) {

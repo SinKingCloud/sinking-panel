@@ -24,7 +24,12 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
             }
 
             @media (max-width: 780px) {
-                min-height: 0;
+                --terminal-page-height: calc(100dvh - 20px);
+                min-height: var(--terminal-page-height);
+
+                @supports not (height: 100dvh) {
+                    --terminal-page-height: calc(100vh - 20px);
+                }
             }
         `,
         workspace: css`
@@ -50,7 +55,7 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
                 min-height: var(--terminal-page-height);
             }
 
-            @media (max-height: 600px) and (orientation: landscape) {
+            @media (min-width: 781px) and (max-height: 600px) and (orientation: landscape) {
                 height: auto;
                 min-height: 300px;
             }
@@ -95,8 +100,9 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
 
             @container terminal-workspace (max-width: 760px) {
                 height: auto;
+                min-height: var(--terminal-page-height);
                 grid-template-columns: 1fr;
-                grid-template-rows: auto auto minmax(430px, auto);
+                grid-template-rows: auto auto minmax(0, 1fr);
 
                 &.server-collapsed,
                 &.scripts-collapsed {
@@ -802,12 +808,17 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
                 grid-row: 3;
                 width: 100%;
                 max-width: 100%;
-                min-height: max(430px, calc(100dvh - 230px));
+                height: auto;
+                min-height: max(600px, calc(var(--terminal-page-height) - ${compact ? 220 : 244}px));
                 overflow: hidden;
                 box-sizing: border-box;
             }
 
-            @media (max-height: 600px) and (orientation: landscape) {
+            @media (max-width: 780px) and (max-height: 600px) and (orientation: landscape) {
+                min-height: 440px;
+            }
+
+            @media (min-width: 781px) and (max-height: 600px) and (orientation: landscape) {
                 min-height: 300px;
             }
         `,

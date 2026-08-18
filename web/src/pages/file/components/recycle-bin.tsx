@@ -37,7 +37,6 @@ interface RecycleSummaryProps {
     compact: boolean;
     count: any;
     fontSize: number;
-    wide: boolean;
     onClear: () => void;
 }
 
@@ -56,7 +55,6 @@ const RecycleSummary = memo(({
     compact,
     count,
     fontSize,
-    wide,
     onClear,
 }: RecycleSummaryProps) => (
     <Card
@@ -65,36 +63,37 @@ const RecycleSummary = memo(({
         style={{marginTop: 6}}
         styles={{body: {padding: "10px 15px"}}}>
         <Flex
-            vertical={!wide}
-            align={wide ? "center" : "stretch"}
+            align="center"
             justify="space-between"
-            gap={12}>
-            <Space size={compact ? 12 : 14} wrap>
-                <Space size={4}>
-                    <Typography.Text type="secondary" style={{fontSize}}>
-                        占用空间
-                    </Typography.Text>
-                    <Typography.Text style={{fontSize}}>
-                        {formatFileSize(count.size)}
-                    </Typography.Text>
+            gap={8}
+            style={{minWidth: 0}}>
+            <div style={{minWidth: 0, flex: 1, overflowX: "auto", whiteSpace: "nowrap"}}>
+                <Space size={compact ? 12 : 14} wrap={false}>
+                    <Space size={4}>
+                        <Typography.Text type="secondary" style={{fontSize}}>
+                            占用空间
+                        </Typography.Text>
+                        <Typography.Text style={{fontSize}}>
+                            {formatFileSize(count.size)}
+                        </Typography.Text>
+                    </Space>
+                    <Space size={4}>
+                        <Typography.Text type="secondary" style={{fontSize}}>
+                            文件
+                        </Typography.Text>
+                        <Typography.Text style={{fontSize}}>{count.file}</Typography.Text>
+                    </Space>
+                    <Space size={4}>
+                        <Typography.Text type="secondary" style={{fontSize}}>
+                            文件夹
+                        </Typography.Text>
+                        <Typography.Text style={{fontSize}}>{count.dir}</Typography.Text>
+                    </Space>
                 </Space>
-                <Space size={4}>
-                    <Typography.Text type="secondary" style={{fontSize}}>
-                        文件
-                    </Typography.Text>
-                    <Typography.Text style={{fontSize}}>{count.file}</Typography.Text>
-                </Space>
-                <Space size={4}>
-                    <Typography.Text type="secondary" style={{fontSize}}>
-                        文件夹
-                    </Typography.Text>
-                    <Typography.Text style={{fontSize}}>{count.dir}</Typography.Text>
-                </Space>
-            </Space>
+            </div>
             <Button
                 type="text"
                 size="small"
-                block={!wide}
                 danger
                 style={{fontSize}}
                 disabled={count.file + count.dir === 0}
@@ -397,8 +396,6 @@ const FileRecycleBin = memo(forwardRef<FileRecycleBinRef, FileRecycleBinProps>((
     }), [afterClose, modalBackground, screens.md]);
 
     const modalTitle = useMemo(() => <Title>回收站</Title>, []);
-    const wide = Boolean(screens.sm);
-
     return (
         <ProModal
             ref={modalRef}
@@ -420,7 +417,6 @@ const FileRecycleBin = memo(forwardRef<FileRecycleBinRef, FileRecycleBinProps>((
                         compact={compact}
                         count={count}
                         fontSize={summaryFontSize}
-                        wide={wide}
                         onClear={confirmClear}/>
                     <ProTable
                         ref={tableRef}

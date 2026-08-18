@@ -225,7 +225,7 @@ export default (): React.ReactNode => {
         } as any);
     }, [modal, remove]);
     return (
-        <Body loading={enumLoading}>
+        <Body loading={enumLoading} space={false}>
             <div ref={pageRef} className={styles.page} style={pageStyle}>
                 <Card className={styles.workspace} variant="borderless">
                     <main className={[

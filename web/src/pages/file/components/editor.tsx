@@ -37,6 +37,7 @@ import {copyTextToClipboard} from "./properties.utils";
 import useStyles from "./editor.styles";
 
 const acePath = `${defaultSettings?.basePath || "/"}ace`;
+const MemoizedAceEditor = memo(AceEditor);
 
 interface FileEditorSession {
     generation: number;
@@ -92,6 +93,7 @@ const FileEditor = forwardRef(function FileEditor(
     const formContextRef = useRef<FormContext | undefined>(undefined);
     const discardConfirmRef = useRef<Destroyable | undefined>(undefined);
     const deletingPathsRef = useRef(new Set<string>());
+    const treeTransitionTimerRef = useRef<number | undefined>(undefined);
     const saveCommandRef = useRef<() => void>(() => undefined);
     const viewStateRef = useRef(new Map<string, EditorViewState>());
     const [session, setSession] = useState<FileEditorSession>();
@@ -99,6 +101,7 @@ const FileEditor = forwardRef(function FileEditor(
         const stored = readFileStorage().editor?.treeCollapsed;
         return typeof stored === "boolean" ? stored : isMobileViewport();
     });
+    const [treeTransitioning, setTreeTransitioning] = useState(false);
     const [aceError, setAceError] = useState<{key: string; message: string}>();
     const [aceAttempt, setAceAttempt] = useState(0);
     const [fullscreen, setFullscreen] = useState(false);
@@ -120,8 +123,12 @@ const FileEditor = forwardRef(function FileEditor(
     const files = useFileEditorDocument({onMutation, message});
     const {preferences, setPreferences, resolveTheme} = useFileEditorPreferences();
     const hasDirtyTabs = useMemo(() => files.tabs.some((tab) => tab.dirty), [files.tabs]);
+    const activeFileKeyRef = useRef(files.activeKey);
+    activeFileKeyRef.current = files.activeKey;
+    const fileTabsRef = useRef(files.tabs);
+    fileTabsRef.current = files.tabs;
 
-    const captureViewState = useCallback((key = files.activeKey) => {
+    const captureViewState = useCallback((key = activeFileKeyRef.current) => {
         const editor = aceRef.current;
         if (!key || !editor) {
             return;
@@ -131,13 +138,26 @@ const FileEditor = forwardRef(function FileEditor(
             scrollTop: editor.session?.getScrollTop?.(),
             scrollLeft: editor.session?.getScrollLeft?.(),
         });
-    }, [files.activeKey]);
+    }, []);
+
+    const handleEditorChange = useCallback((value: string) => {
+        const key = activeFileKeyRef.current;
+        if (key) {
+            files.changeContent(key, value);
+        }
+    }, [files.changeContent]);
 
     const exitWorkspaceFullscreen = useCallback(async () => {
-        if (document.fullscreenElement === workspaceRef.current) {
-            await document.exitFullscreen();
+        if (document.fullscreenElement !== workspaceRef.current) {
+            return true;
         }
-    }, []);
+        if (!document.fullscreenEnabled || typeof document.exitFullscreen !== "function") {
+            message.info("当前浏览器不支持全屏");
+            return false;
+        }
+        await document.exitFullscreen();
+        return true;
+    }, [message]);
 
     const destroyDiscardConfirm = useCallback(() => {
         discardConfirmRef.current?.destroy();
@@ -151,7 +171,11 @@ const FileEditor = forwardRef(function FileEditor(
         formRef.current?.close();
         permissionsRef.current?.close();
         if (document.fullscreenElement === workspaceRef.current) {
-            void document.exitFullscreen().catch(() => undefined);
+            if (document.fullscreenEnabled && typeof document.exitFullscreen === "function") {
+                void document.exitFullscreen().catch(() => undefined);
+            } else {
+                message.info("当前浏览器不支持全屏");
+            }
         }
         tree.close();
         files.reset();
@@ -162,7 +186,7 @@ const FileEditor = forwardRef(function FileEditor(
         setFullscreen(false);
         setMinimized(false);
         setSession(undefined);
-    }, [destroyDiscardConfirm, files.reset, tree.close]);
+    }, [destroyDiscardConfirm, files.reset, message, tree.close]);
 
     const runAfterDiscard = useCallback((
         action: () => void,
@@ -203,11 +227,13 @@ const FileEditor = forwardRef(function FileEditor(
         };
 
         if (document.fullscreenElement === workspaceRef.current) {
-            void document.exitFullscreen().then(showConfirm).catch(showConfirm);
+            void exitWorkspaceFullscreen()
+                .then((exited) => exited && showConfirm())
+                .catch(() => message.error("退出全屏失败"));
             return;
         }
         showConfirm();
-    }, [destroyDiscardConfirm, files.hasUnsavedChanges, files.isSaving, message, modal]);
+    }, [destroyDiscardConfirm, exitWorkspaceFullscreen, files.hasUnsavedChanges, files.isSaving, message, modal]);
 
     useEffect(() => {
         if (!session || !hasDirtyTabs) {
@@ -288,7 +314,7 @@ const FileEditor = forwardRef(function FileEditor(
 
     useEffect(() => () => {
         discardConfirmRef.current?.destroy();
-        if (document.fullscreenElement === workspaceRef.current) {
+        if (document.fullscreenElement === workspaceRef.current && typeof document.exitFullscreen === "function") {
             void document.exitFullscreen().catch(() => undefined);
         }
     }, []);
@@ -375,7 +401,9 @@ const FileEditor = forwardRef(function FileEditor(
             formRef.current?.open(mode, parentPath, undefined, true);
         };
         if (document.fullscreenElement === workspaceRef.current) {
-            void exitWorkspaceFullscreen().then(openForm).catch(() => message.error("退出全屏失败"));
+            void exitWorkspaceFullscreen()
+                .then((exited) => exited && openForm())
+                .catch(() => message.error("退出全屏失败"));
             return;
         }
         openForm();
@@ -387,7 +415,9 @@ const FileEditor = forwardRef(function FileEditor(
         }
         const open = () => permissionsRef.current?.open(node.path, node.record, true);
         if (document.fullscreenElement === workspaceRef.current) {
-            void exitWorkspaceFullscreen().then(open).catch(() => message.error("退出全屏失败"));
+            void exitWorkspaceFullscreen()
+                .then((exited) => exited && open())
+                .catch(() => message.error("退出全屏失败"));
             return;
         }
         open();
@@ -413,7 +443,7 @@ const FileEditor = forwardRef(function FileEditor(
         if (value === node.name) {
             return true;
         }
-        const hasOpenTabs = files.tabs.some((tab) => (
+        const hasOpenTabs = fileTabsRef.current.some((tab) => (
             isFilePathWithin(tab.path, node.path)
         ));
         if (hasOpenTabs) {
@@ -444,14 +474,14 @@ const FileEditor = forwardRef(function FileEditor(
             message.error(reason instanceof Error && reason.message ? reason.message : "重命名失败");
             return false;
         }
-    }, [files.tabs, message, onMutation, session, tree.revealCreated, tree.selectPath]);
+    }, [message, onMutation, session, tree.revealCreated, tree.selectPath]);
 
     const deleteTreeNode = useCallback((node: FileEditorTreeNode) => {
         if (!session || !node.record) {
             return;
         }
         const targetPath = node.path;
-        if (files.tabs.some((tab) => isFilePathWithin(tab.path, targetPath))) {
+        if (fileTabsRef.current.some((tab) => isFilePathWithin(tab.path, targetPath))) {
             message.info(node.isDirectory
                 ? "请先保存并关闭该目录下已打开的文件"
                 : "请先保存并关闭该文件的标签");
@@ -486,7 +516,7 @@ const FileEditor = forwardRef(function FileEditor(
                 }
             },
         });
-    }, [files.tabs, message, modal, onMutation, session, tree.refresh, tree.selectPath]);
+    }, [message, modal, onMutation, session, tree.refresh, tree.selectPath]);
 
     const handlePermissionsSuccess = useCallback((targetPath: string) => {
         void tree.refresh(parentFilePath(targetPath));
@@ -538,8 +568,30 @@ const FileEditor = forwardRef(function FileEditor(
         }
     }, [message]);
 
+    const finishTreeTransition = useCallback(() => {
+        if (treeTransitionTimerRef.current !== undefined) {
+            window.clearTimeout(treeTransitionTimerRef.current);
+            treeTransitionTimerRef.current = undefined;
+        }
+        setTreeTransitioning(false);
+        window.requestAnimationFrame(() => aceRef.current?.resize?.());
+    }, []);
+
     const toggleTree = useCallback(() => {
+        if (!isMobileViewport()) {
+            setTreeTransitioning(true);
+            if (treeTransitionTimerRef.current !== undefined) {
+                window.clearTimeout(treeTransitionTimerRef.current);
+            }
+            treeTransitionTimerRef.current = window.setTimeout(finishTreeTransition, 320);
+        }
         setTreeCollapsed((current) => !current);
+    }, [finishTreeTransition]);
+
+    useEffect(() => () => {
+        if (treeTransitionTimerRef.current !== undefined) {
+            window.clearTimeout(treeTransitionTimerRef.current);
+        }
     }, []);
 
     useEffect(() => {
@@ -614,6 +666,14 @@ const FileEditor = forwardRef(function FileEditor(
         if (!workspace) {
             return;
         }
+        if (
+            !document.fullscreenEnabled
+            || typeof workspace.requestFullscreen !== "function"
+            || typeof document.exitFullscreen !== "function"
+        ) {
+            message.info("当前浏览器不支持全屏");
+            return;
+        }
         try {
             if (document.fullscreenElement === workspace) {
                 await document.exitFullscreen();
@@ -627,8 +687,9 @@ const FileEditor = forwardRef(function FileEditor(
 
     const minimizeEditor = useCallback(async () => {
         try {
-            await exitWorkspaceFullscreen();
-            setMinimized(true);
+            if (await exitWorkspaceFullscreen()) {
+                setMinimized(true);
+            }
         } catch {
             message.error("最小化编辑器失败");
         }
@@ -642,6 +703,12 @@ const FileEditor = forwardRef(function FileEditor(
             window.requestAnimationFrame(() => aceRef.current?.resize?.());
         }
     }, []);
+
+    const handleWorkspaceTransitionEnd = useCallback((event: React.TransitionEvent<HTMLDivElement>) => {
+        if (event.target === event.currentTarget && event.propertyName === "grid-template-columns") {
+            finishTreeTransition();
+        }
+    }, [finishTreeTransition]);
 
     const activeTab = files.activeTab;
     const activeMode = getEditorMode(activeTab?.name || "");
@@ -659,11 +726,20 @@ const FileEditor = forwardRef(function FileEditor(
     const treeToggleIcon = treeCollapsed ? "MenuUnfoldOutlined" : "MenuFoldOutlined";
     const fullscreenIcon = fullscreen ? "FullscreenExitOutlined" : "FullscreenOutlined";
     const resolvedTheme = resolveTheme(dark);
+    const editorDefaultValue = useMemo(() => (
+        activeTab ? files.getContent(activeTab.key) : ""
+    ), [activeTab?.error, activeTab?.generation, activeTab?.key, activeTab?.loading]);
+    const editorLoadingContent = useMemo(() => (
+        <div className="file-editor-loading" role="status" aria-label="正在加载编辑器">
+            <Spin/>
+        </div>
+    ), []);
     const body = session ? (
         <ConfigProvider getPopupContainer={getWorkspacePopupContainer}>
             <div
                 ref={workspaceRef}
-                className={`${styles.workspace} ${treeCollapsed ? "tree-collapsed" : ""}`}>
+                className={`${styles.workspace} ${treeCollapsed ? "tree-collapsed" : ""}`}
+                onTransitionEnd={handleWorkspaceTransitionEnd}>
                 {messageContextHolder}
                 <FileEditorTree
                     treeData={tree.treeData}
@@ -675,6 +751,7 @@ const FileEditor = forwardRef(function FileEditor(
                     locateToken={session.generation}
                     targetDirectory={tree.targetDirectory}
                     disabled={false}
+                    layoutReady={!treeCollapsed && !treeTransitioning}
                     tooltipsDisabled={fullscreen}
                     onExpand={tree.setExpandedKeys}
                     onSelect={selectTreeNode}
@@ -686,7 +763,8 @@ const FileEditor = forwardRef(function FileEditor(
                     onDelete={deleteTreeNode}
                     onCopy={copyTreeValue}
                     getPopupContainer={getWorkspacePopupContainer}
-                    menuClassName={styles.treeMenu}/>
+                    menuClassName={styles.treeMenu}
+                    itemHeight={compact ? 26 : 30}/>
 
                 <section className="file-editor-pane" aria-label="文件编辑区">
                     <div className="file-editor-toolbar">
@@ -781,10 +859,10 @@ const FileEditor = forwardRef(function FileEditor(
 
                     <div id="file-editor-canvas" className="file-editor-canvas">
                         {activeTab && !activeTab.loading && !displayError && (
-                            <AceEditor
+                            <MemoizedAceEditor
                                 key={`${activeTab.key}:${activeTab.generation}:${aceAttempt}`}
                                 className="file-editor-ace"
-                                defaultValue={files.getContent(activeTab.key)}
+                                defaultValue={editorDefaultValue}
                                 mode={activeMode}
                                 theme={resolvedTheme}
                                 width="100%"
@@ -795,16 +873,13 @@ const FileEditor = forwardRef(function FileEditor(
                                 showPrintMargin={false}
                                 showLineNumbers={preferences.showLineNumbers}
                                 wrapEnabled={preferences.wrapEnabled}
+                                resizeSuspended={treeTransitioning}
                                 acePath={acePath}
                                 commands={commands}
-                                onChange={(value) => files.changeContent(activeTab.key, value)}
+                                onChange={handleEditorChange}
                                 onLoad={handleAceLoad}
                                 onError={handleAceError}
-                                loadingContent={(
-                                    <div className="file-editor-loading" role="status" aria-label="正在加载编辑器">
-                                        <Spin/>
-                                    </div>
-                                )}/>
+                                loadingContent={editorLoadingContent}/>
                         )}
                         {activeTab?.loading && (
                             <div className="file-editor-loading" role="status" aria-label="正在读取文件内容">

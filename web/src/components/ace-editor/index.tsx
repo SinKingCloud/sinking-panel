@@ -58,6 +58,7 @@ export interface AceEditorProps {
     acePath?: string; // 自定义 Ace 资源路径
     loadingContent?: React.ReactNode; // 仅首次加载时的自定义加载内容
     containerStyle?: React.CSSProperties; // 内部稳定容器样式
+    resizeSuspended?: boolean; // 暂停容器尺寸变化触发的编辑器重排
     onError?: (error: Error) => void; // 错误处理回调
 }
 
@@ -104,6 +105,7 @@ const AceEditor: React.FC<AceEditorProps> = ({
                                                  enableSnippets = true,
                                                  showLineNumbers = true,
                                                  acePath = '/ace',
+                                                 resizeSuspended = false,
                                                  onError
                                              }) => {
     const containerRef = useRef<HTMLDivElement | null>(null);
@@ -122,6 +124,8 @@ const AceEditor: React.FC<AceEditorProps> = ({
     const markerIdsRef = useRef<number[]>([]);
     const modeRequestRef = useRef(0);
     const themeRequestRef = useRef(0);
+    const resizeSuspendedRef = useRef(resizeSuspended);
+    resizeSuspendedRef.current = resizeSuspended;
     const callbacksRef = useRef({
         onChange,
         onSelectionChange,
@@ -608,9 +612,7 @@ const AceEditor: React.FC<AceEditorProps> = ({
 
         let resizeFrame: number | undefined;
         const observer = new ResizeObserver(() => {
-            if (resizeFrame !== undefined) {
-                cancelAnimationFrame(resizeFrame);
-            }
+            if (resizeSuspendedRef.current || resizeFrame !== undefined) return;
             resizeFrame = requestAnimationFrame(() => {
                 resizeFrame = undefined;
                 editorRef.current?.resize();

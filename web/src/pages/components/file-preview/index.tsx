@@ -120,7 +120,7 @@ const FilePreview = memo(forwardRef<any>((_, ref) => {
     }, [revealControls]);
 
     const close = useCallback(() => {
-        if (document.fullscreenElement === stageRef.current) {
+        if (document.fullscreenElement === stageRef.current && typeof document.exitFullscreen === "function") {
             void document.exitFullscreen().catch(() => undefined);
         }
         requestRef.current += 1;
@@ -263,6 +263,14 @@ const FilePreview = memo(forwardRef<any>((_, ref) => {
     const toggleFullscreen = useCallback(async () => {
         const stage = stageRef.current;
         if (!stage) {
+            return;
+        }
+        if (
+            !document.fullscreenEnabled
+            || typeof stage.requestFullscreen !== "function"
+            || typeof document.exitFullscreen !== "function"
+        ) {
+            message.info("当前浏览器不支持全屏");
             return;
         }
         try {

@@ -12,8 +12,19 @@ const useHeight = (dependency?: unknown) => {
             frame = requestAnimationFrame(() => {
                 const page = pageRef.current;
                 if (!page) return;
+                // Safari changes innerHeight while its mobile toolbar expands.
+                // Let the mobile CSS viewport own the outer height instead of
+                // repeatedly resizing the grid from JavaScript.
+                if (window.matchMedia("(max-width: 780px)").matches) {
+                    setHeight(undefined);
+                    return;
+                }
                 const top = page.getBoundingClientRect().top;
-                const next = Math.max(320, Math.floor(window.innerHeight - top));
+                const parent = page.parentElement;
+                const bottomPadding = parent
+                    ? Number.parseFloat(window.getComputedStyle(parent).paddingBottom) || 0
+                    : 0;
+                const next = Math.max(320, Math.floor(window.innerHeight - top - bottomPadding));
                 setHeight((current) => current === next ? current : next);
             });
         };

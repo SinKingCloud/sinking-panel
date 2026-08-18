@@ -257,6 +257,20 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
     }, []);
 
     useEffect(() => {
+        const viewport = window.visualViewport;
+        if (!viewport) {
+            return;
+        }
+        const handleViewportChange = () => scheduleFit();
+        viewport.addEventListener("resize", handleViewportChange);
+        viewport.addEventListener("scroll", handleViewportChange);
+        return () => {
+            viewport.removeEventListener("resize", handleViewportChange);
+            viewport.removeEventListener("scroll", handleViewportChange);
+        };
+    }, [scheduleFit]);
+
+    useEffect(() => {
         const terminal = terminalRef.current;
         if (!terminal) {
             return;

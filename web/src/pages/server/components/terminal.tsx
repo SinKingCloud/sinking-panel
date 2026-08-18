@@ -1,5 +1,5 @@
 import {forwardRef, memo, useCallback, useEffect, useImperativeHandle, useRef, useState} from "react";
-import {Button, Spin, Tooltip} from "antd";
+import {App, Button, Spin, Tooltip} from "antd";
 import {Icon} from "sinking-antd";
 import TerminalView, {TerminalRef as TerminalViewRef} from "@/pages/components/terminal";
 import defaultSettings from "@/../config/defaultSettings";
@@ -67,6 +67,7 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
                                                              terminalAccent,
                                                              onStatusChange,
                                                          }, ref): any => {
+    const {message} = App.useApp();
     const screenRef = useRef<HTMLDivElement | any>(null);
     const terminalRef = useRef<TerminalViewRef | any>(null);
     const socketRef = useRef<WebSocket | undefined>(undefined);
@@ -252,6 +253,14 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
         if (!screenRef.current) {
             return;
         }
+        if (
+            !document.fullscreenEnabled
+            || typeof screenRef.current.requestFullscreen !== "function"
+            || typeof document.exitFullscreen !== "function"
+        ) {
+            message.info("当前浏览器不支持全屏");
+            return;
+        }
         try {
             if (document.fullscreenElement === screenRef.current) {
                 await document.exitFullscreen();
@@ -259,9 +268,9 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
                 await screenRef.current.requestFullscreen();
             }
         } catch {
-            // Fullscreen can be blocked by browser or embedding policy.
+            message.error(fullscreen ? "退出全屏失败" : "进入全屏失败");
         }
-    }, []);
+    }, [fullscreen, message]);
 
     const canDisconnect = status === "connected" || status === "connecting";
     const localUnavailable = server.id === 0 && unavailable && !canDisconnect;
