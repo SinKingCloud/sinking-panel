@@ -119,6 +119,28 @@ func normalizeManagerOptions(options ManagerOptions) ManagerOptions {
 func (m *Manager) managerOptions() ManagerOptions {
 	return normalizeManagerOptions(m.options)
 }
+
+// mergeEnv 按组依次覆盖同名变量，保持镜像、实例和命令的优先级顺序。
+func (m *Manager) mergeEnv(groups ...[]string) []string {
+	result := make([]string, 0)
+	positions := make(map[string]int)
+	for _, group := range groups {
+		for _, value := range group {
+			key, _, ok := strings.Cut(value, "=")
+			if !ok || key == "" {
+				continue
+			}
+			if position, exists := positions[key]; exists {
+				result[position] = value
+				continue
+			}
+			positions[key] = len(result)
+			result = append(result, value)
+		}
+	}
+	return result
+}
+
 func (m *Manager) validateID(id string) error {
 	if len(id) == 0 || len(id) > 64 || id == "." || id == ".." {
 		return errors.New("实例ID不合法")

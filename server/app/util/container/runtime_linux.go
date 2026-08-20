@@ -1162,27 +1162,6 @@ func (m *Manager) rootfsPathInfo(rootfs, path string) (os.FileInfo, error) {
 	return rootInfo, nil
 }
 
-// mergeEnv 按组依次覆盖同名变量，保持 image < instance < exec 的优先级。
-func (m *Manager) mergeEnv(groups ...[]string) []string {
-	result := make([]string, 0)
-	positions := make(map[string]int)
-	for _, group := range groups {
-		for _, value := range group {
-			key, _, ok := strings.Cut(value, "=")
-			if !ok || key == "" {
-				continue
-			}
-			if position, exists := positions[key]; exists {
-				result[position] = value
-				continue
-			}
-			positions[key] = len(result)
-			result = append(result, value)
-		}
-	}
-	return result
-}
-
 func (m *Manager) defaultDevices() []*devices.Device {
 	return []*devices.Device{
 		{Path: "/dev/null", FileMode: 0666, Rule: devices.Rule{Type: devices.CharDevice, Major: 1, Minor: 3, Permissions: "rwm", Allow: true}},

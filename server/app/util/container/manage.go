@@ -104,7 +104,7 @@ func (m *Manager) Import(source string) (*Image, error) {
 	defer m.importMu.Unlock()
 	m.imageMu.Lock()
 	defer m.imageMu.Unlock()
-	image, err := m.importDockerSave(source)
+	image, err := m.importSave(source)
 	if err != nil {
 		return nil, err
 	}
@@ -135,6 +135,42 @@ func (m *Manager) Image(id string) (*Image, error) {
 	}
 	m.mu.RUnlock()
 	return image, err
+}
+
+// ExportImage 将本地镜像导出为 Docker save 兼容的 tar 归档。
+// destination 必须是新的文件路径，方法不会覆盖已有文件。
+func (m *Manager) ExportImage(id, destination string) error {
+	m.imageMu.RLock()
+	defer m.imageMu.RUnlock()
+	m.mu.RLock()
+	image, err := m.resolveImage(id)
+	if err == nil {
+		image = m.cloneImage(image)
+	}
+	m.mu.RUnlock()
+	if err != nil {
+		return err
+	}
+	return m.exportImage(image, destination)
+}
+
+// Commit 将实例当前文件系统快照保存为一个新镜像。
+// 运行中的实例可以直接提交；bind mount 对应的宿主机内容不会写入镜像。
+// name 为空时使用实例名称，tags 为空时不附加仓库标签。
+func (m *Manager) Commit(id, name string, tags []string) (*Image, error) {
+	if err := m.validateID(id); err != nil {
+		return nil, err
+	}
+	unlock := m.lockInstance(id)
+	defer unlock()
+	instance, err := m.refreshInstanceLocked(id)
+	if err != nil {
+		return nil, err
+	}
+	if instance == nil {
+		return nil, errors.New("实例不存在")
+	}
+	return m.commitInstance(instance, name, tags)
 }
 
 // RemoveImage 删除未被任何实例引用的镜像。
