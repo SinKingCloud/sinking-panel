@@ -70,6 +70,7 @@ func defaultManagerOptions() ManagerOptions {
 		RuntimePollInterval:    time.Second,
 		RuntimeFailureLimit:    3,
 		RuntimeCleanupDelay:    2 * time.Second,
+		AutoRestartDelay:       time.Second,
 		StopGracePeriod:        10 * time.Second,
 		ForceStopPeriod:        5 * time.Second,
 		TerminalConsoleTimeout: 5 * time.Second,
@@ -94,6 +95,9 @@ func normalizeManagerOptions(options ManagerOptions) ManagerOptions {
 	}
 	if options.RuntimeCleanupDelay <= 0 {
 		options.RuntimeCleanupDelay = defaults.RuntimeCleanupDelay
+	}
+	if options.AutoRestartDelay <= 0 {
+		options.AutoRestartDelay = defaults.AutoRestartDelay
 	}
 	if options.StopGracePeriod <= 0 {
 		options.StopGracePeriod = defaults.StopGracePeriod

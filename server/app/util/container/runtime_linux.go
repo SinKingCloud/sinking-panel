@@ -395,6 +395,9 @@ func (m *Manager) finishPlatformRuntime(id string, generation uint64, runtime *l
 	}
 	releaseErr := m.releasePlatformRuntime(id, runtime, runtime.container)
 	m.markExitedLocked(id, generation, exitCode, errors.Join(waitErr, releaseErr), !errors.Is(releaseErr, errRuntimeCleanupPending), runtime.failure)
+	if releaseErr == nil && runtime.failure == nil {
+		m.scheduleAutoRestart(id, generation)
+	}
 }
 
 func (m *Manager) markPlatformRuntimeUnknown(id string, generation uint64, runtime *linuxRuntime, statusErr error) {
@@ -924,6 +927,9 @@ func (m *Manager) retryPlatformCleanup(id string, generation uint64, runtime *li
 				err := m.stopPlatformRuntime(instance)
 				if err == nil {
 					m.markExitedLocked(id, generation, runtime.exitCode, runtime.exitErr, true, runtime.failure)
+					if runtime.failure == nil {
+						m.scheduleAutoRestart(id, generation)
+					}
 					unlock()
 					return
 				}

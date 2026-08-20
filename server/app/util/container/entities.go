@@ -28,6 +28,7 @@ type ManagerOptions struct {
 	RuntimePollInterval    time.Duration // 恢复实例状态检查间隔，默认 1 秒
 	RuntimeFailureLimit    int           // 连续状态检查失败次数，默认 3 次
 	RuntimeCleanupDelay    time.Duration // 运行状态清理失败后的首次重试间隔，默认 2 秒
+	AutoRestartDelay       time.Duration // 自动重启实例的等待间隔，默认 1 秒
 	StopGracePeriod        time.Duration // 优雅停止等待时间，默认 10 秒
 	ForceStopPeriod        time.Duration // 强制停止和命令清理等待时间，默认 5 秒
 	TerminalConsoleTimeout time.Duration // 等待容器返回 PTY 主端的最长时间，默认 5 秒
@@ -53,14 +54,15 @@ type ResourceLimits struct {
 
 // RunOptions 定义实例启动参数。
 type RunOptions struct {
-	ID         string
-	Name       string
-	ImageID    string
-	Mounts     []Mount
-	Env        []string
-	Command    []string
-	WorkingDir string
-	Resources  ResourceLimits
+	ID          string
+	Name        string
+	ImageID     string
+	Mounts      []Mount
+	Env         []string
+	Command     []string
+	WorkingDir  string
+	Resources   ResourceLimits
+	AutoRestart bool
 	// ReadOnly 禁用实例可写层；默认使用独立 overlay 写层保护镜像。
 	ReadOnly bool
 }
@@ -130,6 +132,7 @@ type Instance struct {
 	Env           []string       `json:"env,omitempty"`
 	WorkingDir    string         `json:"working_dir,omitempty"`
 	Resources     ResourceLimits `json:"resources,omitempty"`
+	AutoRestart   bool           `json:"auto_restart"`
 	WritableLayer bool           `json:"writable_layer"`
 	Rootfs        string         `json:"rootfs,omitempty"`
 	UpperDir      string         `json:"upper_dir,omitempty"`
@@ -152,5 +155,6 @@ type Manager struct {
 	images         map[string]*Image
 	instances      map[string]*Instance
 	runtime        map[string]interface{}
+	autoRestart    map[string]uint64
 	generation     uint64
 }

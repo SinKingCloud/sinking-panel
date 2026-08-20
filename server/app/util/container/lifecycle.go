@@ -164,6 +164,7 @@ func (m *Manager) recoverInstances() error {
 			continue
 		}
 		previousStatus, previousError := instance.Status, instance.Error
+		shouldAutoRestart := false
 		running, err := m.recoverPlatformRuntime(instance)
 		if errors.Is(err, errRuntimeCleanupPending) {
 			m.mu.RLock()
@@ -182,6 +183,7 @@ func (m *Manager) recoverInstances() error {
 			instance.Status = StatusRunning
 			instance.Error = ""
 		} else {
+			shouldAutoRestart = instance.AutoRestart && (previousStatus == StatusRunning || previousStatus == StatusStarting)
 			instance.Status = StatusStopped
 			instance.PID = 0
 			instance.EndedAt = time.Now().Unix()
@@ -191,6 +193,7 @@ func (m *Manager) recoverInstances() error {
 				instance.Error = previousError
 			}
 			if cleanupErr := m.cleanupRuntimeRootfs(instance); cleanupErr != nil {
+				shouldAutoRestart = false
 				instance.Status = StatusFailed
 				if instance.Error != "" {
 					cleanupErr = errors.Join(errors.New(instance.Error), cleanupErr)
@@ -202,6 +205,9 @@ func (m *Manager) recoverInstances() error {
 		if writeErr := m.writeJSON(filepath.Join(m.instancesRoot, instance.ID, "instance.json"), instance); writeErr != nil {
 			unlock()
 			return fmt.Errorf("保存实例恢复状态失败: %w", writeErr)
+		}
+		if shouldAutoRestart && instance.Status == StatusStopped {
+			m.scheduleAutoRestart(instance.ID, instance.Generation)
 		}
 		unlock()
 	}
@@ -310,6 +316,7 @@ func (m *Manager) runLocked(options RunOptions) (*Instance, error) {
 		Env:           append([]string(nil), options.Env...),
 		WorkingDir:    options.WorkingDir,
 		Resources:     options.Resources,
+		AutoRestart:   options.AutoRestart,
 		WritableLayer: !options.ReadOnly,
 		Generation:    m.nextGeneration(),
 	}
@@ -463,6 +470,60 @@ func (m *Manager) markExitedLocked(id string, generation uint64, exitCode int, w
 	_ = m.writeJSON(filepath.Join(m.instancesRoot, id, "instance.json"), instance)
 }
 
+// scheduleAutoRestart 在异常退出后的短暂延迟后重新启动实例。
+// 通过实例代次和待重启标记校验，避免旧进程退出事件覆盖用户后续的手动操作。
+func (m *Manager) scheduleAutoRestart(id string, generation uint64) {
+	m.mu.Lock()
+	instance := m.instances[id]
+	if instance == nil || instance.Generation != generation || !instance.AutoRestart {
+		m.mu.Unlock()
+		return
+	}
+	if m.autoRestart == nil {
+		m.autoRestart = make(map[string]uint64)
+	}
+	m.autoRestart[id] = generation
+	delay := m.managerOptions().AutoRestartDelay
+	m.mu.Unlock()
+
+	go func() {
+		timer := time.NewTimer(delay)
+		defer timer.Stop()
+		<-timer.C
+
+		unlock := m.lockInstance(id)
+		defer unlock()
+		m.mu.Lock()
+		pendingGeneration, pending := m.autoRestart[id]
+		if pending {
+			delete(m.autoRestart, id)
+		}
+		instance = m.cloneInstance(m.instances[id])
+		_, hasRuntime := m.runtime[id]
+		m.mu.Unlock()
+		if !pending || pendingGeneration != generation || instance == nil || instance.Generation != generation ||
+			!instance.AutoRestart || (instance.Status != StatusStopped && instance.Status != StatusFailed) || instance.PID > 0 || hasRuntime {
+			return
+		}
+		hasRuntimeState, err := m.hasRuntimeState(id)
+		if err != nil || hasRuntimeState {
+			return
+		}
+		options := m.optionsFromInstance(instance)
+		if err := m.normalizeRunOptions(&options); err != nil {
+			return
+		}
+		_, _ = m.runLocked(options)
+	}()
+}
+
+// cancelAutoRestart 取消尚未执行的自动重启，不改变实例的持久化配置。
+func (m *Manager) cancelAutoRestart(id string) {
+	m.mu.Lock()
+	delete(m.autoRestart, id)
+	m.mu.Unlock()
+}
+
 // markRuntimeCleanupLocked 先持久化清理意图，避免进程崩溃后把已删除的 runtime 误判为仍在运行。
 func (m *Manager) markRuntimeCleanupLocked(id string, generation uint64, exitCode int, waitErr error) error {
 	m.mu.Lock()
@@ -567,15 +628,16 @@ func (m *Manager) failStart(instance *Instance, startErr error) error {
 
 func (m *Manager) optionsFromInstance(instance *Instance) RunOptions {
 	return RunOptions{
-		ID:         instance.ID,
-		Name:       instance.Name,
-		ImageID:    instance.ImageID,
-		Mounts:     append([]Mount(nil), instance.Mounts...),
-		Env:        append([]string(nil), instance.Env...),
-		Command:    append([]string(nil), instance.Command...),
-		WorkingDir: instance.WorkingDir,
-		Resources:  instance.Resources,
-		ReadOnly:   !instance.WritableLayer,
+		ID:          instance.ID,
+		Name:        instance.Name,
+		ImageID:     instance.ImageID,
+		Mounts:      append([]Mount(nil), instance.Mounts...),
+		Env:         append([]string(nil), instance.Env...),
+		Command:     append([]string(nil), instance.Command...),
+		WorkingDir:  instance.WorkingDir,
+		Resources:   instance.Resources,
+		AutoRestart: instance.AutoRestart,
+		ReadOnly:    !instance.WritableLayer,
 	}
 }
 

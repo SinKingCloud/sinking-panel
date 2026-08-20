@@ -80,6 +80,7 @@ func NewManager(root string, options ...ManagerOptions) (*Manager, error) {
 		images:        make(map[string]*Image),
 		instances:     make(map[string]*Instance),
 		runtime:       make(map[string]interface{}),
+		autoRestart:   make(map[string]uint64),
 	}
 	for _, path := range []string{absRoot, m.imagesRoot, m.instancesRoot, m.runtimeRoot} {
 		if err := m.ensureManagedDirectory(path); err != nil {
@@ -186,6 +187,7 @@ func (m *Manager) Run(options RunOptions) (*Instance, error) {
 	}
 	unlock := m.lockInstance(options.ID)
 	defer unlock()
+	m.cancelAutoRestart(options.ID)
 	return m.runLocked(options)
 }
 
@@ -195,6 +197,7 @@ func (m *Manager) Start(id string) (*Instance, error) {
 	}
 	unlock := m.lockInstance(id)
 	defer unlock()
+	m.cancelAutoRestart(id)
 	instance, err := m.refreshInstanceLocked(id)
 	if err != nil {
 		return nil, err
@@ -219,6 +222,7 @@ func (m *Manager) Stop(id string) error {
 	}
 	unlock := m.lockInstance(id)
 	defer unlock()
+	m.cancelAutoRestart(id)
 	return m.stopLocked(id)
 }
 
@@ -228,6 +232,7 @@ func (m *Manager) Restart(id string) (*Instance, error) {
 	}
 	unlock := m.lockInstance(id)
 	defer unlock()
+	m.cancelAutoRestart(id)
 	instance, err := m.refreshInstanceLocked(id)
 	if err != nil {
 		return nil, err
@@ -251,6 +256,7 @@ func (m *Manager) Remove(id string) error {
 	}
 	unlock := m.lockInstance(id)
 	defer unlock()
+	m.cancelAutoRestart(id)
 	m.mu.RLock()
 	instance := m.cloneInstance(m.instances[id])
 	_, hasRuntime := m.runtime[id]
