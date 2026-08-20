@@ -15,6 +15,7 @@ import (
 const (
 	pidFileName = "server.pid"
 	logFileName = "server.log"
+	serviceName = "sinking-panel"
 	usage       = `使用方法:
   server [command]
 
@@ -23,13 +24,15 @@ const (
   stop    停止服务
   restart 重启服务
   run     直接运行(非守护进程模式)
+  install 安装系统自启动
+  uninstall 卸载软件并删除数据
   user    修改登录账号
   pwd     修改登录密码`
 )
 
 // Server 管理服务运行命令。
 type Server struct {
-	daemon *daemon.UnixDaemon
+	daemon *daemon.Daemon
 }
 
 // Run 是服务命令的统一入口。
@@ -48,19 +51,19 @@ func Run(args []string) error {
 // NewServer 创建服务命令。
 func NewServer() (*Server, error) {
 	server := &Server{}
-	d, err := daemon.NewUnixDaemon(pidFileName, logFileName, server.run)
+	d, err := daemon.NewDaemon(pidFileName, logFileName, server.run)
 	if err != nil {
 		return nil, fmt.Errorf("创建守护进程管理器失败: %w", err)
 	}
-	server.daemon = d.SetChildArgs(os.Args[0], "start")
+	server.daemon = d.SetChildArgs(os.Args[0], "start").SetAutoStartOptions(daemon.AutoStartOptions{
+		Name:      serviceName,
+		Arguments: []string{"run"},
+	})
 	return server, nil
 }
 
 // Execute 执行服务命令。
 func (s *Server) Execute(args []string) error {
-	if len(args) > 1 {
-		return fmt.Errorf("参数数量不合法\n%s", usage)
-	}
 	if len(args) == 0 {
 		if runtime.GOOS == "windows" {
 			log.Println("Windows系统启动...")
@@ -76,20 +79,20 @@ func (s *Server) Execute(args []string) error {
 		log.Println(usage)
 		return nil
 	}
-
 	switch args[0] {
 	case "run":
 		log.Println("以前台模式运行服务...")
 		s.run()
 		return nil
+	case "install":
+		return s.install()
+	case "uninstall":
+		return s.uninstall()
 	case "user":
 		return s.user()
 	case "pwd":
 		return s.pwd()
 	case "start", "stop", "restart":
-		if runtime.GOOS == "windows" {
-			return fmt.Errorf("Windows系统不支持%s命令，请使用run命令", args[0])
-		}
 		switch args[0] {
 		case "start":
 			return s.start()
@@ -106,6 +109,14 @@ func (s *Server) Execute(args []string) error {
 func (s *Server) run() {
 	bootstrap.Load()
 	app.Run()
+}
+
+func (s *Server) install() error {
+	if err := s.daemon.InstallAutoStart(); err != nil {
+		return fmt.Errorf("安装系统自启动失败: %w", err)
+	}
+	log.Println("系统自启动安装成功")
+	return nil
 }
 
 func (s *Server) start() error {

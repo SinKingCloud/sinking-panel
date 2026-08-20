@@ -12,30 +12,60 @@ import (
 	"github.com/sevlyar/go-daemon"
 )
 
-type UnixDaemon struct {
+type Daemon struct {
 	PidFileName string
 	LogFileName string
 	childArgs   []string
+	autoStart   AutoStartOptions
 	Service     func()
 }
 
 // SetChildArgs 设置守护进程子进程参数。
-func (u *UnixDaemon) SetChildArgs(args ...string) *UnixDaemon {
+func (u *Daemon) SetChildArgs(args ...string) *Daemon {
 	u.childArgs = append([]string(nil), args...)
 	return u
 }
 
+// SetAutoStartOptions 设置系统自启动配置。
+func (u *Daemon) SetAutoStartOptions(options AutoStartOptions) *Daemon {
+	u.autoStart = AutoStartOptions{
+		Name:             options.Name,
+		Executable:       options.Executable,
+		WorkingDirectory: options.WorkingDirectory,
+		Arguments:        append([]string(nil), options.Arguments...),
+	}
+	return u
+}
+
+// InstallAutoStart 安装并启用系统自启动。
+func (u *Daemon) InstallAutoStart() error {
+	return u.installAutoStart()
+}
+
+// UninstallAutoStart 删除系统自启动。
+func (u *Daemon) UninstallAutoStart() error {
+	return u.uninstallAutoStart()
+}
+
+// Uninstall 停止服务、卸载自启动并删除面板自身文件。
+func (u *Daemon) Uninstall() error {
+	return u.uninstall()
+}
+
 // IsChildProcess 是否为守护进程子进程。
-func (u *UnixDaemon) IsChildProcess() bool {
+func (u *Daemon) IsChildProcess() bool {
+	if runtime.GOOS == "windows" {
+		return false
+	}
 	return daemon.WasReborn()
 }
 
-// NewUnixDaemon 实例化进程守护
-func NewUnixDaemon(pidFileName string, logFileName string, service func()) (*UnixDaemon, error) {
+// NewDaemon 实例化跨平台进程守护。
+func NewDaemon(pidFileName string, logFileName string, service func()) (*Daemon, error) {
 	if pidFileName == "" || logFileName == "" || service == nil {
 		return nil, errors.New("参数不能为空")
 	}
-	return &UnixDaemon{
+	return &Daemon{
 		PidFileName: pidFileName,
 		LogFileName: logFileName,
 		Service:     service,
@@ -43,7 +73,10 @@ func NewUnixDaemon(pidFileName string, logFileName string, service func()) (*Uni
 }
 
 // Start 启动
-func (u *UnixDaemon) Start() error {
+func (u *Daemon) Start() error {
+	if runtime.GOOS == "windows" {
+		return u.startWindows()
+	}
 	// 创建守护进程上下文
 	daemonCtx := &daemon.Context{
 		PidFileName: u.PidFileName,
@@ -79,7 +112,10 @@ func (u *UnixDaemon) Start() error {
 }
 
 // Stop 停止
-func (u *UnixDaemon) Stop() error {
+func (u *Daemon) Stop() error {
+	if runtime.GOOS == "windows" {
+		return u.stopWindows()
+	}
 	// 读取PID文件获取守护进程的PID
 	pid, err := u.readPidFile()
 	if err != nil {
@@ -92,12 +128,7 @@ func (u *UnixDaemon) Stop() error {
 	defer func() {
 		_ = process.Release()
 	}()
-	// Windows不支持SIGTERM，直接终止进程；其他系统发送终止信号
-	if runtime.GOOS == "windows" {
-		err = process.Kill()
-	} else {
-		err = process.Signal(syscall.SIGTERM)
-	}
+	err = process.Signal(syscall.SIGTERM)
 	if err != nil {
 		return fmt.Errorf("无法停止守护进程: %w", err)
 	}
@@ -109,7 +140,7 @@ func (u *UnixDaemon) Stop() error {
 }
 
 // Reload 重启
-func (u *UnixDaemon) Reload() error {
+func (u *Daemon) Reload() error {
 	// 先停止守护进程
 	if err := u.Stop(); err != nil {
 		if !errors.Is(err, os.ErrNotExist) && !errors.Is(err, os.ErrProcessDone) {
@@ -122,18 +153,4 @@ func (u *UnixDaemon) Reload() error {
 		return fmt.Errorf("无法重新启动守护进程: %w", err)
 	}
 	return nil
-}
-
-// readPidFile 读取pid
-func (u *UnixDaemon) readPidFile() (int, error) {
-	data, err := os.ReadFile(u.PidFileName)
-	if err != nil {
-		return 0, err
-	}
-	var pid int
-	_, err = fmt.Sscanf(string(data), "%d", &pid)
-	if err != nil {
-		return 0, err
-	}
-	return pid, nil
 }
