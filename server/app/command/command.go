@@ -32,6 +32,19 @@ type Server struct {
 	daemon *daemon.UnixDaemon
 }
 
+// Run 是服务命令的统一入口。
+// init 必须在创建守护进程之前处理，避免 libcontainer 子进程误进入面板启动流程。
+func Run(args []string) error {
+	if ExecuteInit(args) {
+		return nil
+	}
+	server, err := NewServer()
+	if err != nil {
+		return err
+	}
+	return server.Execute(args)
+}
+
 // NewServer 创建服务命令。
 func NewServer() (*Server, error) {
 	server := &Server{}
