@@ -4,12 +4,9 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"runtime"
-
 	"server/app"
 	"server/app/util/daemon"
 	"server/bootstrap"
-	"server/global"
 )
 
 const (
@@ -65,17 +62,6 @@ func NewServer() (*Server, error) {
 // Execute 执行服务命令。
 func (s *Server) Execute(args []string) error {
 	if len(args) == 0 {
-		if runtime.GOOS == "windows" {
-			log.Println("Windows系统启动...")
-			s.run()
-			return nil
-		}
-		bootstrap.LoadConf()
-		if global.App.IsDebug() {
-			log.Println("调试模式启动...")
-			s.run()
-			return nil
-		}
 		log.Println(usage)
 		return nil
 	}
