@@ -1,0 +1,11 @@
+package server
+
+import (
+	_ "server/app/util/server/cache"
+	_ "server/app/util/server/traffic"
+
+	_ "github.com/caddyserver/cache-handler"
+	_ "github.com/caddyserver/caddy/v2/modules/standard"
+	_ "github.com/corazawaf/coraza-caddy/v2"
+	_ "github.com/mholt/caddy-ratelimit"
+)
