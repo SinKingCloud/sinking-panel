@@ -8,19 +8,6 @@ import (
 	"github.com/caddyserver/certmagic"
 )
 
-const (
-	ProxyTransportHTTP    = "http"                         // HTTP 反向代理传输
-	ProxyTransportFastCGI = "fastcgi"                      // FastCGI 反向代理传输
-	ProxySchemeHTTP       = "http"                         // HTTP 上游协议
-	ProxySchemeHTTPS      = "https"                        // HTTPS 上游协议
-	WAFModeDetection      = "detection"                    // WAF 仅记录不拦截
-	WAFModeBlock          = "block"                        // WAF 检测并拦截
-	CertificateCAProd     = "production"                   // Let's Encrypt 正式环境
-	CertificateCAStaging  = "staging"                      // Let's Encrypt 测试环境
-	cacheMarkerName       = ".sinking-cloud-cache"         // Manager 缓存目录所有权标记
-	cacheMarkerContent    = "sinking-cloud server cache\n" // Manager 缓存目录标记内容
-)
-
 // Options 控制 HTTP 服务的监听地址、数据文件和运行参数。
 // 路径为空时使用 root 下的默认目录，ConfigPath 为空表示不保存配置快照。
 type Options struct {
@@ -68,6 +55,7 @@ type Site struct {
 	Cache         CacheOptions        `json:"cache,omitempty"`
 	RateLimit     RateLimitOptions    `json:"rate_limit,omitempty"`
 	TrafficLimit  TrafficLimitOptions `json:"traffic_limit,omitempty"`
+	HandlerOrder  []Module            `json:"handler_order,omitempty"`
 	Handlers      []json.RawMessage   `json:"handlers,omitempty"`
 }
 
@@ -92,8 +80,8 @@ type Route struct {
 // ProxyOptions 定义 HTTP 或 FastCGI 上游。
 type ProxyOptions struct {
 	Upstreams             []Upstream        `json:"upstreams"`
-	Transport             string            `json:"transport,omitempty"`
-	Scheme                string            `json:"scheme,omitempty"`
+	Transport             ProxyTransport    `json:"transport,omitempty"`
+	Scheme                ProxyScheme       `json:"scheme,omitempty"`
 	Policy                string            `json:"policy,omitempty"`
 	Retries               int               `json:"retries,omitempty"`
 	TryDuration           time.Duration     `json:"try_duration,omitempty"`
@@ -173,13 +161,42 @@ type CertificatePair struct {
 
 // WAFOptions 定义 Coraza WAF。默认模式为 DetectionOnly。
 type WAFOptions struct {
-	Enabled          bool      `json:"enabled"`
-	Mode             string    `json:"mode,omitempty"`
-	OWASP            bool      `json:"owasp,omitempty"`
-	AuditLog         bool      `json:"audit_log,omitempty"`
-	RequestBodyLimit int64     `json:"request_body_limit,omitempty"`
-	Directives       []string  `json:"directives,omitempty"`
-	Rules            []WAFRule `json:"rules,omitempty"`
+	Enabled          bool         `json:"enabled"`
+	Mode             WAFMode      `json:"mode,omitempty"`
+	OWASP            OWASPOptions `json:"owasp,omitempty"`
+	AuditLog         bool         `json:"audit_log,omitempty"`
+	RequestBodyLimit int64        `json:"request_body_limit,omitempty"`
+	Directives       []string     `json:"directives,omitempty"`
+	Rules            []WAFRule    `json:"rules,omitempty"`
+}
+
+// OWASPOptions 定义内嵌 OWASP Core Rule Set 的运行参数。
+type OWASPOptions struct {
+	Enabled                       bool     `json:"enabled"`
+	ParanoiaLevel                 int      `json:"paranoia_level,omitempty"`
+	DetectionParanoiaLevel        int      `json:"detection_paranoia_level,omitempty"`
+	InboundAnomalyScoreThreshold  int      `json:"inbound_anomaly_score_threshold,omitempty"`
+	OutboundAnomalyScoreThreshold int      `json:"outbound_anomaly_score_threshold,omitempty"`
+	ReportingLevel                *int     `json:"reporting_level,omitempty"`
+	EarlyBlocking                 bool     `json:"early_blocking,omitempty"`
+	SamplingPercentage            int      `json:"sampling_percentage,omitempty"`
+	EnforceBodyProcessor          bool     `json:"enforce_body_processor,omitempty"`
+	ValidateUTF8                  bool     `json:"validate_utf8,omitempty"`
+	SkipResponseAnalysis          bool     `json:"skip_response_analysis,omitempty"`
+	AllowedMethods                []string `json:"allowed_methods,omitempty"`
+	AllowedContentTypes           []string `json:"allowed_content_types,omitempty"`
+	AllowedHTTPVersions           []string `json:"allowed_http_versions,omitempty"`
+	AllowedCharsets               []string `json:"allowed_charsets,omitempty"`
+	RestrictedExtensions          []string `json:"restricted_extensions,omitempty"`
+	RestrictedHeaders             []string `json:"restricted_headers,omitempty"`
+	RestrictedHeadersExtended     []string `json:"restricted_headers_extended,omitempty"`
+	MaxArguments                  int      `json:"max_arguments,omitempty"`
+	MaxArgumentNameLength         int      `json:"max_argument_name_length,omitempty"`
+	MaxArgumentLength             int      `json:"max_argument_length,omitempty"`
+	TotalArgumentLength           int      `json:"total_argument_length,omitempty"`
+	MaxFileSize                   int64    `json:"max_file_size,omitempty"`
+	CombinedFileSize              int64    `json:"combined_file_size,omitempty"`
+	SetupDirectives               []string `json:"setup_directives,omitempty"`
 }
 
 // WAFRule 保存一条可由业务层独立开关的 Coraza 规则。
@@ -224,9 +241,9 @@ type TrafficLimitOptions struct {
 
 // CertificateRequest 定义一次显式 ACME 申请。
 type CertificateRequest struct {
-	Domain string `json:"domain"`
-	Email  string `json:"email,omitempty"`
-	CA     string `json:"ca,omitempty"`
+	Domain string        `json:"domain"`
+	Email  string        `json:"email,omitempty"`
+	CA     CertificateCA `json:"ca,omitempty"`
 }
 
 // Certificate 返回证书信息和 PEM。私钥仅供 Go 调用方使用，不参与 JSON 序列化。

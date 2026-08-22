@@ -521,7 +521,7 @@ func (m *Manager) buildConfig(sites map[string]*Site) ([]byte, error) {
 					redirectHandlers = append(redirectHandlers, handler)
 				}
 				redirectHandlers = append(redirectHandlers, map[string]interface{}{
-					"handler": "static_response", "status_code": 308,
+					"handler": HandlerStaticResponse, "status_code": 308,
 					"headers": map[string][]string{"Location": {location}},
 				})
 				httpRoutes = append(httpRoutes, map[string]interface{}{
@@ -546,7 +546,7 @@ func (m *Manager) buildConfig(sites map[string]*Site) ([]byte, error) {
 	}
 	tlsPolicies := append(exactTLSPolicies, wildcardTLSPolicies...)
 	missingRoute := map[string]interface{}{
-		"handle":   []interface{}{map[string]interface{}{"handler": "static_response", "status_code": 404, "body": "Not Found"}},
+		"handle":   []interface{}{map[string]interface{}{"handler": HandlerStaticResponse, "status_code": 404, "body": "Not Found"}},
 		"terminal": true,
 	}
 	if len(httpRoutes) > 0 {
@@ -663,7 +663,7 @@ func (m *Manager) buildHTTPServer(listen []string, routes []interface{}, tlsPoli
 	routes = append([]interface{}{
 		map[string]interface{}{
 			"handle": []interface{}{map[string]interface{}{
-				"handler": "headers",
+				"handler": HandlerHeaders,
 				"response": map[string]interface{}{
 					"delete":   []string{"Server"},
 					"deferred": true,

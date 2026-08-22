@@ -29,7 +29,7 @@ func (m *Manager) obtainCertificate(ctx context.Context, request CertificateRequ
 		return nil, errors.New("域名不能申请公开证书")
 	}
 
-	caName := strings.ToLower(strings.TrimSpace(request.CA))
+	caName := CertificateCA(strings.ToLower(strings.TrimSpace(string(request.CA))))
 	var caURL string
 	switch caName {
 	case "", CertificateCAProd:
@@ -115,7 +115,7 @@ func (m *Manager) obtainCertificate(ctx context.Context, request CertificateRequ
 
 	return &Certificate{
 		Domain:          domain,
-		Issuer:          caName,
+		Issuer:          string(caName),
 		DNSNames:        append([]string(nil), leaf.DNSNames...),
 		SerialNumber:    leaf.SerialNumber.String(),
 		NotBefore:       leaf.NotBefore,

@@ -11,30 +11,6 @@ import (
 )
 
 func (m *Manager) buildSiteRoute(site *Site, excludedDomains []string, scope string) (map[string]interface{}, error) {
-	handlers := make([]interface{}, 0, 9+len(site.Handlers))
-	if handler := m.buildRateLimitHandler(site, scope); handler != nil {
-		handlers = append(handlers, handler)
-	}
-	if handler := m.buildTrafficLimitHandler(site); handler != nil {
-		handlers = append(handlers, handler)
-	}
-	if handler := m.buildWAFHandler(site.WAF); handler != nil {
-		handlers = append(handlers, handler)
-	}
-	if handler := m.buildHeaderOperations(site.Headers); len(handler) > 0 {
-		handler["handler"] = "headers"
-		handlers = append(handlers, handler)
-	}
-	if handler := m.buildCompressionHandler(site.Compression); handler != nil {
-		handlers = append(handlers, handler)
-	}
-	for _, handler := range site.Handlers {
-		handlers = append(handlers, handler)
-	}
-	if handler := m.buildCacheHandler(site, scope); handler != nil {
-		handlers = append(handlers, handler)
-	}
-
 	routes := make([]interface{}, 0, len(site.Routes)+1)
 	for index := range site.Routes {
 		route, err := m.buildRoute(&site.Routes[index])
@@ -59,12 +35,45 @@ func (m *Manager) buildSiteRoute(site *Site, excludedDomains []string, scope str
 		})
 	} else if len(routes) > 0 {
 		routes = append(routes, map[string]interface{}{
-			"handle":   []interface{}{map[string]interface{}{"handler": "static_response", "status_code": 404, "body": "Not Found"}},
+			"handle":   []interface{}{map[string]interface{}{"handler": HandlerStaticResponse, "status_code": 404, "body": "Not Found"}},
 			"terminal": true,
 		})
 	}
+
+	stages := map[Module][]interface{}{
+		HandlerWAF:       nil,
+		HandlerRateLimit: nil,
+		HandlerCache:     nil,
+		HandlerSubroute:  nil,
+	}
+	if handler := m.buildWAFHandler(site.WAF); handler != nil {
+		stages[HandlerWAF] = append(stages[HandlerWAF], handler)
+	}
+	if handler := m.buildRateLimitHandler(site, scope); handler != nil {
+		stages[HandlerRateLimit] = append(stages[HandlerRateLimit], handler)
+	}
+	if handler := m.buildTrafficLimitHandler(site); handler != nil {
+		stages[HandlerRateLimit] = append(stages[HandlerRateLimit], handler)
+	}
+	if handler := m.buildHeaderOperations(site.Headers); len(handler) > 0 {
+		handler["handler"] = HandlerHeaders
+		stages[HandlerCache] = append(stages[HandlerCache], handler)
+	}
+	if handler := m.buildCompressionHandler(site.Compression); handler != nil {
+		stages[HandlerCache] = append(stages[HandlerCache], handler)
+	}
+	for _, handler := range site.Handlers {
+		stages[HandlerCache] = append(stages[HandlerCache], handler)
+	}
+	if handler := m.buildCacheHandler(site, scope); handler != nil {
+		stages[HandlerCache] = append(stages[HandlerCache], handler)
+	}
 	if len(routes) > 0 {
-		handlers = append(handlers, map[string]interface{}{"handler": "subroute", "routes": routes})
+		stages[HandlerSubroute] = append(stages[HandlerSubroute], map[string]interface{}{"handler": HandlerSubroute, "routes": routes})
+	}
+	handlers := make([]interface{}, 0, 9+len(site.Handlers))
+	for _, name := range site.HandlerOrder {
+		handlers = append(handlers, stages[name]...)
 	}
 	if len(handlers) == 0 {
 		return nil, errors.New("站点没有可执行的处理器")
@@ -84,12 +93,12 @@ func (m *Manager) buildRoute(route *Route) (map[string]interface{}, error) {
 	handlers := make([]interface{}, 0, 3+len(route.Handlers))
 	if route.StripPrefix != "" {
 		handlers = append(handlers, map[string]interface{}{
-			"handler":           "rewrite",
+			"handler":           HandlerRewrite,
 			"strip_path_prefix": route.StripPrefix,
 		})
 	}
 	if route.Rewrite != "" {
-		handlers = append(handlers, map[string]interface{}{"handler": "rewrite", "uri": route.Rewrite})
+		handlers = append(handlers, map[string]interface{}{"handler": HandlerRewrite, "uri": route.Rewrite})
 	}
 	for _, handler := range route.Handlers {
 		handlers = append(handlers, handler)
@@ -104,7 +113,7 @@ func (m *Manager) buildRoute(route *Route) (map[string]interface{}, error) {
 		handlers = append(handlers, handler)
 	} else if route.Response != nil {
 		handler := map[string]interface{}{
-			"handler":     "static_response",
+			"handler":     HandlerStaticResponse,
 			"status_code": route.Response.Status,
 		}
 		if route.Response.Body != "" {
@@ -164,7 +173,7 @@ func (m *Manager) buildRateLimitHandler(site *Site, scope string) map[string]int
 	policy, _ := json.Marshal(limit)
 	fingerprint := sha256.Sum256(policy)
 	return map[string]interface{}{
-		"handler":         "rate_limit",
+		"handler":         HandlerRateLimit,
 		"disable_metrics": true,
 		"rate_limits": map[string]interface{}{
 			fmt.Sprintf("sinking_cloud_site_%s_%s_%x", site.ID, scope, fingerprint[:8]): zone,
@@ -178,7 +187,7 @@ func (m *Manager) buildTrafficLimitHandler(site *Site) map[string]interface{} {
 		return nil
 	}
 	handler := map[string]interface{}{
-		"handler": "traffic_limit",
+		"handler": HandlerTrafficLimit,
 		"scope":   site.ID,
 	}
 	if limit.MaxConnections > 0 {
@@ -197,13 +206,102 @@ func (m *Manager) buildWAFHandler(options WAFOptions) map[string]interface{} {
 	if !options.Enabled {
 		return nil
 	}
-	directives := make([]string, 0, 12+len(options.Directives)+len(options.Rules))
-	if options.OWASP {
+	directives := make([]string, 0, 32+len(options.OWASP.SetupDirectives)+len(options.Directives)+len(options.Rules))
+	if options.OWASP.Enabled {
 		directives = append(directives,
 			"Include @coraza.conf-recommended",
 			"Include @crs-setup.conf.example",
-			"Include @owasp_crs/*.conf",
 		)
+		addAction := func(id int, variables ...string) {
+			actions := []string{fmt.Sprintf("id:%d", id), "phase:1", "pass", "t:none", "nolog", "tag:'OWASP_CRS'"}
+			for _, variable := range variables {
+				actions = append(actions, "setvar:'tx."+variable+"'")
+			}
+			directives = append(directives, `SecAction "`+strings.Join(actions, ",")+`"`)
+		}
+		addAction(900000, fmt.Sprintf("blocking_paranoia_level=%d", options.OWASP.ParanoiaLevel))
+		addAction(900001, fmt.Sprintf("detection_paranoia_level=%d", options.OWASP.DetectionParanoiaLevel))
+		if options.OWASP.EnforceBodyProcessor {
+			addAction(900010, "enforce_bodyproc_urlencoded=1")
+		}
+		addAction(900110,
+			fmt.Sprintf("inbound_anomaly_score_threshold=%d", options.OWASP.InboundAnomalyScoreThreshold),
+			fmt.Sprintf("outbound_anomaly_score_threshold=%d", options.OWASP.OutboundAnomalyScoreThreshold),
+		)
+		if options.OWASP.ReportingLevel != nil {
+			addAction(900115, fmt.Sprintf("reporting_level=%d", *options.OWASP.ReportingLevel))
+		}
+		if options.OWASP.EarlyBlocking {
+			addAction(900120, "early_blocking=1")
+		}
+		if len(options.OWASP.AllowedMethods) > 0 {
+			addAction(900200, "allowed_methods="+strings.Join(options.OWASP.AllowedMethods, " "))
+		}
+		if len(options.OWASP.AllowedContentTypes) > 0 {
+			values := make([]string, 0, len(options.OWASP.AllowedContentTypes))
+			for _, value := range options.OWASP.AllowedContentTypes {
+				values = append(values, "|"+value+"|")
+			}
+			addAction(900220, "allowed_request_content_type="+strings.Join(values, " "))
+		}
+		if len(options.OWASP.AllowedHTTPVersions) > 0 {
+			addAction(900230, "allowed_http_versions="+strings.Join(options.OWASP.AllowedHTTPVersions, " "))
+		}
+		if len(options.OWASP.RestrictedExtensions) > 0 {
+			values := make([]string, 0, len(options.OWASP.RestrictedExtensions))
+			for _, value := range options.OWASP.RestrictedExtensions {
+				values = append(values, value+"/")
+			}
+			addAction(900240, "restricted_extensions="+strings.Join(values, " "))
+		}
+		if len(options.OWASP.RestrictedHeaders) > 0 {
+			values := make([]string, 0, len(options.OWASP.RestrictedHeaders))
+			for _, value := range options.OWASP.RestrictedHeaders {
+				values = append(values, "/"+value+"/")
+			}
+			addAction(900250, "restricted_headers_basic="+strings.Join(values, " "))
+		}
+		if len(options.OWASP.RestrictedHeadersExtended) > 0 {
+			values := make([]string, 0, len(options.OWASP.RestrictedHeadersExtended))
+			for _, value := range options.OWASP.RestrictedHeadersExtended {
+				values = append(values, "/"+value+"/")
+			}
+			addAction(900255, "restricted_headers_extended="+strings.Join(values, " "))
+		}
+		if len(options.OWASP.AllowedCharsets) > 0 {
+			values := make([]string, 0, len(options.OWASP.AllowedCharsets))
+			for _, value := range options.OWASP.AllowedCharsets {
+				values = append(values, "|"+value+"|")
+			}
+			addAction(900280, "allowed_request_content_type_charset="+strings.Join(values, " "))
+		}
+		if options.OWASP.MaxArguments > 0 {
+			addAction(900300, fmt.Sprintf("max_num_args=%d", options.OWASP.MaxArguments))
+		}
+		if options.OWASP.MaxArgumentNameLength > 0 {
+			addAction(900310, fmt.Sprintf("arg_name_length=%d", options.OWASP.MaxArgumentNameLength))
+		}
+		if options.OWASP.MaxArgumentLength > 0 {
+			addAction(900320, fmt.Sprintf("arg_length=%d", options.OWASP.MaxArgumentLength))
+		}
+		if options.OWASP.TotalArgumentLength > 0 {
+			addAction(900330, fmt.Sprintf("total_arg_length=%d", options.OWASP.TotalArgumentLength))
+		}
+		if options.OWASP.MaxFileSize > 0 {
+			addAction(900340, fmt.Sprintf("max_file_size=%d", options.OWASP.MaxFileSize))
+		}
+		if options.OWASP.CombinedFileSize > 0 {
+			addAction(900350, fmt.Sprintf("combined_file_sizes=%d", options.OWASP.CombinedFileSize))
+		}
+		addAction(900400, fmt.Sprintf("sampling_percentage=%d", options.OWASP.SamplingPercentage))
+		if options.OWASP.SkipResponseAnalysis {
+			addAction(900500, "crs_skip_response_analysis=1")
+		}
+		if options.OWASP.ValidateUTF8 {
+			addAction(900950, "crs_validate_utf8_encoding=1")
+		}
+		directives = append(directives, options.OWASP.SetupDirectives...)
+		directives = append(directives, "Include @owasp_crs/*.conf")
 	}
 	for _, directive := range options.Directives {
 		if directive != "" {
@@ -241,9 +339,9 @@ func (m *Manager) buildWAFHandler(options WAFOptions) map[string]interface{} {
 		directives = append(directives, "SecRuleEngine DetectionOnly")
 	}
 	return map[string]interface{}{
-		"handler":        "waf",
+		"handler":        HandlerWAF,
 		"directives":     strings.Join(directives, "\n"),
-		"load_owasp_crs": options.OWASP,
+		"load_owasp_crs": options.OWASP.Enabled,
 	}
 }
 
@@ -288,7 +386,7 @@ func (m *Manager) buildCompressionHandler(options CompressionOptions) map[string
 		encodings[algorithm] = map[string]interface{}{}
 	}
 	handler := map[string]interface{}{
-		"handler":   "encode",
+		"handler":   HandlerCompression,
 		"encodings": encodings,
 		"prefer":    append([]string(nil), options.Algorithms...),
 	}
@@ -327,7 +425,7 @@ func (m *Manager) buildCacheHandler(site *Site, scope string) map[string]interfa
 		configuration["headers"] = append([]string(nil), options.KeyHeaders...)
 	}
 	return map[string]interface{}{
-		"handler": "cache",
+		"handler": HandlerCache,
 		"configuration": map[string]interface{}{
 			"DefaultCache": configuration,
 		},
@@ -336,7 +434,7 @@ func (m *Manager) buildCacheHandler(site *Site, scope string) map[string]interfa
 
 func (m *Manager) buildStaticHandler(root string, index []string, browse bool, tryFiles, hide, precompressed []string) map[string]interface{} {
 	fileServer := map[string]interface{}{
-		"handler":     "file_server",
+		"handler":     HandlerFileServer,
 		"root":        root,
 		"index_names": append([]string(nil), index...),
 	}
@@ -358,7 +456,7 @@ func (m *Manager) buildStaticHandler(root string, index []string, browse bool, t
 		return fileServer
 	}
 	return map[string]interface{}{
-		"handler": "subroute",
+		"handler": HandlerSubroute,
 		"routes": []interface{}{
 			map[string]interface{}{
 				"match": []interface{}{map[string]interface{}{
@@ -368,7 +466,7 @@ func (m *Manager) buildStaticHandler(root string, index []string, browse bool, t
 					},
 				}},
 				"handle": []interface{}{map[string]interface{}{
-					"handler": "rewrite",
+					"handler": HandlerRewrite,
 					"uri":     "{http.matchers.file.relative}",
 				}},
 			},
@@ -393,7 +491,7 @@ func (m *Manager) buildProxyHandler(options *ProxyOptions) (map[string]interface
 		upstreams = append(upstreams, item)
 	}
 	handler := map[string]interface{}{
-		"handler":   "reverse_proxy",
+		"handler":   HandlerReverseProxy,
 		"upstreams": upstreams,
 		"load_balancing": map[string]interface{}{
 			"selection_policy": map[string]interface{}{"policy": options.Policy},
@@ -448,7 +546,7 @@ func (m *Manager) buildProxyHandler(options *ProxyOptions) (map[string]interface
 		handler["transport"] = m.buildFastCGITransport(options)
 		directoryIndex := "{http.request.uri.path}/" + options.Index
 		return map[string]interface{}{
-			"handler": "subroute",
+			"handler": HandlerSubroute,
 			"routes": []interface{}{
 				map[string]interface{}{
 					"match": []interface{}{map[string]interface{}{
@@ -459,7 +557,7 @@ func (m *Manager) buildProxyHandler(options *ProxyOptions) (map[string]interface
 						"not": []interface{}{map[string]interface{}{"path": []string{"*/"}}},
 					}},
 					"handle": []interface{}{map[string]interface{}{
-						"handler":     "static_response",
+						"handler":     HandlerStaticResponse,
 						"status_code": 308,
 						"headers": map[string][]string{
 							"Location": {"{http.request.orig_uri.path}/{http.request.orig_uri.prefixed_query}"},
@@ -476,7 +574,7 @@ func (m *Manager) buildProxyHandler(options *ProxyOptions) (map[string]interface
 							"split_path": append([]string(nil), options.SplitPath...),
 						},
 					}},
-					"handle": []interface{}{map[string]interface{}{"handler": "rewrite", "uri": "{http.matchers.file.relative}"}},
+					"handle": []interface{}{map[string]interface{}{"handler": HandlerRewrite, "uri": "{http.matchers.file.relative}"}},
 				},
 				map[string]interface{}{
 					"match": []interface{}{map[string]interface{}{

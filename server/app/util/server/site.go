@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"mime"
 	"net"
 	"net/url"
 	"os"
@@ -16,6 +17,7 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/net/http/httpguts"
 	"golang.org/x/net/idna"
 )
 
@@ -135,6 +137,43 @@ func (m *Manager) normalizeSite(input *Site) (*Site, error) {
 	if err = m.normalizeTrafficLimit(&site.TrafficLimit); err != nil {
 		return nil, fmt.Errorf("站点 %s 流量限制配置无效: %w", site.ID, err)
 	}
+	if len(site.HandlerOrder) == 0 {
+		site.HandlerOrder = []Module{
+			HandlerWAF,
+			HandlerRateLimit,
+			HandlerCache,
+			HandlerSubroute,
+		}
+	} else {
+		allowed := map[Module]struct{}{
+			HandlerWAF:       {},
+			HandlerRateLimit: {},
+			HandlerCache:     {},
+			HandlerSubroute:  {},
+		}
+		seen := make(map[Module]struct{}, len(site.HandlerOrder))
+		order := make([]Module, 0, len(site.HandlerOrder))
+		for _, name := range site.HandlerOrder {
+			name = Module(strings.ToLower(strings.TrimSpace(string(name))))
+			if _, exists := allowed[name]; !exists {
+				return nil, fmt.Errorf("站点 %s 处理器顺序包含未知模块: %s", site.ID, name)
+			}
+			if _, exists := seen[name]; exists {
+				return nil, fmt.Errorf("站点 %s 处理器顺序包含重复模块: %s", site.ID, name)
+			}
+			seen[name] = struct{}{}
+			order = append(order, name)
+		}
+		for _, name := range []Module{HandlerWAF, HandlerRateLimit, HandlerCache, HandlerSubroute} {
+			if _, exists := seen[name]; !exists {
+				return nil, fmt.Errorf("站点 %s 处理器顺序缺少模块: %s", site.ID, name)
+			}
+		}
+		if order[len(order)-1] != HandlerSubroute {
+			return nil, fmt.Errorf("站点 %s 的 %s 处理器必须放在最后", site.ID, HandlerSubroute)
+		}
+		site.HandlerOrder = order
+	}
 	if err = m.normalizeTLS(&site.TLS, site.Domains, site.Enabled); err != nil {
 		return nil, fmt.Errorf("站点 %s TLS 配置无效: %w", site.ID, err)
 	}
@@ -209,8 +248,8 @@ func (m *Manager) normalizeRoute(route *Route, siteRoot string) error {
 }
 
 func (m *Manager) normalizeProxy(proxy *ProxyOptions, siteRoot string) error {
-	proxy.Transport = strings.ToLower(strings.TrimSpace(proxy.Transport))
-	proxy.Scheme = strings.ToLower(strings.TrimSpace(proxy.Scheme))
+	proxy.Transport = ProxyTransport(strings.ToLower(strings.TrimSpace(string(proxy.Transport))))
+	proxy.Scheme = ProxyScheme(strings.ToLower(strings.TrimSpace(string(proxy.Scheme))))
 	proxy.TLSServerName = strings.TrimSpace(proxy.TLSServerName)
 	if proxy.Transport == "" {
 		proxy.Transport = ProxyTransportHTTP
@@ -221,7 +260,7 @@ func (m *Manager) normalizeProxy(proxy *ProxyOptions, siteRoot string) error {
 	if len(proxy.Upstreams) == 0 {
 		return errors.New("至少需要一个上游")
 	}
-	detectedScheme := ""
+	detectedScheme := ProxyScheme("")
 	for index := range proxy.Upstreams {
 		proxy.Upstreams[index].Dial = strings.TrimSpace(proxy.Upstreams[index].Dial)
 		if proxy.Upstreams[index].Dial == "" || strings.ContainsAny(proxy.Upstreams[index].Dial, "\r\n") {
@@ -235,7 +274,7 @@ func (m *Manager) normalizeProxy(proxy *ProxyOptions, siteRoot string) error {
 			if parseErr != nil || address == nil {
 				return fmt.Errorf("上游地址无效: %s", proxy.Upstreams[index].Dial)
 			}
-			scheme := strings.ToLower(address.Scheme)
+			scheme := ProxyScheme(strings.ToLower(address.Scheme))
 			if address.Hostname() == "" || address.User != nil || address.Opaque != "" ||
 				(address.Path != "" && address.Path != "/") || address.RawQuery != "" || address.Fragment != "" ||
 				(scheme != ProxySchemeHTTP && scheme != ProxySchemeHTTPS) {
@@ -517,7 +556,7 @@ func (m *Manager) normalizeWAF(waf *WAFOptions) error {
 	if !waf.Enabled {
 		return nil
 	}
-	waf.Mode = strings.ToLower(strings.TrimSpace(waf.Mode))
+	waf.Mode = WAFMode(strings.ToLower(strings.TrimSpace(string(waf.Mode))))
 	if waf.Mode == "" {
 		waf.Mode = WAFModeDetection
 	}
@@ -526,6 +565,147 @@ func (m *Manager) normalizeWAF(waf *WAFOptions) error {
 	}
 	if waf.RequestBodyLimit < 0 {
 		return errors.New("请求体限制不能小于 0")
+	}
+	if waf.OWASP.Enabled {
+		if waf.OWASP.ParanoiaLevel == 0 {
+			waf.OWASP.ParanoiaLevel = 1
+		}
+		if waf.OWASP.ParanoiaLevel < 1 || waf.OWASP.ParanoiaLevel > 4 {
+			return errors.New("OWASP CRS 防护级别只能为 1 到 4")
+		}
+		if waf.OWASP.DetectionParanoiaLevel == 0 {
+			waf.OWASP.DetectionParanoiaLevel = waf.OWASP.ParanoiaLevel
+		}
+		if waf.OWASP.DetectionParanoiaLevel < waf.OWASP.ParanoiaLevel || waf.OWASP.DetectionParanoiaLevel > 4 {
+			return errors.New("OWASP CRS 检测级别不能低于防护级别且不能大于 4")
+		}
+		if waf.OWASP.InboundAnomalyScoreThreshold == 0 {
+			waf.OWASP.InboundAnomalyScoreThreshold = 5
+		}
+		if waf.OWASP.OutboundAnomalyScoreThreshold == 0 {
+			waf.OWASP.OutboundAnomalyScoreThreshold = 4
+		}
+		if waf.OWASP.InboundAnomalyScoreThreshold < 1 || waf.OWASP.OutboundAnomalyScoreThreshold < 1 {
+			return errors.New("OWASP CRS 异常分数阈值必须大于 0")
+		}
+		if waf.OWASP.ReportingLevel != nil && (*waf.OWASP.ReportingLevel < 0 || *waf.OWASP.ReportingLevel > 5) {
+			return errors.New("OWASP CRS 日志级别只能为 0 到 5")
+		}
+		if waf.OWASP.SamplingPercentage == 0 {
+			waf.OWASP.SamplingPercentage = 100
+		}
+		if waf.OWASP.SamplingPercentage < 1 || waf.OWASP.SamplingPercentage > 100 {
+			return errors.New("OWASP CRS 采样比例只能为 1 到 100")
+		}
+		for _, limit := range []struct {
+			name  string
+			value int64
+		}{
+			{name: "参数数量", value: int64(waf.OWASP.MaxArguments)},
+			{name: "参数名长度", value: int64(waf.OWASP.MaxArgumentNameLength)},
+			{name: "参数长度", value: int64(waf.OWASP.MaxArgumentLength)},
+			{name: "参数总长度", value: int64(waf.OWASP.TotalArgumentLength)},
+			{name: "单文件大小", value: waf.OWASP.MaxFileSize},
+			{name: "文件总大小", value: waf.OWASP.CombinedFileSize},
+		} {
+			if limit.value < 0 {
+				return fmt.Errorf("OWASP CRS %s限制不能小于 0", limit.name)
+			}
+		}
+		methods, err := m.normalizeMethods(waf.OWASP.AllowedMethods)
+		if err != nil {
+			return fmt.Errorf("OWASP CRS 允许方法无效: %w", err)
+		}
+		waf.OWASP.AllowedMethods = methods
+
+		seen := make(map[string]struct{})
+		values := make([]string, 0, len(waf.OWASP.AllowedContentTypes))
+		for _, value := range waf.OWASP.AllowedContentTypes {
+			value = strings.ToLower(strings.TrimSpace(value))
+			mediaType, parameters, err := mime.ParseMediaType(value)
+			if err != nil || len(parameters) != 0 || mediaType != value {
+				return fmt.Errorf("OWASP CRS Content-Type 无效: %s", value)
+			}
+			if _, exists := seen[value]; !exists {
+				seen[value] = struct{}{}
+				values = append(values, value)
+			}
+		}
+		waf.OWASP.AllowedContentTypes = values
+
+		seen = make(map[string]struct{})
+		values = make([]string, 0, len(waf.OWASP.AllowedHTTPVersions))
+		versions := map[string]struct{}{"HTTP/1.0": {}, "HTTP/1.1": {}, "HTTP/2": {}, "HTTP/2.0": {}, "HTTP/3": {}, "HTTP/3.0": {}}
+		for _, value := range waf.OWASP.AllowedHTTPVersions {
+			value = strings.ToUpper(strings.TrimSpace(value))
+			if _, exists := versions[value]; !exists {
+				return fmt.Errorf("OWASP CRS HTTP 版本无效: %s", value)
+			}
+			if _, exists := seen[value]; !exists {
+				seen[value] = struct{}{}
+				values = append(values, value)
+			}
+		}
+		waf.OWASP.AllowedHTTPVersions = values
+
+		seen = make(map[string]struct{})
+		values = make([]string, 0, len(waf.OWASP.AllowedCharsets))
+		for _, value := range waf.OWASP.AllowedCharsets {
+			value = strings.ToLower(strings.TrimSpace(value))
+			if value == "" || strings.ContainsAny(value, " |/'\"\\\t\r\n") {
+				return fmt.Errorf("OWASP CRS 字符集无效: %s", value)
+			}
+			if _, exists := seen[value]; !exists {
+				seen[value] = struct{}{}
+				values = append(values, value)
+			}
+		}
+		waf.OWASP.AllowedCharsets = values
+
+		seen = make(map[string]struct{})
+		values = make([]string, 0, len(waf.OWASP.RestrictedExtensions))
+		for _, value := range waf.OWASP.RestrictedExtensions {
+			value = strings.ToLower(strings.TrimSuffix(strings.TrimSpace(value), "/"))
+			if len(value) < 2 || !strings.HasPrefix(value, ".") || strings.ContainsAny(value, " /'\"\\\t\r\n") {
+				return fmt.Errorf("OWASP CRS 受限扩展名无效: %s", value)
+			}
+			if _, exists := seen[value]; !exists {
+				seen[value] = struct{}{}
+				values = append(values, value)
+			}
+		}
+		waf.OWASP.RestrictedExtensions = values
+
+		normalizeHeaders := func(headers []string) ([]string, error) {
+			seenHeaders := make(map[string]struct{}, len(headers))
+			result := make([]string, 0, len(headers))
+			for _, header := range headers {
+				header = strings.ToLower(strings.Trim(strings.TrimSpace(header), "/"))
+				if !httpguts.ValidHeaderFieldName(header) {
+					return nil, fmt.Errorf("请求头名称无效: %s", header)
+				}
+				if _, exists := seenHeaders[header]; !exists {
+					seenHeaders[header] = struct{}{}
+					result = append(result, header)
+				}
+			}
+			return result, nil
+		}
+		waf.OWASP.RestrictedHeaders, err = normalizeHeaders(waf.OWASP.RestrictedHeaders)
+		if err != nil {
+			return fmt.Errorf("OWASP CRS 受限请求头无效: %w", err)
+		}
+		waf.OWASP.RestrictedHeadersExtended, err = normalizeHeaders(waf.OWASP.RestrictedHeadersExtended)
+		if err != nil {
+			return fmt.Errorf("OWASP CRS 扩展受限请求头无效: %w", err)
+		}
+		setupDirectives := make([]string, 0, len(waf.OWASP.SetupDirectives))
+		for _, directive := range waf.OWASP.SetupDirectives {
+			if directive = strings.TrimSpace(directive); directive != "" {
+				setupDirectives = append(setupDirectives, directive)
+			}
+		}
+		waf.OWASP.SetupDirectives = setupDirectives
 	}
 	hasRule := false
 	ruleIDs := make(map[string]struct{}, len(waf.Rules))
@@ -553,7 +733,7 @@ func (m *Manager) normalizeWAF(waf *WAFOptions) error {
 			hasRule = true
 		}
 	}
-	if !waf.OWASP && !hasRule {
+	if !waf.OWASP.Enabled && !hasRule {
 		return errors.New("WAF 至少需要启用 OWASP CRS 或一条自定义规则")
 	}
 	return nil
