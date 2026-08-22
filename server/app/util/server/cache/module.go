@@ -236,9 +236,3 @@ func (s *SimpleFS) SetMultiLevel(baseKey, variedKey string, value []byte, varied
 	}
 	return s.store.setMultiLevel(baseKey, variedKey, value, variedHeaders, etag, duration, realKey, s.logger)
 }
-
-var (
-	_ caddy.Provisioner  = (*SimpleFS)(nil)
-	_ caddy.CleanerUpper = (*SimpleFS)(nil)
-	_ core.Storer        = (*SimpleFS)(nil)
-)

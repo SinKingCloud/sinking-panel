@@ -306,13 +306,3 @@ func (w *limitedResponseWriter) FlushError() error {
 func (w *limitedResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	return http.NewResponseController(w.ResponseWriterWrapper).Hijack()
 }
-
-var (
-	_ caddy.Provisioner           = (*Handler)(nil)
-	_ caddy.Validator             = (*Handler)(nil)
-	_ caddy.CleanerUpper          = (*Handler)(nil)
-	_ caddyhttp.MiddlewareHandler = (*Handler)(nil)
-	_ http.Flusher                = (*limitedResponseWriter)(nil)
-	_ http.Hijacker               = (*limitedResponseWriter)(nil)
-	_ io.ReaderFrom               = (*limitedResponseWriter)(nil)
-)
