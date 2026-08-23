@@ -840,10 +840,13 @@ func (m *Manager) buildConfig(sites map[string]*Site) ([]byte, error) {
 	} else {
 		httpRoutes = append(httpRoutes, m.buildResponseRoute(m.options.SiteNotFoundPage, nil, nil))
 	}
-	if len(httpsRoutes) > 0 {
+	if len(httpsRoutes) > 0 || len(m.options.HTTPSListen) > 0 {
 		httpsRoutes = append(httpsRoutes, m.buildResponseRoute(m.options.SiteNotFoundPage, nil, nil))
 	}
 	tlsPolicies := append(exactTLSPolicies, wildcardTLSPolicies...)
+	if len(httpsRoutes) > 0 && len(tlsPolicies) == 0 {
+		tlsPolicies = []interface{}{map[string]interface{}{}}
+	}
 
 	httpApp := map[string]interface{}{
 		"http_port":    m.options.HTTPChallengePort,
