@@ -8,14 +8,14 @@ import (
 
 // Log 日志表
 type Log struct {
-	Id         int64        `gorm:"column:id;PRIMARY_KEY" json:"id"`
-	Type       int          `gorm:"column:type" json:"type"`
-	Ip         string       `gorm:"column:ip" json:"ip"`
-	Location   string       `gorm:"column:location" json:"location"`
-	Title      string       `gorm:"column:title" json:"title"`
-	Content    string       `gorm:"column:content" json:"content"`
-	CreateTime str.DateTime `gorm:"column:create_time" json:"create_time"`
-	UpdateTime str.DateTime `gorm:"column:update_time" json:"update_time"`
+	Id         int64        `gorm:"column:id;PRIMARY_KEY" json:"id"`       // 日志ID
+	Type       int          `gorm:"column:type" json:"type"`               // 日志类型
+	Ip         string       `gorm:"column:ip" json:"ip"`                   // 操作IP
+	Location   string       `gorm:"column:location" json:"location"`       // IP归属地
+	Title      string       `gorm:"column:title" json:"title"`             // 日志标题
+	Content    string       `gorm:"column:content" json:"content"`         // 日志内容
+	CreateTime str.DateTime `gorm:"column:create_time" json:"create_time"` // 创建时间
+	UpdateTime str.DateTime `gorm:"column:update_time" json:"update_time"` // 更新时间
 }
 
 // TableName 获取表名

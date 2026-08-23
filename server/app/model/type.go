@@ -9,12 +9,12 @@ import (
 
 // Type 类型表
 type Type struct {
-	Id         int64        `gorm:"column:id;PRIMARY_KEY" json:"id"`
-	Module     string       `gorm:"column:module" json:"module"`
-	Name       string       `gorm:"column:name" json:"name"`
-	Sort       int64        `gorm:"column:sort" json:"sort"`
-	CreateTime str.DateTime `gorm:"column:create_time" json:"create_time"`
-	UpdateTime str.DateTime `gorm:"column:update_time" json:"update_time"`
+	Id         int64        `gorm:"column:id;PRIMARY_KEY" json:"id"`       // 类型ID
+	Module     string       `gorm:"column:module" json:"module"`           // 所属模块
+	Name       string       `gorm:"column:name" json:"name"`               // 类型名称
+	Sort       int64        `gorm:"column:sort" json:"sort"`               // 排序值
+	CreateTime str.DateTime `gorm:"column:create_time" json:"create_time"` // 创建时间
+	UpdateTime str.DateTime `gorm:"column:update_time" json:"update_time"` // 更新时间
 }
 
 // TableName 获取表名

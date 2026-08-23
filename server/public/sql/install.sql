@@ -143,3 +143,85 @@ create index if not exists cloud_scripts_typeId_index
 
 create index if not exists cloud_scripts_updateTime_index
     on cloud_scripts (update_time);
+
+create table if not exists cloud_sites
+(
+    id          bigint            not null
+        constraint cloud_sites_pk_id
+            primary key,
+    name        varchar(100)      not null,
+    type        integer default 0 not null,
+    status      integer default 0 not null,
+    root        text    default '' not null,
+    run_path    text    default '' not null,
+    config      text    default '' not null,
+    update_time text,
+    create_time text
+);
+
+create index if not exists cloud_sites_createTime_index
+    on cloud_sites (create_time);
+
+create index if not exists cloud_sites_status_index
+    on cloud_sites (status);
+
+create index if not exists cloud_sites_type_index
+    on cloud_sites (type);
+
+create index if not exists cloud_sites_updateTime_index
+    on cloud_sites (update_time);
+
+create table if not exists cloud_certs
+(
+    id          bigint            not null
+        constraint cloud_certs_pk_id
+            primary key,
+    name        varchar(100)      not null,
+    type        integer default 0 not null,
+    domains     text    default '' not null,
+    certificate text              not null,
+    private_key text              not null,
+    start_time  text,
+    expire_time text,
+    update_time text,
+    create_time text
+);
+
+create index if not exists cloud_certs_createTime_index
+    on cloud_certs (create_time);
+
+create index if not exists cloud_certs_expireTime_index
+    on cloud_certs (expire_time);
+
+create index if not exists cloud_certs_type_index
+    on cloud_certs (type);
+
+create index if not exists cloud_certs_updateTime_index
+    on cloud_certs (update_time);
+
+create table if not exists cloud_domains
+(
+    id          bigint            not null
+        constraint cloud_domains_pk_id
+            primary key,
+    site_id     bigint            not null,
+    cert_id     bigint  default 0 not null,
+    domain      varchar(255)      not null collate nocase,
+    update_time text,
+    create_time text
+);
+
+create index if not exists cloud_domains_createTime_index
+    on cloud_domains (create_time);
+
+create index if not exists cloud_domains_domain_index
+    on cloud_domains (domain);
+
+create index if not exists cloud_domains_siteId_index
+    on cloud_domains (site_id);
+
+create index if not exists cloud_domains_certId_index
+    on cloud_domains (cert_id);
+
+create index if not exists cloud_domains_updateTime_index
+    on cloud_domains (update_time);

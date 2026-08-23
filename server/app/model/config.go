@@ -8,10 +8,10 @@ import (
 
 // Config 配置表
 type Config struct {
-	Key        string       `gorm:"column:key" json:"key"`
-	Value      string       `gorm:"column:value" json:"value"`
-	CreateTime str.DateTime `gorm:"column:create_time" json:"create_time"`
-	UpdateTime str.DateTime `gorm:"column:update_time" json:"update_time"`
+	Key        string       `gorm:"column:key" json:"key"`                 // 配置键
+	Value      string       `gorm:"column:value" json:"value"`             // 配置值
+	CreateTime str.DateTime `gorm:"column:create_time" json:"create_time"` // 创建时间
+	UpdateTime str.DateTime `gorm:"column:update_time" json:"update_time"` // 更新时间
 }
 
 // TableName 获取表名
