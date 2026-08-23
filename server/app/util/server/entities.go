@@ -144,11 +144,12 @@ type CompressionOptions struct {
 
 // TLSOptions 定义手动部署的证书。启用 TLS 不会触发自动申请。
 type TLSOptions struct {
-	Enabled      bool              `json:"enabled"`                 // 是否启用 HTTPS
-	RedirectHTTP bool              `json:"redirect_http,omitempty"` // 是否将 HTTP 重定向到 HTTPS
-	MinVersion   string            `json:"min_version,omitempty"`   // 允许的最低 TLS 版本
-	MaxVersion   string            `json:"max_version,omitempty"`   // 允许的最高 TLS 版本
-	Certificates []CertificatePair `json:"certificates,omitempty"`  // 站点使用的证书
+	Enabled        bool              `json:"enabled"`                 // 是否启用 HTTPS
+	RedirectHTTP   bool              `json:"redirect_http,omitempty"` // 是否将已覆盖域名的 HTTP 重定向到 HTTPS
+	MinVersion     string            `json:"min_version,omitempty"`   // 允许的最低 TLS 版本
+	MaxVersion     string            `json:"max_version,omitempty"`   // 允许的最高 TLS 版本
+	Certificates   []CertificatePair `json:"certificates,omitempty"`  // 站点使用的证书
+	coveredDomains []string          // 当前证书实际覆盖的站点域名，仅用于生成运行配置
 }
 
 // CertificatePair 支持从文件或内存 PEM 加载证书，两个来源只能选择一个。

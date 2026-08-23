@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-func (m *Manager) buildSiteRoute(site *Site, excludedDomains []string, scope string) (map[string]interface{}, error) {
+func (m *Manager) buildSiteRoute(site *Site, domains, excludedDomains []string, scope string) (map[string]interface{}, error) {
 	routes := make([]interface{}, 0, len(site.Routes)+1)
 	for index := range site.Routes {
 		route, err := m.buildRoute(&site.Routes[index])
@@ -78,7 +78,7 @@ func (m *Manager) buildSiteRoute(site *Site, excludedDomains []string, scope str
 	if len(handlers) == 0 {
 		return nil, errors.New("站点没有可执行的处理器")
 	}
-	matcher := map[string]interface{}{"host": append([]string(nil), site.Domains...)}
+	matcher := map[string]interface{}{"host": append([]string(nil), domains...)}
 	if len(excludedDomains) > 0 {
 		matcher["not"] = []interface{}{map[string]interface{}{"host": append([]string(nil), excludedDomains...)}}
 	}

@@ -31,6 +31,7 @@ func (m *Manager) cloneSite(site *Site) *Site {
 	for index := range clone.TLS.Certificates {
 		clone.TLS.Certificates[index].PrivateKeyPEM = site.TLS.Certificates[index].PrivateKeyPEM
 	}
+	clone.TLS.coveredDomains = append([]string(nil), site.TLS.coveredDomains...)
 	return clone
 }
 
@@ -844,6 +845,7 @@ func (m *Manager) normalizeTrafficLimit(limit *TrafficLimitOptions) error {
 }
 
 func (m *Manager) normalizeTLS(options *TLSOptions, domains []string, validateCertificates bool) error {
+	options.coveredDomains = nil
 	options.MinVersion = strings.ToLower(strings.TrimSpace(options.MinVersion))
 	options.MaxVersion = strings.ToLower(strings.TrimSpace(options.MaxVersion))
 	if options.MinVersion != "" && options.MinVersion != "tls1.2" && options.MinVersion != "tls1.3" {
@@ -860,11 +862,6 @@ func (m *Manager) normalizeTLS(options *TLSOptions, domains []string, validateCe
 			return errors.New("启用 HTTPS 后才能开启 HTTP 跳转")
 		}
 		return nil
-	}
-	for _, domain := range domains {
-		if net.ParseIP(domain) != nil {
-			return errors.New("TLS 站点不支持 IP 作为域名，请使用可发送 SNI 的域名")
-		}
 	}
 	if len(options.Certificates) == 0 {
 		return errors.New("启用 TLS 后必须配置证书")
@@ -926,9 +923,12 @@ func (m *Manager) normalizeTLS(options *TLSOptions, domains []string, validateCe
 			return errors.New("证书不在有效期内")
 		}
 		for _, domain := range domains {
+			if net.ParseIP(domain) != nil {
+				continue
+			}
 			if strings.HasPrefix(domain, "*.") {
 				for _, name := range leaf.DNSNames {
-					if strings.EqualFold(strings.TrimSuffix(name, "."), domain) {
+					if strings.EqualFold(name, domain) {
 						covered[domain] = true
 						break
 					}
@@ -942,9 +942,12 @@ func (m *Manager) normalizeTLS(options *TLSOptions, domains []string, validateCe
 		return nil
 	}
 	for _, domain := range domains {
-		if !covered[domain] {
-			return fmt.Errorf("没有证书覆盖域名: %s", domain)
+		if covered[domain] {
+			options.coveredDomains = append(options.coveredDomains, domain)
 		}
+	}
+	if len(options.coveredDomains) == 0 {
+		return errors.New("没有证书覆盖站点域名")
 	}
 	return nil
 }

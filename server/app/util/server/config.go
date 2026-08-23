@@ -447,13 +447,24 @@ func (m *Manager) buildConfig(sites map[string]*Site) ([]byte, error) {
 		}
 		sort.Strings(excludedDomains)
 		if site.TLS.Enabled {
-			httpsRoute, err := m.buildSiteRoute(site, excludedDomains, "https")
+			tlsDomains := append([]string(nil), site.TLS.coveredDomains...)
+			covered := make(map[string]struct{}, len(tlsDomains))
+			for _, domain := range tlsDomains {
+				covered[domain] = struct{}{}
+			}
+			plainDomains := make([]string, 0, len(site.Domains)-len(tlsDomains))
+			for _, domain := range site.Domains {
+				if _, exists := covered[domain]; !exists {
+					plainDomains = append(plainDomains, domain)
+				}
+			}
+			httpsRoute, err := m.buildSiteRoute(site, tlsDomains, excludedDomains, "https")
 			if err != nil {
 				return nil, err
 			}
 			httpsRoutes = append(httpsRoutes, httpsRoute)
-			exact, wildcard := make([]string, 0, len(site.Domains)), make([]string, 0, len(site.Domains))
-			for _, domain := range site.Domains {
+			exact, wildcard := make([]string, 0, len(tlsDomains)), make([]string, 0, len(tlsDomains))
+			for _, domain := range tlsDomains {
 				if strings.HasPrefix(domain, "*.") {
 					wildcard = append(wildcard, domain)
 				} else {
@@ -512,7 +523,7 @@ func (m *Manager) buildConfig(sites map[string]*Site) ([]byte, error) {
 					location += ":" + strconv.Itoa(httpsPort)
 				}
 				location += "{http.request.uri}"
-				redirectMatcher := map[string]interface{}{"host": site.Domains}
+				redirectMatcher := map[string]interface{}{"host": tlsDomains}
 				if len(excludedDomains) > 0 {
 					redirectMatcher["not"] = []interface{}{map[string]interface{}{"host": excludedDomains}}
 				}
@@ -529,15 +540,22 @@ func (m *Manager) buildConfig(sites map[string]*Site) ([]byte, error) {
 					"handle":   redirectHandlers,
 					"terminal": true,
 				})
+				if len(plainDomains) > 0 {
+					httpRoute, err := m.buildSiteRoute(site, plainDomains, excludedDomains, "http")
+					if err != nil {
+						return nil, err
+					}
+					httpRoutes = append(httpRoutes, httpRoute)
+				}
 			} else {
-				httpRoute, err := m.buildSiteRoute(site, excludedDomains, "http")
+				httpRoute, err := m.buildSiteRoute(site, site.Domains, excludedDomains, "http")
 				if err != nil {
 					return nil, err
 				}
 				httpRoutes = append(httpRoutes, httpRoute)
 			}
 		} else {
-			httpRoute, err := m.buildSiteRoute(site, excludedDomains, "http")
+			httpRoute, err := m.buildSiteRoute(site, site.Domains, excludedDomains, "http")
 			if err != nil {
 				return nil, err
 			}
@@ -565,7 +583,7 @@ func (m *Manager) buildConfig(sites map[string]*Site) ([]byte, error) {
 	if len(httpRoutes) > 0 {
 		if len(m.options.HTTPListen) == 0 {
 			for _, site := range enabled {
-				if !site.TLS.Enabled || site.TLS.RedirectHTTP {
+				if !site.TLS.Enabled || site.TLS.RedirectHTTP || len(site.TLS.coveredDomains) < len(site.Domains) {
 					return nil, fmt.Errorf("站点 %s 需要 HTTP，但没有配置 HTTP 监听地址", site.ID)
 				}
 			}
