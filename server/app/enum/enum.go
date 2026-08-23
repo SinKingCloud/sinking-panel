@@ -1,10 +1,13 @@
 package enum
 
 import (
+	"server/app/enum/cert_type"
 	"server/app/enum/file_format"
 	"server/app/enum/log_type"
 	"server/app/enum/script_type"
 	"server/app/enum/server_auth_type"
+	"server/app/enum/site_status"
+	"server/app/enum/site_type"
 	"server/app/enum/system_task_status"
 	"server/app/enum/task_exec_type"
 	"server/app/enum/task_status"
@@ -14,11 +17,18 @@ import (
 
 // Data 枚举信息
 var Data = map[string]interface{}{
+	"cert": map[string]interface{}{
+		"type": cert_type.Map(), //证书类型
+	},
 	"log": map[string]interface{}{
 		"type": log_type.Map(), //日志类型
 	},
 	"server": map[string]interface{}{
 		"auth_type": server_auth_type.Map(), //服务器验证类型
+	},
+	"site": map[string]interface{}{
+		"type":   site_type.Map(),   //网站类型
+		"status": site_status.Map(), //网站状态
 	},
 	"script": func() interface{} {
 		return map[string]interface{}{
