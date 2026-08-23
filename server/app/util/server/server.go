@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	serverCache "server/app/util/server/cache"
@@ -14,6 +15,13 @@ import (
 	"github.com/caddyserver/caddy/v2"
 	"go.uber.org/zap"
 )
+
+func init() {
+	// Caddy 会在包初始化时接管标准日志，非交互环境下会导致面板日志变成 JSON。
+	log.SetOutput(os.Stderr)
+	log.SetFlags(log.LstdFlags)
+	log.SetPrefix("")
+}
 
 // NewManager 创建一个内存站点管理器。整个进程只应创建一个 Manager。
 func NewManager(root string, options ...Options) (*Manager, error) {
@@ -254,6 +262,19 @@ func (m *Manager) Options() Options {
 	if options.ClientIPHeaders != nil {
 		options.ClientIPHeaders = append([]string{}, options.ClientIPHeaders...)
 	}
+	cloneHeaders := func(headers map[string][]string) map[string][]string {
+		if headers == nil {
+			return nil
+		}
+		result := make(map[string][]string, len(headers))
+		for name, values := range headers {
+			result[name] = append([]string(nil), values...)
+		}
+		return result
+	}
+	options.NotFoundPage.Headers = cloneHeaders(options.NotFoundPage.Headers)
+	options.SiteNotFoundPage.Headers = cloneHeaders(options.SiteNotFoundPage.Headers)
+	options.SiteDisabledPage.Headers = cloneHeaders(options.SiteDisabledPage.Headers)
 	return options
 }
 

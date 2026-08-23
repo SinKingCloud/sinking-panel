@@ -7,9 +7,11 @@ import (
 	"io"
 	"log"
 	"slices"
+	"strconv"
 	"strings"
 
 	"server/app/constant"
+	"server/app/enum/site_status"
 	webServer "server/app/util/server"
 )
 
@@ -27,7 +29,10 @@ func (s *service) UpdateHTTP(config *HTTPUpdate) error {
 	}
 	s.operationMu.Lock()
 	defer s.operationMu.Unlock()
+	return s.updateHTTPLocked(config)
+}
 
+func (s *service) updateHTTPLocked(config *HTTPUpdate) error {
 	previous := s.http.Options()
 	candidate, exists, err := s.loadHTTP()
 	if err != nil {
@@ -47,6 +52,42 @@ func (s *service) UpdateHTTP(config *HTTPUpdate) error {
 	if config.Protocols != nil {
 		candidate.Protocols = slices.Clone(*config.Protocols)
 	}
+	if config.DefaultSite != nil {
+		candidate.DefaultSite = strings.TrimSpace(*config.DefaultSite)
+		if candidate.DefaultSite != "" {
+			id, parseErr := strconv.ParseInt(candidate.DefaultSite, 10, 64)
+			if parseErr != nil || id <= 0 {
+				return errors.New("默认站点 ID 不合法")
+			}
+			record, findErr := s.repositorySite.FindById(id)
+			if findErr != nil {
+				return fmt.Errorf("默认站点不存在: %w", findErr)
+			}
+			if record.Status != site_status.Enabled {
+				return errors.New("默认站点必须处于启用状态")
+			}
+		}
+	}
+	mergePage := func(target *webServer.ResponseOptions, update *HTTPPageUpdate) {
+		if update == nil {
+			return
+		}
+		if update.Status != nil {
+			target.Status = *update.Status
+		}
+		if update.Body != nil {
+			target.Body = *update.Body
+		}
+		if update.Headers != nil {
+			target.Headers = make(map[string][]string, len(*update.Headers))
+			for name, values := range *update.Headers {
+				target.Headers[name] = slices.Clone(values)
+			}
+		}
+	}
+	mergePage(&candidate.NotFoundPage, config.NotFoundPage)
+	mergePage(&candidate.SiteNotFoundPage, config.SiteNotFoundPage)
+	mergePage(&candidate.SiteDisabledPage, config.SiteDisabledPage)
 	if config.DataPath != nil {
 		candidate.DataPath = *config.DataPath
 	}

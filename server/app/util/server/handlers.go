@@ -35,7 +35,7 @@ func (m *Manager) buildSiteRoute(site *Site, domains, excludedDomains []string, 
 		})
 	} else if len(routes) > 0 {
 		routes = append(routes, map[string]interface{}{
-			"handle":   []interface{}{map[string]interface{}{"handler": HandlerStaticResponse, "status_code": 404, "body": "Not Found"}},
+			"handle":   []interface{}{m.buildResponseHandler(m.options.NotFoundPage)},
 			"terminal": true,
 		})
 	}
@@ -82,15 +82,47 @@ func (m *Manager) buildSiteRoute(site *Site, domains, excludedDomains []string, 
 	if len(handlers) == 0 {
 		return nil, errors.New("站点没有可执行的处理器")
 	}
-	matcher := map[string]interface{}{"host": append([]string(nil), domains...)}
-	if len(excludedDomains) > 0 {
-		matcher["not"] = []interface{}{map[string]interface{}{"host": append([]string(nil), excludedDomains...)}}
-	}
-	return map[string]interface{}{
-		"match":    []interface{}{matcher},
+	result := map[string]interface{}{
 		"handle":   handlers,
 		"terminal": true,
-	}, nil
+	}
+	if len(domains) > 0 {
+		matcher := map[string]interface{}{"host": append([]string(nil), domains...)}
+		if len(excludedDomains) > 0 {
+			matcher["not"] = []interface{}{map[string]interface{}{"host": append([]string(nil), excludedDomains...)}}
+		}
+		result["match"] = []interface{}{matcher}
+	}
+	return result, nil
+}
+
+func (m *Manager) buildResponseHandler(options ResponseOptions) map[string]interface{} {
+	handler := map[string]interface{}{
+		"handler":     HandlerStaticResponse,
+		"status_code": options.Status,
+	}
+	if options.Body != "" {
+		handler["body"] = options.Body
+	}
+	if len(options.Headers) > 0 {
+		handler["headers"] = options.Headers
+	}
+	return handler
+}
+
+func (m *Manager) buildResponseRoute(options ResponseOptions, domains, excludedDomains []string) map[string]interface{} {
+	route := map[string]interface{}{
+		"handle":   []interface{}{m.buildResponseHandler(options)},
+		"terminal": true,
+	}
+	if len(domains) > 0 {
+		matcher := map[string]interface{}{"host": append([]string(nil), domains...)}
+		if len(excludedDomains) > 0 {
+			matcher["not"] = []interface{}{map[string]interface{}{"host": append([]string(nil), excludedDomains...)}}
+		}
+		route["match"] = []interface{}{matcher}
+	}
+	return route
 }
 
 func (m *Manager) buildRoute(route *Route) (map[string]interface{}, error) {
@@ -116,17 +148,7 @@ func (m *Manager) buildRoute(route *Route) (map[string]interface{}, error) {
 		}
 		handlers = append(handlers, handler)
 	} else if route.Response != nil {
-		handler := map[string]interface{}{
-			"handler":     HandlerStaticResponse,
-			"status_code": route.Response.Status,
-		}
-		if route.Response.Body != "" {
-			handler["body"] = route.Response.Body
-		}
-		if len(route.Response.Headers) > 0 {
-			handler["headers"] = route.Response.Headers
-		}
-		handlers = append(handlers, handler)
+		handlers = append(handlers, m.buildResponseHandler(*route.Response))
 	}
 	if len(handlers) == 0 {
 		return nil, errors.New("路由没有可执行的处理器")

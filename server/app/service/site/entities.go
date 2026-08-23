@@ -323,27 +323,38 @@ type Options struct {
 	HTTP webServer.Options // HTTP Manager 全局配置
 }
 
+// HTTPPageUpdate 部分更新 HTTP 固定页面，nil 字段保持原值。
+type HTTPPageUpdate struct {
+	Status  *int                 `json:"status"`  // HTTP 响应状态码
+	Body    *string              `json:"body"`    // 页面响应内容
+	Headers *map[string][]string `json:"headers"` // 页面响应头
+}
+
 // HTTPUpdate 部分更新 HTTP 服务全局参数，nil 字段保持原值。
 type HTTPUpdate struct {
-	HTTPListen           *[]string      `json:"http_listen"`            // HTTP 监听地址
-	HTTPSListen          *[]string      `json:"https_listen"`           // HTTPS 监听地址
-	Protocols            *[]string      `json:"protocols"`              // 启用的 HTTP 协议
-	DataPath             *string        `json:"data_path"`              // 证书和运行数据目录
-	CachePath            *string        `json:"cache_path"`             // 站点响应缓存根目录
-	LogPath              *string        `json:"log_path"`               // HTTP 访问日志文件
-	WAFLogPath           *string        `json:"waf_log_path"`           // WAF 审计日志文件
-	ConfigPath           *string        `json:"config_path"`            // 配置快照文件
-	LogLevel             *string        `json:"log_level"`              // HTTP 日志级别
-	TrustedProxies       *[]string      `json:"trusted_proxies"`        // 可信代理 IP 或 CIDR
-	ClientIPHeaders      *[]string      `json:"client_ip_headers"`      // 客户端 IP 请求头
-	TrustedProxiesStrict *bool          `json:"trusted_proxies_strict"` // 是否严格解析可信代理链
-	ReadTimeout          *time.Duration `json:"read_timeout"`           // 读取完整请求的超时时间
-	ReadHeaderTimeout    *time.Duration `json:"read_header_timeout"`    // 读取请求头的超时时间
-	WriteTimeout         *time.Duration `json:"write_timeout"`          // 写入响应的超时时间
-	IdleTimeout          *time.Duration `json:"idle_timeout"`           // 空闲连接的超时时间
-	GracePeriod          *time.Duration `json:"grace_period"`           // HTTP 服务优雅关闭等待时间
-	MaxHeaderBytes       *int           `json:"max_header_bytes"`       // 单个请求头最大字节数
-	HTTPChallengeHost    *string        `json:"http_challenge_host"`    // ACME HTTP-01 验证监听地址
-	HTTPChallengePort    *int           `json:"http_challenge_port"`    // ACME HTTP-01 验证端口
-	ACMEEmail            *string        `json:"acme_email"`             // ACME 账户默认邮箱
+	HTTPListen           *[]string       `json:"http_listen"`            // HTTP 监听地址
+	HTTPSListen          *[]string       `json:"https_listen"`           // HTTPS 监听地址
+	Protocols            *[]string       `json:"protocols"`              // 启用的 HTTP 协议
+	DefaultSite          *string         `json:"default_site"`           // 默认站点 ID
+	NotFoundPage         *HTTPPageUpdate `json:"not_found_page"`         // 站点内资源不存在页面
+	SiteNotFoundPage     *HTTPPageUpdate `json:"site_not_found_page"`    // 请求域名未绑定网站时显示的页面
+	SiteDisabledPage     *HTTPPageUpdate `json:"site_disabled_page"`     // 请求域名所属网站已停用时显示的页面
+	DataPath             *string         `json:"data_path"`              // 证书和运行数据目录
+	CachePath            *string         `json:"cache_path"`             // 站点响应缓存根目录
+	LogPath              *string         `json:"log_path"`               // HTTP 访问日志文件
+	WAFLogPath           *string         `json:"waf_log_path"`           // WAF 审计日志文件
+	ConfigPath           *string         `json:"config_path"`            // 配置快照文件
+	LogLevel             *string         `json:"log_level"`              // HTTP 日志级别
+	TrustedProxies       *[]string       `json:"trusted_proxies"`        // 可信代理 IP 或 CIDR
+	ClientIPHeaders      *[]string       `json:"client_ip_headers"`      // 客户端 IP 请求头
+	TrustedProxiesStrict *bool           `json:"trusted_proxies_strict"` // 是否严格解析可信代理链
+	ReadTimeout          *time.Duration  `json:"read_timeout"`           // 读取完整请求的超时时间
+	ReadHeaderTimeout    *time.Duration  `json:"read_header_timeout"`    // 读取请求头的超时时间
+	WriteTimeout         *time.Duration  `json:"write_timeout"`          // 写入响应的超时时间
+	IdleTimeout          *time.Duration  `json:"idle_timeout"`           // 空闲连接的超时时间
+	GracePeriod          *time.Duration  `json:"grace_period"`           // HTTP 服务优雅关闭等待时间
+	MaxHeaderBytes       *int            `json:"max_header_bytes"`       // 单个请求头最大字节数
+	HTTPChallengeHost    *string         `json:"http_challenge_host"`    // ACME HTTP-01 验证监听地址
+	HTTPChallengePort    *int            `json:"http_challenge_port"`    // ACME HTTP-01 验证端口
+	ACMEEmail            *string         `json:"acme_email"`             // ACME 账户默认邮箱
 }

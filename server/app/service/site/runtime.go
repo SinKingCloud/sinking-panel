@@ -283,9 +283,12 @@ func (s *service) runtime() ([]webServer.Site, []processManager.Config, error) {
 	result := make([]webServer.Site, 0, len(records))
 	processes := make([]processManager.Config, 0)
 	for _, record := range records {
-		_, config, err := s.checkConfig(record.Config, record.Type)
-		if err != nil {
-			return nil, nil, fmt.Errorf("网站 %s 配置无效: %w", record.Name, err)
+		var config interface{}
+		if record.Status == site_status.Enabled {
+			_, config, err = s.checkConfig(record.Config, record.Type)
+			if err != nil {
+				return nil, nil, fmt.Errorf("网站 %s 配置无效: %w", record.Name, err)
+			}
 		}
 		runtimeSite, runtimeProcess, err := s.runtimeSite(record, domainsBySite[record.Id], certById, config)
 		if err != nil {
@@ -317,6 +320,26 @@ func (s *service) runtimeSite(record *model.Site, domains []*model.Domain, certi
 		if domain.CertId > 0 {
 			certDomains[domain.CertId] = append(certDomains[domain.CertId], domain.Domain)
 		}
+	}
+	ids := make([]int64, 0, len(certDomains))
+	for id := range certDomains {
+		ids = append(ids, id)
+	}
+	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+	for _, id := range ids {
+		certificate := certificates[id]
+		if certificate == nil {
+			return webServer.Site{}, nil, fmt.Errorf("网站 %s 使用的证书 %d 不存在", record.Name, id)
+		}
+		runtimeSite.TLS.Certificates = append(runtimeSite.TLS.Certificates, webServer.CertificatePair{
+			CertificatePEM: certificate.Certificate,
+			PrivateKeyPEM:  certificate.PrivateKey,
+			Domains:        certDomains[id],
+		})
+	}
+	runtimeSite.TLS.Enabled = len(runtimeSite.TLS.Certificates) > 0
+	if !runtimeSite.Enabled {
+		return runtimeSite, nil, nil
 	}
 	runRoot := ""
 	if record.Type != site_type.Proxy {
@@ -407,27 +430,7 @@ func (s *service) runtimeSite(record *model.Site, domains []*model.Domain, certi
 	runtimeSite.TLS.MinVersion = common.TLS.MinVersion
 	runtimeSite.TLS.MaxVersion = common.TLS.MaxVersion
 
-	ids := make([]int64, 0, len(certDomains))
-	for id := range certDomains {
-		ids = append(ids, id)
-	}
-	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
-	for _, id := range ids {
-		certificate := certificates[id]
-		if certificate == nil {
-			return webServer.Site{}, nil, fmt.Errorf("网站 %s 使用的证书 %d 不存在", record.Name, id)
-		}
-		runtimeSite.TLS.Certificates = append(runtimeSite.TLS.Certificates, webServer.CertificatePair{
-			CertificatePEM: certificate.Certificate,
-			PrivateKeyPEM:  certificate.PrivateKey,
-			Domains:        certDomains[id],
-		})
-	}
-	runtimeSite.TLS.Enabled = len(runtimeSite.TLS.Certificates) > 0
-	if !runtimeSite.Enabled {
-		runtimeSite.TLS.RedirectHTTP = false
-	}
-	if runtimeSite.Enabled && !runtimeSite.TLS.Enabled && runtimeSite.TLS.RedirectHTTP {
+	if !runtimeSite.TLS.Enabled && runtimeSite.TLS.RedirectHTTP {
 		return webServer.Site{}, nil, fmt.Errorf("网站 %s 未绑定证书，不能开启 HTTPS 跳转", record.Name)
 	}
 	return runtimeSite, runtimeProcess, nil

@@ -184,6 +184,14 @@ func (s *service) Delete(id int64) error {
 	if err != nil {
 		return s.nilIfNotFound("查询网站失败", err)
 	}
+	previousHTTP := s.http.Options()
+	clearDefault := previousHTTP.DefaultSite == strconv.FormatInt(id, 10)
+	restoreDefault := func() error {
+		if !clearDefault {
+			return nil
+		}
+		return s.updateHTTPLocked(&HTTPUpdate{DefaultSite: &previousHTTP.DefaultSite})
+	}
 	previous = s.cloneSiteRecord(previous)
 	previousDomains, err := s.repositoryDomain.SelectBySiteId(id)
 	if err != nil {
@@ -198,6 +206,12 @@ func (s *service) Delete(id int64) error {
 		}
 		logPaths = append(logPaths, path)
 	}
+	if clearDefault {
+		value := ""
+		if err = s.updateHTTPLocked(&HTTPUpdate{DefaultSite: &value}); err != nil {
+			return fmt.Errorf("取消默认站点失败: %w", err)
+		}
+	}
 
 	err = s.database.Transaction(func(tx *gorm.DB) error {
 		if deleteErr := s.repositoryDomain.DeleteBySiteId(id, tx); deleteErr != nil {
@@ -209,12 +223,21 @@ func (s *service) Delete(id int64) error {
 		return nil
 	})
 	if err != nil {
+		if restoreErr := restoreDefault(); restoreErr != nil {
+			return errors.Join(err, fmt.Errorf("恢复默认站点失败: %w", restoreErr))
+		}
 		return err
 	}
 
-	if syncErr := s.syncLocked(); syncErr != nil {
+	syncErr := s.syncLocked()
+	if syncErr != nil {
 		compensateErr := s.restoreSiteRecords(previous, previousDomains)
-		restoreRuntimeErr := s.syncLocked()
+		var restoreRuntimeErr error
+		if compensateErr == nil && clearDefault {
+			restoreRuntimeErr = restoreDefault()
+		} else {
+			restoreRuntimeErr = s.syncLocked()
+		}
 		return s.mutationSyncError("删除网站", syncErr, compensateErr, restoreRuntimeErr)
 	}
 	cacheErr := s.http.DeleteSiteCache(strconv.FormatInt(id, 10))

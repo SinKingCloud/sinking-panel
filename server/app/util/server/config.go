@@ -18,6 +18,13 @@ import (
 	"github.com/caddyserver/certmagic"
 )
 
+const (
+	defaultPageStyle        = `<style>*{box-sizing:border-box}html,body{height:100%;margin:0}body{display:grid;place-items:center;background:#f6f7f9;color:#202124;font:14px/1.6 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}main{text-align:center;padding:32px}strong{display:block;font-size:56px;line-height:1.1;font-weight:600}p{margin:12px 0 0;color:#6b7280}@media(prefers-color-scheme:dark){body{background:#0f0f0f;color:#f3f4f6}p{color:#9ca3af}}</style>` // 默认页面样式
+	defaultNotFoundPage     = `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>404 - 页面不存在</title>` + defaultPageStyle + `</head><body><main><strong>404</strong><p>请求的页面不存在</p></main></body></html>`                                                                                                                                                                                               // 默认 404 页面
+	defaultSiteNotFoundPage = `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>网站不存在</title>` + defaultPageStyle + `</head><body><main><strong>404</strong><p>当前域名尚未绑定网站</p></main></body></html>`                                                                                                                                                                                                   // 默认网站不存在页面
+	defaultSiteDisabledPage = `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>网站已停用</title>` + defaultPageStyle + `</head><body><main><strong>503</strong><p>当前网站已暂停访问</p></main></body></html>`                                                                                                                                                                                                    // 默认网站停用页面
+)
+
 func (m *Manager) setOptions(options Options) error {
 	if options.HTTPListen == nil {
 		options.HTTPListen = []string{":80"}
@@ -56,6 +63,53 @@ func (m *Manager) setOptions(options Options) error {
 		}
 	}
 	options.Protocols = protocols
+	options.DefaultSite = strings.TrimSpace(options.DefaultSite)
+	if options.DefaultSite != "" && !m.validID(options.DefaultSite) {
+		return errors.New("默认站点 ID 不合法")
+	}
+	normalizePage := func(page *ResponseOptions, status int, body string) error {
+		if page.Status == 0 {
+			page.Status = status
+		}
+		if page.Status != status {
+			return fmt.Errorf("页面响应状态码必须为 %d", status)
+		}
+		if strings.TrimSpace(page.Body) == "" {
+			page.Body = body
+		}
+		if err := m.validateHeaderMap(page.Headers); err != nil {
+			return err
+		}
+		headers := make(map[string][]string, len(page.Headers)+2)
+		hasContentType := false
+		hasCacheControl := false
+		for name, values := range page.Headers {
+			headers[name] = append([]string(nil), values...)
+			hasContentType = hasContentType || strings.EqualFold(name, "Content-Type")
+			hasCacheControl = hasCacheControl || strings.EqualFold(name, "Cache-Control")
+		}
+		if !hasContentType {
+			headers["Content-Type"] = []string{"text/html; charset=utf-8"}
+		}
+		if !hasCacheControl {
+			headers["Cache-Control"] = []string{"private, no-store"}
+		}
+		page.Headers = headers
+		return nil
+	}
+	for _, page := range []struct {
+		value  *ResponseOptions
+		status int
+		body   string
+	}{
+		{value: &options.NotFoundPage, status: 404, body: defaultNotFoundPage},
+		{value: &options.SiteNotFoundPage, status: 404, body: defaultSiteNotFoundPage},
+		{value: &options.SiteDisabledPage, status: 503, body: defaultSiteDisabledPage},
+	} {
+		if err := normalizePage(page.value, page.status, page.body); err != nil {
+			return err
+		}
+	}
 	for index := range options.HTTPListen {
 		options.HTTPListen[index] = strings.TrimSpace(options.HTTPListen[index])
 	}
@@ -518,19 +572,34 @@ func (m *Manager) buildConfig(sites map[string]*Site) ([]byte, error) {
 			httpsPort = int(port)
 		}
 	}
+	all := make([]*Site, 0, len(sites))
 	enabled := make([]*Site, 0, len(sites))
+	disabled := make([]*Site, 0, len(sites))
 	for _, site := range sites {
+		all = append(all, site)
 		if site.Enabled {
 			enabled = append(enabled, site)
+		} else {
+			disabled = append(disabled, site)
 		}
 	}
+	sort.SliceStable(all, func(i, j int) bool { return all[i].ID < all[j].ID })
 	sort.SliceStable(enabled, func(i, j int) bool { return enabled[i].ID < enabled[j].ID })
+	sort.SliceStable(disabled, func(i, j int) bool { return disabled[i].ID < disabled[j].ID })
+	logEncoder := map[string]interface{}{
+		"format":       "console",
+		"time_format":  "2006-01-02 15:04:05.000",
+		"time_local":   true,
+		"level_format": "upper",
+	}
 	accessLoggerNames := make(map[string][]string)
-	accessLogs := make(map[string]interface{}, len(enabled))
-	accessLogNamespaces := make([]string, 0, len(enabled))
-	for _, site := range enabled {
+	accessLoggerBySite := make(map[string]string, len(all))
+	accessLogs := make(map[string]interface{}, len(all))
+	accessLogNamespaces := make([]string, 0, len(all))
+	for _, site := range all {
 		fingerprint := sha256.Sum256([]byte(site.ID))
 		loggerName := fmt.Sprintf("site_%x", fingerprint)
+		accessLoggerBySite[site.ID] = loggerName
 		logPath, err := m.siteLogPath(site.ID, LogAccess)
 		if err != nil {
 			return nil, err
@@ -542,6 +611,7 @@ func (m *Manager) buildConfig(sites map[string]*Site) ([]byte, error) {
 		accessLogNamespaces = append(accessLogNamespaces, namespace)
 		accessLogs[loggerName] = map[string]interface{}{
 			"include": []string{namespace},
+			"encoder": logEncoder,
 			"writer": map[string]interface{}{
 				"output":           "file",
 				"filename":         logPath,
@@ -555,7 +625,7 @@ func (m *Manager) buildConfig(sites map[string]*Site) ([]byte, error) {
 		}
 	}
 	exactDomains := make(map[string]string)
-	for _, site := range enabled {
+	for _, site := range all {
 		for _, domain := range site.Domains {
 			if !strings.HasPrefix(domain, "*.") {
 				exactDomains[domain] = site.ID
@@ -563,8 +633,8 @@ func (m *Manager) buildConfig(sites map[string]*Site) ([]byte, error) {
 		}
 	}
 
-	httpRoutes := make([]interface{}, 0, len(enabled)+1)
-	httpsRoutes := make([]interface{}, 0, len(enabled)+1)
+	httpRoutes := make([]interface{}, 0, len(all)+1)
+	httpsRoutes := make([]interface{}, 0, len(all)+1)
 	exactTLSPolicies := make([]interface{}, 0)
 	wildcardTLSPolicies := make([]interface{}, 0)
 	type certificateFileConfig struct {
@@ -579,7 +649,7 @@ func (m *Manager) buildConfig(sites map[string]*Site) ([]byte, error) {
 	}
 	certificateFiles := make(map[string]*certificateFileConfig)
 	certificatePEMs := make(map[string]*certificatePEMConfig)
-	for _, site := range enabled {
+	excludedFor := func(site *Site) []string {
 		excludedDomains := make([]string, 0)
 		for domain, owner := range exactDomains {
 			if owner == site.ID {
@@ -594,6 +664,78 @@ func (m *Manager) buildConfig(sites map[string]*Site) ([]byte, error) {
 			}
 		}
 		sort.Strings(excludedDomains)
+		return excludedDomains
+	}
+	registerTLS := func(site *Site, tlsDomains []string) error {
+		for _, pair := range site.TLS.Certificates {
+			certificateIdentity := pair.CertificatePEM + "\x00" + pair.PrivateKeyPEM
+			if pair.CertificatePEM == "" {
+				certificateContent, err := os.ReadFile(pair.CertificateFile)
+				if err != nil {
+					return fmt.Errorf("读取站点 %s 证书失败: %w", site.ID, err)
+				}
+				keyContent, err := os.ReadFile(pair.KeyFile)
+				if err != nil {
+					return fmt.Errorf("读取站点 %s 私钥失败: %w", site.ID, err)
+				}
+				certificateIdentity = string(certificateContent) + "\x00" + string(keyContent)
+			}
+			fingerprint := sha256.Sum256([]byte(certificateIdentity))
+			tag := fmt.Sprintf("site:%s:certificate:%x", site.ID, fingerprint)
+			pairDomains := pair.Domains
+			if len(pairDomains) == 0 {
+				pairDomains = tlsDomains
+			}
+			exact, wildcard := make([]string, 0, len(pairDomains)), make([]string, 0, len(pairDomains))
+			for _, domain := range pairDomains {
+				if strings.HasPrefix(domain, "*.") {
+					wildcard = append(wildcard, domain)
+				} else {
+					exact = append(exact, domain)
+				}
+			}
+			for policyIndex, domains := range [][]string{exact, wildcard} {
+				if len(domains) == 0 {
+					continue
+				}
+				policy := map[string]interface{}{
+					"match":                 map[string]interface{}{"sni": domains},
+					"certificate_selection": map[string]interface{}{"any_tag": []string{tag}},
+				}
+				if site.TLS.MinVersion != "" {
+					policy["protocol_min"] = site.TLS.MinVersion
+				}
+				if site.TLS.MaxVersion != "" {
+					policy["protocol_max"] = site.TLS.MaxVersion
+				}
+				if policyIndex == 0 {
+					exactTLSPolicies = append(exactTLSPolicies, policy)
+				} else {
+					wildcardTLSPolicies = append(wildcardTLSPolicies, policy)
+				}
+			}
+			if pair.CertificatePEM != "" {
+				key := string(fingerprint[:])
+				certificate := certificatePEMs[key]
+				if certificate == nil {
+					certificate = &certificatePEMConfig{Certificate: pair.CertificatePEM, Key: pair.PrivateKeyPEM}
+					certificatePEMs[key] = certificate
+				}
+				certificate.Tags = append(certificate.Tags, tag)
+				continue
+			}
+			key := pair.CertificateFile + "\x00" + pair.KeyFile
+			certificate := certificateFiles[key]
+			if certificate == nil {
+				certificate = &certificateFileConfig{Certificate: pair.CertificateFile, Key: pair.KeyFile}
+				certificateFiles[key] = certificate
+			}
+			certificate.Tags = append(certificate.Tags, tag)
+		}
+		return nil
+	}
+	for _, site := range enabled {
+		excludedDomains := excludedFor(site)
 		if site.TLS.Enabled {
 			tlsDomains := append([]string(nil), site.TLS.coveredDomains...)
 			covered := make(map[string]struct{}, len(tlsDomains))
@@ -611,70 +753,8 @@ func (m *Manager) buildConfig(sites map[string]*Site) ([]byte, error) {
 				return nil, err
 			}
 			httpsRoutes = append(httpsRoutes, httpsRoute)
-			for _, pair := range site.TLS.Certificates {
-				certificateIdentity := pair.CertificatePEM + "\x00" + pair.PrivateKeyPEM
-				if pair.CertificatePEM == "" {
-					certificateContent, readErr := os.ReadFile(pair.CertificateFile)
-					if readErr != nil {
-						return nil, fmt.Errorf("读取站点 %s 证书失败: %w", site.ID, readErr)
-					}
-					keyContent, readErr := os.ReadFile(pair.KeyFile)
-					if readErr != nil {
-						return nil, fmt.Errorf("读取站点 %s 私钥失败: %w", site.ID, readErr)
-					}
-					certificateIdentity = string(certificateContent) + "\x00" + string(keyContent)
-				}
-				fingerprint := sha256.Sum256([]byte(certificateIdentity))
-				tag := fmt.Sprintf("site:%s:certificate:%x", site.ID, fingerprint)
-				pairDomains := pair.Domains
-				if len(pairDomains) == 0 {
-					pairDomains = tlsDomains
-				}
-				exact, wildcard := make([]string, 0, len(pairDomains)), make([]string, 0, len(pairDomains))
-				for _, domain := range pairDomains {
-					if strings.HasPrefix(domain, "*.") {
-						wildcard = append(wildcard, domain)
-					} else {
-						exact = append(exact, domain)
-					}
-				}
-				for policyIndex, domains := range [][]string{exact, wildcard} {
-					if len(domains) == 0 {
-						continue
-					}
-					policy := map[string]interface{}{
-						"match":                 map[string]interface{}{"sni": domains},
-						"certificate_selection": map[string]interface{}{"any_tag": []string{tag}},
-					}
-					if site.TLS.MinVersion != "" {
-						policy["protocol_min"] = site.TLS.MinVersion
-					}
-					if site.TLS.MaxVersion != "" {
-						policy["protocol_max"] = site.TLS.MaxVersion
-					}
-					if policyIndex == 0 {
-						exactTLSPolicies = append(exactTLSPolicies, policy)
-					} else {
-						wildcardTLSPolicies = append(wildcardTLSPolicies, policy)
-					}
-				}
-				if pair.CertificatePEM != "" {
-					key := string(fingerprint[:])
-					certificate := certificatePEMs[key]
-					if certificate == nil {
-						certificate = &certificatePEMConfig{Certificate: pair.CertificatePEM, Key: pair.PrivateKeyPEM}
-						certificatePEMs[key] = certificate
-					}
-					certificate.Tags = append(certificate.Tags, tag)
-					continue
-				}
-				key := pair.CertificateFile + "\x00" + pair.KeyFile
-				certificate := certificateFiles[key]
-				if certificate == nil {
-					certificate = &certificateFileConfig{Certificate: pair.CertificateFile, Key: pair.KeyFile}
-					certificateFiles[key] = certificate
-				}
-				certificate.Tags = append(certificate.Tags, tag)
+			if err := registerTLS(site, tlsDomains); err != nil {
+				return nil, err
 			}
 			if site.TLS.RedirectHTTP {
 				if len(m.options.HTTPSListen) == 0 {
@@ -727,17 +807,43 @@ func (m *Manager) buildConfig(sites map[string]*Site) ([]byte, error) {
 			httpRoutes = append(httpRoutes, httpRoute)
 		}
 	}
-	tlsPolicies := append(exactTLSPolicies, wildcardTLSPolicies...)
-	missingRoute := map[string]interface{}{
-		"handle":   []interface{}{map[string]interface{}{"handler": HandlerStaticResponse, "status_code": 404, "body": "Not Found"}},
-		"terminal": true,
+	for _, site := range disabled {
+		excludedDomains := excludedFor(site)
+		httpRoutes = append(httpRoutes, m.buildResponseRoute(m.options.SiteDisabledPage, site.Domains, excludedDomains))
+		if site.TLS.Enabled && len(site.TLS.coveredDomains) > 0 {
+			tlsDomains := append([]string(nil), site.TLS.coveredDomains...)
+			httpsRoutes = append(httpsRoutes, m.buildResponseRoute(m.options.SiteDisabledPage, tlsDomains, excludedDomains))
+			if err := registerTLS(site, tlsDomains); err != nil {
+				return nil, err
+			}
+		}
 	}
-	if len(httpRoutes) > 0 {
-		httpRoutes = append(httpRoutes, missingRoute)
+	var defaultSite *Site
+	if m.options.DefaultSite != "" {
+		defaultSite = sites[m.options.DefaultSite]
+		if defaultSite == nil && len(sites) > 0 {
+			return nil, fmt.Errorf("默认站点不存在: %s", m.options.DefaultSite)
+		}
+		if defaultSite != nil && !defaultSite.Enabled {
+			defaultSite = nil
+		}
+	}
+	if defaultSite != nil {
+		if len(m.options.HTTPListen) == 0 {
+			return nil, errors.New("配置默认站点时必须启用 HTTP 监听")
+		}
+		defaultRoute, err := m.buildSiteRoute(defaultSite, nil, nil, "http-default")
+		if err != nil {
+			return nil, fmt.Errorf("生成默认站点路由失败: %w", err)
+		}
+		httpRoutes = append(httpRoutes, defaultRoute)
+	} else {
+		httpRoutes = append(httpRoutes, m.buildResponseRoute(m.options.SiteNotFoundPage, nil, nil))
 	}
 	if len(httpsRoutes) > 0 {
-		httpsRoutes = append(httpsRoutes, missingRoute)
+		httpsRoutes = append(httpsRoutes, m.buildResponseRoute(m.options.SiteNotFoundPage, nil, nil))
 	}
+	tlsPolicies := append(exactTLSPolicies, wildcardTLSPolicies...)
 
 	httpApp := map[string]interface{}{
 		"http_port":    m.options.HTTPChallengePort,
@@ -763,14 +869,18 @@ func (m *Manager) buildConfig(sites map[string]*Site) ([]byte, error) {
 			if !hasPlainHTTP {
 				return nil, errors.New("HTTP 监听至少需要启用 h1 或 h2c")
 			}
-			servers["http"] = m.buildHTTPServer(m.options.HTTPListen, httpRoutes, nil, accessLoggerNames)
+			defaultLoggerName := ""
+			if defaultSite != nil {
+				defaultLoggerName = accessLoggerBySite[defaultSite.ID]
+			}
+			servers["http"] = m.buildHTTPServer(m.options.HTTPListen, httpRoutes, nil, accessLoggerNames, defaultLoggerName)
 		}
 	}
 	if len(httpsRoutes) > 0 {
 		if len(m.options.HTTPSListen) == 0 {
 			return nil, errors.New("存在 TLS 站点，但没有配置 HTTPS 监听地址")
 		}
-		servers["https"] = m.buildHTTPServer(m.options.HTTPSListen, httpsRoutes, tlsPolicies, accessLoggerNames)
+		servers["https"] = m.buildHTTPServer(m.options.HTTPSListen, httpsRoutes, tlsPolicies, accessLoggerNames, "")
 	}
 
 	loadFiles := make([]certificateFileConfig, 0, len(certificateFiles))
@@ -821,23 +931,31 @@ func (m *Manager) buildConfig(sites map[string]*Site) ([]byte, error) {
 		"storage": map[string]interface{}{"module": "file_system", "root": m.dataPath},
 		"apps":    apps,
 	}
-	logConfig := map[string]interface{}{"level": m.options.LogLevel}
+	logConfig := map[string]interface{}{"level": m.options.LogLevel, "encoder": logEncoder}
 	if len(accessLogNamespaces) > 0 {
 		logConfig["exclude"] = accessLogNamespaces
 	}
-	if m.logPath != "-" {
-		logConfig["writer"] = map[string]interface{}{
-			"output":           "file",
-			"filename":         m.logPath,
-			"mode":             "0600",
-			"dir_mode":         "0700",
-			"roll_size_mb":     50,
-			"roll_keep":        10,
-			"roll_keep_days":   30,
-			"roll_compression": "gzip",
-		}
-	}
 	logs := map[string]interface{}{"default": logConfig}
+	if m.logPath != "-" {
+		fileLog := map[string]interface{}{
+			"level":   m.options.LogLevel,
+			"encoder": logEncoder,
+			"writer": map[string]interface{}{
+				"output":           "file",
+				"filename":         m.logPath,
+				"mode":             "0600",
+				"dir_mode":         "0700",
+				"roll_size_mb":     50,
+				"roll_keep":        10,
+				"roll_keep_days":   30,
+				"roll_compression": "gzip",
+			},
+		}
+		if len(accessLogNamespaces) > 0 {
+			fileLog["exclude"] = accessLogNamespaces
+		}
+		logs["runtime"] = fileLog
+	}
 	for name, accessLog := range accessLogs {
 		logs[name] = accessLog
 	}
@@ -849,7 +967,7 @@ func (m *Manager) buildConfig(sites map[string]*Site) ([]byte, error) {
 	return result, nil
 }
 
-func (m *Manager) buildHTTPServer(listen []string, routes []interface{}, tlsPolicies []interface{}, loggerNames map[string][]string) map[string]interface{} {
+func (m *Manager) buildHTTPServer(listen []string, routes []interface{}, tlsPolicies []interface{}, loggerNames map[string][]string, defaultLoggerName string) map[string]interface{} {
 	routes = append([]interface{}{
 		map[string]interface{}{
 			"handle": []interface{}{map[string]interface{}{
@@ -861,18 +979,33 @@ func (m *Manager) buildHTTPServer(listen []string, routes []interface{}, tlsPoli
 			}},
 		},
 	}, routes...)
+	logOptions := map[string]interface{}{
+		"logger_names":        loggerNames,
+		"skip_unmapped_hosts": defaultLoggerName == "",
+	}
+	if defaultLoggerName != "" {
+		logOptions["default_logger_name"] = defaultLoggerName
+	}
 	server := map[string]interface{}{
-		"listen":              append([]string(nil), listen...),
-		"routes":              routes,
+		"listen": append([]string(nil), listen...),
+		"routes": routes,
+		"errors": map[string]interface{}{
+			"routes": []interface{}{
+				map[string]interface{}{
+					"match": []interface{}{map[string]interface{}{
+						"expression": "{http.error.status_code} == 404",
+					}},
+					"handle":   []interface{}{m.buildResponseHandler(m.options.NotFoundPage)},
+					"terminal": true,
+				},
+			},
+		},
 		"automatic_https":     map[string]interface{}{"disable": true},
 		"protocols":           append([]string(nil), m.options.Protocols...),
 		"read_header_timeout": m.options.ReadHeaderTimeout.String(),
 		"idle_timeout":        m.options.IdleTimeout.String(),
 		"max_header_bytes":    m.options.MaxHeaderBytes,
-		"logs": map[string]interface{}{
-			"logger_names":        loggerNames,
-			"skip_unmapped_hosts": true,
-		},
+		"logs":                logOptions,
 	}
 	if m.options.ReadTimeout > 0 {
 		server["read_timeout"] = m.options.ReadTimeout.String()

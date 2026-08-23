@@ -88,6 +88,13 @@ func (m *Manager) normalizeSite(input *Site) (*Site, error) {
 		site.Domains = append(site.Domains, domain)
 	}
 	sort.Strings(site.Domains)
+	if !site.Enabled {
+		site.TLS.RedirectHTTP = false
+		if err := m.normalizeTLS(&site.TLS, site.Domains); err != nil {
+			return nil, fmt.Errorf("站点 %s TLS 配置无效: %w", site.ID, err)
+		}
+		return site, nil
+	}
 
 	var err error
 	if site.Root != "" {

@@ -11,27 +11,31 @@ import (
 // Options 控制 HTTP 服务的监听地址、数据文件和运行参数。
 // 路径为空时使用 root 下的默认目录，ConfigPath 为空表示不保存配置快照。
 type Options struct {
-	HTTPListen           []string      `json:"http_listen"`            // HTTP 监听地址，nil 默认 :80，空切片关闭监听
-	HTTPSListen          []string      `json:"https_listen"`           // HTTPS 监听地址，nil 默认 :443，空切片关闭监听
-	Protocols            []string      `json:"protocols"`              // 启用的 HTTP 协议，nil 默认 h1、h2、h3
-	DataPath             string        `json:"data_path"`              // 证书和运行数据目录，默认 root/data
-	CachePath            string        `json:"cache_path"`             // 站点响应缓存根目录，默认 root/cache
-	LogPath              string        `json:"log_path"`               // HTTP 运行日志文件，- 表示使用默认日志输出
-	WAFLogPath           string        `json:"waf_log_path"`           // WAF 审计日志基准文件，站点日志写入同级 waf 目录
-	ConfigPath           string        `json:"config_path"`            // 配置快照文件，为空时不保存
-	LogLevel             string        `json:"log_level"`              // HTTP 日志级别，默认 INFO
-	TrustedProxies       []string      `json:"trusted_proxies"`        // 可信代理 IP 或 CIDR
-	ClientIPHeaders      []string      `json:"client_ip_headers"`      // 从可信代理读取客户端 IP 的请求头
-	TrustedProxiesStrict bool          `json:"trusted_proxies_strict"` // 是否严格解析可信代理链
-	ReadTimeout          time.Duration `json:"read_timeout"`           // 读取完整请求的超时时间，0 表示不限制
-	ReadHeaderTimeout    time.Duration `json:"read_header_timeout"`    // 读取请求头的超时时间，默认 10 秒
-	WriteTimeout         time.Duration `json:"write_timeout"`          // 写入响应的超时时间，0 表示不限制
-	IdleTimeout          time.Duration `json:"idle_timeout"`           // 空闲连接的超时时间，默认 5 分钟
-	GracePeriod          time.Duration `json:"grace_period"`           // HTTP 服务优雅关闭等待时间，默认 10 秒
-	MaxHeaderBytes       int           `json:"max_header_bytes"`       // 单个请求头最大字节数，默认 1 MiB
-	HTTPChallengeHost    string        `json:"http_challenge_host"`    // ACME HTTP-01 验证监听地址
-	HTTPChallengePort    int           `json:"http_challenge_port"`    // ACME HTTP-01 验证端口，默认 80
-	ACMEEmail            string        `json:"acme_email"`             // ACME 账户默认邮箱
+	HTTPListen           []string        `json:"http_listen"`            // HTTP 监听地址，nil 默认 :80，空切片关闭监听
+	HTTPSListen          []string        `json:"https_listen"`           // HTTPS 监听地址，nil 默认 :443，空切片关闭监听
+	Protocols            []string        `json:"protocols"`              // 启用的 HTTP 协议，nil 默认 h1、h2、h3
+	DefaultSite          string          `json:"default_site"`           // 默认站点 ID，空表示未知域名显示网站不存在页
+	NotFoundPage         ResponseOptions `json:"not_found_page"`         // 站点内资源不存在页面
+	SiteNotFoundPage     ResponseOptions `json:"site_not_found_page"`    // 请求域名未绑定网站时显示的页面
+	SiteDisabledPage     ResponseOptions `json:"site_disabled_page"`     // 请求域名所属网站已停用时显示的页面
+	DataPath             string          `json:"data_path"`              // 证书和运行数据目录，默认 root/data
+	CachePath            string          `json:"cache_path"`             // 站点响应缓存根目录，默认 root/cache
+	LogPath              string          `json:"log_path"`               // HTTP 运行日志文件，- 表示使用默认日志输出
+	WAFLogPath           string          `json:"waf_log_path"`           // WAF 审计日志基准文件，站点日志写入同级 waf 目录
+	ConfigPath           string          `json:"config_path"`            // 配置快照文件，为空时不保存
+	LogLevel             string          `json:"log_level"`              // HTTP 日志级别，默认 INFO
+	TrustedProxies       []string        `json:"trusted_proxies"`        // 可信代理 IP 或 CIDR
+	ClientIPHeaders      []string        `json:"client_ip_headers"`      // 从可信代理读取客户端 IP 的请求头
+	TrustedProxiesStrict bool            `json:"trusted_proxies_strict"` // 是否严格解析可信代理链
+	ReadTimeout          time.Duration   `json:"read_timeout"`           // 读取完整请求的超时时间，0 表示不限制
+	ReadHeaderTimeout    time.Duration   `json:"read_header_timeout"`    // 读取请求头的超时时间，默认 10 秒
+	WriteTimeout         time.Duration   `json:"write_timeout"`          // 写入响应的超时时间，0 表示不限制
+	IdleTimeout          time.Duration   `json:"idle_timeout"`           // 空闲连接的超时时间，默认 5 分钟
+	GracePeriod          time.Duration   `json:"grace_period"`           // HTTP 服务优雅关闭等待时间，默认 10 秒
+	MaxHeaderBytes       int             `json:"max_header_bytes"`       // 单个请求头最大字节数，默认 1 MiB
+	HTTPChallengeHost    string          `json:"http_challenge_host"`    // ACME HTTP-01 验证监听地址
+	HTTPChallengePort    int             `json:"http_challenge_port"`    // ACME HTTP-01 验证端口，默认 80
+	ACMEEmail            string          `json:"acme_email"`             // ACME 账户默认邮箱
 }
 
 // Site 是与数据库无关的站点配置，可由业务层直接持久化。
