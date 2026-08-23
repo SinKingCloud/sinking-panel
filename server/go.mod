@@ -12,6 +12,7 @@ require (
 	github.com/caddyserver/certmagic v0.25.3
 	github.com/containerd/console v1.0.5
 	github.com/corazawaf/coraza-caddy/v2 v2.5.0
+	github.com/cyphar/filepath-securejoin v0.7.0
 	github.com/darkweak/storages/core v0.0.15
 	github.com/dustin/go-humanize v1.0.1
 	github.com/glebarez/sqlite v1.11.0
@@ -21,9 +22,12 @@ require (
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/gorilla/websocket v1.5.3
 	github.com/mholt/caddy-ratelimit v0.1.1-0.20260612195517-5625512f24f6
+	github.com/moby/profiles/seccomp v0.2.3
+	github.com/moby/sys/mountinfo v0.7.2
 	github.com/moby/sys/user v0.4.0
 	github.com/opencontainers/cgroups v0.0.6
 	github.com/opencontainers/runc v1.5.1
+	github.com/opencontainers/runtime-spec v1.3.0
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pierrec/lz4/v4 v4.1.22
 	github.com/robfig/cron/v3 v3.0.1
@@ -71,6 +75,7 @@ require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/checkpoint-restore/go-criu/v8 v8.3.0 // indirect
 	github.com/chzyer/readline v1.5.1 // indirect
+	github.com/cilium/ebpf v0.17.3 // indirect
 	github.com/cloudflare/circl v1.6.3 // indirect
 	github.com/corazawaf/coraza-coreruleset/v4 v4.25.0 // indirect
 	github.com/corazawaf/coraza/v3 v3.7.0 // indirect
@@ -78,7 +83,6 @@ require (
 	github.com/coreos/go-oidc/v3 v3.17.0 // indirect
 	github.com/coreos/go-systemd/v22 v22.7.0 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.7 // indirect
-	github.com/cyphar/filepath-securejoin v0.7.0 // indirect
 	github.com/darkweak/go-esi v0.0.5 // indirect
 	github.com/darkweak/souin v1.7.7 // indirect
 	github.com/dgraph-io/badger v1.6.2 // indirect
@@ -145,12 +149,10 @@ require (
 	github.com/mitchellh/go-ps v1.0.0 // indirect
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
 	github.com/moby/sys/capability v0.4.0 // indirect
-	github.com/moby/sys/mountinfo v0.7.2 // indirect
 	github.com/moby/sys/userns v0.1.0 // indirect
 	github.com/mrunalp/fileutils v0.5.1 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/ncruces/go-strftime v1.0.0 // indirect
-	github.com/opencontainers/runtime-spec v1.3.0 // indirect
 	github.com/opencontainers/selinux v1.13.1 // indirect
 	github.com/pbnjay/memory v0.0.0-20210728143218-7b4eea64cf58 // indirect
 	github.com/pelletier/go-toml/v2 v2.4.3 // indirect

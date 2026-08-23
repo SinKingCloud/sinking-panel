@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	standardRuntime "runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -22,7 +23,9 @@ func NewManager(root string, options ...ManagerOptions) (*Manager, error) {
 	if err != nil {
 		return nil, fmt.Errorf("解析容器数据目录失败: %w", err)
 	}
+	rootExists := false
 	if info, statErr := os.Lstat(absRoot); statErr == nil {
+		rootExists = true
 		if info.Mode()&os.ModeSymlink != 0 {
 			return nil, errors.New("容器数据目录不能是符号链接")
 		}
@@ -66,26 +69,197 @@ func NewManager(root string, options ...ManagerOptions) (*Manager, error) {
 		}
 		absRoot = filepath.Clean(resolved)
 	}
+	if absRoot == filepath.Clean(filepath.VolumeName(absRoot)+string(filepath.Separator)) {
+		return nil, errors.New("容器数据目录不能是磁盘根目录")
+	}
+	validateLinuxAncestors := func(start string) error {
+		if standardRuntime.GOOS != "linux" {
+			return nil
+		}
+		for current := filepath.Clean(start); ; current = filepath.Dir(current) {
+			info, err := os.Lstat(current)
+			if err != nil {
+				return fmt.Errorf("读取容器数据目录祖先失败: %w", err)
+			}
+			uid, _, ownerOK := archiveOwnership(info)
+			writable := info.Mode().Perm()&0022 != 0
+			if !ownerOK || uid != 0 || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 ||
+				writable && (current == absRoot || info.Mode()&os.ModeSticky == 0) {
+				return fmt.Errorf("容器数据目录祖先可被非 root 替换: %s", current)
+			}
+			if current == filepath.Dir(current) {
+				return nil
+			}
+		}
+	}
+	ancestor := absRoot
+	for {
+		if _, err := os.Lstat(ancestor); err == nil {
+			break
+		} else if !errors.Is(err, os.ErrNotExist) {
+			return nil, fmt.Errorf("读取容器数据目录祖先失败: %w", err)
+		}
+		next := filepath.Dir(ancestor)
+		if next == ancestor {
+			return nil, errors.New("找不到容器数据目录的有效祖先")
+		}
+		ancestor = next
+	}
+	if err := validateLinuxAncestors(ancestor); err != nil {
+		return nil, err
+	}
+	if rootExists {
+		if err := validateLinuxAncestors(absRoot); err != nil {
+			return nil, err
+		}
+		entries, readErr := os.ReadDir(absRoot)
+		if readErr != nil {
+			return nil, fmt.Errorf("读取容器数据目录失败: %w", readErr)
+		}
+		if len(entries) == 0 {
+			if standardRuntime.GOOS == "linux" {
+				info, statErr := os.Lstat(absRoot)
+				if statErr != nil {
+					return nil, fmt.Errorf("读取空的容器数据目录失败: %w", statErr)
+				}
+				uid, gid, ownerOK := archiveOwnership(info)
+				if !ownerOK || uid != 0 || gid != 0 || info.Mode().Perm()&0077 != 0 {
+					return nil, errors.New("空的容器数据目录必须预先由 root:root 持有且权限不高于 0700")
+				}
+			}
+		} else {
+			for _, name := range []string{"images", "instances", "runtime"} {
+				info, statErr := os.Lstat(filepath.Join(absRoot, name))
+				if statErr != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+					return nil, errors.New("已有非空目录不是可识别的容器数据目录")
+				}
+			}
+		}
+	}
 	installation := sha256.Sum256([]byte(absRoot))
 	managerOptions := ManagerOptions{}
 	if len(options) > 0 {
 		managerOptions = options[0]
 	}
-	m := &Manager{
-		imagesRoot:    filepath.Join(absRoot, "images"),
-		instancesRoot: filepath.Join(absRoot, "instances"),
-		runtimeRoot:   filepath.Join(absRoot, "runtime"),
-		installation:  fmt.Sprintf("%x", installation[:16]),
-		options:       normalizeManagerOptions(managerOptions),
-		images:        make(map[string]*Image),
-		instances:     make(map[string]*Instance),
-		runtime:       make(map[string]interface{}),
-		autoRestart:   make(map[string]uint64),
+	if managerOptions.UIDMapStart < 0 || managerOptions.GIDMapStart < 0 || managerOptions.IDMapSize < 0 {
+		return nil, errors.New("User Namespace 映射参数不能小于 0")
 	}
-	for _, path := range []string{absRoot, m.imagesRoot, m.instancesRoot, m.runtimeRoot} {
+	if managerOptions.UIDMapStart == 0 != (managerOptions.GIDMapStart == 0) {
+		return nil, errors.New("UIDMapStart 和 GIDMapStart 必须同时配置")
+	}
+	requestedSecurity := securityMetadata{
+		UIDMapStart: managerOptions.UIDMapStart,
+		GIDMapStart: managerOptions.GIDMapStart,
+		IDMapSize:   managerOptions.IDMapSize,
+	}
+	managerOptions = normalizeManagerOptions(managerOptions)
+	m := &Manager{
+		dataRoot:          absRoot,
+		imagesRoot:        filepath.Join(absRoot, "images"),
+		instancesRoot:     filepath.Join(absRoot, "instances"),
+		runtimeRoot:       filepath.Join(absRoot, "runtime"),
+		volumesRoot:       filepath.Join(absRoot, "volumes"),
+		mountsRoot:        filepath.Join(absRoot, ".mount-sources"),
+		installation:      fmt.Sprintf("%x", installation[:16]),
+		options:           managerOptions,
+		requestedSecurity: requestedSecurity,
+		images:            make(map[string]*Image),
+		instances:         make(map[string]*Instance),
+		runtime:           make(map[string]interface{}),
+		autoRestart:       make(map[string]uint64),
+	}
+	if err := m.ensureManagedDirectory(absRoot); err != nil {
+		return nil, err
+	}
+	if err := validateLinuxAncestors(absRoot); err != nil {
+		return nil, err
+	}
+	_, mountsRootErr := os.Lstat(m.mountsRoot)
+	mountsRootExists := mountsRootErr == nil
+	if mountsRootErr != nil && !errors.Is(mountsRootErr, os.ErrNotExist) {
+		return nil, fmt.Errorf("读取临时挂载源目录失败: %w", mountsRootErr)
+	}
+	for _, path := range []string{m.imagesRoot, m.instancesRoot, m.runtimeRoot, m.volumesRoot, m.mountsRoot} {
 		if err := m.ensureManagedDirectory(path); err != nil {
 			return nil, err
 		}
+	}
+	markerPath := filepath.Join(m.mountsRoot, ".managed")
+	marker := []byte(m.installation + "\n")
+	validateMarker := func() error {
+		info, err := os.Lstat(markerPath)
+		if err != nil || !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 || info.Size() != int64(len(marker)) {
+			return errors.New("已有临时挂载源目录缺少有效管理标记，拒绝接管")
+		}
+		data, err := os.ReadFile(markerPath)
+		if err != nil || string(data) != string(marker) {
+			return errors.New("临时挂载源目录管理标记不匹配，拒绝接管")
+		}
+		return nil
+	}
+	if mountsRootExists {
+		if err := validateMarker(); err != nil {
+			return nil, err
+		}
+	} else {
+		file, err := os.OpenFile(markerPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
+		if errors.Is(err, os.ErrExist) {
+			if err := validateMarker(); err != nil {
+				return nil, err
+			}
+			file = nil
+			err = nil
+		}
+		if err != nil {
+			return nil, fmt.Errorf("创建临时挂载源管理标记失败: %w", err)
+		}
+		if file != nil {
+			_, writeErr := file.Write(marker)
+			syncErr := file.Sync()
+			closeErr := file.Close()
+			if err := errors.Join(writeErr, syncErr, closeErr); err != nil {
+				return nil, fmt.Errorf("保存临时挂载源管理标记失败: %w", err)
+			}
+		}
+	}
+	mountRoots := append([]string{m.volumesRoot}, managerOptions.MountRoots...)
+	seenMountRoots := make(map[string]struct{}, len(mountRoots))
+	for _, mountRoot := range mountRoots {
+		mountRoot = strings.TrimSpace(mountRoot)
+		if mountRoot == "" {
+			return nil, errors.New("挂载根目录不能为空")
+		}
+		mountRoot, err = filepath.Abs(mountRoot)
+		if err != nil {
+			return nil, fmt.Errorf("解析挂载根目录失败: %w", err)
+		}
+		info, statErr := os.Lstat(mountRoot)
+		if statErr != nil {
+			return nil, fmt.Errorf("读取挂载根目录失败: %w", statErr)
+		}
+		if info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
+			return nil, fmt.Errorf("挂载根目录必须是普通目录: %s", mountRoot)
+		}
+		mountRoot, err = filepath.EvalSymlinks(mountRoot)
+		if err != nil {
+			return nil, fmt.Errorf("解析挂载根目录失败: %w", err)
+		}
+		mountRoot = filepath.Clean(mountRoot)
+		if mountRoot == filepath.Clean(filepath.VolumeName(mountRoot)+string(filepath.Separator)) {
+			return nil, errors.New("挂载根目录不能是磁盘根目录")
+		}
+		if mountRoot != m.volumesRoot && (m.ensureInside(m.dataRoot, mountRoot) == nil || m.ensureInside(mountRoot, m.dataRoot) == nil) {
+			return nil, errors.New("外部挂载根目录不能与容器数据目录重叠")
+		}
+		if _, exists := seenMountRoots[mountRoot]; exists {
+			continue
+		}
+		seenMountRoots[mountRoot] = struct{}{}
+		m.mountRoots = append(m.mountRoots, mountRoot)
+	}
+	m.options.MountRoots = append([]string(nil), m.mountRoots...)
+	if err := m.configurePlatformSecurity(absRoot); err != nil {
+		return nil, err
 	}
 	if err := m.loadMetadata(); err != nil {
 		return nil, err
@@ -97,6 +271,45 @@ func NewManager(root string, options ...ManagerOptions) (*Manager, error) {
 		return nil, err
 	}
 	return m, nil
+}
+
+// HostID 将容器内 UID/GID 转换为宿主 ID，用于准备可写 bind mount 的所有权。
+func (m *Manager) HostID(uid, gid int) (int, int, error) {
+	return m.mapOwnership(uid, gid)
+}
+
+// PrepareMount 将受管目录内的全部文件转换为容器 UID/GID，并移除宿主可利用的提权位。
+// 该操作会修改宿主文件所有权，只应在首次挂载可写业务目录前调用。
+func (m *Manager) PrepareMount(source string) error {
+	m.mountMu.Lock()
+	defer m.mountMu.Unlock()
+	resolved, err := m.resolveMountSource(source)
+	if err != nil {
+		return err
+	}
+	if err := m.validateMount(Mount{Source: resolved, Destination: "/volume"}); err != nil {
+		return err
+	}
+	for _, root := range m.mountRoots {
+		if resolved == root {
+			return errors.New("请在挂载根目录下创建业务子目录后再准备可写挂载")
+		}
+	}
+	m.mu.RLock()
+	for id, instance := range m.instances {
+		_, hasRuntime := m.runtime[id]
+		if !m.isActiveStatus(instance.Status) && instance.PID <= 0 && !hasRuntime {
+			continue
+		}
+		for _, mount := range instance.Mounts {
+			if m.ensureInside(mount.Source, resolved) == nil || m.ensureInside(resolved, mount.Source) == nil {
+				m.mu.RUnlock()
+				return fmt.Errorf("挂载目录正被运行实例 %s 使用", id)
+			}
+		}
+	}
+	m.mu.RUnlock()
+	return m.preparePlatformMountOwnership(resolved)
 }
 
 func (m *Manager) Import(source string) (*Image, error) {
@@ -312,7 +525,13 @@ func (m *Manager) Remove(id string) error {
 				}
 				return fmt.Errorf("确认孤立容器运行状态删除失败: %w", err)
 			}
-			return nil
+			return m.cleanupOrphanInstanceStorage(id)
+		}
+		instanceDir := filepath.Join(m.instancesRoot, id)
+		if _, err := os.Lstat(instanceDir); err == nil {
+			return m.cleanupOrphanInstanceStorage(id)
+		} else if !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("读取孤立实例目录失败: %w", err)
 		}
 		return errors.New("实例不存在")
 	}

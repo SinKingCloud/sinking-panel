@@ -74,6 +74,9 @@ func (m *Manager) importSave(source string) (*Image, error) {
 		if json.Unmarshal(data, &image) == nil && image.ID == id {
 			image.Rootfs = expectedRootfs
 			if rootfsInfo, statErr := os.Lstat(expectedRootfs); statErr == nil && rootfsInfo.IsDir() && rootfsInfo.Mode()&os.ModeSymlink == 0 {
+				if err := m.validateImageSecurity(&image); err != nil {
+					return nil, err
+				}
 				return &image, nil
 			}
 		}
@@ -131,6 +134,9 @@ func (m *Manager) importSave(source string) (*Image, error) {
 			return nil, fmt.Errorf("应用镜像层 %s 失败: %w", layer, err)
 		}
 	}
+	if err := m.normalizePlatformRootfsOwnership(rootfsStage); err != nil {
+		return nil, fmt.Errorf("映射镜像 rootfs 所有者失败: %w", err)
+	}
 	finalDir := expectedRootfs
 	if err := os.RemoveAll(finalDir); err != nil {
 		return nil, err
@@ -149,18 +155,22 @@ func (m *Manager) importSave(source string) (*Image, error) {
 		name = manifest.RepoTags[0]
 	}
 	image := &Image{
-		ID:           id,
-		Name:         name,
-		Tags:         append([]string(nil), manifest.RepoTags...),
-		Rootfs:       finalDir,
-		OS:           config.OS,
-		Architecture: config.Architecture,
-		User:         config.Config.User,
-		Entrypoint:   append([]string(nil), config.Config.Entrypoint...),
-		Command:      append([]string(nil), config.Config.Cmd...),
-		Env:          append([]string(nil), config.Config.Env...),
-		WorkingDir:   config.Config.WorkingDir,
-		CreatedAt:    createdAt,
+		ID:              id,
+		Name:            name,
+		Tags:            append([]string(nil), manifest.RepoTags...),
+		Rootfs:          finalDir,
+		OS:              config.OS,
+		Architecture:    config.Architecture,
+		User:            config.Config.User,
+		Entrypoint:      append([]string(nil), config.Config.Entrypoint...),
+		Command:         append([]string(nil), config.Config.Cmd...),
+		Env:             append([]string(nil), config.Config.Env...),
+		WorkingDir:      config.Config.WorkingDir,
+		CreatedAt:       createdAt,
+		SecurityVersion: m.security.Version,
+		UIDMapStart:     m.security.UIDMapStart,
+		GIDMapStart:     m.security.GIDMapStart,
+		IDMapSize:       m.security.IDMapSize,
 	}
 	if image.OS == "" {
 		image.OS = "linux"
@@ -439,9 +449,13 @@ func (m *Manager) restoreLayerMetadata(path, root string, header *tar.Header) er
 	if err != nil {
 		return err
 	}
-	// Linux 容器依赖镜像内的 UID/GID；符号链接使用 Lchown，不能跟随到 rootfs 外。
+	// Linux 容器依赖镜像内的 UID/GID；写入宿主前先转换到 User Namespace 映射。
 	if runtime.GOOS == "linux" {
-		if err := os.Lchown(path, header.Uid, header.Gid); err != nil {
+		uid, gid, err := m.mapOwnership(header.Uid, header.Gid)
+		if err != nil {
+			return fmt.Errorf("镜像路径所有者无效 %s: %w", path, err)
+		}
+		if err := os.Lchown(path, uid, gid); err != nil {
 			return fmt.Errorf("恢复镜像路径所有者失败 %s: %w", path, err)
 		}
 	}
@@ -863,16 +877,20 @@ func (m *Manager) commitInstance(instance *Instance, name string, tags []string)
 		normalizedTags = append(normalizedTags, tag)
 	}
 	image := &Image{
-		Name:         name,
-		Tags:         normalizedTags,
-		OS:           base.OS,
-		Architecture: base.Architecture,
-		User:         base.User,
-		Entrypoint:   append([]string(nil), base.Entrypoint...),
-		Command:      append([]string(nil), base.Command...),
-		Env:          append([]string(nil), base.Env...),
-		WorkingDir:   base.WorkingDir,
-		CreatedAt:    time.Now().Unix(),
+		Name:            name,
+		Tags:            normalizedTags,
+		OS:              base.OS,
+		Architecture:    base.Architecture,
+		User:            base.User,
+		Entrypoint:      append([]string(nil), base.Entrypoint...),
+		Command:         append([]string(nil), base.Command...),
+		Env:             append([]string(nil), base.Env...),
+		WorkingDir:      base.WorkingDir,
+		CreatedAt:       time.Now().Unix(),
+		SecurityVersion: m.security.Version,
+		UIDMapStart:     m.security.UIDMapStart,
+		GIDMapStart:     m.security.GIDMapStart,
+		IDMapSize:       m.security.IDMapSize,
 	}
 	if len(instance.Command) > 0 {
 		image.Command = append([]string(nil), instance.Command...)
@@ -1003,8 +1021,11 @@ func (m *Manager) writeRootfsTarEntry(writer *tar.Writer, source, name string, h
 	}
 	header.Name = filepath.ToSlash(name)
 	if uid, gid, ok := archiveOwnership(info); ok {
-		header.Uid = uid
-		header.Gid = gid
+		uid, gid, err = m.unmapOwnership(uid, gid)
+		if err != nil {
+			return fmt.Errorf("导出 rootfs 所有者失败 %s: %w", name, err)
+		}
+		header.Uid, header.Gid = uid, gid
 	}
 	if info.Mode()&os.ModeSymlink != 0 {
 		header.Linkname, err = os.Readlink(source)

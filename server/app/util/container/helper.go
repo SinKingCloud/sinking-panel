@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"time"
@@ -26,7 +27,7 @@ func (m *Manager) ensureManagedDirectory(path string) error {
 			return fmt.Errorf("容器受管目录父路径不是普通目录: %s", parent)
 		}
 	}
-	if err := os.Mkdir(path, 0755); err != nil && !errors.Is(err, os.ErrExist) {
+	if err := os.Mkdir(path, 0700); err != nil && !errors.Is(err, os.ErrExist) {
 		return fmt.Errorf("创建容器受管目录失败: %w", err)
 	}
 	info, err := os.Lstat(path)
@@ -75,6 +76,8 @@ func defaultManagerOptions() ManagerOptions {
 		ForceStopPeriod:        5 * time.Second,
 		TerminalConsoleTimeout: 5 * time.Second,
 		TerminalCleanupTimeout: 5 * time.Second,
+		DefaultPidsLimit:       512,
+		IDMapSize:              defaultIDMapSize,
 	}
 }
 
@@ -111,6 +114,13 @@ func normalizeManagerOptions(options ManagerOptions) ManagerOptions {
 	if options.TerminalCleanupTimeout <= 0 {
 		options.TerminalCleanupTimeout = defaults.TerminalCleanupTimeout
 	}
+	if options.DefaultPidsLimit == 0 || options.DefaultPidsLimit < -1 {
+		options.DefaultPidsLimit = defaults.DefaultPidsLimit
+	}
+	if options.IDMapSize == 0 {
+		options.IDMapSize = defaults.IDMapSize
+	}
+	options.MountRoots = append([]string(nil), options.MountRoots...)
 	return options
 }
 
@@ -170,12 +180,44 @@ func (m *Manager) validateImageID(id string) error {
 	return nil
 }
 
+func (m *Manager) resolveMountSource(source string) (string, error) {
+	source = strings.TrimSpace(source)
+	if !filepath.IsAbs(source) {
+		return "", errors.New("挂载源必须是绝对路径")
+	}
+	source = filepath.Clean(source)
+	info, err := os.Lstat(source)
+	if err != nil {
+		return "", fmt.Errorf("挂载源不存在: %w", err)
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		return "", errors.New("挂载源不能是符号链接")
+	}
+	resolved, err := filepath.EvalSymlinks(source)
+	if err != nil {
+		return "", fmt.Errorf("解析挂载源失败: %w", err)
+	}
+	return filepath.Clean(resolved), nil
+}
+
 func (m *Manager) validateMount(mount Mount) error {
-	if !filepath.IsAbs(mount.Source) || !filepath.IsAbs(mount.Destination) {
+	if strings.TrimSpace(mount.DirectoryMode) != "" || strings.TrimSpace(mount.FileMode) != "" {
+		return errors.New("挂载权限自动修改已停用，请在 PrepareMount 前由业务层设置目录和文件权限")
+	}
+	if !filepath.IsAbs(mount.Source) || !path.IsAbs(mount.Destination) {
 		return errors.New("挂载路径必须是绝对路径")
 	}
-	if filepath.Clean(mount.Destination) == string(filepath.Separator) {
+	if strings.ContainsRune(mount.Source, 0) || strings.ContainsRune(mount.Destination, 0) {
+		return errors.New("挂载路径不能包含空字符")
+	}
+	destination := path.Clean(mount.Destination)
+	if destination == "/" {
 		return errors.New("挂载目标不能是容器根目录")
+	}
+	for _, protected := range []string{"/proc", "/sys", "/dev"} {
+		if destination == protected || strings.HasPrefix(destination, protected+"/") {
+			return fmt.Errorf("挂载目标不能覆盖容器安全目录: %s", protected)
+		}
 	}
 	info, err := os.Lstat(mount.Source)
 	if err != nil {
@@ -183,6 +225,107 @@ func (m *Manager) validateMount(mount Mount) error {
 	}
 	if info.Mode()&os.ModeSymlink != 0 {
 		return errors.New("挂载源不能是符号链接")
+	}
+	if !info.IsDir() && !info.Mode().IsRegular() {
+		return errors.New("挂载源只能是普通文件或目录")
+	}
+	resolved, err := filepath.EvalSymlinks(mount.Source)
+	if err != nil {
+		return fmt.Errorf("解析挂载源失败: %w", err)
+	}
+	if filepath.Clean(resolved) != filepath.Clean(mount.Source) {
+		return errors.New("挂载源必须使用解析符号链接后的规范路径")
+	}
+	allowed := false
+	for _, root := range m.mountRoots {
+		if filepath.Clean(root) != filepath.Clean(mount.Source) && m.ensureInside(root, mount.Source) == nil {
+			allowed = true
+			break
+		}
+	}
+	if !allowed {
+		return errors.New("挂载源不在 ManagerOptions.MountRoots 允许的目录内")
+	}
+	for _, protected := range []string{
+		m.imagesRoot,
+		m.instancesRoot,
+		m.runtimeRoot,
+		m.mountsRoot,
+		filepath.Join(m.dataRoot, "security.json"),
+		filepath.Join(m.dataRoot, ".mount-staging.lock"),
+	} {
+		if m.ensureInside(protected, mount.Source) == nil || m.ensureInside(mount.Source, protected) == nil {
+			return errors.New("挂载源不能与容器受管数据目录重叠")
+		}
+	}
+	return nil
+}
+
+func (m *Manager) mapOwnership(uid, gid int) (int, int, error) {
+	if m.security.Version == 0 {
+		return uid, gid, nil
+	}
+	convert := func(value int, start int64, name string) (int, error) {
+		if value < 0 || int64(value) >= m.security.IDMapSize {
+			return 0, fmt.Errorf("容器 %s %d 超出 User Namespace 映射范围", name, value)
+		}
+		mapped := start + int64(value)
+		if int64(int(mapped)) != mapped {
+			return 0, fmt.Errorf("容器 %s %d 无法转换为宿主 ID", name, value)
+		}
+		return int(mapped), nil
+	}
+	mappedUID, err := convert(uid, m.security.UIDMapStart, "UID")
+	if err != nil {
+		return 0, 0, err
+	}
+	mappedGID, err := convert(gid, m.security.GIDMapStart, "GID")
+	if err != nil {
+		return 0, 0, err
+	}
+	return mappedUID, mappedGID, nil
+}
+
+func (m *Manager) unmapOwnership(uid, gid int) (int, int, error) {
+	if m.security.Version == 0 {
+		return uid, gid, nil
+	}
+	convert := func(value int, start int64, name string) (int, error) {
+		mapped := int64(value) - start
+		if mapped < 0 || mapped >= m.security.IDMapSize {
+			return 0, fmt.Errorf("宿主 %s %d 不属于当前容器映射范围", name, value)
+		}
+		return int(mapped), nil
+	}
+	containerUID, err := convert(uid, m.security.UIDMapStart, "UID")
+	if err != nil {
+		return 0, 0, err
+	}
+	containerGID, err := convert(gid, m.security.GIDMapStart, "GID")
+	if err != nil {
+		return 0, 0, err
+	}
+	return containerUID, containerGID, nil
+}
+
+func (m *Manager) validateImageSecurity(image *Image) error {
+	if m.security.Version == 0 {
+		return nil
+	}
+	if image.SecurityVersion != m.security.Version || image.UIDMapStart != m.security.UIDMapStart ||
+		image.GIDMapStart != m.security.GIDMapStart || image.IDMapSize != m.security.IDMapSize {
+		return errors.New("镜像未使用当前 User Namespace 映射，请删除旧镜像后重新导入")
+	}
+	return nil
+}
+
+func (m *Manager) validateInstanceSecurity(instance *Instance) error {
+	if m.security.Version == 0 {
+		return nil
+	}
+	if instance.SecurityVersion != m.security.Version || instance.UIDMapStart != m.security.UIDMapStart ||
+		instance.GIDMapStart != m.security.GIDMapStart || instance.IDMapSize != m.security.IDMapSize {
+		return errors.New("实例未使用当前 User Namespace 映射，请删除旧实例后重新创建")
 	}
 	return nil
 }
@@ -192,7 +335,7 @@ func (m *Manager) writeJSON(path string, value interface{}) error {
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
 		return err
 	}
 	file, err := os.CreateTemp(filepath.Dir(path), ".metadata-*.tmp")

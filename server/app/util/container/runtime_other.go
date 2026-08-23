@@ -7,6 +7,26 @@ import (
 	"os"
 )
 
+func (m *Manager) configurePlatformSecurity(root string) error {
+	return nil
+}
+
+func (m *Manager) normalizePlatformRootfsOwnership(root string) error {
+	return nil
+}
+
+func (m *Manager) preparePlatformMountOwnership(root string) error {
+	return errors.New("准备容器挂载仅支持 Linux")
+}
+
+func (m *Manager) validatePlatformMountOwnership(root string) error {
+	return errors.New("验证容器挂载仅支持 Linux")
+}
+
+func (m *Manager) validatePlatformMountContent(root string) error {
+	return errors.New("验证容器挂载仅支持 Linux")
+}
+
 func (m *Manager) startPlatformRuntime(instance *Instance, image *Image, options RunOptions) error {
 	return errors.New("libcontainer 仅支持 Linux")
 }

@@ -121,6 +121,7 @@ func (m *Manager) openPlatformTerminal(id string, height, width int) (TerminalSe
 		UID:              uid,
 		GID:              gid,
 		AdditionalGroups: groups,
+		Capabilities:     m.processCapabilities(uid),
 		Cwd:              workingDir,
 		ConsoleSocket:    child,
 		ConsoleHeight:    uint16(height),

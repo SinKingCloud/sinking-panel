@@ -7,6 +7,26 @@ import (
 	"os"
 )
 
+func (m *Manager) configurePlatformSecurity(root string) error {
+	return errors.New("容器安全运行需要使用包含静态 libseccomp 的 Linux 发布构建")
+}
+
+func (m *Manager) normalizePlatformRootfsOwnership(root string) error {
+	return nil
+}
+
+func (m *Manager) preparePlatformMountOwnership(root string) error {
+	return errors.New("准备容器挂载需要启用 cgo")
+}
+
+func (m *Manager) validatePlatformMountOwnership(root string) error {
+	return errors.New("验证容器挂载需要启用 cgo")
+}
+
+func (m *Manager) validatePlatformMountContent(root string) error {
+	return errors.New("验证容器挂载需要启用 cgo")
+}
+
 func (m *Manager) startPlatformRuntime(instance *Instance, image *Image, options RunOptions) error {
 	return errors.New("libcontainer 运行需要启用 cgo")
 }

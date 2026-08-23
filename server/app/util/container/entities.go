@@ -8,13 +8,9 @@ import (
 )
 
 const (
-	StatusStarting    = "starting" // 正在启动
-	StatusRunning     = "running"  // 正在运行
-	StatusStopping    = "stopping" // 正在停止
-	StatusStopped     = "stopped"  // 已停止
-	StatusFailed      = "failed"   // 操作失败
-	StatusUnknown     = "unknown"  // 平台状态暂时不可用
-	instanceLockCount = 64         // 实例操作锁槽位数量
+	instanceLockCount       = 64    // 实例操作锁槽位数量
+	securityMetadataVersion = 1     // 容器安全元数据版本
+	defaultIDMapSize        = 65536 // 默认映射完整的常规容器 UID/GID 范围
 )
 
 var errRuntimeCleanupPending = errors.New("容器运行状态等待清理")
@@ -33,6 +29,11 @@ type ManagerOptions struct {
 	ForceStopPeriod        time.Duration // 强制停止和命令清理等待时间，默认 5 秒
 	TerminalConsoleTimeout time.Duration // 等待容器返回 PTY 主端的最长时间，默认 5 秒
 	TerminalCleanupTimeout time.Duration // 终端启动失败时等待 shell 退出的最长时间，默认 5 秒
+	DefaultPidsLimit       int64         // 实例未设置进程数限制时使用的上限，默认 512；-1 表示不限制
+	UIDMapStart            int64         // 容器 UID 0 对应的宿主 UID；0 表示从 /etc/subuid 自动读取
+	GIDMapStart            int64         // 容器 GID 0 对应的宿主 GID；0 表示从 /etc/subgid 自动读取
+	IDMapSize              int64         // User Namespace 映射数量，默认 65536，不能小于 65536
+	MountRoots             []string      // 允许 bind mount 的宿主根目录；默认仅允许数据目录下的 volumes
 }
 
 // Mount 定义一个宿主机 bind mount。
@@ -40,11 +41,11 @@ type Mount struct {
 	Source        string `json:"source"`
 	Destination   string `json:"destination"`
 	ReadOnly      bool   `json:"read_only"`
-	DirectoryMode string `json:"directory_mode,omitempty"`
-	FileMode      string `json:"file_mode,omitempty"`
+	DirectoryMode string `json:"directory_mode,omitempty"` // 已废弃；为兼容源码保留，非空值会被拒绝
+	FileMode      string `json:"file_mode,omitempty"`      // 已废弃；为兼容源码保留，非空值会被拒绝
 }
 
-// ResourceLimits 定义实例的 cgroup 限制，0 表示不限制。
+// ResourceLimits 定义实例的 cgroup 限制；PidsLimit 为 0 时继承 Manager 默认值，其他字段为 0 表示不限制。
 type ResourceLimits struct {
 	Memory    int64  `json:"memory,omitempty"`     // 字节
 	CPUQuota  int64  `json:"cpu_quota,omitempty"`  // 微秒
@@ -100,57 +101,81 @@ type Stats struct {
 
 // Image 保存导入镜像的元数据。
 type Image struct {
-	ID           string   `json:"id"`
-	Name         string   `json:"name"`
-	Tags         []string `json:"tags"`
-	Rootfs       string   `json:"rootfs"`
-	OS           string   `json:"os"`
-	Architecture string   `json:"architecture"`
-	User         string   `json:"user,omitempty"`
-	Entrypoint   []string `json:"entrypoint"`
-	Command      []string `json:"command"`
-	Env          []string `json:"env"`
-	WorkingDir   string   `json:"working_dir"`
-	CreatedAt    int64    `json:"created_at"`
+	ID              string   `json:"id"`
+	Name            string   `json:"name"`
+	Tags            []string `json:"tags"`
+	Rootfs          string   `json:"rootfs"`
+	OS              string   `json:"os"`
+	Architecture    string   `json:"architecture"`
+	User            string   `json:"user,omitempty"`
+	Entrypoint      []string `json:"entrypoint"`
+	Command         []string `json:"command"`
+	Env             []string `json:"env"`
+	WorkingDir      string   `json:"working_dir"`
+	CreatedAt       int64    `json:"created_at"`
+	SecurityVersion int      `json:"security_version"`
+	UIDMapStart     int64    `json:"uid_map_start"`
+	GIDMapStart     int64    `json:"gid_map_start"`
+	IDMapSize       int64    `json:"id_map_size"`
 }
 
 // Instance 保存实例配置和运行状态。
 type Instance struct {
-	ID            string         `json:"id"`
-	Name          string         `json:"name"`
-	ImageID       string         `json:"image_id"`
-	Status        string         `json:"status"`
-	PID           int            `json:"pid"`
-	Mounts        []Mount        `json:"mounts"`
-	CreatedAt     int64          `json:"created_at"`
-	StartedAt     int64          `json:"started_at"`
-	EndedAt       int64          `json:"ended_at"`
-	ExitCode      int            `json:"exit_code"`
-	Error         string         `json:"error,omitempty"`
-	LogPath       string         `json:"log_path"`
-	Command       []string       `json:"command,omitempty"`
-	Env           []string       `json:"env,omitempty"`
-	WorkingDir    string         `json:"working_dir,omitempty"`
-	Resources     ResourceLimits `json:"resources,omitempty"`
-	AutoRestart   bool           `json:"auto_restart"`
-	WritableLayer bool           `json:"writable_layer"`
-	Rootfs        string         `json:"rootfs,omitempty"`
-	UpperDir      string         `json:"upper_dir,omitempty"`
-	WorkDir       string         `json:"work_dir,omitempty"`
-	Generation    uint64         `json:"generation,omitempty"`
+	ID              string         `json:"id"`
+	Name            string         `json:"name"`
+	ImageID         string         `json:"image_id"`
+	Status          Status         `json:"status"`
+	PID             int            `json:"pid"`
+	Mounts          []Mount        `json:"mounts"`
+	CreatedAt       int64          `json:"created_at"`
+	StartedAt       int64          `json:"started_at"`
+	EndedAt         int64          `json:"ended_at"`
+	ExitCode        int            `json:"exit_code"`
+	Error           string         `json:"error,omitempty"`
+	LogPath         string         `json:"log_path"`
+	Command         []string       `json:"command,omitempty"`
+	Env             []string       `json:"env,omitempty"`
+	WorkingDir      string         `json:"working_dir,omitempty"`
+	Resources       ResourceLimits `json:"resources,omitempty"`
+	AutoRestart     bool           `json:"auto_restart"`
+	WritableLayer   bool           `json:"writable_layer"`
+	Rootfs          string         `json:"rootfs,omitempty"`
+	UpperDir        string         `json:"upper_dir,omitempty"`
+	WorkDir         string         `json:"work_dir,omitempty"`
+	Generation      uint64         `json:"generation,omitempty"`
+	SecurityVersion int            `json:"security_version"`
+	UIDMapStart     int64          `json:"uid_map_start"`
+	GIDMapStart     int64          `json:"gid_map_start"`
+	IDMapSize       int64          `json:"id_map_size"`
+}
+
+// securityMetadata 固定容器数据目录使用的 User Namespace 映射。
+type securityMetadata struct {
+	Version     int   `json:"version"`
+	UIDMapStart int64 `json:"uid_map_start"`
+	GIDMapStart int64 `json:"gid_map_start"`
+	IDMapSize   int64 `json:"id_map_size"`
 }
 
 // Manager 管理镜像、实例元数据和平台运行时状态。
 type Manager struct {
-	imagesRoot    string
-	instancesRoot string
-	runtimeRoot   string
-	installation  string
-	options       ManagerOptions
+	dataRoot          string
+	imagesRoot        string
+	instancesRoot     string
+	runtimeRoot       string
+	volumesRoot       string
+	mountsRoot        string
+	mountRoots        []string
+	installation      string
+	options           ManagerOptions
+	requestedSecurity securityMetadata
+	security          securityMetadata
+	platformSecurity  interface{}
 
 	mu             sync.RWMutex
 	importMu       sync.Mutex
 	imageMu        sync.RWMutex
+	mountMu        sync.Mutex
 	operationLocks [instanceLockCount]sync.Mutex
 	images         map[string]*Image
 	instances      map[string]*Instance

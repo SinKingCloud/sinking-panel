@@ -10,13 +10,14 @@ import (
 	"os"
 	"path/filepath"
 	standardRuntime "runtime"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/moby/sys/mountinfo"
 	userUtil "github.com/moby/sys/user"
 	"github.com/opencontainers/cgroups"
+	_ "github.com/opencontainers/cgroups/devices"
 	devices "github.com/opencontainers/cgroups/devices/config"
 	"github.com/opencontainers/runc/libcontainer"
 	"github.com/opencontainers/runc/libcontainer/configs"
@@ -36,7 +37,7 @@ type linuxRuntime struct {
 	failure   error
 }
 
-func (m *Manager) startPlatformRuntime(instance *Instance, image *Image, options RunOptions) error {
+func (m *Manager) startPlatformRuntime(instance *Instance, image *Image, options RunOptions) (returnErr error) {
 	if image.OS != "" && image.OS != "linux" {
 		return fmt.Errorf("镜像操作系统不支持: %s", image.OS)
 	}
@@ -53,10 +54,35 @@ func (m *Manager) startPlatformRuntime(instance *Instance, image *Image, options
 	if rootfs == "" {
 		rootfs = image.Rootfs
 	}
-	if err := m.prepareMountTargets(rootfs, options.Mounts, instance.WritableLayer); err != nil {
+	for _, mount := range options.Mounts {
+		if err := m.validateMount(mount); err != nil {
+			return err
+		}
+	}
+	stagedSources, cleanupStaging, err := m.stagePlatformMounts(options.Mounts)
+	if err != nil {
 		return err
 	}
-	config := m.buildConfig(instance, image, options)
+	cleanupPending := true
+	defer func() {
+		if cleanupPending {
+			returnErr = errors.Join(returnErr, cleanupStaging())
+		}
+	}()
+	runtimeMounts := append([]Mount(nil), options.Mounts...)
+	for index, source := range stagedSources {
+		runtimeMounts[index].Source = source
+	}
+	if err := m.prepareMountTargets(rootfs, runtimeMounts, instance.WritableLayer); err != nil {
+		return err
+	}
+	config, err := m.buildConfig(instance, image, options, true)
+	if err != nil {
+		return err
+	}
+	for index, source := range stagedSources {
+		config.Mounts[len(config.Mounts)-len(stagedSources)+index].Source = source
+	}
 	container, err := libcontainer.Create(m.runtimeRoot, instance.ID, config)
 	if err != nil {
 		return fmt.Errorf("创建容器失败: %w", err)
@@ -93,12 +119,23 @@ func (m *Manager) startPlatformRuntime(instance *Instance, image *Image, options
 		failure := fmt.Errorf("解析镜像运行用户失败: %w", err)
 		return errors.Join(failure, m.abortPlatformStart(instance, container, nil, logFile, failure))
 	}
+	if _, _, err := m.mapOwnership(uid, gid); err != nil {
+		failure := fmt.Errorf("镜像运行用户超出 User Namespace 映射范围: %w", err)
+		return errors.Join(failure, m.abortPlatformStart(instance, container, nil, logFile, failure))
+	}
+	for _, group := range groups {
+		if _, _, err := m.mapOwnership(0, group); err != nil {
+			failure := fmt.Errorf("镜像附加用户组超出 User Namespace 映射范围: %w", err)
+			return errors.Join(failure, m.abortPlatformStart(instance, container, nil, logFile, failure))
+		}
+	}
 	process := &libcontainer.Process{
 		Args:             args,
 		Env:              env,
 		UID:              uid,
 		GID:              gid,
 		AdditionalGroups: groups,
+		Capabilities:     m.processCapabilities(uid),
 		Cwd:              workingDir,
 		Stdout:           logFile,
 		Stderr:           logFile,
@@ -106,6 +143,12 @@ func (m *Manager) startPlatformRuntime(instance *Instance, image *Image, options
 	}
 	if err := container.Run(process); err != nil {
 		failure := fmt.Errorf("启动容器进程失败: %w", err)
+		return errors.Join(failure, m.abortPlatformStart(instance, container, process, logFile, failure))
+	}
+	cleanupErr := cleanupStaging()
+	cleanupPending = cleanupErr != nil
+	if cleanupErr != nil {
+		failure := fmt.Errorf("清理临时挂载源失败: %w", cleanupErr)
 		return errors.Join(failure, m.abortPlatformStart(instance, container, process, logFile, failure))
 	}
 	pid, err := process.Pid()
@@ -150,6 +193,9 @@ func (m *Manager) preparePlatformRootfs(instance *Instance, image *Image, writab
 		if err := m.ensureManagedDirectory(dir); err != nil {
 			return fmt.Errorf("创建实例可写层失败: %w", err)
 		}
+		if err := m.normalizePlatformPathOwnership(dir, dir); err != nil {
+			return fmt.Errorf("映射实例可写层所有者失败: %w", err)
+		}
 	}
 	// 显式修复宿主机 umask，避免非 root 容器用户无法进入 merged rootfs。
 	if err := os.Chmod(upperDir, 0755); err != nil {
@@ -179,6 +225,13 @@ func (m *Manager) preparePlatformRootfs(instance *Instance, image *Image, writab
 // cleanupPlatformRootfs 只卸载 merged 目录，保留 upper 层供下次启动使用。
 func (m *Manager) cleanupPlatformRootfs(instance *Instance) error {
 	if !instance.WritableLayer || instance.Rootfs == "" || instance.UpperDir == "" {
+		return nil
+	}
+	mounted, err := mountinfo.Mounted(instance.Rootfs)
+	if err != nil {
+		return fmt.Errorf("检查实例 rootfs 挂载状态失败: %w", err)
+	}
+	if !mounted {
 		return nil
 	}
 	if err := unix.Unmount(instance.Rootfs, unix.MNT_DETACH); err != nil && !errors.Is(err, unix.ENOENT) && !errors.Is(err, unix.EINVAL) {
@@ -222,9 +275,6 @@ func (m *Manager) cleanupOrphanPlatformRuntime(id string) error {
 		if !m.waitContainerStopped(container, m.managerOptions().ForceStopPeriod) {
 			return errors.New("等待未完成启动的孤立容器退出超时")
 		}
-	}
-	if err := m.cleanupOrphanInstanceStorage(id); err != nil {
-		return err
 	}
 	if err := container.Destroy(); err != nil {
 		if processErr := m.killPlatformProcesses(container); processErr != nil {
@@ -527,7 +577,7 @@ func (m *Manager) execPlatformCommand(id string, options ExecOptions) (*ExecResu
 		m.mu.RUnlock()
 		return nil, errors.New("实例不存在")
 	}
-	if (instance.Status != "running" && instance.Status != "unknown") || instance.PID <= 0 {
+	if (instance.Status != StatusRunning && instance.Status != StatusUnknown) || instance.PID <= 0 {
 		m.mu.RUnlock()
 		return nil, errors.New("实例未运行")
 	}
@@ -585,6 +635,7 @@ func (m *Manager) execPlatformCommand(id string, options ExecOptions) (*ExecResu
 		UID:              uid,
 		GID:              gid,
 		AdditionalGroups: groups,
+		Capabilities:     m.processCapabilities(uid),
 		Cwd:              workingDir,
 		Stdout:           outputWriter,
 		Stderr:           outputWriter,
@@ -960,12 +1011,23 @@ func (m *Manager) waitContainerStopped(container *libcontainer.Container, timeou
 	}
 }
 
-func (m *Manager) buildConfig(instance *Instance, image *Image, options RunOptions) *configs.Config {
+func (m *Manager) buildConfig(instance *Instance, image *Image, options RunOptions, mountsReady bool) (*configs.Config, error) {
+	security, ok := m.platformSecurity.(*linuxSecurity)
+	if !ok || security == nil || security.capabilities == nil || security.seccomp == nil {
+		return nil, errors.New("容器安全配置未初始化")
+	}
+	if err := m.validateImageSecurity(image); err != nil {
+		return nil, err
+	}
+	if err := m.validateInstanceSecurity(instance); err != nil {
+		return nil, err
+	}
 	namespaces := configs.Namespaces([]configs.Namespace{
 		{Type: configs.NEWNS},
 		{Type: configs.NEWUTS},
 		{Type: configs.NEWIPC},
 		{Type: configs.NEWPID},
+		{Type: configs.NEWUSER},
 		// 不创建 NEWNET，容器直接使用宿主机网络。
 	})
 	mounts := []*configs.Mount{
@@ -979,8 +1041,8 @@ func (m *Manager) buildConfig(instance *Instance, image *Image, options RunOptio
 			Source:      "tmpfs",
 			Destination: "/dev",
 			Device:      "tmpfs",
-			Flags:       unix.MS_NOSUID | unix.MS_STRICTATIME,
-			Data:        "mode=755",
+			Flags:       unix.MS_NOEXEC | unix.MS_NOSUID | unix.MS_STRICTATIME,
+			Data:        "mode=755,size=65536k",
 		},
 		{
 			Source:      "devpts",
@@ -997,14 +1059,28 @@ func (m *Manager) buildConfig(instance *Instance, image *Image, options RunOptio
 			Data:        "mode=1777,size=65536k",
 		},
 		{
-			Source:      "sysfs",
+			Source:      "/sys",
 			Destination: "/sys",
-			Device:      "sysfs",
-			Flags:       unix.MS_NOEXEC | unix.MS_NOSUID | unix.MS_NODEV | unix.MS_RDONLY,
+			Device:      "bind",
+			Flags:       unix.MS_BIND | unix.MS_NOEXEC | unix.MS_NOSUID | unix.MS_NODEV | unix.MS_RDONLY,
 		},
 	}
 	for _, mount := range options.Mounts {
-		flags := unix.MS_BIND | unix.MS_REC
+		if !mountsReady {
+			if err := m.validateMount(mount); err != nil {
+				return nil, err
+			}
+			if mount.ReadOnly {
+				if err := m.validatePlatformMountContent(mount.Source); err != nil {
+					return nil, err
+				}
+			} else {
+				if err := m.validatePlatformMountOwnership(mount.Source); err != nil {
+					return nil, err
+				}
+			}
+		}
+		flags := unix.MS_BIND | unix.MS_NOSUID | unix.MS_NODEV
 		if mount.ReadOnly {
 			flags |= unix.MS_RDONLY
 		}
@@ -1015,13 +1091,31 @@ func (m *Manager) buildConfig(instance *Instance, image *Image, options RunOptio
 			Flags:       flags,
 		})
 	}
+	defaultDevices := m.defaultDevices()
+	deviceRules := []*devices.Rule{{
+		Type: devices.WildcardDevice, Major: devices.Wildcard, Minor: devices.Wildcard,
+		Permissions: "rwm", Allow: false,
+	}}
+	for _, device := range defaultDevices {
+		rule := device.Rule
+		deviceRules = append(deviceRules, &rule)
+	}
+	deviceRules = append(deviceRules,
+		&devices.Rule{Type: devices.CharDevice, Major: 5, Minor: 2, Permissions: "rwm", Allow: true},
+		&devices.Rule{Type: devices.CharDevice, Major: 136, Minor: devices.Wildcard, Permissions: "rwm", Allow: true},
+	)
 	resources := &cgroups.Resources{
+		Devices:   deviceRules,
 		Memory:    instance.Resources.Memory,
 		CpuQuota:  instance.Resources.CPUQuota,
 		CpuPeriod: instance.Resources.CPUPeriod,
 	}
-	if instance.Resources.PidsLimit > 0 {
-		limit := instance.Resources.PidsLimit
+	pidsLimit := instance.Resources.PidsLimit
+	if pidsLimit == 0 && m.managerOptions().DefaultPidsLimit > 0 {
+		pidsLimit = m.managerOptions().DefaultPidsLimit
+	}
+	if pidsLimit > 0 {
+		limit := pidsLimit
 		resources.PidsLimit = &limit
 	}
 	return &configs.Config{
@@ -1031,37 +1125,48 @@ func (m *Manager) buildConfig(instance *Instance, image *Image, options RunOptio
 			}
 			return image.Rootfs
 		}(),
-		Readonlyfs: !instance.WritableLayer,
-		Hostname:   instance.ID,
-		Namespaces: namespaces,
+		Readonlyfs:      !instance.WritableLayer,
+		Hostname:        instance.ID,
+		Namespaces:      namespaces,
+		RootPropagation: unix.MS_PRIVATE | unix.MS_REC,
+		UIDMappings:     []configs.IDMap{{ContainerID: 0, HostID: m.security.UIDMapStart, Size: m.security.IDMapSize}},
+		GIDMappings:     []configs.IDMap{{ContainerID: 0, HostID: m.security.GIDMapStart, Size: m.security.IDMapSize}},
+		Capabilities:    security.capabilities,
+		Seccomp:         security.seccomp,
+		NoNewPrivileges: true,
 		// 安装目录哈希隔离不同 Manager，实例 ID 隔离同一 Manager 内的容器。
 		Cgroups: &cgroups.Cgroup{
 			Path:      filepath.Join("/sinking-cloud", m.installation, instance.ID),
 			Resources: resources,
 		},
-		Devices: m.defaultDevices(),
+		Devices: defaultDevices,
 		Mounts:  mounts,
 		MaskPaths: []string{
+			"/proc/acpi",
+			"/proc/asound",
 			"/proc/kcore",
 			"/proc/keys",
 			"/proc/latency_stats",
+			"/proc/sched_debug",
+			"/proc/scsi",
 			"/proc/timer_list",
+			"/proc/timer_stats",
 			"/sys/firmware",
 			"/sys/devices/system/cpu/cpu0/thermal_throttle",
+			"/sys/devices/virtual/powercap",
 		},
 		ReadonlyPaths: []string{
-			"/proc/asound",
-			"/proc/acpi",
+			"/proc/bus",
+			"/proc/fs",
+			"/proc/irq",
 			"/proc/kcore",
 			"/proc/keys",
 			"/proc/latency_stats",
-			"/proc/timer_list",
 			"/proc/sys",
 			"/proc/sysrq-trigger",
-			"/proc/irq",
-			"/proc/bus",
+			"/proc/timer_list",
 		},
-	}
+	}, nil
 }
 
 func (m *Manager) resolveUser(rootfs, value string) (int, int, []int, error) {
@@ -1175,9 +1280,6 @@ func (m *Manager) defaultDevices() []*devices.Device {
 
 func (m *Manager) prepareMountTargets(rootfs string, mounts []Mount, create bool) error {
 	for _, mount := range mounts {
-		if err := m.applyMountPermissions(mount); err != nil {
-			return err
-		}
 		destinationName := strings.TrimPrefix(filepath.ToSlash(mount.Destination), "/")
 		destination, err := m.safeJoin(rootfs, filepath.FromSlash(destinationName))
 		if err != nil {
@@ -1220,6 +1322,11 @@ func (m *Manager) prepareMountTargets(rootfs string, mounts []Mount, create bool
 					return err
 				}
 			}
+			if create {
+				if err := m.normalizePlatformPathOwnership(destination, rootfs); err != nil {
+					return fmt.Errorf("映射挂载目标所有者失败: %w", err)
+				}
+			}
 			continue
 		}
 		if destinationErr == nil && destinationInfo.IsDir() {
@@ -1235,77 +1342,11 @@ func (m *Manager) prepareMountTargets(rootfs string, mounts []Mount, create bool
 			}
 			_ = file.Close()
 		}
+		if create {
+			if err := m.normalizePlatformPathOwnership(destination, rootfs); err != nil {
+				return fmt.Errorf("映射挂载目标所有者失败: %w", err)
+			}
+		}
 	}
 	return nil
-}
-
-// applyMountPermissions 按需统一 bind mount 源权限；空权限不修改源目录。
-// 遍历时不跟随符号链接，防止站点路径逃逸。
-func (m *Manager) applyMountPermissions(mount Mount) error {
-	if mount.DirectoryMode == "" && mount.FileMode == "" {
-		return nil
-	}
-	directoryMode, err := m.parseMountMode(mount.DirectoryMode)
-	if err != nil {
-		return fmt.Errorf("解析挂载目录权限失败: %w", err)
-	}
-	fileMode, err := m.parseMountMode(mount.FileMode)
-	if err != nil {
-		return fmt.Errorf("解析挂载文件权限失败: %w", err)
-	}
-	info, err := os.Lstat(mount.Source)
-	if err != nil {
-		return fmt.Errorf("读取挂载源失败: %w", err)
-	}
-	if info.Mode()&os.ModeSymlink != 0 {
-		return fmt.Errorf("挂载源不能是符号链接: %s", mount.Source)
-	}
-	if !info.IsDir() {
-		if fileMode != 0 && info.Mode().IsRegular() {
-			if err := os.Chmod(mount.Source, fileMode); err != nil {
-				return fmt.Errorf("设置挂载文件权限失败: %w", err)
-			}
-		}
-		return nil
-	}
-	return filepath.WalkDir(mount.Source, func(path string, entry os.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
-		if entry.Type()&os.ModeSymlink != 0 {
-			if entry.IsDir() {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-		mode := fileMode
-		if entry.IsDir() {
-			mode = directoryMode
-		}
-		if mode == 0 {
-			return nil
-		}
-		if err := os.Chmod(path, mode); err != nil {
-			return fmt.Errorf("设置挂载路径权限失败 %s: %w", path, err)
-		}
-		return nil
-	})
-}
-
-func (m *Manager) parseMountMode(value string) (os.FileMode, error) {
-	value = strings.TrimSpace(value)
-	if value == "" {
-		return 0, nil
-	}
-	value = strings.TrimPrefix(value, "0o")
-	value = strings.TrimPrefix(value, "0O")
-	value = strings.TrimPrefix(value, "0")
-	if value == "" {
-		return 0, nil
-	}
-	parsed, err := strconv.ParseUint(value, 8, 12)
-	if err != nil || parsed > 07777 {
-		return 0, fmt.Errorf("权限必须是 0000-07777 的八进制值")
-	}
-	return os.FileMode(parsed), nil
 }

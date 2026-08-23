@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -146,8 +147,71 @@ func (m *Manager) recoverInstances() error {
 		unlock := m.lockInstance(id)
 		m.mu.RLock()
 		instance := m.cloneInstance(m.instances[id])
+		image := m.cloneImage(m.images[instance.ImageID])
 		m.mu.RUnlock()
 		hasRuntimeState, runtimeErr := m.hasRuntimeState(id)
+		securityErr := m.validateInstanceSecurity(instance)
+		if securityErr == nil {
+			if image == nil {
+				securityErr = errors.New("实例引用的镜像不存在")
+			} else if err := m.validateImageSecurity(image); err != nil {
+				securityErr = fmt.Errorf("实例引用的镜像不安全: %w", err)
+			}
+		}
+		if securityErr == nil {
+			options := m.optionsFromInstance(instance)
+			if err := m.normalizeRunOptions(&options); err != nil {
+				securityErr = fmt.Errorf("实例配置不安全: %w", err)
+			} else {
+				for _, mount := range options.Mounts {
+					if mount.ReadOnly {
+						if err := m.validatePlatformMountContent(mount.Source); err != nil {
+							securityErr = fmt.Errorf("实例只读挂载不安全: %w", err)
+							break
+						}
+					} else {
+						if err := m.validatePlatformMountOwnership(mount.Source); err != nil {
+							securityErr = fmt.Errorf("实例可写挂载不安全: %w", err)
+							break
+						}
+					}
+				}
+				instance.Mounts = options.Mounts
+				instance.Resources = options.Resources
+			}
+		}
+		if securityErr != nil {
+			if runtimeErr != nil {
+				unlock()
+				return fmt.Errorf("旧实例 %s 的不安全运行状态无法确认: %w", id, runtimeErr)
+			}
+			if !hasRuntimeState && (m.isActiveStatus(instance.Status) || instance.PID > 0) {
+				unlock()
+				return fmt.Errorf("旧实例 %s 标记为运行中但缺少可验证的运行状态，已拒绝继续启动", id)
+			}
+			if hasRuntimeState {
+				if err := m.cleanupOrphanPlatformRuntime(id); err != nil {
+					unlock()
+					return fmt.Errorf("停止旧实例 %s 失败，已拒绝继续启动: %w", id, err)
+				}
+			}
+			if err := m.cleanupRuntimeRootfs(instance); err != nil {
+				unlock()
+				return fmt.Errorf("清理旧实例 %s 文件系统失败: %w", id, err)
+			}
+			instance.Status = StatusFailed
+			instance.PID = 0
+			instance.EndedAt = time.Now().Unix()
+			instance.AutoRestart = false
+			instance.Error = securityErr.Error()
+			m.storeInstance(instance)
+			if err := m.writeJSON(filepath.Join(m.instancesRoot, id, "instance.json"), instance); err != nil {
+				unlock()
+				return fmt.Errorf("保存旧实例安全状态失败: %w", err)
+			}
+			unlock()
+			continue
+		}
 		if runtimeErr != nil {
 			instance.Status = StatusUnknown
 			instance.Error = runtimeErr.Error()
@@ -246,9 +310,28 @@ func (m *Manager) resolveImage(id string) (*Image, error) {
 	return nil, fmt.Errorf("镜像不存在: %s", id)
 }
 func (m *Manager) runLocked(options RunOptions) (*Instance, error) {
+	m.mountMu.Lock()
+	defer m.mountMu.Unlock()
 	m.imageMu.RLock()
 	defer m.imageMu.RUnlock()
 	m.mu.RLock()
+	for id, instance := range m.instances {
+		_, hasRuntime := m.runtime[id]
+		if id == options.ID || !m.isActiveStatus(instance.Status) && instance.PID <= 0 && !hasRuntime {
+			continue
+		}
+		for _, activeMount := range instance.Mounts {
+			if activeMount.ReadOnly {
+				continue
+			}
+			for _, mount := range options.Mounts {
+				if m.ensureInside(activeMount.Source, mount.Source) == nil || m.ensureInside(mount.Source, activeMount.Source) == nil {
+					m.mu.RUnlock()
+					return nil, fmt.Errorf("挂载源与运行实例 %s 的可写目录重叠", id)
+				}
+			}
+		}
+	}
 	image, err := m.resolveImage(options.ImageID)
 	if err == nil {
 		image = m.cloneImage(image)
@@ -262,6 +345,14 @@ func (m *Manager) runLocked(options RunOptions) (*Instance, error) {
 	}
 	if err != nil {
 		return nil, err
+	}
+	if err := m.validateImageSecurity(image); err != nil {
+		return nil, err
+	}
+	if existing != nil {
+		if err := m.validateInstanceSecurity(existing); err != nil {
+			return nil, err
+		}
 	}
 	if existing == nil && hasRuntimeState {
 		return nil, fmt.Errorf("实例运行状态已存在但元数据缺失: %s", options.ID)
@@ -279,6 +370,13 @@ func (m *Manager) runLocked(options RunOptions) (*Instance, error) {
 	instanceDir := filepath.Join(m.instancesRoot, options.ID)
 	if err := m.ensureInside(m.instancesRoot, instanceDir); err != nil {
 		return nil, fmt.Errorf("实例目录不安全: %w", err)
+	}
+	if existing == nil {
+		if _, err := os.Lstat(instanceDir); err == nil {
+			return nil, fmt.Errorf("实例目录已存在但缺少有效元数据，请先备份并删除孤立实例: %s", options.ID)
+		} else if !errors.Is(err, os.ErrNotExist) {
+			return nil, fmt.Errorf("读取实例目录失败: %w", err)
+		}
 	}
 	if err := m.ensureManagedDirectory(instanceDir); err != nil {
 		return nil, fmt.Errorf("创建实例目录失败: %w", err)
@@ -305,20 +403,24 @@ func (m *Manager) runLocked(options RunOptions) (*Instance, error) {
 		}
 	}
 	instance := &Instance{
-		ID:            options.ID,
-		Name:          strings.TrimSpace(options.Name),
-		ImageID:       image.ID,
-		Status:        StatusStarting,
-		Mounts:        append([]Mount(nil), options.Mounts...),
-		CreatedAt:     createdAt,
-		LogPath:       filepath.Join(instanceDir, "container.log"),
-		Command:       append([]string(nil), options.Command...),
-		Env:           append([]string(nil), options.Env...),
-		WorkingDir:    options.WorkingDir,
-		Resources:     options.Resources,
-		AutoRestart:   options.AutoRestart,
-		WritableLayer: !options.ReadOnly,
-		Generation:    m.nextGeneration(),
+		ID:              options.ID,
+		Name:            strings.TrimSpace(options.Name),
+		ImageID:         image.ID,
+		Status:          StatusStarting,
+		Mounts:          append([]Mount(nil), options.Mounts...),
+		CreatedAt:       createdAt,
+		LogPath:         filepath.Join(instanceDir, "container.log"),
+		Command:         append([]string(nil), options.Command...),
+		Env:             append([]string(nil), options.Env...),
+		WorkingDir:      options.WorkingDir,
+		Resources:       options.Resources,
+		AutoRestart:     options.AutoRestart,
+		WritableLayer:   !options.ReadOnly,
+		Generation:      m.nextGeneration(),
+		SecurityVersion: m.security.Version,
+		UIDMapStart:     m.security.UIDMapStart,
+		GIDMapStart:     m.security.GIDMapStart,
+		IDMapSize:       m.security.IDMapSize,
 	}
 	if instance.Name == "" {
 		instance.Name = image.Name
@@ -663,6 +765,9 @@ func (m *Manager) normalizeRunOptions(options *RunOptions) error {
 	if options.Resources.CPUQuota > 0 && options.Resources.CPUPeriod == 0 {
 		options.Resources.CPUPeriod = 100000
 	}
+	if options.Resources.PidsLimit == 0 && m.managerOptions().DefaultPidsLimit > 0 {
+		options.Resources.PidsLimit = m.managerOptions().DefaultPidsLimit
+	}
 	for _, value := range options.Env {
 		key, _, ok := strings.Cut(value, "=")
 		if !ok || key == "" || strings.ContainsAny(key, "\x00") {
@@ -672,10 +777,12 @@ func (m *Manager) normalizeRunOptions(options *RunOptions) error {
 	destinations := make(map[string]struct{}, len(options.Mounts))
 	for index := range options.Mounts {
 		mount := &options.Mounts[index]
-		mount.Source = filepath.Clean(strings.TrimSpace(mount.Source))
-		mount.Destination = filepath.Clean(strings.TrimSpace(mount.Destination))
-		mount.DirectoryMode = strings.TrimSpace(mount.DirectoryMode)
-		mount.FileMode = strings.TrimSpace(mount.FileMode)
+		resolved, err := m.resolveMountSource(mount.Source)
+		if err != nil {
+			return err
+		}
+		mount.Source = resolved
+		mount.Destination = path.Clean(strings.TrimSpace(mount.Destination))
 		if err := m.validateMount(*mount); err != nil {
 			return err
 		}
@@ -727,7 +834,7 @@ func (m *Manager) nextGeneration() uint64 {
 	return generation
 }
 
-func (m *Manager) isActiveStatus(status string) bool {
+func (m *Manager) isActiveStatus(status Status) bool {
 	return status == StatusStarting || status == StatusRunning || status == StatusStopping || status == StatusUnknown
 }
 
