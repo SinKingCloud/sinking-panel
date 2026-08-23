@@ -20,22 +20,35 @@ func (s *service) startMonitor() {
 	s.updateMonitor()
 	s.updateStaticMonitor()
 
+	s.wait.Add(2)
 	go func() {
+		defer s.wait.Done()
 		ticker := time.NewTicker(time.Second)
 		defer ticker.Stop()
 
-		for range ticker.C {
-			s.updateMonitor()
+		for {
+			select {
+			case <-ticker.C:
+				s.updateMonitor()
+			case <-s.ctx.Done():
+				return
+			}
 		}
 	}()
 
 	// 磁盘容量等静态信息单独刷新，避免慢挂载点阻塞实时采样
 	go func() {
+		defer s.wait.Done()
 		ticker := time.NewTicker(5 * time.Second)
 		defer ticker.Stop()
 
-		for range ticker.C {
-			s.updateStaticMonitor()
+		for {
+			select {
+			case <-ticker.C:
+				s.updateStaticMonitor()
+			case <-s.ctx.Done():
+				return
+			}
 		}
 	}()
 }

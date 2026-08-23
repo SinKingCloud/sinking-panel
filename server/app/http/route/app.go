@@ -5,11 +5,13 @@ import (
 	"strings"
 
 	"server/app/http/controller/auth"
+	"server/app/http/controller/cert"
 	"server/app/http/controller/config"
 	"server/app/http/controller/file"
 	"server/app/http/controller/recycle"
 	scriptController "server/app/http/controller/script"
 	"server/app/http/controller/server"
+	"server/app/http/controller/site"
 	"server/app/http/controller/system"
 	"server/app/http/controller/task"
 	typeController "server/app/http/controller/types"
@@ -31,6 +33,8 @@ func loadApp(s *sinking_web.Engine) {
 	loadSystemRoute(s)
 	loadTaskRoute(s)
 	loadTypeRoute(s)
+	loadSiteRoute(s)
+	loadCertRoute(s)
 	loadStaticRoute(s)
 }
 
@@ -56,6 +60,46 @@ func loadStaticRoute(s *sinking_web.Engine) {
 		c.Request.URL.Path = public.Path() + c.Request.URL.Path
 		public.FileServer.ServeHTTP(c.Writer, c.Request)
 	}))
+}
+
+// loadSiteRoute 网站管理路由
+func loadSiteRoute(s *sinking_web.Engine) {
+	g := s.Group("/site")
+	g.Use(context.HandleFunc(middleware.CheckLogin))
+	g.ANY("/list", context.HandleFunc(site.List))               // 网站列表
+	g.ANY("/info", context.HandleFunc(site.Info))               // 网站详情
+	g.ANY("/create", context.HandleFunc(site.Create))           // 创建网站
+	g.ANY("/update", context.HandleFunc(site.Update))           // 修改基础配置
+	g.ANY("/delete", context.HandleFunc(site.Delete))           // 删除网站
+	g.ANY("/enable", context.HandleFunc(site.Enable))           // 启用网站
+	g.ANY("/disable", context.HandleFunc(site.Disable))         // 停用网站
+	g.ANY("/log", context.HandleFunc(site.Log))                 // 网站日志
+	g.ANY("/domain", context.HandleFunc(site.Domain))           // 域名配置
+	g.ANY("/ssl", context.HandleFunc(site.SSL))                 // SSL 配置
+	g.ANY("/waf", context.HandleFunc(site.Waf))                 // WAF 配置
+	g.ANY("/cache", context.HandleFunc(site.Cache))             // 缓存配置
+	g.ANY("/rate", context.HandleFunc(site.RateLimit))          // 访问频率限制
+	g.ANY("/traffic", context.HandleFunc(site.TrafficLimit))    // 流量限制
+	g.ANY("/header", context.HandleFunc(site.Header))           // 请求和响应头
+	g.ANY("/compression", context.HandleFunc(site.Compression)) // 响应压缩
+	g.ANY("/route", context.HandleFunc(site.Route))             // 自定义路由
+	g.ANY("/static", context.HandleFunc(site.Static))           // 静态网站配置
+	g.ANY("/proxy", context.HandleFunc(site.Proxy))             // 反向代理配置
+	g.ANY("/fastcgi", context.HandleFunc(site.FastCGI))         // PHP-FPM 配置
+	g.ANY("/process", context.HandleFunc(site.Process))         // 通用网站进程配置
+}
+
+// loadCertRoute 证书管理路由
+func loadCertRoute(s *sinking_web.Engine) {
+	g := s.Group("/cert")
+	g.Use(context.HandleFunc(middleware.CheckLogin))
+	g.ANY("/list", context.HandleFunc(cert.List))     // 证书列表
+	g.ANY("/info", context.HandleFunc(cert.Info))     // 证书详情
+	g.ANY("/create", context.HandleFunc(cert.Create)) // 导入证书
+	g.ANY("/update", context.HandleFunc(cert.Update)) // 修改证书
+	g.ANY("/delete", context.HandleFunc(cert.Delete)) // 删除证书
+	g.ANY("/obtain", context.HandleFunc(cert.Obtain)) // 申请证书
+	g.ANY("/renew", context.HandleFunc(cert.Renew))   // 续签证书
 }
 
 // loadAuthRoute 授权路由
@@ -164,4 +208,5 @@ func loadSystemRoute(s *sinking_web.Engine) {
 	g.ANY("/task", context.HandleFunc(system.Task))       //系统任务
 	g.ANY("/log", context.HandleFunc(system.Log))         //系统日志
 	g.ANY("/enum", context.HandleFunc(system.Enum))       //枚举类型
+	g.ANY("/http", context.HandleFunc(system.HTTP))       //HTTP 服务管理
 }

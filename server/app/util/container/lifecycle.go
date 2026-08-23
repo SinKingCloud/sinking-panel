@@ -1,6 +1,7 @@
 package container
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -310,6 +311,12 @@ func (m *Manager) resolveImage(id string) (*Image, error) {
 	return nil, fmt.Errorf("镜像不存在: %s", id)
 }
 func (m *Manager) runLocked(options RunOptions) (*Instance, error) {
+	m.mu.RLock()
+	closing := m.closing
+	m.mu.RUnlock()
+	if closing {
+		return nil, errManagerClosed
+	}
 	m.mountMu.Lock()
 	defer m.mountMu.Unlock()
 	m.imageMu.RLock()
@@ -577,7 +584,7 @@ func (m *Manager) markExitedLocked(id string, generation uint64, exitCode int, w
 func (m *Manager) scheduleAutoRestart(id string, generation uint64) {
 	m.mu.Lock()
 	instance := m.instances[id]
-	if instance == nil || instance.Generation != generation || !instance.AutoRestart {
+	if m.closing || instance == nil || instance.Generation != generation || !instance.AutoRestart {
 		m.mu.Unlock()
 		return
 	}
@@ -588,11 +595,17 @@ func (m *Manager) scheduleAutoRestart(id string, generation uint64) {
 	delay := m.managerOptions().AutoRestartDelay
 	m.mu.Unlock()
 
-	go func() {
+	started := m.runBackground(func(ctx context.Context) {
 		timer := time.NewTimer(delay)
 		defer timer.Stop()
-		<-timer.C
+		select {
+		case <-ctx.Done():
+			return
+		case <-timer.C:
+		}
 
+		m.lifecycleMu.RLock()
+		defer m.lifecycleMu.RUnlock()
 		unlock := m.lockInstance(id)
 		defer unlock()
 		m.mu.Lock()
@@ -602,9 +615,10 @@ func (m *Manager) scheduleAutoRestart(id string, generation uint64) {
 		}
 		instance = m.cloneInstance(m.instances[id])
 		_, hasRuntime := m.runtime[id]
+		closing := m.closing
 		m.mu.Unlock()
 		if !pending || pendingGeneration != generation || instance == nil || instance.Generation != generation ||
-			!instance.AutoRestart || (instance.Status != StatusStopped && instance.Status != StatusFailed) || instance.PID > 0 || hasRuntime {
+			closing || !instance.AutoRestart || (instance.Status != StatusStopped && instance.Status != StatusFailed) || instance.PID > 0 || hasRuntime {
 			return
 		}
 		hasRuntimeState, err := m.hasRuntimeState(id)
@@ -616,7 +630,10 @@ func (m *Manager) scheduleAutoRestart(id string, generation uint64) {
 			return
 		}
 		_, _ = m.runLocked(options)
-	}()
+	})
+	if !started {
+		m.cancelAutoRestart(id)
+	}
 }
 
 // cancelAutoRestart 取消尚未执行的自动重启，不改变实例的持久化配置。

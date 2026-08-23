@@ -3,6 +3,7 @@
 package container
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -19,9 +20,15 @@ import (
 type linuxTerminalSession struct {
 	console      console.Console
 	process      *libcontainer.Process
+	done         <-chan struct{}
+	gracePeriod  time.Duration
+	forcePeriod  time.Duration
+	onClose      func()
 	closeOnce    sync.Once
 	consoleOnce  sync.Once
+	releaseOnce  sync.Once
 	consoleError error
+	closeError   error
 }
 
 func (s *linuxTerminalSession) Read(payload []byte) (int, error) {
@@ -40,19 +47,48 @@ func (s *linuxTerminalSession) Resize(height, width int) error {
 }
 
 func (s *linuxTerminalSession) Close() error {
-	var signalErr error
 	s.closeOnce.Do(func() {
-		if err := s.process.Signal(unix.SIGKILL); err != nil && !errors.Is(err, libcontainer.ErrNotRunning) && !errors.Is(err, os.ErrProcessDone) {
-			signalErr = err
+		defer s.release()
+		select {
+		case <-s.done:
+		default:
+			if err := s.process.Signal(unix.SIGTERM); err != nil && !errors.Is(err, libcontainer.ErrNotRunning) && !errors.Is(err, os.ErrProcessDone) {
+				s.closeError = errors.Join(s.closeError, err)
+			}
 		}
 		s.closeConsole()
+		timer := time.NewTimer(s.gracePeriod)
+		defer timer.Stop()
+		select {
+		case <-s.done:
+		case <-timer.C:
+			if err := s.process.Signal(unix.SIGKILL); err != nil && !errors.Is(err, libcontainer.ErrNotRunning) && !errors.Is(err, os.ErrProcessDone) {
+				s.closeError = errors.Join(s.closeError, err)
+			}
+			forceTimer := time.NewTimer(s.forcePeriod)
+			defer forceTimer.Stop()
+			select {
+			case <-s.done:
+			case <-forceTimer.C:
+				s.closeError = errors.Join(s.closeError, errors.New("等待容器终端退出超时"))
+			}
+		}
+		s.closeError = errors.Join(s.closeError, s.consoleError)
 	})
-	return errors.Join(signalErr, s.consoleError)
+	return s.closeError
 }
 
 func (s *linuxTerminalSession) closeConsole() {
 	s.consoleOnce.Do(func() {
 		s.consoleError = s.console.Close()
+	})
+}
+
+func (s *linuxTerminalSession) release() {
+	s.releaseOnce.Do(func() {
+		if s.onClose != nil {
+			s.onClose()
+		}
 	})
 }
 
@@ -133,17 +169,29 @@ func (m *Manager) openPlatformTerminal(id string, height, width int) (TerminalSe
 	}
 	_ = child.Close()
 	processDone := make(chan struct{})
-	go func() {
-		_, _ = process.Wait()
+	if !m.runBackground(func(ctx context.Context) {
+		_, _ = m.waitPlatformProcess(ctx, process, m.managerOptions().TerminalCleanupTimeout)
 		close(processDone)
-	}()
-	cleanupProcess := func() {
+	}) {
 		_ = process.Signal(unix.SIGKILL)
+		_, _ = process.Wait()
+		_ = parent.Close()
+		return nil, errManagerClosed
+	}
+	cleanupProcess := func() {
+		_ = process.Signal(unix.SIGTERM)
 		timer := time.NewTimer(m.managerOptions().TerminalCleanupTimeout)
 		defer timer.Stop()
 		select {
 		case <-processDone:
 		case <-timer.C:
+			_ = process.Signal(unix.SIGKILL)
+			forceTimer := time.NewTimer(m.managerOptions().ForceStopPeriod)
+			defer forceTimer.Stop()
+			select {
+			case <-processDone:
+			case <-forceTimer.C:
+			}
 		}
 	}
 
@@ -162,11 +210,29 @@ func (m *Manager) openPlatformTerminal(id string, height, width int) (TerminalSe
 		cleanupProcess()
 		return nil, fmt.Errorf("打开容器终端失败: %w", err)
 	}
-	session := &linuxTerminalSession{console: terminal, process: process}
+	session := &linuxTerminalSession{
+		console:     terminal,
+		process:     process,
+		done:        processDone,
+		gracePeriod: m.managerOptions().TerminalCleanupTimeout,
+		forcePeriod: m.managerOptions().ForceStopPeriod,
+	}
 	if err := session.Resize(height, width); err != nil {
 		_ = session.Close()
-		cleanupProcess()
 		return nil, fmt.Errorf("设置容器终端尺寸失败: %w", err)
+	}
+	session.onClose = func() { m.unregisterTerminal(session) }
+	if !m.registerTerminal(session) {
+		_ = session.Close()
+		return nil, errManagerClosed
+	}
+	if !m.runBackground(func(context.Context) {
+		<-processDone
+		session.closeConsole()
+		session.release()
+	}) {
+		_ = session.Close()
+		return nil, errManagerClosed
 	}
 	return session, nil
 }

@@ -39,6 +39,7 @@ func (s *Server) user() error {
 		return errors.New(message)
 	}
 	bootstrap.Load()
+	defer bootstrap.Close()
 	service.Init()
 	if err = service.Auth.UpdateAccount(form.Account, ""); err != nil {
 		return err
@@ -79,6 +80,7 @@ func (s *Server) pwd() error {
 		return errors.New("登录密码不能超过72个字节")
 	}
 	bootstrap.Load()
+	defer bootstrap.Close()
 	service.Init()
 	if err = service.Auth.UpdateAccount("", string(password)); err != nil {
 		return err

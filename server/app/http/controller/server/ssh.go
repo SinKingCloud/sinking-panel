@@ -1,9 +1,7 @@
 package server
 
 import (
-	stdContext "context"
 	"encoding/json"
-	"errors"
 	"net/http"
 	"server/app/enum/log_type"
 	"server/app/enum/server_auth_type"
@@ -12,103 +10,68 @@ import (
 	"server/app/util/webssh"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
-	"github.com/SinKingCloud/sinking-go/sinking-websocket"
 	"github.com/gorilla/websocket"
 )
 
-type sshContextKey struct{}
+const (
+	sshReadLimit    = 1024 * 1024
+	sshWriteTimeout = 30 * time.Second
+	sshPongTimeout  = 60 * time.Second
+	sshPingInterval = 54 * time.Second
+)
 
 type sshConnection struct {
-	client    *webssh.SshClient
-	session   *webssh.SshSession
-	width     int
-	height    int
-	requestIP string
-	name      string
+	client     *webssh.SshClient
+	session    *webssh.SshSession
+	connection *websocket.Conn
+	writeMu    sync.Mutex
+	closeOnce  sync.Once
+	done       chan struct{}
 }
 
-var sshServer = sinking_websocket.NewServer(
-	sinking_websocket.WithReadLimit(1024*1024),
-	sinking_websocket.WithWriteTimeout(30*time.Second),
-	sinking_websocket.WithConnectHandler(func(connection *sinking_websocket.Connection) error {
-		ssh, ok := connection.Request().Context().Value(sshContextKey{}).(*sshConnection)
-		if !ok || ssh == nil {
-			return errors.New("ssh connection context not found")
+var sshUpgrader = websocket.Upgrader{
+	HandshakeTimeout: 10 * time.Second,
+	WriteBufferSize:  4096,
+	CheckOrigin:      func(*http.Request) bool { return true },
+}
+
+func (s *sshConnection) send(messageType int, payload []byte) error {
+	select {
+	case <-s.done:
+		return websocket.ErrCloseSent
+	default:
+	}
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	select {
+	case <-s.done:
+		return websocket.ErrCloseSent
+	default:
+	}
+	if err := s.connection.SetWriteDeadline(time.Now().Add(sshWriteTimeout)); err != nil {
+		return err
+	}
+	return s.connection.WriteMessage(messageType, payload)
+}
+
+func (s *sshConnection) close() {
+	s.closeOnce.Do(func() {
+		close(s.done)
+		if s.connection != nil {
+			_ = s.connection.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseGoingAway, ""), time.Now().Add(time.Second))
+			_ = s.connection.Close()
 		}
-		var err error
-		ssh.session, err = ssh.client.NewSession(ssh.height, ssh.width)
-		if err != nil {
-			return err
+		if s.client != nil {
+			_ = s.client.Close()
 		}
-		service.Log.Create(ssh.requestIP, log_type.EventLogin, "连接SSH终端", "连接服务器["+ssh.name+"]")
-		sessionDone := make(chan struct{})
-		go func() {
-			_ = ssh.session.Wait()
-			close(sessionDone)
-		}()
-		go func() {
-			for {
-				select {
-				case <-ssh.session.OutputReady():
-					if payload := ssh.session.Read(); payload != nil {
-						// SSH 输出可能包含二进制内容（例如 cat SQLite、压缩包等），必须使用二进制帧。
-						if connection.Send(sinking_websocket.BinaryMessage, payload) != nil {
-							_ = connection.Close()
-							return
-						}
-					}
-				case <-connection.Done():
-					return
-				case <-sessionDone:
-					if payload := ssh.session.Read(); payload != nil {
-						_ = connection.Send(sinking_websocket.BinaryMessage, payload)
-					}
-					time.Sleep(10 * time.Millisecond)
-					_ = connection.Close()
-					return
-				}
-			}
-		}()
-		return nil
-	}),
-	sinking_websocket.WithMessageHandler(func(connection *sinking_websocket.Connection, message sinking_websocket.Message) error {
-		ssh, ok := connection.Request().Context().Value(sshContextKey{}).(*sshConnection)
-		if !ok || ssh == nil || ssh.session == nil {
-			return errors.New("ssh connection context not found")
+		if s.session != nil {
+			_ = s.session.Close()
 		}
-		var data struct {
-			Event   string `json:"event"`
-			Content string `json:"content"`
-		}
-		if json.Unmarshal(message.Payload, &data) != nil {
-			return nil
-		}
-		switch data.Event {
-		case "ping":
-			return connection.Send(sinking_websocket.TextMessage, []byte(strconv.FormatInt(time.Now().Unix(), 10)))
-		case "resize":
-			arr := strings.Split(data.Content, "|")
-			if len(arr) == 2 {
-				width, widthErr := strconv.Atoi(arr[0])
-				height, heightErr := strconv.Atoi(arr[1])
-				if widthErr == nil && heightErr == nil && width >= 1 && width <= 1000 && height >= 1 && height <= 1000 {
-					return ssh.session.Resize(height, width)
-				}
-			}
-		case "write":
-			return ssh.session.Write([]byte(data.Content))
-		}
-		return nil
-	}),
-	sinking_websocket.WithDisconnectHandler(func(connection *sinking_websocket.Connection, _ error) {
-		ssh, ok := connection.Request().Context().Value(sshContextKey{}).(*sshConnection)
-		if ok && ssh != nil && ssh.session != nil {
-			_ = ssh.session.Close()
-		}
-	}),
-)
+	})
+}
 
 func Ssh(c *context.Context) {
 	var form struct {
@@ -130,34 +93,112 @@ func Ssh(c *context.Context) {
 		return
 	}
 	client := webssh.NewSshClient(s.Ip, s.Port, 10*time.Second)
-	defer func() {
-		_ = client.Close()
-	}()
 	if s.AuthType == server_auth_type.Password {
 		err = client.AuthWithPassword(s.User, s.Password)
 	} else {
 		err = client.AuthWithPrivateKey(s.User, s.Password)
 	}
 	if err != nil {
+		_ = client.Close()
 		c.Error(err.Error())
 		return
 	}
+	response := make(http.Header)
+	if protocols := websocket.Subprotocols(c.Request); len(protocols) > 0 {
+		response.Set("Sec-WebSocket-Protocol", protocols[0])
+	}
+	connection, err := sshUpgrader.Upgrade(c.Writer, c.Request, response)
+	if err != nil {
+		_ = client.Close()
+		return
+	}
+	ssh := &sshConnection{client: client, connection: connection, done: make(chan struct{})}
+	ssh.session, err = client.NewSession(form.Height, form.Width)
+	if err != nil {
+		ssh.close()
+		return
+	}
+	defer ssh.close()
+
 	name := s.Name
 	if name == "" {
 		name = s.Ip
 	}
-	ssh := &sshConnection{
-		client:    client,
-		width:     form.Width,
-		height:    form.Height,
-		requestIP: c.GetRequestIp(),
-		name:      name,
+	service.Log.Create(c.GetRequestIp(), log_type.EventLogin, "连接SSH终端", "连接服务器["+name+"]")
+	_ = connection.SetReadDeadline(time.Now().Add(sshPongTimeout))
+	connection.SetReadLimit(sshReadLimit)
+	connection.SetPongHandler(func(string) error {
+		return connection.SetReadDeadline(time.Now().Add(sshPongTimeout))
+	})
+
+	sessionDone := make(chan struct{})
+	go func() {
+		_ = ssh.session.Wait()
+		close(sessionDone)
+	}()
+	outputDone := make(chan struct{})
+	go func() {
+		defer close(outputDone)
+		ticker := time.NewTicker(sshPingInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ssh.session.OutputReady():
+				if payload := ssh.session.Read(); payload != nil && ssh.send(websocket.BinaryMessage, payload) != nil {
+					ssh.close()
+					return
+				}
+			case <-sessionDone:
+				for payload := ssh.session.Read(); payload != nil; payload = ssh.session.Read() {
+					if ssh.send(websocket.BinaryMessage, payload) != nil {
+						break
+					}
+				}
+				ssh.close()
+				return
+			case <-ticker.C:
+				if err := connection.WriteControl(websocket.PingMessage, nil, time.Now().Add(sshWriteTimeout)); err != nil {
+					ssh.close()
+					return
+				}
+			case <-ssh.done:
+				return
+			}
+		}
+	}()
+
+	for {
+		_, payload, readErr := connection.ReadMessage()
+		if readErr != nil {
+			break
+		}
+		var data struct {
+			Event   string `json:"event"`
+			Content string `json:"content"`
+		}
+		if json.Unmarshal(payload, &data) != nil {
+			continue
+		}
+		switch data.Event {
+		case "ping":
+			err = ssh.send(websocket.TextMessage, []byte(strconv.FormatInt(time.Now().Unix(), 10)))
+		case "resize":
+			size := strings.Split(data.Content, "|")
+			if len(size) == 2 {
+				width, widthErr := strconv.Atoi(size[0])
+				height, heightErr := strconv.Atoi(size[1])
+				if widthErr == nil && heightErr == nil && width >= 1 && width <= 1000 && height >= 1 && height <= 1000 {
+					err = ssh.session.Resize(height, width)
+				}
+			}
+		case "write":
+			err = ssh.session.Write([]byte(data.Content))
+		}
+		if err != nil {
+			break
+		}
 	}
-	resp := make(http.Header)
-	protocols := websocket.Subprotocols(c.Request)
-	if len(protocols) > 0 {
-		resp.Set("Sec-WebSocket-Protocol", protocols[0])
-	}
-	request := c.Request.WithContext(stdContext.WithValue(c.Request.Context(), sshContextKey{}, ssh))
-	_ = sshServer.Handle(c.Writer, request, resp)
+	ssh.close()
+	<-sessionDone
+	<-outputDone
 }

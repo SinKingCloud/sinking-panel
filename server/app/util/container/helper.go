@@ -2,6 +2,7 @@ package container
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,6 +13,59 @@ import (
 	"strings"
 	"time"
 )
+
+func (m *Manager) runBackground(run func(context.Context)) bool {
+	if run == nil {
+		return false
+	}
+	m.mu.Lock()
+	if m.closing {
+		m.mu.Unlock()
+		return false
+	}
+	if m.ctx == nil {
+		m.ctx, m.cancel = context.WithCancel(context.Background())
+	}
+	ctx := m.ctx
+	m.workers.Add(1)
+	m.mu.Unlock()
+	go func() {
+		defer m.workers.Done()
+		run(ctx)
+	}()
+	return true
+}
+
+func (m *Manager) lockOpen() (func(), error) {
+	m.lifecycleMu.RLock()
+	m.mu.RLock()
+	closing := m.closing
+	m.mu.RUnlock()
+	if closing {
+		m.lifecycleMu.RUnlock()
+		return nil, errManagerClosed
+	}
+	return m.lifecycleMu.RUnlock, nil
+}
+
+func (m *Manager) registerTerminal(session TerminalSession) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.closing || session == nil {
+		return false
+	}
+	if m.terminals == nil {
+		m.terminals = make(map[TerminalSession]struct{})
+	}
+	m.terminals[session] = struct{}{}
+	return true
+}
+
+func (m *Manager) unregisterTerminal(session TerminalSession) {
+	m.mu.Lock()
+	delete(m.terminals, session)
+	m.mu.Unlock()
+}
 
 func (m *Manager) ensureManagedDirectory(path string) error {
 	parent := filepath.Dir(path)

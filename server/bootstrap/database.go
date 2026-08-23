@@ -11,6 +11,9 @@ import (
 
 // LoadDatabase 初始化数据库
 func LoadDatabase() {
+	if global.App.Database != nil {
+		return
+	}
 	global.App.SetDataBase(database.NewSqlite(getDbFile()))
 	if global.App.Database.DbError != nil {
 		panic(global.App.Database.DbError)

@@ -27,11 +27,10 @@ func (s *service) DownloadWithProgress(ctx context.Context, url string, destPath
 	if err == nil && fileInfo.Size() > 0 {
 		resumeOffset = fileInfo.Size()
 	}
-	req, err := http.NewRequest("GET", url, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return err
 	}
-	req = req.WithContext(ctx)
 	if resumeOffset > 0 {
 		req.Header.Set("Range", fmt.Sprintf("bytes=%d-", resumeOffset))
 	}
@@ -86,20 +85,7 @@ func (s *service) DownloadWithProgress(ctx context.Context, url string, destPath
 		if ctx.Err() != nil {
 			return errors.New("下载被取消")
 		}
-		readDone := make(chan struct{})
-		var n int
-		var readErr error
-		go func() {
-			n, readErr = resp.Body.Read(buffer)
-			close(readDone)
-		}()
-		select {
-		case <-readDone:
-			// 读取操作完成
-		case <-ctx.Done():
-			// 如果上下文被取消，我们立即返回错误
-			return errors.New("下载被取消")
-		}
+		n, readErr := resp.Body.Read(buffer)
 		if n > 0 {
 			_, writeErr := file.Write(buffer[:n])
 			if writeErr != nil {
@@ -129,8 +115,11 @@ func (s *service) DownloadWithProgress(ctx context.Context, url string, destPath
 		}
 		// 处理错误
 		if readErr != nil {
-			if readErr == io.EOF {
+			if errors.Is(readErr, io.EOF) {
 				break // 正常结束
+			}
+			if ctx.Err() != nil {
+				return errors.New("下载被取消")
 			}
 			return readErr // 其他错误
 		}

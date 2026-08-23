@@ -4,6 +4,7 @@ package container
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -166,15 +167,18 @@ func (m *Manager) startPlatformRuntime(instance *Instance, image *Image, options
 	m.mu.Lock()
 	m.runtime[instance.ID] = runtime
 	m.mu.Unlock()
-	go m.watchRuntimeLog(instance.ID, instance.Generation, runtime)
-	go func(id string, generation uint64, runtime *linuxRuntime) {
-		state, waitErr := runtime.process.Wait()
+	m.runBackground(func(ctx context.Context) {
+		m.watchRuntimeLog(ctx, instance.ID, instance.Generation, runtime)
+	})
+	m.runBackground(func(ctx context.Context) {
+		id, generation := instance.ID, instance.Generation
+		state, waitErr := m.waitPlatformProcess(ctx, runtime.process, m.managerOptions().StopGracePeriod)
 		exitCode := -1
 		if state != nil {
 			exitCode = state.ExitCode()
 		}
 		m.finishPlatformRuntime(id, generation, runtime, exitCode, waitErr)
-	}(instance.ID, instance.Generation, runtime)
+	})
 	return nil
 }
 
@@ -359,8 +363,12 @@ func (m *Manager) recoverPlatformRuntime(instance *Instance) (bool, error) {
 	m.mu.Lock()
 	m.runtime[instance.ID] = runtime
 	m.mu.Unlock()
-	go m.watchRuntimeLog(instance.ID, instance.Generation, runtime)
-	go m.watchRecoveredRuntime(instance.ID, instance.Generation, runtime)
+	m.runBackground(func(ctx context.Context) {
+		m.watchRuntimeLog(ctx, instance.ID, instance.Generation, runtime)
+	})
+	m.runBackground(func(ctx context.Context) {
+		m.watchRecoveredRuntime(ctx, instance.ID, instance.Generation, runtime)
+	})
 	return true, nil
 }
 
@@ -397,11 +405,19 @@ func (m *Manager) refreshPlatformRuntime(instance *Instance) (bool, error) {
 	return instance.PID > 0, nil
 }
 
-func (m *Manager) watchRecoveredRuntime(id string, generation uint64, runtime *linuxRuntime) {
+func (m *Manager) watchRecoveredRuntime(ctx context.Context, id string, generation uint64, runtime *linuxRuntime) {
 	ticker := time.NewTicker(m.managerOptions().RuntimePollInterval)
 	defer ticker.Stop()
 	failures := 0
-	for range ticker.C {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+		if ctx.Err() != nil {
+			return
+		}
 		m.mu.RLock()
 		instance := m.instances[id]
 		current, _ := m.runtime[id].(*linuxRuntime)
@@ -466,10 +482,18 @@ func (m *Manager) markPlatformRuntimeUnknown(id string, generation uint64, runti
 	_ = m.writeJSON(filepath.Join(m.instancesRoot, id, "instance.json"), instance)
 }
 
-func (m *Manager) watchRuntimeLog(id string, generation uint64, runtime *linuxRuntime) {
+func (m *Manager) watchRuntimeLog(ctx context.Context, id string, generation uint64, runtime *linuxRuntime) {
 	ticker := time.NewTicker(m.managerOptions().RuntimeLogInterval)
 	defer ticker.Stop()
-	for range ticker.C {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+		if ctx.Err() != nil {
+			return
+		}
 		m.mu.RLock()
 		instance := m.instances[id]
 		current, _ := m.runtime[id].(*linuxRuntime)
@@ -571,16 +595,27 @@ func (m *Manager) statsPlatform(id string) (*Stats, error) {
 
 // execPlatformCommand 加入现有容器的命名空间执行一次性命令，不会在宿主机执行。
 func (m *Manager) execPlatformCommand(id string, options ExecOptions) (*ExecResult, error) {
-	m.mu.RLock()
-	instance := m.cloneInstance(m.instances[id])
-	if instance == nil {
-		m.mu.RUnlock()
-		return nil, errors.New("实例不存在")
+	release, err := m.lockOpen()
+	if err != nil {
+		return nil, err
 	}
-	if (instance.Status != StatusRunning && instance.Status != StatusUnknown) || instance.PID <= 0 {
-		m.mu.RUnlock()
+	unlockInstance := m.lockInstance(id)
+	defer func() {
+		if unlockInstance != nil {
+			unlockInstance()
+		}
+		if release != nil {
+			release()
+		}
+	}()
+	instance, err := m.refreshInstanceLocked(id)
+	if err != nil {
+		return nil, err
+	}
+	if instance.Status != StatusRunning {
 		return nil, errors.New("实例未运行")
 	}
+	m.mu.RLock()
 	image := m.cloneImage(m.images[instance.ImageID])
 	var runtime *linuxRuntime
 	if value, ok := m.runtime[id].(*linuxRuntime); ok {
@@ -647,14 +682,29 @@ func (m *Manager) execPlatformCommand(id string, options ExecOptions) (*ExecResu
 	}
 	_ = outputWriter.Close()
 	copyDone := make(chan struct{})
-	go func() {
+	if !m.runBackground(func(ctx context.Context) {
+		defer close(copyDone)
+		closeDone := make(chan struct{})
+		stopClose := context.AfterFunc(ctx, func() {
+			defer close(closeDone)
+			_ = outputReader.Close()
+		})
 		_, _ = io.Copy(output, outputReader)
-		close(copyDone)
-	}()
+		if !stopClose() {
+			<-closeDone
+		}
+	}) {
+		_ = outputReader.Close()
+		_ = process.Signal(unix.SIGKILL)
+		_, _ = process.Wait()
+		return nil, errManagerClosed
+	}
 	closeOutput := func() {
+		timer := time.NewTimer(time.Second)
+		defer timer.Stop()
 		select {
 		case <-copyDone:
-		case <-time.After(time.Second):
+		case <-timer.C:
 			_ = outputReader.Close()
 			<-copyDone
 		}
@@ -666,10 +716,21 @@ func (m *Manager) execPlatformCommand(id string, options ExecOptions) (*ExecResu
 		err   error
 	}
 	wait := make(chan waitResult, 1)
-	go func() {
-		state, err := process.Wait()
+	if !m.runBackground(func(ctx context.Context) {
+		state, err := m.waitPlatformProcess(ctx, process, m.managerOptions().StopGracePeriod)
 		wait <- waitResult{state: state, err: err}
-	}()
+	}) {
+		_ = process.Signal(unix.SIGKILL)
+		_, _ = process.Wait()
+		return nil, errManagerClosed
+	}
+	m.mu.RLock()
+	managerContext := m.ctx
+	m.mu.RUnlock()
+	unlockInstance()
+	unlockInstance = nil
+	release()
+	release = nil
 	timer := time.NewTimer(options.Timeout)
 	defer timer.Stop()
 	result := &ExecResult{ExitCode: -1}
@@ -693,10 +754,40 @@ func (m *Manager) execPlatformCommand(id string, options ExecOptions) (*ExecResu
 		case <-forceTimer.C:
 		}
 		forceTimer.Stop()
+	case <-managerContext.Done():
+		value := <-wait
+		if value.state != nil {
+			result.ExitCode = value.state.ExitCode()
+		}
+		return nil, errManagerClosed
 	}
 	closeOutput()
 	result.Output, result.Truncated = output.snapshot()
 	return result, nil
+}
+
+// waitPlatformProcess 在管理器退出时先优雅终止进程，超时后强制结束，并始终回收进程状态。
+func (m *Manager) waitPlatformProcess(ctx context.Context, process *libcontainer.Process, grace time.Duration) (*os.ProcessState, error) {
+	done := make(chan struct{})
+	stopDone := make(chan struct{})
+	stop := context.AfterFunc(ctx, func() {
+		defer close(stopDone)
+		_ = process.Signal(unix.SIGTERM)
+		timer := time.NewTimer(grace)
+		defer timer.Stop()
+		select {
+		case <-done:
+			return
+		case <-timer.C:
+			_ = process.Signal(unix.SIGKILL)
+		}
+	})
+	state, err := process.Wait()
+	close(done)
+	if !stop() {
+		<-stopDone
+	}
+	return state, err
 }
 
 type limitedBuffer struct {
@@ -952,10 +1043,19 @@ func (m *Manager) lockPlatformLog(id string) func() {
 // retryPlatformCleanup 以退避方式重试持久化状态、残留进程和 libcontainer 状态清理。
 func (m *Manager) retryPlatformCleanup(id string, generation uint64, runtime *linuxRuntime) {
 	runtime.cleanup.Do(func() {
-		go func() {
+		m.runBackground(func(ctx context.Context) {
 			delay := m.managerOptions().RuntimeCleanupDelay
 			for {
-				time.Sleep(delay)
+				timer := time.NewTimer(delay)
+				select {
+				case <-ctx.Done():
+					timer.Stop()
+					return
+				case <-timer.C:
+				}
+				if ctx.Err() != nil {
+					return
+				}
 				unlock := m.lockInstance(id)
 				m.mu.RLock()
 				instance := m.cloneInstance(m.instances[id])
@@ -993,7 +1093,7 @@ func (m *Manager) retryPlatformCleanup(id string, generation uint64, runtime *li
 					}
 				}
 			}
-		}()
+		})
 	})
 }
 

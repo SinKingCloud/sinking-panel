@@ -8,8 +8,13 @@ import (
 
 // TaskCreate 创建任务
 func (s *service) TaskCreate(id, name string, data interface{}, run func(context.Context, interface{}, func(int, float64, string))) {
+	s.lifecycleMu.Lock()
+	defer s.lifecycleMu.Unlock()
+	if s.closed {
+		return
+	}
 	now := time.Now().Unix()
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(s.ctx)
 	task := &Task{
 		ID:         id,
 		Name:       name,

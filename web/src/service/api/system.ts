@@ -25,6 +25,16 @@ export async function getSystemStatus(params: API.RequestParams = {}) {
     return get("/system/status", params?.body, params?.onSuccess, params?.onFail, params?.onFinally);
 }
 
+/** 获取 HTTP 服务状态或配置 GET /system/http */
+export async function getHTTPService(params: API.RequestParams = {}) {
+    return get("/system/http", params?.body, params?.onSuccess, params?.onFail, params?.onFinally);
+}
+
+/** 管理 HTTP 服务或修改配置 POST /system/http */
+export async function updateHTTPService(params: API.RequestParams = {}) {
+    return post("/system/http", params?.body, params?.onSuccess, params?.onFail, params?.onFinally);
+}
+
 /** 获取系统枚举 GET /system/enum */
 export async function getEnum(params: API.RequestParams = {}) {
     return get("/system/enum", params?.body, params?.onSuccess, params?.onFail, params?.onFinally);

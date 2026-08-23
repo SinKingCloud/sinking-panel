@@ -4,7 +4,7 @@ go 1.25.1
 
 require (
 	github.com/SinKingCloud/sinking-go/sinking-web v0.0.0-20260721071049-38c96ad3bbb0
-	github.com/SinKingCloud/sinking-go/sinking-websocket v0.0.0-20260721071049-38c96ad3bbb0
+	github.com/DeRuina/timberjack v1.4.2
 	github.com/afocus/captcha v0.0.0-20191010092841-4bd1f21c8868
 	github.com/axgle/mahonia v0.0.0-20180208002826-3358181d7394
 	github.com/caddyserver/cache-handler v0.16.0
@@ -58,7 +58,6 @@ require (
 	filippo.io/edwards25519 v1.2.0 // indirect
 	github.com/AndreasBriese/bbloom v0.0.0-20190825152654-46b345b51c96 // indirect
 	github.com/BurntSushi/toml v1.6.0 // indirect
-	github.com/DeRuina/timberjack v1.4.2 // indirect
 	github.com/KimMachineGun/automemlimit v0.7.5 // indirect
 	github.com/Masterminds/goutils v1.1.1 // indirect
 	github.com/Masterminds/semver/v3 v3.4.0 // indirect

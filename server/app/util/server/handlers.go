@@ -46,7 +46,11 @@ func (m *Manager) buildSiteRoute(site *Site, domains, excludedDomains []string, 
 		HandlerCache:     nil,
 		HandlerSubroute:  nil,
 	}
-	if handler := m.buildWAFHandler(site.WAF); handler != nil {
+	handler, err := m.buildWAFHandler(site.ID, site.WAF)
+	if err != nil {
+		return nil, err
+	}
+	if handler != nil {
 		stages[HandlerWAF] = append(stages[HandlerWAF], handler)
 	}
 	if handler := m.buildRateLimitHandler(site, scope); handler != nil {
@@ -202,9 +206,9 @@ func (m *Manager) buildTrafficLimitHandler(site *Site) map[string]interface{} {
 	return handler
 }
 
-func (m *Manager) buildWAFHandler(options WAFOptions) map[string]interface{} {
+func (m *Manager) buildWAFHandler(siteID string, options WAFOptions) (map[string]interface{}, error) {
 	if !options.Enabled {
-		return nil
+		return nil, nil
 	}
 	directives := make([]string, 0, 32+len(options.OWASP.SetupDirectives)+len(options.Directives)+len(options.Rules))
 	if options.OWASP.Enabled {
@@ -322,13 +326,18 @@ func (m *Manager) buildWAFHandler(options WAFOptions) map[string]interface{} {
 		}
 	}
 	if options.AuditLog {
+		logPath, err := m.siteLogPath(siteID, LogWAF)
+		if err != nil {
+			return nil, err
+		}
 		directives = append(directives,
 			"SecAuditEngine RelevantOnly",
 			`SecAuditLogRelevantStatus "^(?:4|5)"`,
 			"SecAuditLogParts ABCHIJKZ",
-			"SecAuditLogType Serial",
+			"SecAuditLogType rotating",
 			"SecAuditLogFormat JSON",
-			"SecAuditLog "+strconv.Quote(m.wafLogPath),
+			"SecAuditLogFileMode 0600",
+			"SecAuditLog "+strconv.Quote(logPath),
 		)
 	} else {
 		directives = append(directives, "SecAuditEngine Off")
@@ -342,7 +351,7 @@ func (m *Manager) buildWAFHandler(options WAFOptions) map[string]interface{} {
 		"handler":        HandlerWAF,
 		"directives":     strings.Join(directives, "\n"),
 		"load_owasp_crs": options.OWASP.Enabled,
-	}
+	}, nil
 }
 
 func (m *Manager) buildHeaderOperations(options HeaderOptions) map[string]interface{} {

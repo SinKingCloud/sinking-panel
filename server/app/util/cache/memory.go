@@ -10,15 +10,14 @@ import (
 // NewMem 实例化内存缓存
 func NewMem(defaultExpiration, cleanupInterval time.Duration) *Cache {
 	c := &Cache{
-		memory: goCache.New(
-			defaultExpiration,
-			cleanupInterval,
-		),
+		memory:   goCache.New(defaultExpiration, 0),
 		locks:    make(map[string]*lockInfo),
-		mu:       sync.Mutex{},
 		stopChan: make(chan struct{}),
 	}
-	go c.cleanupRoutine(cleanupInterval)
+	if cleanupInterval > 0 {
+		c.waitGroup.Add(1)
+		go c.cleanupRoutine(cleanupInterval)
+	}
 	return c
 }
 
@@ -29,10 +28,12 @@ type lockInfo struct {
 }
 
 type Cache struct {
-	memory   *goCache.Cache
-	locks    map[string]*lockInfo
-	mu       sync.Mutex
-	stopChan chan struct{}
+	memory    *goCache.Cache
+	locks     map[string]*lockInfo
+	mu        sync.Mutex
+	stopChan  chan struct{}
+	closeOnce sync.Once
+	waitGroup sync.WaitGroup
 }
 
 func (c *Cache) Get(key string) interface{} {
@@ -112,11 +113,13 @@ func (c *Cache) IsLock(key string) bool {
 }
 
 func (c *Cache) cleanupRoutine(interval time.Duration) {
+	defer c.waitGroup.Done()
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-ticker.C:
+			c.memory.DeleteExpired()
 			c.CleanExpiredLock()
 		case <-c.stopChan:
 			return
@@ -141,7 +144,8 @@ func (c *Cache) CleanExpiredLock() {
 
 // Close 停止清理goroutine并释放资源
 func (c *Cache) Close() {
-	close(c.stopChan)
+	c.closeOnce.Do(func() { close(c.stopChan) })
+	c.waitGroup.Wait()
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	for key, info := range c.locks {

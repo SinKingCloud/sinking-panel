@@ -22,17 +22,17 @@ func (m *Manager) setOptions(options Options) error {
 	if options.HTTPListen == nil {
 		options.HTTPListen = []string{":80"}
 	} else {
-		options.HTTPListen = append([]string(nil), options.HTTPListen...)
+		options.HTTPListen = append([]string{}, options.HTTPListen...)
 	}
 	if options.HTTPSListen == nil {
 		options.HTTPSListen = []string{":443"}
 	} else {
-		options.HTTPSListen = append([]string(nil), options.HTTPSListen...)
+		options.HTTPSListen = append([]string{}, options.HTTPSListen...)
 	}
 	if options.Protocols == nil {
 		options.Protocols = []string{"h1", "h2", "h3"}
 	} else {
-		options.Protocols = append([]string(nil), options.Protocols...)
+		options.Protocols = append([]string{}, options.Protocols...)
 	}
 	allowedProtocols := map[string]bool{"h1": true, "h2": true, "h2c": true, "h3": true}
 	protocolSet := make(map[string]struct{}, len(options.Protocols))
@@ -125,8 +125,12 @@ func (m *Manager) setOptions(options Options) error {
 			}
 		}
 	}
-	options.TrustedProxies = append([]string(nil), options.TrustedProxies...)
-	options.ClientIPHeaders = append([]string(nil), options.ClientIPHeaders...)
+	if options.TrustedProxies != nil {
+		options.TrustedProxies = append([]string{}, options.TrustedProxies...)
+	}
+	if options.ClientIPHeaders != nil {
+		options.ClientIPHeaders = append([]string{}, options.ClientIPHeaders...)
+	}
 
 	var err error
 	if options.DataPath == "" {
@@ -163,6 +167,32 @@ func (m *Manager) setOptions(options Options) error {
 			return err
 		}
 	}
+	pathInside := func(parent, child string) bool {
+		relative, relativeErr := filepath.Rel(parent, child)
+		return relativeErr == nil && (relative == "." || (relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator))))
+	}
+	logDirectory := filepath.Join(m.root, "logs")
+	if options.LogPath != "-" {
+		logDirectory = filepath.Dir(options.LogPath)
+	}
+	siteLogDirectories := []string{
+		filepath.Join(logDirectory, string(LogAccess)),
+		filepath.Join(filepath.Dir(options.WAFLogPath), string(LogWAF)),
+		filepath.Join(logDirectory, string(LogProcess)),
+	}
+	validateSiteLogPaths := func() error {
+		for _, directory := range siteLogDirectories {
+			for _, file := range []string{options.LogPath, options.WAFLogPath, options.ConfigPath} {
+				if file != "" && file != "-" && (pathInside(directory, file) || pathInside(file, directory)) {
+					return errors.New("站点日志目录不能与 http 日志或配置文件重叠")
+				}
+			}
+		}
+		return nil
+	}
+	if err = validateSiteLogPaths(); err != nil {
+		return err
+	}
 	for _, directory := range []string{m.root, options.DataPath, options.CachePath, filepath.Dir(options.WAFLogPath)} {
 		if err = os.MkdirAll(directory, 0700); err != nil {
 			return fmt.Errorf("创建 http 目录失败: %w", err)
@@ -171,6 +201,14 @@ func (m *Manager) setOptions(options Options) error {
 	if options.LogPath != "-" {
 		if err = os.MkdirAll(filepath.Dir(options.LogPath), 0700); err != nil {
 			return fmt.Errorf("创建 http 日志目录失败: %w", err)
+		}
+	}
+	for _, directory := range siteLogDirectories {
+		if err = os.MkdirAll(directory, 0700); err != nil {
+			return fmt.Errorf("创建站点日志目录失败: %w", err)
+		}
+		if err = os.Chmod(directory, 0700); err != nil {
+			return fmt.Errorf("设置站点日志目录权限失败: %w", err)
 		}
 	}
 	if options.ConfigPath != "" {
@@ -195,6 +233,18 @@ func (m *Manager) setOptions(options Options) error {
 		}
 		*target = filepath.Join(parent, filepath.Base(*target))
 	}
+	logDirectory = filepath.Join(m.root, "logs")
+	if options.LogPath != "-" {
+		logDirectory = filepath.Dir(options.LogPath)
+	}
+	siteLogDirectories = []string{
+		filepath.Join(logDirectory, string(LogAccess)),
+		filepath.Join(filepath.Dir(options.WAFLogPath), string(LogWAF)),
+		filepath.Join(logDirectory, string(LogProcess)),
+	}
+	if err = validateSiteLogPaths(); err != nil {
+		return err
+	}
 	files := map[string]string{}
 	for name, path := range map[string]string{
 		"http 日志": options.LogPath,
@@ -212,10 +262,6 @@ func (m *Manager) setOptions(options Options) error {
 	volumeRoot := filepath.Clean(filepath.VolumeName(options.CachePath) + string(filepath.Separator))
 	if options.CachePath == volumeRoot || options.CachePath == m.root {
 		return errors.New("CachePath 不能是磁盘根目录或 Manager 根目录")
-	}
-	pathInside := func(parent, child string) bool {
-		relative, relativeErr := filepath.Rel(parent, child)
-		return relativeErr == nil && (relative == "." || (relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator))))
 	}
 	if pathInside(options.CachePath, m.root) || pathInside(options.CachePath, options.DataPath) || pathInside(options.DataPath, options.CachePath) {
 		return errors.New("CachePath 不能包含 Manager 根目录或与 DataPath 重叠")
@@ -268,6 +314,79 @@ func (m *Manager) setOptions(options Options) error {
 	m.wafLogPath = options.WAFLogPath
 	m.configPath = options.ConfigPath
 	m.storage = &certmagic.FileStorage{Path: m.dataPath}
+	return nil
+}
+
+func (m *Manager) updateOptions(options Options) error {
+	m.mu.RLock()
+	if m.configMode {
+		m.mu.RUnlock()
+		return errors.New("配置文件模式下无法修改 http 运行参数")
+	}
+	running := m.running
+	currentConfig := append([]byte(nil), m.config...)
+	storedSites := m.cloneSites(m.sites)
+	m.mu.RUnlock()
+
+	candidate := &Manager{root: m.root, sites: make(map[string]*Site)}
+	if err := candidate.setOptions(options); err != nil {
+		return err
+	}
+	input := make([]Site, 0, len(storedSites))
+	for _, site := range storedSites {
+		input = append(input, *site)
+	}
+	prepared, err := candidate.prepareSites(input)
+	if err != nil {
+		return err
+	}
+	config, err := candidate.buildConfig(prepared)
+	if err != nil {
+		return err
+	}
+	changed := !bytes.Equal(config, currentConfig)
+	if !running {
+		if err = candidate.validateConfig(config); err != nil {
+			return err
+		}
+	}
+	commit := func() {
+		m.mu.Lock()
+		m.options = candidate.options
+		m.dataPath = candidate.dataPath
+		m.cachePath = candidate.cachePath
+		m.logPath = candidate.logPath
+		m.wafLogPath = candidate.wafLogPath
+		m.configPath = candidate.configPath
+		m.storage = candidate.storage
+		m.sites = candidate.cloneSites(prepared)
+		m.config = append([]byte(nil), config...)
+		m.configMode = false
+		m.mu.Unlock()
+	}
+	if running {
+		httpRuntime.Lock()
+		defer httpRuntime.Unlock()
+		if httpRuntime.owner != m {
+			return errors.New("当前 Manager 已失去 http 运行时所有权")
+		}
+		if changed {
+			if err = caddy.Load(config, false); err != nil {
+				return fmt.Errorf("加载 http 配置失败: %w", err)
+			}
+		}
+	}
+	if err = candidate.persistConfig(config); err != nil {
+		if running && changed {
+			if rollbackErr := caddy.Load(currentConfig, false); rollbackErr != nil {
+				commit()
+				return fmt.Errorf("新运行参数已生效，但保存和回滚均失败: %w", errors.Join(err, rollbackErr))
+			}
+			return fmt.Errorf("保存配置失败，http 热更新已回滚: %w", err)
+		}
+		return fmt.Errorf("保存 http 配置失败: %w", err)
+	}
+	commit()
 	return nil
 }
 
@@ -406,6 +525,35 @@ func (m *Manager) buildConfig(sites map[string]*Site) ([]byte, error) {
 		}
 	}
 	sort.SliceStable(enabled, func(i, j int) bool { return enabled[i].ID < enabled[j].ID })
+	accessLoggerNames := make(map[string][]string)
+	accessLogs := make(map[string]interface{}, len(enabled))
+	accessLogNamespaces := make([]string, 0, len(enabled))
+	for _, site := range enabled {
+		fingerprint := sha256.Sum256([]byte(site.ID))
+		loggerName := fmt.Sprintf("site_%x", fingerprint)
+		logPath, err := m.siteLogPath(site.ID, LogAccess)
+		if err != nil {
+			return nil, err
+		}
+		for _, domain := range site.Domains {
+			accessLoggerNames[domain] = []string{loggerName}
+		}
+		namespace := "http.log.access." + loggerName
+		accessLogNamespaces = append(accessLogNamespaces, namespace)
+		accessLogs[loggerName] = map[string]interface{}{
+			"include": []string{namespace},
+			"writer": map[string]interface{}{
+				"output":           "file",
+				"filename":         logPath,
+				"mode":             "0600",
+				"dir_mode":         "0700",
+				"roll_size_mb":     50,
+				"roll_keep":        10,
+				"roll_keep_days":   30,
+				"roll_compression": "gzip",
+			},
+		}
+	}
 	exactDomains := make(map[string]string)
 	for _, site := range enabled {
 		for _, domain := range site.Domains {
@@ -463,44 +611,61 @@ func (m *Manager) buildConfig(sites map[string]*Site) ([]byte, error) {
 				return nil, err
 			}
 			httpsRoutes = append(httpsRoutes, httpsRoute)
-			exact, wildcard := make([]string, 0, len(tlsDomains)), make([]string, 0, len(tlsDomains))
-			for _, domain := range tlsDomains {
-				if strings.HasPrefix(domain, "*.") {
-					wildcard = append(wildcard, domain)
-				} else {
-					exact = append(exact, domain)
-				}
-			}
-			for index, domains := range [][]string{exact, wildcard} {
-				if len(domains) == 0 {
-					continue
-				}
-				policy := map[string]interface{}{
-					"match":                 map[string]interface{}{"sni": domains},
-					"certificate_selection": map[string]interface{}{"any_tag": []string{"site:" + site.ID}},
-				}
-				if site.TLS.MinVersion != "" {
-					policy["protocol_min"] = site.TLS.MinVersion
-				}
-				if site.TLS.MaxVersion != "" {
-					policy["protocol_max"] = site.TLS.MaxVersion
-				}
-				if index == 0 {
-					exactTLSPolicies = append(exactTLSPolicies, policy)
-				} else {
-					wildcardTLSPolicies = append(wildcardTLSPolicies, policy)
-				}
-			}
 			for _, pair := range site.TLS.Certificates {
+				certificateIdentity := pair.CertificatePEM + "\x00" + pair.PrivateKeyPEM
+				if pair.CertificatePEM == "" {
+					certificateContent, readErr := os.ReadFile(pair.CertificateFile)
+					if readErr != nil {
+						return nil, fmt.Errorf("读取站点 %s 证书失败: %w", site.ID, readErr)
+					}
+					keyContent, readErr := os.ReadFile(pair.KeyFile)
+					if readErr != nil {
+						return nil, fmt.Errorf("读取站点 %s 私钥失败: %w", site.ID, readErr)
+					}
+					certificateIdentity = string(certificateContent) + "\x00" + string(keyContent)
+				}
+				fingerprint := sha256.Sum256([]byte(certificateIdentity))
+				tag := fmt.Sprintf("site:%s:certificate:%x", site.ID, fingerprint)
+				pairDomains := pair.Domains
+				if len(pairDomains) == 0 {
+					pairDomains = tlsDomains
+				}
+				exact, wildcard := make([]string, 0, len(pairDomains)), make([]string, 0, len(pairDomains))
+				for _, domain := range pairDomains {
+					if strings.HasPrefix(domain, "*.") {
+						wildcard = append(wildcard, domain)
+					} else {
+						exact = append(exact, domain)
+					}
+				}
+				for policyIndex, domains := range [][]string{exact, wildcard} {
+					if len(domains) == 0 {
+						continue
+					}
+					policy := map[string]interface{}{
+						"match":                 map[string]interface{}{"sni": domains},
+						"certificate_selection": map[string]interface{}{"any_tag": []string{tag}},
+					}
+					if site.TLS.MinVersion != "" {
+						policy["protocol_min"] = site.TLS.MinVersion
+					}
+					if site.TLS.MaxVersion != "" {
+						policy["protocol_max"] = site.TLS.MaxVersion
+					}
+					if policyIndex == 0 {
+						exactTLSPolicies = append(exactTLSPolicies, policy)
+					} else {
+						wildcardTLSPolicies = append(wildcardTLSPolicies, policy)
+					}
+				}
 				if pair.CertificatePEM != "" {
-					fingerprint := sha256.Sum256([]byte(pair.CertificatePEM + "\x00" + pair.PrivateKeyPEM))
 					key := string(fingerprint[:])
 					certificate := certificatePEMs[key]
 					if certificate == nil {
 						certificate = &certificatePEMConfig{Certificate: pair.CertificatePEM, Key: pair.PrivateKeyPEM}
 						certificatePEMs[key] = certificate
 					}
-					certificate.Tags = append(certificate.Tags, "site:"+site.ID)
+					certificate.Tags = append(certificate.Tags, tag)
 					continue
 				}
 				key := pair.CertificateFile + "\x00" + pair.KeyFile
@@ -509,7 +674,7 @@ func (m *Manager) buildConfig(sites map[string]*Site) ([]byte, error) {
 					certificate = &certificateFileConfig{Certificate: pair.CertificateFile, Key: pair.KeyFile}
 					certificateFiles[key] = certificate
 				}
-				certificate.Tags = append(certificate.Tags, "site:"+site.ID)
+				certificate.Tags = append(certificate.Tags, tag)
 			}
 			if site.TLS.RedirectHTTP {
 				if len(m.options.HTTPSListen) == 0 {
@@ -598,14 +763,14 @@ func (m *Manager) buildConfig(sites map[string]*Site) ([]byte, error) {
 			if !hasPlainHTTP {
 				return nil, errors.New("HTTP 监听至少需要启用 h1 或 h2c")
 			}
-			servers["http"] = m.buildHTTPServer(m.options.HTTPListen, httpRoutes, nil)
+			servers["http"] = m.buildHTTPServer(m.options.HTTPListen, httpRoutes, nil, accessLoggerNames)
 		}
 	}
 	if len(httpsRoutes) > 0 {
 		if len(m.options.HTTPSListen) == 0 {
 			return nil, errors.New("存在 TLS 站点，但没有配置 HTTPS 监听地址")
 		}
-		servers["https"] = m.buildHTTPServer(m.options.HTTPSListen, httpsRoutes, tlsPolicies)
+		servers["https"] = m.buildHTTPServer(m.options.HTTPSListen, httpsRoutes, tlsPolicies, accessLoggerNames)
 	}
 
 	loadFiles := make([]certificateFileConfig, 0, len(certificateFiles))
@@ -657,6 +822,9 @@ func (m *Manager) buildConfig(sites map[string]*Site) ([]byte, error) {
 		"apps":    apps,
 	}
 	logConfig := map[string]interface{}{"level": m.options.LogLevel}
+	if len(accessLogNamespaces) > 0 {
+		logConfig["exclude"] = accessLogNamespaces
+	}
 	if m.logPath != "-" {
 		logConfig["writer"] = map[string]interface{}{
 			"output":           "file",
@@ -669,7 +837,11 @@ func (m *Manager) buildConfig(sites map[string]*Site) ([]byte, error) {
 			"roll_compression": "gzip",
 		}
 	}
-	config["logging"] = map[string]interface{}{"logs": map[string]interface{}{"default": logConfig}}
+	logs := map[string]interface{}{"default": logConfig}
+	for name, accessLog := range accessLogs {
+		logs[name] = accessLog
+	}
+	config["logging"] = map[string]interface{}{"logs": logs}
 	result, err := json.MarshalIndent(config, "", "    ")
 	if err != nil {
 		return nil, fmt.Errorf("生成 http 配置失败: %w", err)
@@ -677,7 +849,7 @@ func (m *Manager) buildConfig(sites map[string]*Site) ([]byte, error) {
 	return result, nil
 }
 
-func (m *Manager) buildHTTPServer(listen []string, routes []interface{}, tlsPolicies []interface{}) map[string]interface{} {
+func (m *Manager) buildHTTPServer(listen []string, routes []interface{}, tlsPolicies []interface{}, loggerNames map[string][]string) map[string]interface{} {
 	routes = append([]interface{}{
 		map[string]interface{}{
 			"handle": []interface{}{map[string]interface{}{
@@ -697,7 +869,10 @@ func (m *Manager) buildHTTPServer(listen []string, routes []interface{}, tlsPoli
 		"read_header_timeout": m.options.ReadHeaderTimeout.String(),
 		"idle_timeout":        m.options.IdleTimeout.String(),
 		"max_header_bytes":    m.options.MaxHeaderBytes,
-		"logs":                map[string]interface{}{},
+		"logs": map[string]interface{}{
+			"logger_names":        loggerNames,
+			"skip_unmapped_hosts": true,
+		},
 	}
 	if m.options.ReadTimeout > 0 {
 		server["read_timeout"] = m.options.ReadTimeout.String()

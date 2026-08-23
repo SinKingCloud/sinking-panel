@@ -1,13 +1,7 @@
 package app
 
-import (
-	"server/app/http/route"
-	"server/app/service"
-	"server/app/task"
-)
+import "server/app/http/route"
 
-func Run() {
-	service.Init()
-	task.Init()
-	route.Init()
+func Run(stop <-chan struct{}) {
+	route.Init(stop)
 }

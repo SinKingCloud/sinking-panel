@@ -219,11 +219,56 @@ func (m *Manager) Reload() error {
 	return nil
 }
 
+// Restart 停止并重新启动 HTTP 服务，保留当前站点和配置。
+func (m *Manager) Restart() error {
+	if err := m.Stop(); err != nil {
+		return err
+	}
+	return m.Start()
+}
+
 // Running 返回 HTTP 服务当前是否由此 Manager 启动。
 func (m *Manager) Running() bool {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.running
+}
+
+// Options 返回当前 HTTP 运行参数的只读副本。
+func (m *Manager) Options() Options {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	options := m.options
+	if options.HTTPListen != nil {
+		options.HTTPListen = append([]string{}, options.HTTPListen...)
+	}
+	if options.HTTPSListen != nil {
+		options.HTTPSListen = append([]string{}, options.HTTPSListen...)
+	}
+	if options.Protocols != nil {
+		options.Protocols = append([]string{}, options.Protocols...)
+	}
+	if options.TrustedProxies != nil {
+		options.TrustedProxies = append([]string{}, options.TrustedProxies...)
+	}
+	if options.ClientIPHeaders != nil {
+		options.ClientIPHeaders = append([]string{}, options.ClientIPHeaders...)
+	}
+	return options
+}
+
+// UpdateOptions 校验并更新 HTTP 运行参数，服务运行时会热加载配置。
+func (m *Manager) UpdateOptions(options Options) error {
+	m.operationMu.Lock()
+	defer m.operationMu.Unlock()
+	return m.updateOptions(options)
+}
+
+// LogPath 返回指定站点的日志文件路径。
+func (m *Manager) LogPath(id string, logType LogType) (string, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.siteLogPath(id, logType)
 }
 
 // Sites 返回全部站点的只读副本。
@@ -264,6 +309,18 @@ func (m *Manager) SyncSites(sites []Site) error {
 		return err
 	}
 	return m.applySites(candidate)
+}
+
+// ValidateSites 验证完整站点集合，不保存配置也不改变运行状态。
+func (m *Manager) ValidateSites(sites []Site) error {
+	m.operationMu.Lock()
+	defer m.operationMu.Unlock()
+	candidate, err := m.prepareSites(sites)
+	if err != nil {
+		return err
+	}
+	_, err = m.buildConfig(candidate)
+	return err
 }
 
 // AddSite 添加站点并在运行时热加载。
@@ -370,6 +427,24 @@ func (m *Manager) ClearSiteCache(id string) error {
 	}
 	if err = serverCache.Registry.PurgeTree(m.cachePath, target); err != nil {
 		return fmt.Errorf("清空站点缓存失败: %w", err)
+	}
+	return nil
+}
+
+// DeleteSiteCache 删除已卸载站点的缓存目录。
+func (m *Manager) DeleteSiteCache(id string) error {
+	m.operationMu.Lock()
+	defer m.operationMu.Unlock()
+
+	id = strings.TrimSpace(id)
+	m.mu.RLock()
+	loaded := m.sites[id] != nil
+	m.mu.RUnlock()
+	if loaded {
+		return errors.New("站点仍在运行时配置中，不能删除缓存目录")
+	}
+	if err := m.removeSiteCache(id); err != nil {
+		return fmt.Errorf("删除站点缓存失败: %w", err)
 	}
 	return nil
 }

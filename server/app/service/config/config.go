@@ -11,6 +11,7 @@ type Service interface {
 	Set(key string, value string) error
 	Sets(configs map[string]string) error
 	Get(group string, key string) string
+	Load(group string, key string) (string, error)
 }
 
 // service 注入结构

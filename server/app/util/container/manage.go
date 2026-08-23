@@ -1,6 +1,7 @@
 package container
 
 import (
+	"context"
 	"crypto/sha256"
 	"errors"
 	"fmt"
@@ -153,6 +154,7 @@ func NewManager(root string, options ...ManagerOptions) (*Manager, error) {
 		IDMapSize:   managerOptions.IDMapSize,
 	}
 	managerOptions = normalizeManagerOptions(managerOptions)
+	managerContext, cancel := context.WithCancel(context.Background())
 	m := &Manager{
 		dataRoot:          absRoot,
 		imagesRoot:        filepath.Join(absRoot, "images"),
@@ -166,8 +168,18 @@ func NewManager(root string, options ...ManagerOptions) (*Manager, error) {
 		images:            make(map[string]*Image),
 		instances:         make(map[string]*Instance),
 		runtime:           make(map[string]interface{}),
+		terminals:         make(map[TerminalSession]struct{}),
 		autoRestart:       make(map[string]uint64),
+		ctx:               managerContext,
+		cancel:            cancel,
 	}
+	ready := false
+	defer func() {
+		if !ready {
+			cancel()
+			m.workers.Wait()
+		}
+	}()
 	if err := m.ensureManagedDirectory(absRoot); err != nil {
 		return nil, err
 	}
@@ -270,6 +282,7 @@ func NewManager(root string, options ...ManagerOptions) (*Manager, error) {
 	if err := m.recoverInstances(); err != nil {
 		return nil, err
 	}
+	ready = true
 	return m, nil
 }
 
@@ -428,10 +441,15 @@ func (m *Manager) RemoveImage(id string) error {
 }
 
 func (m *Manager) Run(options RunOptions) (*Instance, error) {
+	release, err := m.lockOpen()
+	if err != nil {
+		return nil, err
+	}
+	defer release()
 	if options.ID == "" {
 		options.ID = fmt.Sprintf("container-%d", time.Now().UnixNano())
 	}
-	if err := m.normalizeRunOptions(&options); err != nil {
+	if err = m.normalizeRunOptions(&options); err != nil {
 		return nil, err
 	}
 	unlock := m.lockInstance(options.ID)
@@ -441,6 +459,11 @@ func (m *Manager) Run(options RunOptions) (*Instance, error) {
 }
 
 func (m *Manager) Start(id string) (*Instance, error) {
+	release, err := m.lockOpen()
+	if err != nil {
+		return nil, err
+	}
+	defer release()
 	if err := m.validateID(id); err != nil {
 		return nil, err
 	}
@@ -476,6 +499,11 @@ func (m *Manager) Stop(id string) error {
 }
 
 func (m *Manager) Restart(id string) (*Instance, error) {
+	release, err := m.lockOpen()
+	if err != nil {
+		return nil, err
+	}
+	defer release()
 	if err := m.validateID(id); err != nil {
 		return nil, err
 	}
@@ -630,35 +658,62 @@ func (m *Manager) Stats(id string) (*Stats, error) {
 	return m.statsPlatform(id)
 }
 
-// Shutdown 并发停止全部运行中或仍有运行时资源待清理的实例。
+// Shutdown 平滑停止全部实例和后台任务。关闭后 Manager 不可再次启动实例。
 func (m *Manager) Shutdown() error {
-	m.mu.RLock()
-	ids := make([]string, 0, len(m.instances))
-	for id, instance := range m.instances {
-		_, hasRuntime := m.runtime[id]
-		if m.isActiveStatus(instance.Status) || instance.PID > 0 || hasRuntime {
-			ids = append(ids, id)
+	m.closeOnce.Do(func() {
+		m.lifecycleMu.Lock()
+		m.mu.Lock()
+		m.closing = true
+		m.autoRestart = make(map[string]uint64)
+		terminals := make([]TerminalSession, 0, len(m.terminals))
+		for session := range m.terminals {
+			terminals = append(terminals, session)
 		}
-	}
-	m.mu.RUnlock()
-	errorsChannel := make(chan error, len(ids))
-	var group sync.WaitGroup
-	for _, id := range ids {
-		group.Add(1)
-		go func(instanceID string) {
-			defer group.Done()
-			if err := m.Stop(instanceID); err != nil {
-				errorsChannel <- fmt.Errorf("停止实例 %s 失败: %w", instanceID, err)
+		m.terminals = make(map[TerminalSession]struct{})
+		cancel := m.cancel
+		m.mu.Unlock()
+		if cancel != nil {
+			cancel()
+		}
+		m.lifecycleMu.Unlock()
+
+		m.mu.RLock()
+		ids := make([]string, 0, len(m.instances))
+		for id, instance := range m.instances {
+			_, hasRuntime := m.runtime[id]
+			if m.isActiveStatus(instance.Status) || instance.PID > 0 || hasRuntime {
+				ids = append(ids, id)
 			}
-		}(id)
-	}
-	group.Wait()
-	close(errorsChannel)
-	var result error
-	for err := range errorsChannel {
-		result = errors.Join(result, err)
-	}
-	return result
+		}
+		m.mu.RUnlock()
+		errorsChannel := make(chan error, len(ids)+len(terminals))
+		var group sync.WaitGroup
+		for _, session := range terminals {
+			group.Add(1)
+			go func() {
+				defer group.Done()
+				if err := session.Close(); err != nil {
+					errorsChannel <- fmt.Errorf("关闭容器终端失败: %w", err)
+				}
+			}()
+		}
+		for _, id := range ids {
+			group.Add(1)
+			go func(instanceID string) {
+				defer group.Done()
+				if err := m.Stop(instanceID); err != nil {
+					errorsChannel <- fmt.Errorf("停止实例 %s 失败: %w", instanceID, err)
+				}
+			}(id)
+		}
+		group.Wait()
+		close(errorsChannel)
+		for err := range errorsChannel {
+			m.closeErr = errors.Join(m.closeErr, err)
+		}
+		m.workers.Wait()
+	})
+	return m.closeErr
 }
 
 // Exec 在运行实例中执行命令，并限制执行时间和输出大小。
@@ -675,20 +730,16 @@ func (m *Manager) Exec(id string, options ExecOptions) (*ExecResult, error) {
 	if options.MaxOutput <= 0 {
 		options.MaxOutput = 512 * 1024
 	}
-	unlock := m.lockInstance(id)
-	defer unlock()
-	instance, err := m.refreshInstanceLocked(id)
-	if err != nil {
-		return nil, err
-	}
-	if instance.Status != StatusRunning {
-		return nil, errors.New("实例未运行")
-	}
 	return m.execPlatform(id, options)
 }
 
 // OpenTerminal 在运行实例内启动交互式 shell。关闭会话不会停止容器主进程。
 func (m *Manager) OpenTerminal(id string, height, width int) (TerminalSession, error) {
+	release, err := m.lockOpen()
+	if err != nil {
+		return nil, err
+	}
+	defer release()
 	if err := m.validateID(id); err != nil {
 		return nil, err
 	}

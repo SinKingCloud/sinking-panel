@@ -1,20 +1,18 @@
 package task
 
 import (
-	"bufio"
-	"bytes"
 	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
 	"os"
-	"path/filepath"
 	"server/app/constant"
 	"server/app/enum/task_exec_type"
 	"server/app/enum/task_status"
 	"server/app/enum/type_module"
 	"server/app/model"
 	"server/app/util/file"
+	cursorLog "server/app/util/log"
 	"server/app/util/str"
 	"strconv"
 	"strings"
@@ -170,6 +168,9 @@ func (s *service) Stop(id int64) error {
 func (s *service) Restore(id int64) error {
 	s.taskLock.Lock()
 	defer s.taskLock.Unlock()
+	if s.closed {
+		return errors.New("计划任务服务已关闭")
+	}
 
 	task, err := s.findById(id)
 	if err != nil {
@@ -199,6 +200,10 @@ func (s *service) Restore(id int64) error {
 // Run 执行任务
 func (s *service) Run(id int64) error {
 	s.taskLock.Lock()
+	if s.closed {
+		s.taskLock.Unlock()
+		return errors.New("计划任务服务已关闭")
+	}
 	task, err := s.findById(id)
 	if err != nil {
 		s.taskLock.Unlock()
@@ -209,8 +214,12 @@ func (s *service) Run(id int64) error {
 		s.taskLock.Unlock()
 		return errors.New("任务实例化失败")
 	}
+	s.runWait.Add(1)
 	s.taskLock.Unlock()
-	go j.Run()
+	go func() {
+		defer s.runWait.Done()
+		j.Run()
+	}()
 	return nil
 }
 
@@ -248,6 +257,9 @@ func (s *service) Remove(ids []int64) error {
 
 // refresh 刷新任务
 func (s *service) refresh(id int64) error {
+	if s.closed {
+		return errors.New("计划任务服务已关闭")
+	}
 	task, err := s.findById(id)
 	if err != nil {
 		return err
@@ -294,6 +306,9 @@ func (s *service) Refresh(id int64) error {
 func (s *service) Add(data *model.Task) error {
 	s.taskLock.Lock()
 	defer s.taskLock.Unlock()
+	if s.closed {
+		return errors.New("计划任务服务已关闭")
+	}
 
 	if data == nil {
 		return errors.New("任务数据不能为空")
@@ -341,9 +356,12 @@ func (s *service) Add(data *model.Task) error {
 
 // Start 启动任务
 func (s *service) Start() {
-	go s.startOnce.Do(func() {
+	s.startOnce.Do(func() {
 		s.taskLock.Lock()
 		defer s.taskLock.Unlock()
+		if s.closed {
+			return
+		}
 
 		tasks, err := s.selectAll()
 		if err == nil && tasks != nil {
@@ -363,6 +381,18 @@ func (s *service) Start() {
 			}
 		}
 		s.instance.Start()
+	})
+}
+
+// Close 停止计划任务并等待正在执行的任务结束。
+func (s *service) Close() {
+	s.closeOnce.Do(func() {
+		s.taskLock.Lock()
+		s.closed = true
+		s.cancel()
+		s.taskLock.Unlock()
+		<-s.instance.Stop().Done()
+		s.runWait.Wait()
 	})
 }
 
@@ -394,200 +424,14 @@ func (s *service) getTaskLogFile(id int64) string {
 func (s *service) ReadLog(id int64, after int64, before int64, pageSize int) map[string]interface{} {
 	s.logLock.RLock()
 	defer s.logLock.RUnlock()
-
-	if pageSize < 1 {
-		pageSize = 300
-	}
-	if pageSize > 10000 {
-		pageSize = 10000
-	}
-	fileName := s.getTaskLogFile(id)
-	f, err := os.Open(fileName)
-	if err != nil {
-		return map[string]interface{}{
-			"file_name":    filepath.Base(fileName),
-			"lines":        []string{},
-			"cursor":       after,
-			"start_cursor": after,
-			"has_previous": false,
-			"end":          false,
-		}
-	}
-	defer func() {
-		_ = f.Close()
-	}()
-
-	stat, err := f.Stat()
-	if err != nil {
-		return map[string]interface{}{
-			"file_name":    filepath.Base(fileName),
-			"lines":        []string{},
-			"cursor":       after,
-			"start_cursor": after,
-			"has_previous": false,
-			"end":          false,
-		}
-	}
-	result := map[string]interface{}{
-		"file_name":    filepath.Base(fileName),
-		"lines":        []string{},
-		"cursor":       after,
-		"start_cursor": after,
-		"has_previous": after > 0,
-		"end":          false,
-	}
-	if stat.Size() == 0 {
-		result["cursor"] = int64(0)
-		result["start_cursor"] = int64(0)
-		result["has_previous"] = false
-		return result
-	}
-
-	// 从文件尾部读取一段完整日志，并记录每一行的文件起始位置。
-	readBefore := func(end int64) ([]string, []int64) {
-		if end < 0 {
-			end = 0
-		}
-		if end > stat.Size() {
-			end = stat.Size()
-		}
-		const chunkSize int64 = 64 * 1024
-		position := end
-		lineCount := 0
-		chunks := make([][]byte, 0, 2)
-		totalSize := 0
-		for position > 0 && lineCount <= pageSize {
-			readSize := chunkSize
-			if position < readSize {
-				readSize = position
-			}
-			position -= readSize
-			chunk := make([]byte, int(readSize))
-			_, readErr := f.ReadAt(chunk, position)
-			if readErr != nil && !errors.Is(readErr, io.EOF) {
-				return nil, nil
-			}
-			chunks = append(chunks, chunk)
-			totalSize += len(chunk)
-			lineCount += bytes.Count(chunk, []byte{'\n'})
-		}
-		data := make([]byte, 0, totalSize)
-		for i := len(chunks) - 1; i >= 0; i-- {
-			data = append(data, chunks[i]...)
-		}
-		start := 0
-		if position > 0 {
-			lineEnd := bytes.IndexByte(data, '\n')
-			if lineEnd < 0 {
-				return nil, nil
-			}
-			start = lineEnd + 1
-		}
-		lines := make([]string, 0, pageSize)
-		starts := make([]int64, 0, pageSize)
-		for start < len(data) {
-			relEnd := bytes.IndexByte(data[start:], '\n')
-			if relEnd < 0 {
-				if end == stat.Size() {
-					lines = append(lines, strings.TrimSuffix(string(data[start:]), "\r"))
-					starts = append(starts, position+int64(start))
-				}
-				break
-			}
-			lineEnd := start + relEnd
-			lines = append(lines, strings.TrimSuffix(string(data[start:lineEnd]), "\r"))
-			starts = append(starts, position+int64(start))
-			start = lineEnd + 1
-		}
-		if len(lines) > pageSize {
-			first := len(lines) - pageSize
-			lines = lines[first:]
-			starts = starts[first:]
-		}
-		return lines, starts
-	}
-
-	readAfter := func(start int64) ([]string, int64) {
-		if start < 0 {
-			start = 0
-		}
-		if start >= stat.Size() {
-			return []string{}, start
-		}
-		if _, err = f.Seek(start, io.SeekStart); err != nil {
-			return nil, start
-		}
-		reader := bufio.NewReaderSize(f, 64*1024)
-		lines := make([]string, 0, pageSize)
-		next := start
-		for len(lines) < pageSize {
-			line, readErr := reader.ReadString('\n')
-			if len(line) == 0 && readErr != nil {
-				break
-			}
-			if len(line) == 0 || line[len(line)-1] != '\n' {
-				break
-			}
-			next += int64(len(line))
-			lines = append(lines, strings.TrimSuffix(strings.TrimSuffix(line, "\n"), "\r"))
-			if readErr != nil {
-				break
-			}
-		}
-		return lines, next
-	}
-
-	if after > 0 {
-		if after > stat.Size() {
-			lines, starts := readBefore(stat.Size())
-			result["lines"] = lines
-			result["cursor"] = stat.Size()
-			result["end"] = true
-			if len(starts) > 0 {
-				result["start_cursor"] = starts[0]
-				result["has_previous"] = starts[0] > 0
-			}
-			return result
-		}
-		lines, next := readAfter(after)
-		result["lines"] = lines
-		result["cursor"] = next
-		result["start_cursor"] = after
-		result["has_previous"] = after > 0
-		result["end"] = next >= stat.Size()
-		return result
-	}
-
-	end := stat.Size()
-	if before > 0 {
-		end = before
-	}
-	lines, starts := readBefore(end)
-	result["lines"] = lines
-	result["cursor"] = stat.Size()
-	if len(starts) > 0 {
-		result["start_cursor"] = starts[0]
-		result["has_previous"] = starts[0] > 0
-		result["end"] = starts[0] <= 0
-	} else {
-		result["start_cursor"] = int64(0)
-		result["has_previous"] = false
-		result["end"] = true
-	}
-	return result
+	return cursorLog.Read(s.getTaskLogFilePath(id), after, before, pageSize)
 }
 
 // ClearLog 清理任务日志。
 func (s *service) ClearLog(id int64) error {
 	s.logLock.Lock()
 	defer s.logLock.Unlock()
-
-	fileName := s.getTaskLogFile(id)
-	f, err := os.OpenFile(fileName, os.O_WRONLY|os.O_TRUNC, 0755)
-	if err != nil {
-		return err
-	}
-	return f.Close()
+	return cursorLog.Clear(s.getTaskLogFile(id))
 }
 
 // WriteLog 写入日志

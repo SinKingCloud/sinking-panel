@@ -1,6 +1,7 @@
 package task
 
 import (
+	"context"
 	"server/app/model"
 	repositoryTask "server/app/repository/task"
 	typeService "server/app/service/types"
@@ -19,6 +20,7 @@ type Service interface {
 	Refresh(id int64) error
 	Add(data *model.Task) error
 	Start()
+	Close()
 	FindById(id int64) (*Info, error)
 	Select(where *repositoryTask.SelectTask, queryPage *page.Query) (*page.Result[*repositoryTask.Task], error)
 	ReadLog(id int64, after int64, before int64, pageSize int) map[string]interface{}
@@ -32,16 +34,24 @@ type service struct {
 	repositoryTask repositoryTask.Interface
 	typeService    typeService.Service
 	instance       *cron.Cron
+	ctx            context.Context
+	cancel         context.CancelFunc
 	startOnce      sync.Once
+	closeOnce      sync.Once
+	runWait        sync.WaitGroup
+	closed         bool
 	taskLock       sync.Mutex
 	logLock        sync.RWMutex
 }
 
 // NewService 实例化service
 func NewService(repository repositoryTask.Interface, typeService typeService.Service) *service {
+	ctx, cancel := context.WithCancel(context.Background())
 	return &service{
 		repositoryTask: repository,
 		typeService:    typeService,
+		ctx:            ctx,
+		cancel:         cancel,
 		instance: cron.New(
 			cron.WithSeconds(),
 			cron.WithChain(

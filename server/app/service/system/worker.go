@@ -8,27 +8,35 @@ import (
 
 // taskWorker 从共享队列取任务。worker 数量固定，任务数量不会直接创建同等数量的 goroutine。
 func (s *service) taskWorker() {
+	defer s.wait.Done()
 	for {
-		job := s.nextTask()
-		if job == nil {
-			continue
+		job, ok := s.nextTask()
+		if !ok {
+			return
 		}
 		s.runTask(job)
 	}
 }
 
-func (s *service) nextTask() *job {
+func (s *service) nextTask() (*job, bool) {
 	s.queueMu.Lock()
 	defer s.queueMu.Unlock()
-	for len(s.queue) == 0 {
-		s.queueCond.Wait()
+	for {
+		for len(s.queue) == 0 && s.ctx.Err() == nil {
+			s.queueCond.Wait()
+		}
+		if s.ctx.Err() != nil {
+			return nil, false
+		}
+		id := s.queue[0]
+		s.queue[0] = ""
+		s.queue = s.queue[1:]
+		job := s.jobs[id]
+		delete(s.jobs, id)
+		if job != nil {
+			return job, true
+		}
 	}
-	id := s.queue[0]
-	s.queue[0] = ""
-	s.queue = s.queue[1:]
-	job := s.jobs[id]
-	delete(s.jobs, id)
-	return job
 }
 
 func (s *service) runTask(job *job) {

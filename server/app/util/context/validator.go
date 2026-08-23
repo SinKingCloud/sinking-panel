@@ -1,6 +1,8 @@
 package context
 
 import (
+	"encoding/json"
+	"mime"
 	"strings"
 
 	"server/app/util/page"
@@ -16,6 +18,14 @@ func (c *Context) Validator(data interface{}) (bool, string) {
 func (c *Context) ValidatorAll(data interface{}) (bool, string) {
 	if c.BindAll(data) != nil {
 		return false, "参数绑定失败"
+	}
+	contentType, _, _ := mime.ParseMediaType(c.Request.Header.Get("Content-Type"))
+	body := strings.TrimSpace(c.Body())
+	isForm := contentType == "application/x-www-form-urlencoded" || strings.HasPrefix(contentType, "multipart/")
+	if body != "" && !isForm {
+		if err := json.Unmarshal([]byte(body), data); err != nil {
+			return false, "json参数绑定失败"
+		}
 	}
 	return validator.Check(data)
 }

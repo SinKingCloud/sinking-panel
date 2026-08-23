@@ -3,7 +3,8 @@ package constant
 const (
 	BasePath = "." //基础目录
 
-	TempPath = BasePath + "/temp" //缓存目录
+	TempPath = BasePath + "/temp"      //缓存目录
+	SitePath = BasePath + "/data/site" //站点数据目录
 
 	DBPath = BasePath + "/config" //数据库文件目录
 	DBFile = "server.db"          //数据库文件

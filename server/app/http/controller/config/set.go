@@ -28,7 +28,8 @@ func Set(c *context.Context) {
 			continue
 		}
 		if v.Key == constant.LoginGroup || strings.HasPrefix(v.Key, constant.LoginGroup+".") ||
-			v.Key == constant.SshGroup || strings.HasPrefix(v.Key, constant.SshGroup+".") {
+			v.Key == constant.SshGroup || strings.HasPrefix(v.Key, constant.SshGroup+".") ||
+			v.Key == constant.SiteGroup || strings.HasPrefix(v.Key, constant.SiteGroup+".") {
 			continue
 		}
 		configs[v.Key] = v.Value

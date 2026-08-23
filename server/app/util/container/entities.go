@@ -1,6 +1,7 @@
 package container
 
 import (
+	"context"
 	"errors"
 	"io"
 	"sync"
@@ -15,6 +16,7 @@ const (
 
 var errRuntimeCleanupPending = errors.New("容器运行状态等待清理")
 var errPlatformRuntimeUnavailable = errors.New("当前平台无法管理容器运行状态")
+var errManagerClosed = errors.New("容器管理器已关闭")
 
 // ManagerOptions 控制容器运行时的轮询、日志和停止策略。
 // 字段为零值时使用内置默认值，便于按需只覆盖单项配置。
@@ -173,6 +175,7 @@ type Manager struct {
 	platformSecurity  interface{}
 
 	mu             sync.RWMutex
+	lifecycleMu    sync.RWMutex
 	importMu       sync.Mutex
 	imageMu        sync.RWMutex
 	mountMu        sync.Mutex
@@ -180,6 +183,13 @@ type Manager struct {
 	images         map[string]*Image
 	instances      map[string]*Instance
 	runtime        map[string]interface{}
+	terminals      map[TerminalSession]struct{}
 	autoRestart    map[string]uint64
 	generation     uint64
+	ctx            context.Context
+	cancel         context.CancelFunc
+	workers        sync.WaitGroup
+	closing        bool
+	closeOnce      sync.Once
+	closeErr       error
 }

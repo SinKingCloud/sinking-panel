@@ -44,8 +44,6 @@ github.com/OneOfOne/xxhash v1.2.2 h1:KMrpdQIwFcEqXDklaen+P1axHaj9BSKzvpUUfnHldSE
 github.com/OneOfOne/xxhash v1.2.2/go.mod h1:HSdplMjZKSmBqAxg5vPj2TmRDmfkzw+cTzAElWljhcU=
 github.com/SinKingCloud/sinking-go/sinking-web v0.0.0-20260721071049-38c96ad3bbb0 h1:zwGXIAqbov1hVs7krtwtAGbNyN/mHrphiHHmwFRzgyo=
 github.com/SinKingCloud/sinking-go/sinking-web v0.0.0-20260721071049-38c96ad3bbb0/go.mod h1:MHwT4vycY3UTpk3Zp8DSab1tw66kIHBlEinNm72hyjU=
-github.com/SinKingCloud/sinking-go/sinking-websocket v0.0.0-20260721071049-38c96ad3bbb0 h1:vMCtF+3CcwhZnCXPjzbvcRC2fNZ9/j7pR5FqFvmxEas=
-github.com/SinKingCloud/sinking-go/sinking-websocket v0.0.0-20260721071049-38c96ad3bbb0/go.mod h1:+Mp1wrG+iHCLF2kwYBEonexKQLBWuX54Z1Vg43ItBjo=
 github.com/afocus/captcha v0.0.0-20191010092841-4bd1f21c8868 h1:uFrPOl1VBt/Abfl2z+A/DFc+AwmFLxEHR1+Yq6cXvww=
 github.com/afocus/captcha v0.0.0-20191010092841-4bd1f21c8868/go.mod h1:srphKZ1i+yGXxl/LpBS7ZIECTjCTPzZzAMtJWoG3sLo=
 github.com/alecthomas/assert/v2 v2.11.0 h1:2Q9r3ki8+JYXvGsDyBXwH3LcJ+WK5D0gc5E8vS6K3D0=

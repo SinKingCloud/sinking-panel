@@ -15,6 +15,9 @@ type WAFMode string
 // CertificateCA 表示证书签发环境。
 type CertificateCA string
 
+// LogType 表示站点日志类型。
+type LogType string
+
 const (
 	ProxyTransportHTTP    ProxyTransport = "http"    // HTTP 反向代理传输
 	ProxyTransportFastCGI ProxyTransport = "fastcgi" // FastCGI 反向代理传输
@@ -38,4 +41,8 @@ const (
 
 	CertificateCAProd    CertificateCA = "production" // Let's Encrypt 正式环境
 	CertificateCAStaging CertificateCA = "staging"    // Let's Encrypt 测试环境
+
+	LogAccess  LogType = "access"  // 访问日志
+	LogWAF     LogType = "waf"     // WAF 审计日志
+	LogProcess LogType = "process" // 通用网站进程日志
 )

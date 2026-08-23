@@ -1,0 +1,28 @@
+package domain
+
+import (
+	"errors"
+	"server/app/model"
+	"server/app/util/str"
+	"time"
+
+	"gorm.io/gorm"
+)
+
+// UpdateCertId 修改域名使用的证书，0 表示关闭 SSL。
+func (r *Repository) UpdateCertId(id, certId int64, tx ...*gorm.DB) error {
+	if certId < 0 {
+		return errors.New("证书 ID 不能小于 0")
+	}
+	result := r.db(tx...).Model(&model.Domain{}).Where("id = ?", id).Updates(map[string]interface{}{
+		"cert_id":     certId,
+		"update_time": str.DateTime(time.Now()),
+	})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
+}

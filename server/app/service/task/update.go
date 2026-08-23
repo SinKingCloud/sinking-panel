@@ -74,6 +74,9 @@ func (s *service) UpdateByIds(ids []int64, data *repositoryTask.UpdateTask) (err
 	}
 	s.taskLock.Lock()
 	defer s.taskLock.Unlock()
+	if s.closed {
+		return errors.New("计划任务服务已关闭")
+	}
 	var normalizedContent string
 	contentType := -1
 	if data.ExecType != nil || data.Script != nil {

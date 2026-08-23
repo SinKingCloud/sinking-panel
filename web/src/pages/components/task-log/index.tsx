@@ -165,22 +165,24 @@ const useStyles = createStyles(({css, token}: any) => ({
 }));
 
 export interface LogRef {
-    open: (record: any) => void;
+    open: (record: any, body?: Record<string, any>) => void;
 }
 
 interface LogProps {
     request?: (params: API.RequestParams) => Promise<any>;
     showClear?: boolean;
+    title?: React.ReactNode;
+    body?: Record<string, any>;
 }
 
-const Log = forwardRef<LogRef, LogProps>(({request, showClear = true}, ref):any => {
+const Log = forwardRef<LogRef, LogProps>(({request, showClear = true, title = "任务日志", body = {}}, ref):any => {
     const {styles} = useStyles();
     const modalRef = useRef<ProModalRef>({} as ProModalRef);
-    const log = useLog(request);
+    const log = useLog(request, body);
 
     useImperativeHandle(ref, () => ({
-        open: (record: any) => {
-            if (log.open(record)) {
+        open: (record: any, requestBody?: Record<string, any>) => {
+            if (log.open(record, requestBody)) {
                 modalRef.current?.show();
             }
         },
@@ -189,7 +191,7 @@ const Log = forwardRef<LogRef, LogProps>(({request, showClear = true}, ref):any 
     return (
         <ProModal
             ref={modalRef}
-            title={<Title>任务日志</Title>}
+            title={<Title>{title}</Title>}
             width={900}
             modalProps={{
                 rootClassName: styles.modal,

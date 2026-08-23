@@ -1,6 +1,7 @@
 package task
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -17,6 +18,7 @@ import (
 type job struct {
 	*model.Task
 	service *service
+	ctx     context.Context
 }
 
 func newJob(task *model.Task, service *service) *job {
@@ -28,7 +30,7 @@ func newJob(task *model.Task, service *service) *job {
 		return nil
 	}
 	task.Script = content
-	return &job{Task: task, service: service}
+	return &job{Task: task, service: service, ctx: service.ctx}
 }
 
 func (j *job) Run() {
@@ -40,7 +42,7 @@ func (j *job) Run() {
 		c := cmd.NewScriptExec(constant.TempPath, 43200, func(s string) {
 			_ = j.service.WriteLog(j.Id, s)
 		})
-		_, _, _ = c.Execute(j.Script)
+		_, _, _ = c.ExecuteContext(j.ctx, j.Script)
 	case task_exec_type.Request:
 		data := Request{}
 		if json.Unmarshal([]byte(j.Script), &data) != nil || data.Url == "" {
@@ -57,7 +59,7 @@ func (j *job) Run() {
 				return nil
 			},
 		}
-		request, err := http.NewRequest(data.Method, data.Url, strings.NewReader(data.Body))
+		request, err := http.NewRequestWithContext(j.ctx, data.Method, data.Url, strings.NewReader(data.Body))
 		if err != nil {
 			_ = j.service.WriteLog(j.Id, "请求失败: "+err.Error())
 			return

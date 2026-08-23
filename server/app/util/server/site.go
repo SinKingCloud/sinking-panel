@@ -175,7 +175,7 @@ func (m *Manager) normalizeSite(input *Site) (*Site, error) {
 		}
 		site.HandlerOrder = order
 	}
-	if err = m.normalizeTLS(&site.TLS, site.Domains, site.Enabled); err != nil {
+	if err = m.normalizeTLS(&site.TLS, site.Domains); err != nil {
 		return nil, fmt.Errorf("站点 %s TLS 配置无效: %w", site.ID, err)
 	}
 	if err = m.validateHandlers(site.Handlers); err != nil {
@@ -554,15 +554,15 @@ func (m *Manager) normalizeCompression(compression *CompressionOptions) error {
 }
 
 func (m *Manager) normalizeWAF(waf *WAFOptions) error {
-	if !waf.Enabled {
-		return nil
-	}
 	waf.Mode = WAFMode(strings.ToLower(strings.TrimSpace(string(waf.Mode))))
 	if waf.Mode == "" {
 		waf.Mode = WAFModeDetection
 	}
 	if waf.Mode != WAFModeDetection && waf.Mode != WAFModeBlock {
 		return errors.New("WAF 模式只支持 detection 或 block")
+	}
+	if !waf.Enabled {
+		return nil
 	}
 	if waf.RequestBodyLimit < 0 {
 		return errors.New("请求体限制不能小于 0")
@@ -844,7 +844,7 @@ func (m *Manager) normalizeTrafficLimit(limit *TrafficLimitOptions) error {
 	return nil
 }
 
-func (m *Manager) normalizeTLS(options *TLSOptions, domains []string, validateCertificates bool) error {
+func (m *Manager) normalizeTLS(options *TLSOptions, domains []string) error {
 	options.coveredDomains = nil
 	options.MinVersion = strings.ToLower(strings.TrimSpace(options.MinVersion))
 	options.MaxVersion = strings.ToLower(strings.TrimSpace(options.MaxVersion))
@@ -867,12 +867,38 @@ func (m *Manager) normalizeTLS(options *TLSOptions, domains []string, validateCe
 		return errors.New("启用 TLS 后必须配置证书")
 	}
 	covered := make(map[string]bool, len(domains))
+	siteDomains := make(map[string]struct{}, len(domains))
+	domainCertificates := make(map[string]int, len(domains))
+	for _, domain := range domains {
+		siteDomains[domain] = struct{}{}
+	}
 	for index := range options.Certificates {
 		certificate := &options.Certificates[index]
 		certificate.CertificateFile = strings.TrimSpace(certificate.CertificateFile)
 		certificate.KeyFile = strings.TrimSpace(certificate.KeyFile)
 		certificate.CertificatePEM = strings.TrimSpace(certificate.CertificatePEM)
 		certificate.PrivateKeyPEM = strings.TrimSpace(certificate.PrivateKeyPEM)
+		explicitDomains := len(certificate.Domains) > 0
+		targetDomains := make([]string, 0, len(certificate.Domains))
+		if explicitDomains {
+			seen := make(map[string]struct{}, len(certificate.Domains))
+			for _, value := range certificate.Domains {
+				domain, err := m.normalizeDomain(value)
+				if err != nil {
+					return fmt.Errorf("第 %d 组证书域名无效: %w", index+1, err)
+				}
+				if _, exists := siteDomains[domain]; !exists {
+					return fmt.Errorf("第 %d 组证书域名不属于当前站点: %s", index+1, domain)
+				}
+				if _, exists := seen[domain]; exists {
+					continue
+				}
+				seen[domain] = struct{}{}
+				targetDomains = append(targetDomains, domain)
+			}
+			sort.Strings(targetDomains)
+			certificate.Domains = append([]string(nil), targetDomains...)
+		}
 		usesFiles := certificate.CertificateFile != "" || certificate.KeyFile != ""
 		usesPEM := certificate.CertificatePEM != "" || certificate.PrivateKeyPEM != ""
 		if usesFiles == usesPEM {
@@ -895,9 +921,6 @@ func (m *Manager) normalizeTLS(options *TLSOptions, domains []string, validateCe
 		} else if certificate.CertificatePEM == "" || certificate.PrivateKeyPEM == "" {
 			return fmt.Errorf("第 %d 组证书内容和私钥内容必须同时配置", index+1)
 		}
-		if !validateCertificates {
-			continue
-		}
 		certificatePEM := []byte(certificate.CertificatePEM)
 		privateKeyPEM := []byte(certificate.PrivateKeyPEM)
 		if usesFiles {
@@ -919,27 +942,51 @@ func (m *Manager) normalizeTLS(options *TLSOptions, domains []string, validateCe
 		if err != nil {
 			return fmt.Errorf("解析证书失败: %w", err)
 		}
-		if time.Now().Before(leaf.NotBefore) || time.Now().After(leaf.NotAfter) {
-			return errors.New("证书不在有效期内")
+		candidateDomains := targetDomains
+		if !explicitDomains {
+			candidateDomains = domains
 		}
-		for _, domain := range domains {
+		pairCovered := make([]string, 0, len(candidateDomains))
+		for _, domain := range candidateDomains {
 			if net.ParseIP(domain) != nil {
+				if explicitDomains {
+					return fmt.Errorf("第 %d 组证书不覆盖绑定域名: %s", index+1, domain)
+				}
 				continue
 			}
+			matched := false
 			if strings.HasPrefix(domain, "*.") {
 				for _, name := range leaf.DNSNames {
 					if strings.EqualFold(name, domain) {
-						covered[domain] = true
+						matched = true
 						break
 					}
 				}
 			} else if leaf.VerifyHostname(domain) == nil {
-				covered[domain] = true
+				matched = true
+			}
+			if matched {
+				pairCovered = append(pairCovered, domain)
+				continue
+			}
+			if explicitDomains {
+				return fmt.Errorf("第 %d 组证书不覆盖绑定域名: %s", index+1, domain)
 			}
 		}
-	}
-	if !validateCertificates {
-		return nil
+		if !explicitDomains {
+			if len(pairCovered) == 0 {
+				return fmt.Errorf("第 %d 组证书不覆盖当前站点的任何域名", index+1)
+			}
+			targetDomains = pairCovered
+			certificate.Domains = append([]string(nil), targetDomains...)
+		}
+		for _, domain := range targetDomains {
+			if owner, exists := domainCertificates[domain]; exists {
+				return fmt.Errorf("域名 %s 同时绑定了第 %d 和第 %d 组证书", domain, owner+1, index+1)
+			}
+			domainCertificates[domain] = index
+			covered[domain] = true
+		}
 	}
 	for _, domain := range domains {
 		if covered[domain] {
@@ -1077,6 +1124,14 @@ func (m *Manager) validateSiteSet(sites map[string]*Site) error {
 		}
 		return path
 	}
+	siteLogDirectories := make([]string, 0, 3)
+	for _, logType := range []LogType{LogAccess, LogWAF, LogProcess} {
+		logPath, err := m.siteLogPath("site", logType)
+		if err != nil {
+			return err
+		}
+		siteLogDirectories = append(siteLogDirectories, canonicalPath(filepath.Dir(logPath)))
+	}
 	for _, site := range sites {
 		identifier := strings.ToLower(site.ID)
 		if owner := identifiers[identifier]; owner != "" && owner != site.ID {
@@ -1115,12 +1170,35 @@ func (m *Manager) validateSiteSet(sites map[string]*Site) error {
 		relative, err := filepath.Rel(parent, child)
 		return err == nil && (relative == "." || (relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator))))
 	}
+	managedFiles := make([]string, 0, 3)
+	for _, file := range []string{m.logPath, m.wafLogPath, m.configPath} {
+		if file != "" && file != "-" {
+			managedFiles = append(managedFiles, canonicalPath(file))
+		}
+	}
+	for _, directory := range siteLogDirectories {
+		for _, file := range managedFiles {
+			if pathInside(directory, file) || pathInside(file, directory) {
+				return errors.New("站点日志目录不能与 http 日志或配置文件重叠")
+			}
+		}
+		for _, file := range certificateFiles {
+			if pathInside(directory, file) || pathInside(file, directory) {
+				return errors.New("站点日志目录不能与 TLS 证书或私钥重叠")
+			}
+		}
+	}
 	for _, root := range contentRoots {
 		if pathInside(root, m.cachePath) || pathInside(m.cachePath, root) || pathInside(root, m.dataPath) || pathInside(m.dataPath, root) {
 			return fmt.Errorf("站点内容目录 %s 不能与 http 缓存或证书数据目录重叠", root)
 		}
-		for _, file := range []string{m.logPath, m.wafLogPath, m.configPath} {
-			if file != "" && file != "-" && pathInside(root, file) {
+		for _, directory := range siteLogDirectories {
+			if pathInside(root, directory) || pathInside(directory, root) {
+				return fmt.Errorf("站点内容目录 %s 不能与站点日志目录重叠", root)
+			}
+		}
+		for _, file := range managedFiles {
+			if pathInside(root, file) {
 				return fmt.Errorf("站点内容目录 %s 不能包含 http 日志或配置文件", root)
 			}
 		}
@@ -1134,9 +1212,9 @@ func (m *Manager) validateSiteSet(sites map[string]*Site) error {
 		if pathInside(m.cachePath, file) {
 			return errors.New("TLS 证书和私钥不能位于 CachePath 内")
 		}
-		for _, managed := range []string{m.logPath, m.wafLogPath, m.configPath} {
-			if managed != "" && managed != "-" && file == canonicalPath(managed) {
-				return errors.New("TLS 证书或私钥不能与日志或配置快照使用同一个文件")
+		for _, managed := range managedFiles {
+			if pathInside(file, managed) || pathInside(managed, file) {
+				return errors.New("TLS 证书或私钥不能与 http 日志或配置文件重叠")
 			}
 		}
 	}
@@ -1154,6 +1232,25 @@ func (m *Manager) validID(id string) bool {
 		}
 	}
 	return true
+}
+
+func (m *Manager) siteLogPath(id string, logType LogType) (string, error) {
+	id = strings.TrimSpace(id)
+	if !m.validID(id) {
+		return "", errors.New("站点 ID 无效")
+	}
+	directory := filepath.Join(m.root, "logs")
+	switch logType {
+	case LogAccess, LogProcess:
+		if m.logPath != "-" {
+			directory = filepath.Dir(m.logPath)
+		}
+	case LogWAF:
+		directory = filepath.Dir(m.wafLogPath)
+	default:
+		return "", errors.New("站点日志类型无效")
+	}
+	return filepath.Join(directory, string(logType), id+".log"), nil
 }
 
 func (m *Manager) resolvePath(value string) (string, error) {

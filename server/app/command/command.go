@@ -68,8 +68,7 @@ func (s *Server) Execute(args []string) error {
 	switch args[0] {
 	case "run":
 		log.Println("以前台模式运行服务...")
-		s.run()
-		return nil
+		return s.daemon.Run()
 	case "install":
 		return s.install()
 	case "uninstall":
@@ -92,9 +91,14 @@ func (s *Server) Execute(args []string) error {
 	}
 }
 
-func (s *Server) run() {
+func (s *Server) run(stop <-chan struct{}) {
+	defer func() {
+		if err := bootstrap.Close(); err != nil {
+			log.Printf("释放程序资源失败: %v", err)
+		}
+	}()
 	bootstrap.Load()
-	app.Run()
+	app.Run(stop)
 }
 
 func (s *Server) install() error {

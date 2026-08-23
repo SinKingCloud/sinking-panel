@@ -30,6 +30,12 @@ type scriptExec struct {
 	timeout       int
 }
 
+const (
+	scriptStopGracePeriod = 5 * time.Second       // 脚本优雅停止等待时间
+	scriptKillWaitPeriod  = 2 * time.Second       // 强制停止后的回收等待时间
+	scriptProcessInterval = 50 * time.Millisecond // 进程树状态检查间隔
+)
+
 // NewScriptExec 创建脚本执行器实例
 // writeLog: 日志回调函数，可以为nil
 func NewScriptExec(TempPath string, timeout int, writeLog func(string)) *scriptExec {
@@ -46,6 +52,14 @@ func NewScriptExec(TempPath string, timeout int, writeLog func(string)) *scriptE
 // timeout: 可选参数，执行超时时间（秒）
 // 返回值: 标准输出内容，标准错误内容，错误对象
 func (se *scriptExec) Execute(script string) (string, string, error) {
+	return se.ExecuteContext(context.Background(), script)
+}
+
+// ExecuteContext 执行脚本，并在上下文结束时停止脚本进程。
+func (se *scriptExec) ExecuteContext(ctx context.Context, script string) (string, string, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	if len(script) == 0 {
 		return "", "", errors.New("脚本内容不能为空")
 	}
@@ -67,7 +81,7 @@ func (se *scriptExec) Execute(script string) (string, string, error) {
 	if err != nil {
 		return "", "", err
 	}
-	return se.executeScript(scriptPath, se.timeout)
+	return se.executeScript(ctx, scriptPath, se.timeout)
 }
 
 // createScriptFile 创建可执行脚本文件
@@ -92,16 +106,20 @@ func (se *scriptExec) createScriptFile(dir, content string) (string, error) {
 }
 
 // executeScript 执行脚本核心逻辑
-func (se *scriptExec) executeScript(path string, timeout int) (string, string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout)*time.Second)
+func (se *scriptExec) executeScript(parent context.Context, path string, timeout int) (string, string, error) {
+	ctx, cancel := context.WithTimeout(parent, time.Duration(timeout)*time.Second)
 	defer cancel()
+	if err := ctx.Err(); err != nil {
+		return "", "", err
+	}
 
 	var cmd *exec.Cmd
 	if runtime.GOOS == "windows" {
-		cmd = exec.CommandContext(ctx, "cmd", "/C", path)
+		cmd = exec.Command("cmd", "/C", path)
 	} else {
-		cmd = exec.CommandContext(ctx, "bash", path)
+		cmd = exec.Command("bash", path)
 	}
+	prepareCommand(cmd)
 
 	stdoutPipe, err := cmd.StdoutPipe()
 	if err != nil {
@@ -114,6 +132,8 @@ func (se *scriptExec) executeScript(path string, timeout int) (string, string, e
 	if err := cmd.Start(); err != nil {
 		return "", "", fmt.Errorf("启动进程失败: %w", err)
 	}
+	control := newCommandControl(cmd)
+	defer control.close()
 
 	var wg sync.WaitGroup
 	wg.Add(2)
@@ -122,11 +142,57 @@ func (se *scriptExec) executeScript(path string, timeout int) (string, string, e
 	go func() { defer wg.Done(); se.scanOutput(stdoutPipe, &stdoutBuf) }()
 	go func() { defer wg.Done(); se.scanOutput(stderrPipe, &stderrBuf) }()
 
-	execErr := cmd.Wait()
+	wait := make(chan error, 1)
+	go func() {
+		wait <- cmd.Wait()
+	}()
+
+	var execErr error
+	waited := false
+	select {
+	case execErr = <-wait:
+		waited = true
+		wait = nil
+	case <-ctx.Done():
+	}
+	if ctx.Err() != nil {
+		_ = control.terminate()
+		timer := time.NewTimer(scriptStopGracePeriod)
+		ticker := time.NewTicker(scriptProcessInterval)
+		forced := false
+		var forceErr error
+		for !waited || control.alive() {
+			select {
+			case execErr = <-wait:
+				waited = true
+				wait = nil
+			case <-ticker.C:
+			case <-timer.C:
+				if !forced {
+					forced = true
+					forceErr = control.kill()
+					timer.Reset(scriptKillWaitPeriod)
+					continue
+				}
+				ticker.Stop()
+				_ = stdoutPipe.Close()
+				_ = stderrPipe.Close()
+				if forceErr != nil {
+					return "", "", fmt.Errorf("%w: 强制停止脚本失败: %v", ctx.Err(), forceErr)
+				}
+				return "", "", fmt.Errorf("%w: 强制停止脚本后进程未退出", ctx.Err())
+			}
+		}
+		ticker.Stop()
+		timer.Stop()
+	}
 	wg.Wait()
 
 	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-		return "", "", fmt.Errorf("执行超时（%d秒）", timeout)
+		return stdoutBuf.String(), stderrBuf.String(), fmt.Errorf("执行超时（%d秒）", timeout)
+	}
+	if err := ctx.Err(); err != nil {
+		return stdoutBuf.String(), stderrBuf.String(), err
 	}
 
 	if execErr != nil {

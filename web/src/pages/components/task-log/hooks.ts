@@ -21,10 +21,16 @@ const toCursor = (value: any) => {
     return Number.isFinite(cursor) && cursor >= 0 ? cursor : 0;
 };
 
-const useLog = (request: (params: API.RequestParams) => Promise<any> = getTaskLog) => {
+const useLog = (
+    request: (params: API.RequestParams) => Promise<any> = getTaskLog,
+    body: Record<string, any> = {},
+) => {
     const {message, modal} = App.useApp();
     const consoleRef = useRef<HTMLDivElement>(null);
     const taskRef = useRef<any>({});
+    const defaultBodyRef = useRef(body);
+    const requestBodyRef = useRef(body);
+    defaultBodyRef.current = body;
     const controlRef = useRef<any>({
         requestId: 0,
         requesting: false,
@@ -83,20 +89,20 @@ const useLog = (request: (params: API.RequestParams) => Promise<any> = getTaskLo
             setLoading(true);
         }
         try {
-            const response = await request({body});
+            const response = await request({body: {...requestBodyRef.current, ...body}});
             if (control.requestId !== requestId || String(taskRef.current?.id) !== String(taskId)) {
                 return null;
             }
             if (response?.code !== 200) {
                 if (!silent) {
-                    message.error(response?.message || "获取任务日志失败");
+                    message.error(response?.message || "获取日志失败");
                 }
                 return null;
             }
             return (response?.data || {}) as any;
         } catch {
             if (control.requestId === requestId && !silent) {
-                message.error("获取任务日志失败");
+                message.error("获取日志失败");
             }
             return null;
         } finally {
@@ -290,7 +296,7 @@ const useLog = (request: (params: API.RequestParams) => Promise<any> = getTaskLo
         }
     }, []);
 
-    const open = useCallback((record: any) => {
+    const open = useCallback((record: any, requestBody?: Record<string, any>) => {
         if (record?.id === undefined || record?.id === null) {
             return false;
         }
@@ -300,6 +306,7 @@ const useLog = (request: (params: API.RequestParams) => Promise<any> = getTaskLo
         control.historyLoading = false;
         resetPosition();
         taskRef.current = record;
+        requestBodyRef.current = {...defaultBodyRef.current, ...(requestBody || {})};
         hasPreviousRef.current = false;
         setTaskId(record.id);
         setFileName("");
@@ -317,6 +324,7 @@ const useLog = (request: (params: API.RequestParams) => Promise<any> = getTaskLo
         control.historyLoading = false;
         resetPosition();
         taskRef.current = {};
+        requestBodyRef.current = defaultBodyRef.current;
         hasPreviousRef.current = false;
         setTaskId(undefined);
         setFileName("");
@@ -338,8 +346,8 @@ const useLog = (request: (params: API.RequestParams) => Promise<any> = getTaskLo
             return;
         }
         modal.confirm({
-            title: "清理任务日志",
-            content: `确定清理任务“${currentTask.name || "-"}”的全部日志吗？清理后无法恢复。`,
+            title: "清理日志",
+            content: `确定清理“${currentTask.name || "-"}”的全部日志吗？清理后无法恢复。`,
             okText: "清理",
             cancelText: "取消",
             okButtonProps: {danger: true},
@@ -354,7 +362,9 @@ const useLog = (request: (params: API.RequestParams) => Promise<any> = getTaskLo
                 const loadingKey = `task-log-clear-${String(taskId)}`;
                 message.loading({key: loadingKey, content: "正在清理日志...", duration: 0});
                 try {
-                    const response = await getTaskLog({body: {id: taskId, action: "clear"}});
+                    const response = await request({
+                        body: {...requestBodyRef.current, id: taskId, action: "clear"},
+                    });
                     if (control.requestId !== requestId || String(taskRef.current?.id) !== String(taskId)) {
                         return;
                     }
@@ -379,7 +389,7 @@ const useLog = (request: (params: API.RequestParams) => Promise<any> = getTaskLo
                 }
             },
         } as any);
-    }, [clearing, message, modal, resetPosition]);
+    }, [clearing, message, modal, request, resetPosition]);
 
     return {
         consoleRef,

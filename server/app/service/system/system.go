@@ -12,6 +12,8 @@ import (
 
 // Service 暴露方法。
 type Service interface {
+	Start()
+	Close()
 	GetInfo() map[string]interface{}
 	GetStatus(netInterface, diskName string, after int64) map[string]interface{}
 	GetTask(id string) *Task
@@ -25,6 +27,12 @@ type Service interface {
 
 // service 注入结构
 type service struct {
+	ctx                    context.Context
+	cancel                 context.CancelFunc
+	wait                   sync.WaitGroup
+	lifecycleMu            sync.Mutex
+	started                bool
+	closed                 bool
 	tasks                  map[string]*Task
 	mu                     sync.RWMutex
 	fileService            file.Service
@@ -69,7 +77,10 @@ type service struct {
 // NewService 实例化service
 func NewService(fileService file.Service) *service {
 	now := time.Now()
+	ctx, cancel := context.WithCancel(context.Background())
 	s := &service{
+		ctx:                    ctx,
+		cancel:                 cancel,
 		tasks:                  make(map[string]*Task),
 		jobs:                   make(map[string]*job),
 		queue:                  make([]string, 0),
@@ -92,10 +103,35 @@ func NewService(fileService file.Service) *service {
 		monitorHistory:         make([]map[string]interface{}, 0, 120),
 	}
 	s.queueCond = sync.NewCond(&s.queueMu)
+	return s
+}
+
+// Start 启动任务 worker 和系统监控。
+func (s *service) Start() {
+	s.lifecycleMu.Lock()
+	defer s.lifecycleMu.Unlock()
+	if s.started || s.closed {
+		return
+	}
 	s.resetTaskLogs()
+	s.started = true
+	s.wait.Add(s.maxTaskWorkers)
 	for i := 0; i < s.maxTaskWorkers; i++ {
 		go s.taskWorker()
 	}
 	s.startMonitor()
-	return s
+}
+
+// Close 停止后台任务并等待全部协程退出。
+func (s *service) Close() {
+	s.lifecycleMu.Lock()
+	if !s.closed {
+		s.closed = true
+		s.cancel()
+		s.queueMu.Lock()
+		s.queueCond.Broadcast()
+		s.queueMu.Unlock()
+	}
+	s.lifecycleMu.Unlock()
+	s.wait.Wait()
 }
