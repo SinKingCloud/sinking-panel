@@ -34,15 +34,16 @@ func (s *service) createConfig(data *CreateSite) (string, error) {
 	var config interface{}
 	switch data.Type {
 	case site_type.Static:
-		if data.Static == nil {
-			return "", errors.New("静态网站配置不能为空")
+		static := StaticOptions{Index: []string{"index.html", "index.htm"}}
+		if data.Static != nil {
+			static = *data.Static
 		}
 		config = StaticConfig{
-			Index:         data.Static.Index,
-			Browse:        data.Static.Browse,
-			TryFiles:      data.Static.TryFiles,
-			Hide:          data.Static.Hide,
-			Precompressed: data.Static.Precompressed,
+			Index:         static.Index,
+			Browse:        static.Browse,
+			TryFiles:      static.TryFiles,
+			Hide:          static.Hide,
+			Precompressed: static.Precompressed,
 		}
 	case site_type.Proxy:
 		if data.Proxy == nil {
@@ -124,10 +125,29 @@ func (s *service) checkConfig(raw string, siteType int) (string, interface{}, er
 	}
 	normalizeHTTP := func(config *HTTPConfig) {
 		config.Cache.Name = ""
+		for routeIndex := range config.Routes {
+			if config.Routes[routeIndex].Browse {
+				config.Routes[routeIndex].TryFiles = nil
+				continue
+			}
+			for index, value := range config.Routes[routeIndex].TryFiles {
+				config.Routes[routeIndex].TryFiles[index] = strings.ReplaceAll(value, "{path}", "{http.request.uri.path}")
+			}
+		}
 	}
 	switch config := value.(type) {
 	case StaticConfig:
 		normalizeHTTP(&config.HTTPConfig)
+		if config.Index == nil {
+			config.Index = []string{"index.html", "index.htm"}
+		}
+		if config.Browse {
+			config.TryFiles = nil
+		} else {
+			for index, value := range config.TryFiles {
+				config.TryFiles[index] = strings.ReplaceAll(value, "{path}", "{http.request.uri.path}")
+			}
+		}
 		value = config
 	case ProxyConfig:
 		normalizeHTTP(&config.HTTPConfig)
@@ -150,6 +170,9 @@ func (s *service) checkConfig(raw string, siteType int) (string, interface{}, er
 		config.FastCGI.TLSServerName = ""
 		config.FastCGI.TLSInsecureSkipVerify = nil
 		config.FastCGI.Versions = nil
+		for index, value := range config.FastCGI.TryFiles {
+			config.FastCGI.TryFiles[index] = strings.ReplaceAll(value, "{path}", "{http.request.uri.path}")
+		}
 		value = config
 	case GeneralConfig:
 		normalizeHTTP(&config.HTTPConfig)

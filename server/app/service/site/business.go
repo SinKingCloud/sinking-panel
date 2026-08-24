@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
+	"server/app/constant"
 	"server/app/enum/site_status"
 	"server/app/enum/site_type"
 	"server/app/model"
@@ -13,6 +15,7 @@ import (
 	webServer "server/app/util/server"
 	"server/app/util/str"
 	"strconv"
+	"strings"
 
 	"gorm.io/gorm"
 )
@@ -36,9 +39,104 @@ func (s *service) Create(data *CreateSite) (*Site, error) {
 	if err := s.validateSiteEnums(data.Type, data.Status); err != nil {
 		return nil, err
 	}
+	id := str.GetSnowWorkIns().GetId()
+	root := strings.TrimSpace(data.Root)
+	autoRoot := false
+	createdRoot := false
+	if data.Type != site_type.Proxy && root == "" {
+		if len(data.Domains) == 0 {
+			return nil, errors.New("网站至少需要绑定一个域名")
+		}
+		domain, normalizeErr := s.normalizeDomain(data.Domains[0])
+		if normalizeErr != nil {
+			return nil, normalizeErr
+		}
+		directory := domain
+		if strings.HasPrefix(domain, "*.") {
+			directory = "_wildcard." + strings.TrimPrefix(domain, "*.")
+		} else if strings.Contains(domain, ":") {
+			directory = "_ip6-" + strings.NewReplacer(":", "-", "%", "-").Replace(domain)
+		}
+		base, pathErr := filepath.Abs(constant.SiteRootPath)
+		if pathErr != nil {
+			return nil, fmt.Errorf("解析网站根目录失败: %w", pathErr)
+		}
+		if info, statErr := os.Lstat(base); statErr == nil {
+			if info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
+				return nil, errors.New("网站根目录必须是普通目录")
+			}
+		} else if os.IsNotExist(statErr) {
+			if pathErr = os.MkdirAll(base, 0755); pathErr != nil {
+				return nil, fmt.Errorf("创建网站根目录失败: %w", pathErr)
+			}
+		} else {
+			return nil, fmt.Errorf("检查网站根目录失败: %w", statErr)
+		}
+		if info, statErr := os.Lstat(base); statErr != nil {
+			return nil, fmt.Errorf("检查网站根目录失败: %w", statErr)
+		} else if info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
+			return nil, errors.New("网站根目录必须是普通目录")
+		}
+		base, pathErr = filepath.EvalSymlinks(base)
+		if pathErr != nil {
+			return nil, fmt.Errorf("解析网站根目录失败: %w", pathErr)
+		}
+		root = filepath.Join(base, directory)
+		relative, pathErr := filepath.Rel(base, root)
+		if pathErr != nil || relative == "." || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+			return nil, errors.New("自动网站目录超出网站根目录")
+		}
+		autoRoot = true
+	}
 	config, err := s.createConfig(data)
 	if err != nil {
 		return nil, err
+	}
+	if autoRoot {
+		if err = os.Mkdir(root, 0755); err == nil {
+			createdRoot = true
+		} else if !os.IsExist(err) {
+			return nil, fmt.Errorf("创建网站根目录失败: %w", err)
+		}
+		info, statErr := os.Lstat(root)
+		if statErr != nil {
+			if createdRoot {
+				_ = os.Remove(root)
+			}
+			return nil, fmt.Errorf("检查网站目录失败: %w", statErr)
+		}
+		if info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
+			if createdRoot {
+				_ = os.Remove(root)
+			}
+			return nil, errors.New("自动网站目录必须是普通目录")
+		}
+		resolved, resolveErr := filepath.EvalSymlinks(root)
+		if resolveErr != nil {
+			if createdRoot {
+				_ = os.Remove(root)
+			}
+			return nil, fmt.Errorf("解析网站目录失败: %w", resolveErr)
+		}
+		base := filepath.Dir(root)
+		relative, relativeErr := filepath.Rel(base, resolved)
+		if relativeErr != nil || relative == "." || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+			if createdRoot {
+				_ = os.Remove(root)
+			}
+			return nil, errors.New("自动网站目录超出网站根目录")
+		}
+		root = resolved
+	}
+	cleanupRoot := func() error {
+		if !createdRoot {
+			return nil
+		}
+		if removeErr := os.RemoveAll(root); removeErr != nil {
+			return fmt.Errorf("清理自动网站目录失败: %w", removeErr)
+		}
+		createdRoot = false
+		return nil
 	}
 	domainInput := make([]Domain, 0, len(data.Domains))
 	for _, domain := range data.Domains {
@@ -46,11 +144,11 @@ func (s *service) Create(data *CreateSite) (*Site, error) {
 	}
 
 	record := &model.Site{
-		Id:      str.GetSnowWorkIns().GetId(),
+		Id:      id,
 		Name:    data.Name,
 		Type:    data.Type,
 		Status:  data.Status,
-		Root:    data.Root,
+		Root:    root,
 		RunPath: data.RunPath,
 		Config:  config,
 	}
@@ -70,12 +168,16 @@ func (s *service) Create(data *CreateSite) (*Site, error) {
 		return nil
 	})
 	if err != nil {
-		return nil, err
+		return nil, errors.Join(err, cleanupRoot())
 	}
 	if syncErr := s.syncLocked(); syncErr != nil {
 		compensateErr := s.removeSiteRecords(record.Id)
 		restoreRuntimeErr := s.syncLocked()
-		return nil, s.mutationSyncError("创建网站", syncErr, compensateErr, restoreRuntimeErr)
+		var cleanupErr error
+		if compensateErr == nil && restoreRuntimeErr == nil {
+			cleanupErr = cleanupRoot()
+		}
+		return nil, errors.Join(s.mutationSyncError("创建网站", syncErr, compensateErr, restoreRuntimeErr), cleanupErr)
 	}
 	return s.findByIdLocked(record.Id)
 }

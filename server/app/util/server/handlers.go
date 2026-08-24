@@ -464,10 +464,17 @@ func (m *Manager) buildCacheHandler(site *Site, scope string) map[string]interfa
 }
 
 func (m *Manager) buildStaticHandler(root string, index []string, browse bool, tryFiles, hide, precompressed []string) map[string]interface{} {
+	indexNames := append([]string(nil), index...)
+	if browse {
+		// Caddy 会优先返回目录首页。目录浏览开启时必须传入非 nil 空切片，
+		// 否则空值会恢复默认首页，用户仍然看不到目录列表。
+		indexNames = []string{}
+		tryFiles = nil
+	}
 	fileServer := map[string]interface{}{
 		"handler":     HandlerFileServer,
 		"root":        root,
-		"index_names": append([]string(nil), index...),
+		"index_names": indexNames,
 	}
 	if browse {
 		fileServer["browse"] = map[string]interface{}{}

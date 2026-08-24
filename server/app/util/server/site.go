@@ -507,7 +507,7 @@ func (m *Manager) normalizeProxy(proxy *ProxyOptions, siteRoot string) error {
 }
 
 func (m *Manager) normalizeStatic(index, tryFiles, hide, precompressed *[]string) {
-	if len(*index) == 0 {
+	if *index == nil {
 		*index = []string{"index.html", "index.htm"}
 	}
 	for position, value := range *index {
