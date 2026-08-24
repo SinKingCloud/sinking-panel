@@ -43,9 +43,6 @@ func Log(c *context.Context) {
 		c.Error(err.Error())
 		return
 	}
-	query := c.Request.URL.Query()
-	if !query.Has("after") && !query.Has("before") {
-		service.Log.Create(c.GetRequestIp(), log_type.EventShow, "查看网站日志", "查看网站["+strconv.FormatInt(form.Id, 10)+"]"+typeName+"日志")
-	}
+	service.Log.Create(c.GetRequestIp(), log_type.EventShow, "查看网站日志", "查看网站["+strconv.FormatInt(form.Id, 10)+"]"+typeName+"日志")
 	c.SuccessWithData("获取成功", result)
 }
