@@ -479,6 +479,18 @@ func (s *service) runtimeSite(record *model.Site, domains []*model.Domain, certi
 	default:
 		return webServer.Site{}, nil, fmt.Errorf("网站 %s 配置类型错误", record.Name)
 	}
+	runtimeSite.Redirects = make([]webServer.RedirectOptions, 0, len(common.Redirects))
+	for _, redirect := range common.Redirects {
+		runtimeSite.Redirects = append(runtimeSite.Redirects, webServer.RedirectOptions{
+			Name:        redirect.Name,
+			Enabled:     redirect.Enabled,
+			Domains:     append([]string(nil), redirect.Domains...),
+			Paths:       append([]string(nil), redirect.Paths...),
+			Target:      redirect.Target,
+			Status:      redirect.Status,
+			PreserveURI: redirect.PreserveURI,
+		})
+	}
 	runtimeSite.Routes = make([]webServer.Route, 0, len(common.Routes))
 	for _, route := range common.Routes {
 		runtimeRoute := webServer.Route{

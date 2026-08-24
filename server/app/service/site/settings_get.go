@@ -102,6 +102,15 @@ func (s *service) GetCompression(id int64) (*webServer.CompressionOptions, error
 	return &config.Compression, nil
 }
 
+// GetRedirects 读取网站重定向规则。
+func (s *service) GetRedirects(id int64) ([]RedirectConfig, error) {
+	config, err := s.getHTTPConfig(id)
+	if err != nil {
+		return nil, err
+	}
+	return config.Redirects, nil
+}
+
 // GetRoutes 读取网站自定义路由。
 func (s *service) GetRoutes(id int64) ([]RouteConfig, error) {
 	config, err := s.getHTTPConfig(id)

@@ -82,6 +82,7 @@ func loadSiteRoute(s *sinking_web.Engine) {
 	g.ANY("/traffic", context.HandleFunc(site.TrafficLimit))    // 流量限制
 	g.ANY("/header", context.HandleFunc(site.Header))           // 请求和响应头
 	g.ANY("/compression", context.HandleFunc(site.Compression)) // 响应压缩
+	g.ANY("/redirect", context.HandleFunc(site.Redirect))       // 重定向配置
 	g.ANY("/route", context.HandleFunc(site.Route))             // 自定义路由
 	g.ANY("/static", context.HandleFunc(site.Static))           // 静态网站配置
 	g.ANY("/proxy", context.HandleFunc(site.Proxy))             // 反向代理配置

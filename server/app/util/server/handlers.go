@@ -11,6 +11,48 @@ import (
 )
 
 func (m *Manager) buildSiteRoute(site *Site, domains, excludedDomains []string, scope string) (map[string]interface{}, error) {
+	redirectRoutes := make([]interface{}, 0, len(site.Redirects))
+	activeDomains := make(map[string]struct{}, len(domains))
+	for _, domain := range domains {
+		activeDomains[domain] = struct{}{}
+	}
+	for _, redirect := range site.Redirects {
+		if !redirect.Enabled {
+			continue
+		}
+		configuredDomains := redirect.Domains
+		if len(configuredDomains) == 0 {
+			configuredDomains = site.Domains
+		}
+		redirectDomains := make([]string, 0, len(configuredDomains))
+		for _, domain := range configuredDomains {
+			if domains != nil {
+				if _, exists := activeDomains[domain]; !exists {
+					continue
+				}
+			}
+			redirectDomains = append(redirectDomains, domain)
+		}
+		if len(redirectDomains) == 0 {
+			continue
+		}
+		location := redirect.Target
+		if redirect.PreserveURI {
+			location = strings.TrimRight(location, "/") + "{http.request.uri}"
+		}
+		redirectRoutes = append(redirectRoutes, map[string]interface{}{
+			"match": []interface{}{map[string]interface{}{
+				"host": redirectDomains,
+				"path": redirect.Paths,
+			}},
+			"handle": []interface{}{map[string]interface{}{
+				"handler":     HandlerStaticResponse,
+				"status_code": redirect.Status,
+				"headers":     map[string][]string{"Location": {location}},
+			}},
+			"terminal": true,
+		})
+	}
 	routes := make([]interface{}, 0, len(site.Routes)+1)
 	for index := range site.Routes {
 		route, err := m.buildRoute(&site.Routes[index])
@@ -75,7 +117,10 @@ func (m *Manager) buildSiteRoute(site *Site, domains, excludedDomains []string, 
 	if len(routes) > 0 {
 		stages[HandlerSubroute] = append(stages[HandlerSubroute], map[string]interface{}{"handler": HandlerSubroute, "routes": routes})
 	}
-	handlers := make([]interface{}, 0, 9+len(site.Handlers))
+	handlers := make([]interface{}, 0, 10+len(site.Handlers))
+	if len(redirectRoutes) > 0 {
+		handlers = append(handlers, map[string]interface{}{"handler": HandlerSubroute, "routes": redirectRoutes})
+	}
 	for _, name := range site.HandlerOrder {
 		handlers = append(handlers, stages[name]...)
 	}

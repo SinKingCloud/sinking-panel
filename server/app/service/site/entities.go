@@ -10,6 +10,7 @@ import (
 
 // HTTPConfig 是四类网站共享的 HTTP 配置。
 type HTTPConfig struct {
+	Redirects    []RedirectConfig              `json:"redirects"`     // 重定向规则
 	Routes       []RouteConfig                 `json:"routes"`        // 自定义路由
 	Headers      webServer.HeaderOptions       `json:"headers"`       // 请求和响应头
 	Compression  webServer.CompressionOptions  `json:"compression"`   // 响应压缩
@@ -18,6 +19,17 @@ type HTTPConfig struct {
 	Cache        webServer.CacheOptions        `json:"cache"`         // 响应缓存
 	RateLimit    webServer.RateLimitOptions    `json:"rate_limit"`    // 请求频率限制
 	TrafficLimit webServer.TrafficLimitOptions `json:"traffic_limit"` // 并发和响应速度限制
+}
+
+// RedirectConfig 定义前端可维护的站点重定向规则。
+type RedirectConfig struct {
+	Name        string   `json:"name"`         // 规则名称
+	Enabled     bool     `json:"enabled"`      // 是否启用规则
+	Domains     []string `json:"domains"`      // 来源域名，空表示当前站点全部域名
+	Paths       []string `json:"paths"`        // 来源路径，空表示全部路径
+	Target      string   `json:"target"`       // 绝对 HTTP、HTTPS 地址或站内路径
+	Status      int      `json:"status"`       // 重定向响应状态码
+	PreserveURI bool     `json:"preserve_uri"` // 是否保留原请求 URI
 }
 
 // RouteConfig 定义前端可维护的站点路由，不暴露底层原始处理器配置。

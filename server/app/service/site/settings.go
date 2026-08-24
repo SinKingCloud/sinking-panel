@@ -329,6 +329,11 @@ func (s *service) UpdateCompression(id int64, config *CompressionUpdate) error {
 	})
 }
 
+// UpdateRedirects 更新网站重定向规则。
+func (s *service) UpdateRedirects(id int64, redirects []RedirectConfig) error {
+	return s.updateHTTPConfig(id, func(httpConfig *HTTPConfig) { httpConfig.Redirects = redirects })
+}
+
 // UpdateRoutes 更新网站自定义路由。
 func (s *service) UpdateRoutes(id int64, routes []RouteConfig) error {
 	return s.updateHTTPConfig(id, func(httpConfig *HTTPConfig) { httpConfig.Routes = routes })

@@ -16,6 +16,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"golang.org/x/net/http/httpguts"
 	"golang.org/x/net/idna"
@@ -88,6 +89,88 @@ func (m *Manager) normalizeSite(input *Site) (*Site, error) {
 		site.Domains = append(site.Domains, domain)
 	}
 	sort.Strings(site.Domains)
+	redirectNames := make(map[string]struct{}, len(site.Redirects))
+	for index := range site.Redirects {
+		redirect := &site.Redirects[index]
+		redirect.Name = strings.TrimSpace(redirect.Name)
+		if redirect.Name == "" {
+			return nil, fmt.Errorf("站点 %s 重定向 %d 名称不能为空", site.ID, index+1)
+		}
+		if utf8.RuneCountInString(redirect.Name) > 100 {
+			return nil, fmt.Errorf("站点 %s 重定向 %d 名称不能超过 100 个字符", site.ID, index+1)
+		}
+		name := strings.ToLower(redirect.Name)
+		if _, exists := redirectNames[name]; exists {
+			return nil, fmt.Errorf("站点 %s 重定向名称重复: %s", site.ID, redirect.Name)
+		}
+		redirectNames[name] = struct{}{}
+		domains := make([]string, 0, len(redirect.Domains))
+		seenDomains := make(map[string]struct{}, len(redirect.Domains))
+		for _, value := range redirect.Domains {
+			domain, err := m.normalizeDomain(value)
+			if err != nil {
+				return nil, fmt.Errorf("站点 %s 重定向 %d 来源域名无效: %w", site.ID, index+1, err)
+			}
+			if _, exists := domainSet[domain]; !exists {
+				return nil, fmt.Errorf("站点 %s 重定向 %d 来源域名不属于当前站点: %s", site.ID, index+1, domain)
+			}
+			if _, exists := seenDomains[domain]; exists {
+				continue
+			}
+			seenDomains[domain] = struct{}{}
+			domains = append(domains, domain)
+		}
+		redirect.Domains = domains
+		paths := make([]string, 0, len(redirect.Paths))
+		seenPaths := make(map[string]struct{}, len(redirect.Paths))
+		for _, value := range redirect.Paths {
+			if strings.ContainsAny(value, "\r\n") {
+				return nil, fmt.Errorf("站点 %s 重定向 %d 来源路径不能包含换行符", site.ID, index+1)
+			}
+			path := strings.TrimSpace(value)
+			if !strings.HasPrefix(path, "/") {
+				return nil, fmt.Errorf("站点 %s 重定向 %d 来源路径必须以 / 开头: %s", site.ID, index+1, path)
+			}
+			if _, exists := seenPaths[path]; exists {
+				continue
+			}
+			seenPaths[path] = struct{}{}
+			paths = append(paths, path)
+		}
+		if len(paths) == 0 {
+			paths = []string{"/*"}
+		}
+		redirect.Paths = paths
+		if strings.ContainsAny(redirect.Target, "\r\n{}") {
+			return nil, fmt.Errorf("站点 %s 重定向 %d 目标地址无效", site.ID, index+1)
+		}
+		redirect.Target = strings.TrimSpace(redirect.Target)
+		if redirect.Target == "" {
+			return nil, fmt.Errorf("站点 %s 重定向 %d 目标地址无效", site.ID, index+1)
+		}
+		target, err := url.Parse(redirect.Target)
+		relative := strings.HasPrefix(redirect.Target, "/")
+		if relative {
+			if strings.HasPrefix(redirect.Target, "//") || strings.ContainsRune(redirect.Target, '\\') ||
+				err != nil || target.Scheme != "" || target.Host != "" || target.User != nil {
+				return nil, fmt.Errorf("站点 %s 重定向 %d 站内目标必须以单个 / 开头", site.ID, index+1)
+			}
+		} else if err != nil || target.Host == "" || target.User != nil || target.Hostname() == "" ||
+			!strings.EqualFold(target.Scheme, "http") && !strings.EqualFold(target.Scheme, "https") {
+			return nil, fmt.Errorf("站点 %s 重定向 %d 目标地址必须是绝对 HTTP、HTTPS 地址或站内路径", site.ID, index+1)
+		}
+		if redirect.PreserveURI && strings.ContainsAny(redirect.Target, "?#") {
+			return nil, fmt.Errorf("站点 %s 重定向 %d 保留 URI 时目标地址不能包含查询参数或片段", site.ID, index+1)
+		}
+		if redirect.PreserveURI && relative && redirect.Target == "/" {
+			return nil, fmt.Errorf("站点 %s 重定向 %d 目标为 / 时保留 URI 会造成循环", site.ID, index+1)
+		}
+		switch redirect.Status {
+		case 301, 302, 307, 308:
+		default:
+			return nil, fmt.Errorf("站点 %s 重定向 %d 状态码只支持 301、302、307 或 308", site.ID, index+1)
+		}
+	}
 	if !site.Enabled {
 		site.TLS.RedirectHTTP = false
 		if err := m.normalizeTLS(&site.TLS, site.Domains); err != nil {

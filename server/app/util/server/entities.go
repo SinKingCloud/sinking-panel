@@ -51,6 +51,7 @@ type Site struct {
 	Hide          []string            `json:"hide"`          // 禁止访问的文件或路径
 	Precompressed []string            `json:"precompressed"` // 预压缩文件格式
 	Proxy         *ProxyOptions       `json:"proxy"`         // 默认反向代理配置
+	Redirects     []RedirectOptions   `json:"redirects"`     // 优先执行的重定向规则
 	Routes        []Route             `json:"routes"`        // 优先执行的自定义路由
 	Headers       HeaderOptions       `json:"headers"`       // 请求和响应头操作
 	Compression   CompressionOptions  `json:"compression"`   // 响应压缩配置
@@ -61,6 +62,17 @@ type Site struct {
 	TrafficLimit  TrafficLimitOptions `json:"traffic_limit"` // 并发和响应速度限制配置
 	HandlerOrder  []Module            `json:"handler_order"` // 处理器阶段执行顺序
 	Handlers      []json.RawMessage   `json:"handlers"`      // 自定义 HTTP 处理器配置
+}
+
+// RedirectOptions 定义一条站点重定向规则。
+type RedirectOptions struct {
+	Name        string   `json:"name"`         // 规则名称
+	Enabled     bool     `json:"enabled"`      // 是否启用规则
+	Domains     []string `json:"domains"`      // 来源域名，空表示当前站点全部域名
+	Paths       []string `json:"paths"`        // 来源路径，空表示全部路径
+	Target      string   `json:"target"`       // 绝对 HTTP、HTTPS 地址或站内路径
+	Status      int      `json:"status"`       // 重定向响应状态码
+	PreserveURI bool     `json:"preserve_uri"` // 是否保留原请求 URI
 }
 
 // Route 定义站点内优先于默认处理器执行的路径规则。

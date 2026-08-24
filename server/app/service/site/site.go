@@ -46,6 +46,8 @@ type Service interface {
 	UpdateHeaders(id int64, config *HeaderUpdate) error
 	GetCompression(id int64) (*webServer.CompressionOptions, error)
 	UpdateCompression(id int64, config *CompressionUpdate) error
+	GetRedirects(id int64) ([]RedirectConfig, error)
+	UpdateRedirects(id int64, redirects []RedirectConfig) error
 	GetRoutes(id int64) ([]RouteConfig, error)
 	UpdateRoutes(id int64, routes []RouteConfig) error
 	GetStatic(id int64) (*StaticOptions, error)
