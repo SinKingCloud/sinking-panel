@@ -441,10 +441,6 @@ func (s *service) runRoot(record *model.Site) (string, error) {
 	if root == "" || root == "." || !filepath.IsAbs(root) {
 		return "", errors.New("网站根目录必须是绝对路径")
 	}
-	resolvedRoot, err := filepath.EvalSymlinks(root)
-	if err != nil {
-		return "", fmt.Errorf("解析网站根目录失败: %w", err)
-	}
 	runPath := filepath.Clean(filepath.FromSlash(strings.TrimSpace(record.RunPath)))
 	if runPath == "." {
 		runPath = ""
@@ -452,11 +448,8 @@ func (s *service) runRoot(record *model.Site) (string, error) {
 	if filepath.IsAbs(runPath) || filepath.VolumeName(runPath) != "" || runPath == ".." || strings.HasPrefix(runPath, ".."+string(filepath.Separator)) {
 		return "", errors.New("网站运行目录不能超出网站根目录")
 	}
-	target, err := filepath.EvalSymlinks(filepath.Join(resolvedRoot, runPath))
-	if err != nil {
-		return "", fmt.Errorf("解析网站运行目录失败: %w", err)
-	}
-	relative, err := filepath.Rel(resolvedRoot, target)
+	target := filepath.Clean(filepath.Join(root, runPath))
+	relative, err := filepath.Rel(root, target)
 	if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
 		return "", errors.New("网站运行目录不能超出网站根目录")
 	}

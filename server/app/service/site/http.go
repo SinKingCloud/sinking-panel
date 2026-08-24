@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -198,6 +199,20 @@ func (s *service) loadHTTP() (webServer.Options, bool, error) {
 			return webServer.Options{}, false, errors.New("HTTP 配置只能包含一个 JSON 对象")
 		}
 		return webServer.Options{}, false, fmt.Errorf("HTTP 配置包含多余内容: %w", err)
+	}
+	legacyRoot, err := filepath.Abs(filepath.Join(constant.BasePath, "data", "site", "http"))
+	if err != nil {
+		return webServer.Options{}, false, fmt.Errorf("解析旧版 HTTP 目录失败: %w", err)
+	}
+	for target, legacy := range map[*string]string{
+		&config.DataPath:   filepath.Join(legacyRoot, "data"),
+		&config.CachePath:  filepath.Join(legacyRoot, "cache"),
+		&config.LogPath:    filepath.Join(legacyRoot, "logs", "http.log"),
+		&config.WAFLogPath: filepath.Join(legacyRoot, "logs", "waf.log"),
+	} {
+		if filepath.Clean(*target) == filepath.Clean(legacy) {
+			*target = ""
+		}
 	}
 	return *config, true, nil
 }

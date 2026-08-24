@@ -331,25 +331,6 @@ func (m *Manager) setOptions(options Options) error {
 			return errors.New("日志或配置文件不能位于 DataPath 内")
 		}
 	}
-	markerPath := filepath.Join(options.CachePath, cacheMarkerName)
-	marker, markerErr := os.ReadFile(markerPath)
-	if markerErr != nil {
-		if !os.IsNotExist(markerErr) {
-			return fmt.Errorf("读取缓存目录标记失败: %w", markerErr)
-		}
-		entries, readErr := os.ReadDir(options.CachePath)
-		if readErr != nil {
-			return fmt.Errorf("读取缓存目录失败: %w", readErr)
-		}
-		if len(entries) != 0 {
-			return errors.New("CachePath 已有文件且不属于当前 Manager")
-		}
-		if markerErr = os.WriteFile(markerPath, []byte(cacheMarkerContent), 0600); markerErr != nil {
-			return fmt.Errorf("创建缓存目录标记失败: %w", markerErr)
-		}
-	} else if string(marker) != cacheMarkerContent {
-		return errors.New("CachePath 所有权标记无效")
-	}
 	wafLog, err := os.OpenFile(options.WAFLogPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
 	if err != nil {
 		return fmt.Errorf("创建 WAF 审计日志失败: %w", err)

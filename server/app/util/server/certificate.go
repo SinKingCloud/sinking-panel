@@ -78,7 +78,11 @@ func (m *Manager) obtainCertificate(ctx context.Context, request CertificateRequ
 	})
 	magic.Issuers = []certmagic.Issuer{issuer}
 
-	if renew {
+	issuerKey := issuer.IssuerKey()
+	certificateKey := certmagic.StorageKeys.SiteCert(issuerKey, domain)
+	privateKey := certmagic.StorageKeys.SitePrivateKey(issuerKey, domain)
+	metadataKey := certmagic.StorageKeys.SiteMeta(issuerKey, domain)
+	if renew && m.storage.Exists(ctx, certificateKey) && m.storage.Exists(ctx, privateKey) && m.storage.Exists(ctx, metadataKey) {
 		err = magic.RenewCertSync(ctx, domain, true)
 	} else {
 		err = magic.ObtainCertSync(ctx, domain)
@@ -90,9 +94,6 @@ func (m *Manager) obtainCertificate(ctx context.Context, request CertificateRequ
 		return nil, fmt.Errorf("申请证书失败: %w", err)
 	}
 
-	issuerKey := issuer.IssuerKey()
-	certificateKey := certmagic.StorageKeys.SiteCert(issuerKey, domain)
-	privateKey := certmagic.StorageKeys.SitePrivateKey(issuerKey, domain)
 	certificatePEM, err := m.storage.Load(ctx, certificateKey)
 	if err != nil {
 		return nil, fmt.Errorf("读取证书失败: %w", err)

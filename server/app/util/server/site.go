@@ -1309,10 +1309,6 @@ func (m *Manager) siteCachePath(id string) (string, error) {
 	if !m.validID(id) {
 		return "", errors.New("站点 ID 无效")
 	}
-	marker, err := os.ReadFile(filepath.Join(m.cachePath, cacheMarkerName))
-	if err != nil || string(marker) != cacheMarkerContent {
-		return "", errors.New("缓存目录所有权校验失败")
-	}
 	target := filepath.Join(m.cachePath, id)
 	relative, err := filepath.Rel(m.cachePath, target)
 	if err != nil || relative == "." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) || relative == ".." {

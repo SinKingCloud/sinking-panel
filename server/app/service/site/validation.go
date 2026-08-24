@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"os"
 	"path/filepath"
 	"server/app/enum/site_status"
 	"server/app/enum/site_type"
@@ -52,15 +51,7 @@ func (s *service) prepareSite(data *model.Site, input []Domain, previous []*mode
 		if err != nil {
 			return nil, nil, fmt.Errorf("解析网站根目录失败: %w", err)
 		}
-		root = filepath.Clean(root)
-		if err = os.MkdirAll(root, 0755); err != nil {
-			return nil, nil, fmt.Errorf("创建网站根目录失败: %w", err)
-		}
-		data.Root, err = filepath.EvalSymlinks(root)
-		if err != nil {
-			return nil, nil, fmt.Errorf("解析网站根目录失败: %w", err)
-		}
-		data.Root = filepath.Clean(data.Root)
+		data.Root = filepath.Clean(root)
 		runPath := strings.TrimLeft(data.RunPath, "/\\")
 		if filepath.VolumeName(runPath) != "" {
 			return nil, nil, errors.New("网站运行目录必须位于网站根目录内")
@@ -73,47 +64,9 @@ func (s *service) prepareSite(data *model.Site, input []Domain, previous []*mode
 				return nil, nil, errors.New("网站运行目录不能超出网站根目录")
 			}
 		}
-		runRoot := filepath.Join(data.Root, runPath)
-		relative, err := filepath.Rel(data.Root, runRoot)
+		relative, err := filepath.Rel(data.Root, filepath.Join(data.Root, runPath))
 		if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
 			return nil, nil, errors.New("网站运行目录不能超出网站根目录")
-		}
-		existing := runRoot
-		missing := make([]string, 0)
-		for {
-			if _, statErr := os.Lstat(existing); statErr == nil {
-				break
-			} else if !os.IsNotExist(statErr) {
-				return nil, nil, fmt.Errorf("检查网站运行目录失败: %w", statErr)
-			}
-			parent := filepath.Dir(existing)
-			if parent == existing {
-				return nil, nil, errors.New("网站运行目录没有可用的父目录")
-			}
-			missing = append(missing, filepath.Base(existing))
-			existing = parent
-		}
-		resolved, resolveErr := filepath.EvalSymlinks(existing)
-		if resolveErr != nil {
-			return nil, nil, fmt.Errorf("解析网站运行目录失败: %w", resolveErr)
-		}
-		relative, err = filepath.Rel(data.Root, resolved)
-		if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
-			return nil, nil, errors.New("网站运行目录不能通过符号链接超出网站根目录")
-		}
-		for index := len(missing) - 1; index >= 0; index-- {
-			resolved = filepath.Join(resolved, missing[index])
-		}
-		if err = os.MkdirAll(resolved, 0755); err != nil {
-			return nil, nil, fmt.Errorf("创建网站运行目录失败: %w", err)
-		}
-		resolved, err = filepath.EvalSymlinks(resolved)
-		if err != nil {
-			return nil, nil, fmt.Errorf("解析网站运行目录失败: %w", err)
-		}
-		relative, err = filepath.Rel(data.Root, resolved)
-		if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
-			return nil, nil, errors.New("网站运行目录不能通过符号链接超出网站根目录")
 		}
 		if relative == "." {
 			relative = ""
