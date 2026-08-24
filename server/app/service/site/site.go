@@ -9,6 +9,7 @@ import (
 	domainRepository "server/app/repository/domain"
 	siteRepository "server/app/repository/site"
 	configService "server/app/service/config"
+	"server/app/util/cache"
 	"server/app/util/database"
 	"server/app/util/page"
 	processManager "server/app/util/process"
@@ -59,6 +60,7 @@ type Service interface {
 	Enable(id int64) error
 	Disable(id int64) error
 	FindById(id int64) (*Site, error)
+	GetIdNameMap(refresh bool) (map[int64]string, error)
 	Select(where *siteRepository.SelectSite, queryPage *page.Query) (*page.Result[*siteRepository.Site], error)
 	ClearCache(id int64) error
 	CreateCert(data *model.Cert) error
@@ -76,6 +78,7 @@ type service struct {
 	repositoryDomain domainRepository.Interface
 	repositoryCert   certRepository.Interface
 	config           configService.Service
+	cache            cache.Interface
 	database         *database.Database
 	http             *webServer.Manager
 	process          *processManager.Manager
@@ -87,6 +90,6 @@ type service struct {
 }
 
 // NewService 创建网站管理服务。
-func NewService(repositorySite siteRepository.Interface, repositoryDomain domainRepository.Interface, repositoryCert certRepository.Interface, config configService.Service, database *database.Database, options ...Options) (*service, error) {
-	return newService(repositorySite, repositoryDomain, repositoryCert, config, database, options...)
+func NewService(repositorySite siteRepository.Interface, repositoryDomain domainRepository.Interface, repositoryCert certRepository.Interface, config configService.Service, database *database.Database, cache cache.Interface, options ...Options) (*service, error) {
+	return newService(repositorySite, repositoryDomain, repositoryCert, config, database, cache, options...)
 }

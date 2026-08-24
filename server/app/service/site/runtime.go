@@ -14,6 +14,7 @@ import (
 	domainRepository "server/app/repository/domain"
 	siteRepository "server/app/repository/site"
 	configService "server/app/service/config"
+	"server/app/util/cache"
 	"server/app/util/database"
 	processManager "server/app/util/process"
 	webServer "server/app/util/server"
@@ -46,8 +47,8 @@ func (s *service) Boot() func() {
 	}
 }
 
-func newService(repositorySite siteRepository.Interface, repositoryDomain domainRepository.Interface, repositoryCert certRepository.Interface, configService configService.Service, database *database.Database, options ...Options) (*service, error) {
-	if repositorySite == nil || repositoryDomain == nil || repositoryCert == nil || configService == nil || database == nil || database.Db == nil {
+func newService(repositorySite siteRepository.Interface, repositoryDomain domainRepository.Interface, repositoryCert certRepository.Interface, configService configService.Service, database *database.Database, cache cache.Interface, options ...Options) (*service, error) {
+	if repositorySite == nil || repositoryDomain == nil || repositoryCert == nil || configService == nil || database == nil || database.Db == nil || cache == nil {
 		return nil, errors.New("网站服务依赖不能为空")
 	}
 	if len(options) > 1 {
@@ -76,6 +77,7 @@ func newService(repositorySite siteRepository.Interface, repositoryDomain domain
 		repositoryDomain: repositoryDomain,
 		repositoryCert:   repositoryCert,
 		config:           configService,
+		cache:            cache,
 		database:         database,
 		process:          processManager.NewManager(),
 		root:             filepath.Clean(root),

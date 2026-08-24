@@ -1,11 +1,32 @@
 package site
 
 import (
+	"server/app/enum/site_status"
 	"server/app/model"
 	"server/app/util/page"
 
 	"gorm.io/gorm"
 )
+
+// SelectIdNameMap 查询可选默认站点的 ID 名称映射。
+func (r *Repository) SelectIdNameMap() (map[int64]string, error) {
+	var data []struct {
+		Id   int64
+		Name string
+	}
+	if err := r.Database.Db.Model(&model.Site{}).
+		Select("id", "name").
+		Where("status = ?", site_status.Enabled).
+		Order("id ASC").
+		Find(&data).Error; err != nil {
+		return nil, err
+	}
+	result := make(map[int64]string, len(data))
+	for _, item := range data {
+		result[item.Id] = item.Name
+	}
+	return result, nil
+}
 
 // SelectAll 查询全部网站及其配置。
 func (r *Repository) SelectAll(tx ...*gorm.DB) ([]*model.Site, error) {

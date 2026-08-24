@@ -62,7 +62,7 @@ func Init() {
 	Recycle = recycle.NewService()
 	System = system.NewService(File)
 	var err error
-	Site, err = siteService.NewService(siteRepo, domainRepo, certRepo, Config, global.App.Database)
+	Site, err = siteService.NewService(siteRepo, domainRepo, certRepo, Config, global.App.Database, global.App.Cache)
 	if err != nil {
 		panic(err)
 	}

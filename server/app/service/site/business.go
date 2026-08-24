@@ -170,6 +170,7 @@ func (s *service) Create(data *CreateSite) (*Site, error) {
 	if err != nil {
 		return nil, errors.Join(err, cleanupRoot())
 	}
+	s.cache.Delete(constant.CacheNameWithSiteNameEnum)
 	if syncErr := s.syncLocked(); syncErr != nil {
 		compensateErr := s.removeSiteRecords(record.Id)
 		restoreRuntimeErr := s.syncLocked()
@@ -267,6 +268,7 @@ func (s *service) updateLocked(id int64, data *siteMutation) error {
 	if err != nil {
 		return err
 	}
+	s.cache.Delete(constant.CacheNameWithSiteNameEnum)
 	if syncErr := s.syncLocked(); syncErr != nil {
 		compensateErr := s.restoreSiteRecords(previous, previousDomains)
 		restoreRuntimeErr := s.syncLocked()
@@ -330,6 +332,7 @@ func (s *service) Delete(id int64) error {
 		}
 		return err
 	}
+	s.cache.Delete(constant.CacheNameWithSiteNameEnum)
 
 	syncErr := s.syncLocked()
 	if syncErr != nil {

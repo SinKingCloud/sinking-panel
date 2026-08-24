@@ -67,12 +67,12 @@ func (m *Manager) setOptions(options Options) error {
 	if options.DefaultSite != "" && !m.validID(options.DefaultSite) {
 		return errors.New("默认站点 ID 不合法")
 	}
-	normalizePage := func(page *ResponseOptions, status int, body string) error {
+	normalizePage := func(page *ResponseOptions, defaultStatus int, body string) error {
 		if page.Status == 0 {
-			page.Status = status
+			page.Status = defaultStatus
 		}
-		if page.Status != status {
-			return fmt.Errorf("页面响应状态码必须为 %d", status)
+		if page.Status < 100 || page.Status > 599 {
+			return errors.New("页面响应状态码必须在 100 到 599 之间")
 		}
 		if strings.TrimSpace(page.Body) == "" {
 			page.Body = body

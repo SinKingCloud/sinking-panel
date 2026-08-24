@@ -6,6 +6,7 @@ import (
 	"server/app/enum/log_type"
 	"server/app/enum/script_type"
 	"server/app/enum/server_auth_type"
+	"server/app/enum/site_name"
 	"server/app/enum/site_status"
 	"server/app/enum/site_type"
 	"server/app/enum/system_task_status"
@@ -26,9 +27,12 @@ var Data = map[string]interface{}{
 	"server": map[string]interface{}{
 		"auth_type": server_auth_type.Map(), //服务器验证类型
 	},
-	"site": map[string]interface{}{
-		"type":   site_type.Map(),   //网站类型
-		"status": site_status.Map(), //网站状态
+	"site": func() interface{} {
+		return map[string]interface{}{
+			"type":   site_type.Map(),   //网站类型
+			"status": site_status.Map(), //网站状态
+			"name":   site_name.Map(),   //可选默认站点
+		}
 	},
 	"script": func() interface{} {
 		return map[string]interface{}{
