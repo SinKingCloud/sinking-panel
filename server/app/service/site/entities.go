@@ -341,7 +341,7 @@ type HTTPUpdate struct {
 	SiteDisabledPage     *HTTPPageUpdate `json:"site_disabled_page"`     // 请求域名所属网站已停用时显示的页面
 	DataPath             *string         `json:"data_path"`              // 证书和运行数据目录
 	CachePath            *string         `json:"cache_path"`             // 站点响应缓存根目录
-	LogPath              *string         `json:"log_path"`               // HTTP 访问日志文件
+	LogPath              *string         `json:"log_path"`               // HTTP 运行日志文件
 	WAFLogPath           *string         `json:"waf_log_path"`           // WAF 审计日志文件
 	ConfigPath           *string         `json:"config_path"`            // 配置快照文件
 	LogLevel             *string         `json:"log_level"`              // HTTP 日志级别

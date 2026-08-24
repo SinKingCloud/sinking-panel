@@ -22,7 +22,7 @@ const (
   restart 重启服务
   run     直接运行(非守护进程模式)
   install 安装系统自启动
-  uninstall 卸载软件并删除数据
+  uninstall 卸载软件并保留data目录数据
   user    修改登录账号
   pwd     修改登录密码`
 )

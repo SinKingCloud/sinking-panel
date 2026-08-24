@@ -15,7 +15,7 @@ import (
 
 // uninstall 在删除软件前要求明确确认，避免误操作。
 func (s *Server) uninstall() error {
-	fmt.Print("将停止服务、删除自启动及面板数据，输入 yes 确认卸载: ")
+	fmt.Print("将停止服务并删除自启动、程序及配置，data目录会保留，输入 yes 确认卸载: ")
 	confirmation, err := bufio.NewReader(os.Stdin).ReadString('\n')
 	if err != nil && strings.TrimSpace(confirmation) == "" {
 		fmt.Println("已取消卸载")
@@ -55,6 +55,7 @@ func (s *Server) uninstall() error {
 		filepath.Join(root, pidFileName),
 		filepath.Join(root, logFileName),
 	}
+	// data 保存网站文件，卸载时只清理临时文件和面板配置。
 	directoryValues := []string{constant.TempPath, constant.DBPath, constant.ConfPath}
 	directories := make([]string, 0, len(directoryValues))
 	seenDirectories := make(map[string]struct{}, len(directoryValues))

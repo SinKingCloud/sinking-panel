@@ -938,27 +938,21 @@ func (m *Manager) buildConfig(sites map[string]*Site) ([]byte, error) {
 	if len(accessLogNamespaces) > 0 {
 		logConfig["exclude"] = accessLogNamespaces
 	}
-	logs := map[string]interface{}{"default": logConfig}
 	if m.logPath != "-" {
-		fileLog := map[string]interface{}{
-			"level":   m.options.LogLevel,
-			"encoder": logEncoder,
-			"writer": map[string]interface{}{
-				"output":           "file",
-				"filename":         m.logPath,
-				"mode":             "0600",
-				"dir_mode":         "0700",
-				"roll_size_mb":     50,
-				"roll_keep":        10,
-				"roll_keep_days":   30,
-				"roll_compression": "gzip",
-			},
+		logConfig["writer"] = map[string]interface{}{
+			"output":           "file",
+			"filename":         m.logPath,
+			"mode":             "0600",
+			"dir_mode":         "0700",
+			"roll_size_mb":     50,
+			"roll_keep":        10,
+			"roll_keep_days":   30,
+			"roll_compression": "gzip",
 		}
-		if len(accessLogNamespaces) > 0 {
-			fileLog["exclude"] = accessLogNamespaces
-		}
-		logs["runtime"] = fileLog
+	} else {
+		logConfig["writer"] = map[string]interface{}{"output": "discard"}
 	}
+	logs := map[string]interface{}{"default": logConfig}
 	for name, accessLog := range accessLogs {
 		logs[name] = accessLog
 	}

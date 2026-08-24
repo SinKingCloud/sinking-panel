@@ -51,7 +51,7 @@ func (u *Daemon) UninstallAutoStart() error {
 	return u.uninstallAutoStart()
 }
 
-// Uninstall 停止服务、卸载自启动并删除面板自身文件。
+// Uninstall 停止服务并卸载系统自启动。
 func (u *Daemon) Uninstall() error {
 	return u.uninstall()
 }

@@ -43,7 +43,9 @@ func (b *backend) view(run func(*bolt.Tx) error) error {
 		b.mu.RLock()
 		if b.retired {
 			b.mu.RUnlock()
-			return errStoreClosed
+			// 热重载后，上游的缓存清理协程仍可能读取旧实例。
+			// 关闭态按缓存未命中处理，避免把正常的生命周期切换记录为错误。
+			return nil
 		}
 		if b.db != nil {
 			err := b.db.View(run)
@@ -57,6 +59,9 @@ func (b *backend) view(run func(*bolt.Tx) error) error {
 			return fmt.Errorf("读取 simplefs 数据库状态失败: %w", err)
 		}
 		if err := b.open(); err != nil {
+			if errors.Is(err, errStoreClosed) {
+				return nil
+			}
 			return err
 		}
 	}
