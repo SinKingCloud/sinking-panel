@@ -26,11 +26,21 @@ import (
 
 // Boot 启动网站服务，并返回负责停止服务的清理函数。
 func (s *service) Boot() func() {
-	if err := s.Start(); err != nil {
+	s.operationMu.Lock()
+	var err error
+	if s.active {
+		err = s.syncLocked()
+	}
+	s.operationMu.Unlock()
+	if err != nil {
 		log.Printf("启动网站服务失败: %v", err)
 	}
 	return func() {
-		if err := s.Stop(); err != nil {
+		s.operationMu.Lock()
+		err := errors.Join(s.http.Stop(), s.process.StopAll())
+		s.processes = nil
+		s.operationMu.Unlock()
+		if err != nil {
 			log.Printf("停止网站服务失败: %v", err)
 		}
 	}
@@ -69,26 +79,71 @@ func newService(repositorySite siteRepository.Interface, repositoryDomain domain
 		database:         database,
 		process:          processManager.NewManager(),
 		root:             filepath.Clean(root),
+		active:           true,
 	}
 	storedHTTP := false
+	storedHTTPValid := true
 	if len(options) == 0 {
-		stored, exists, loadErr := result.loadHTTP()
+		stored, exists, loadErr := result.loadHTTP(true)
 		if loadErr != nil {
+			storedHTTPValid = false
 			log.Printf("网站 HTTP 配置损坏，已使用默认配置启动: %v", loadErr)
 		} else if exists {
 			config.HTTP = stored
 			storedHTTP = true
 		}
 	}
+	storedConfigs := configService.Group(constant.SiteGroup)
+	if raw, exists := storedConfigs[constant.SiteHTTPEnabled]; exists {
+		enabled, parseErr := strconv.ParseBool(strings.TrimSpace(raw))
+		if parseErr != nil {
+			log.Printf("网站 HTTP 服务状态配置损坏，已按启用状态处理: %v", parseErr)
+		} else {
+			result.active = enabled
+		}
+	}
+	migrationHTTP := config.HTTP
 	httpManager, err := webServer.NewManager(filepath.Join(root, "http"), config.HTTP)
 	if err != nil && storedHTTP {
-		log.Printf("网站 HTTP 配置无法加载，已使用默认配置启动: %v", err)
-		httpManager, err = webServer.NewManager(filepath.Join(root, "http"), webServer.Options{})
+		configErr := err
+		storedHTTPValid = false
+		split, splitExists, splitErr := result.loadHTTP(false)
+		if splitErr == nil && splitExists {
+			if manager, managerErr := webServer.NewManager(filepath.Join(root, "http"), split); managerErr == nil {
+				httpManager = manager
+				migrationHTTP = split
+				storedHTTPValid = true
+				err = nil
+				log.Printf("网站旧版 HTTP 配置无法加载，已使用拆分配置: %v", configErr)
+			}
+		}
+		if err != nil {
+			log.Printf("网站 HTTP 配置无法加载，已使用默认配置启动: %v", configErr)
+			httpManager, err = webServer.NewManager(filepath.Join(root, "http"), webServer.Options{})
+			migrationHTTP = webServer.Options{}
+		}
 	}
 	if err != nil {
 		return nil, err
 	}
 	result.http = httpManager
+	if len(options) == 0 && storedHTTPValid && strings.TrimSpace(storedConfigs[constant.SiteHTTPGroup]) != "" {
+		configs, encodeErr := result.httpConfigs(migrationHTTP, nil)
+		complete := encodeErr == nil
+		for key := range configs {
+			if _, exists := storedConfigs[key]; !exists {
+				complete = false
+				break
+			}
+		}
+		if encodeErr != nil {
+			log.Printf("迁移旧版网站 HTTP 配置失败: %v", encodeErr)
+		} else if !complete {
+			if saveErr := configService.Sets(configs); saveErr != nil {
+				log.Printf("迁移旧版网站 HTTP 配置失败: %v", saveErr)
+			}
+		}
+	}
 	return result, nil
 }
 
@@ -96,17 +151,41 @@ func newService(repositorySite siteRepository.Interface, repositoryDomain domain
 func (s *service) Start() error {
 	s.operationMu.Lock()
 	defer s.operationMu.Unlock()
-	s.active = true
-	return s.syncLocked()
+	return s.setActiveLocked(true)
 }
 
 // Stop 停止网站 HTTP 服务和全部通用网站进程。
 func (s *service) Stop() error {
 	s.operationMu.Lock()
 	defer s.operationMu.Unlock()
-	s.active = false
-	err := errors.Join(s.http.Stop(), s.process.StopAll())
-	s.processes = nil
+	return s.setActiveLocked(false)
+}
+
+func (s *service) setActiveLocked(active bool) error {
+	previous := s.active
+	s.active = active
+	var err error
+	if active {
+		err = s.syncLocked()
+	} else {
+		err = errors.Join(s.http.Stop(), s.process.StopAll())
+		s.processes = nil
+	}
+	if err == nil {
+		if err = s.config.Set(constant.SiteHTTPEnabled, strconv.FormatBool(active)); err != nil {
+			err = fmt.Errorf("保存 HTTP 服务状态失败: %w", err)
+		}
+	}
+	if err == nil {
+		return nil
+	}
+	if previous == active {
+		return err
+	}
+	s.active = previous
+	if rollbackErr := s.syncLocked(); rollbackErr != nil {
+		return errors.Join(err, fmt.Errorf("恢复网站服务状态失败: %w", rollbackErr))
+	}
 	return err
 }
 
@@ -176,6 +255,9 @@ func (s *service) Restart() error {
 		return restore(fmt.Errorf("重启网站服务失败: %w", err))
 	}
 	s.processes = s.cloneProcessConfigs(processes)
+	if err = s.config.Set(constant.SiteHTTPEnabled, strconv.FormatBool(true)); err != nil {
+		return restore(fmt.Errorf("保存 HTTP 服务状态失败: %w", err))
+	}
 	return nil
 }
 

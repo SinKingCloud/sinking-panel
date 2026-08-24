@@ -27,6 +27,32 @@ const (
 	SshPassword = SshGroup + ".password"  //本地ssh 密码
 	SshName     = SshGroup + ".name"      //本地ssh 名称
 
-	SiteGroup       = "site"              //网站服务配置组
-	SiteHTTPOptions = SiteGroup + ".http" //网站 HTTP 运行参数
+	SiteGroup                    = "site"                                    //网站服务配置组
+	SiteHTTPGroup                = SiteGroup + ".http"                       //网站 HTTP 配置前缀，兼容旧版整包配置键
+	SiteHTTPEnabled              = SiteHTTPGroup + ".enabled"                //网站 HTTP 服务启用状态
+	SiteHTTPListen               = SiteHTTPGroup + ".http_listen"            //HTTP 监听地址
+	SiteHTTPSListen              = SiteHTTPGroup + ".https_listen"           //HTTPS 监听地址
+	SiteHTTPProtocols            = SiteHTTPGroup + ".protocols"              //HTTP 协议
+	SiteHTTPDefaultSite          = SiteHTTPGroup + ".default_site"           //默认网站
+	SiteHTTPNotFoundPage         = SiteHTTPGroup + ".not_found_page"         //资源不存在页面
+	SiteHTTPSiteNotFoundPage     = SiteHTTPGroup + ".site_not_found_page"    //网站不存在页面
+	SiteHTTPSiteDisabledPage     = SiteHTTPGroup + ".site_disabled_page"     //网站停用页面
+	SiteHTTPDataPath             = SiteHTTPGroup + ".data_path"              //HTTP 运行数据目录
+	SiteHTTPCachePath            = SiteHTTPGroup + ".cache_path"             //HTTP 缓存目录
+	SiteHTTPLogPath              = SiteHTTPGroup + ".log_path"               //HTTP 运行日志
+	SiteHTTPWAFLogPath           = SiteHTTPGroup + ".waf_log_path"           //WAF 审计日志
+	SiteHTTPConfigPath           = SiteHTTPGroup + ".config_path"            //HTTP 配置快照
+	SiteHTTPLogLevel             = SiteHTTPGroup + ".log_level"              //HTTP 日志级别
+	SiteHTTPTrustedProxies       = SiteHTTPGroup + ".trusted_proxies"        //可信代理地址
+	SiteHTTPClientIPHeaders      = SiteHTTPGroup + ".client_ip_headers"      //客户端 IP 请求头
+	SiteHTTPTrustedProxiesStrict = SiteHTTPGroup + ".trusted_proxies_strict" //可信代理严格模式
+	SiteHTTPReadTimeout          = SiteHTTPGroup + ".read_timeout"           //请求读取超时
+	SiteHTTPReadHeaderTimeout    = SiteHTTPGroup + ".read_header_timeout"    //请求头读取超时
+	SiteHTTPWriteTimeout         = SiteHTTPGroup + ".write_timeout"          //响应写入超时
+	SiteHTTPIdleTimeout          = SiteHTTPGroup + ".idle_timeout"           //连接空闲超时
+	SiteHTTPGracePeriod          = SiteHTTPGroup + ".grace_period"           //优雅关闭等待时间
+	SiteHTTPMaxHeaderBytes       = SiteHTTPGroup + ".max_header_bytes"       //请求头大小限制
+	SiteHTTPChallengeHost        = SiteHTTPGroup + ".http_challenge_host"    //ACME 验证监听地址
+	SiteHTTPChallengePort        = SiteHTTPGroup + ".http_challenge_port"    //ACME 验证监听端口
+	SiteHTTPACMEEmail            = SiteHTTPGroup + ".acme_email"             //ACME 账户邮箱
 )

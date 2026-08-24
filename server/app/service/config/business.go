@@ -67,17 +67,3 @@ func (s *service) Get(group string, key string) string {
 	temp := s.Group(group)
 	return temp[key]
 }
-
-// Load 直接从数据库读取配置，避免运行参数更新时使用旧缓存。
-func (s *service) Load(group string, key string) (string, error) {
-	configs, err := s.repositoryConfig.FindByGroup(group)
-	if err != nil {
-		return "", err
-	}
-	for _, config := range configs {
-		if config.Key == key {
-			return config.Value, nil
-		}
-	}
-	return "", nil
-}
