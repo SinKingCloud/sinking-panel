@@ -226,9 +226,6 @@ func (m *Manager) setOptions(options Options) error {
 		return relativeErr == nil && (relative == "." || (relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator))))
 	}
 	logDirectory := filepath.Join(m.root, "logs")
-	if options.LogPath != "-" {
-		logDirectory = filepath.Dir(options.LogPath)
-	}
 	siteLogDirectories := []string{
 		filepath.Join(logDirectory, string(LogAccess)),
 		filepath.Join(filepath.Dir(options.WAFLogPath), string(LogWAF)),
@@ -288,9 +285,6 @@ func (m *Manager) setOptions(options Options) error {
 		*target = filepath.Join(parent, filepath.Base(*target))
 	}
 	logDirectory = filepath.Join(m.root, "logs")
-	if options.LogPath != "-" {
-		logDirectory = filepath.Dir(options.LogPath)
-	}
 	siteLogDirectories = []string{
 		filepath.Join(logDirectory, string(LogAccess)),
 		filepath.Join(filepath.Dir(options.WAFLogPath), string(LogWAF)),

@@ -89,7 +89,14 @@ func (s *service) updateHTTPLocked(config *HTTPUpdate) error {
 		candidate.CachePath = *config.CachePath
 	}
 	if config.LogPath != nil {
-		candidate.LogPath = *config.LogPath
+		candidate.LogPath = strings.TrimSpace(*config.LogPath)
+		if candidate.LogPath == "" {
+			candidate.LogPath, err = filepath.Abs(constant.ServerLogPath)
+			if err != nil {
+				return fmt.Errorf("解析 HTTP 服务日志路径失败: %w", err)
+			}
+			candidate.LogPath = filepath.Clean(candidate.LogPath)
+		}
 	}
 	if config.WAFLogPath != nil {
 		candidate.WAFLogPath = *config.WAFLogPath

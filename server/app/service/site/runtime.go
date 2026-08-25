@@ -72,6 +72,11 @@ func newService(repositorySite siteRepository.Interface, repositoryDomain domain
 	if err != nil {
 		return nil, fmt.Errorf("解析网站服务目录失败: %w", err)
 	}
+	serverLogPath, err := filepath.Abs(constant.ServerLogPath)
+	if err != nil {
+		return nil, fmt.Errorf("解析 HTTP 服务日志路径失败: %w", err)
+	}
+	serverLogPath = filepath.Clean(serverLogPath)
 	result := &service{
 		repositorySite:   repositorySite,
 		repositoryDomain: repositoryDomain,
@@ -104,6 +109,9 @@ func newService(repositorySite siteRepository.Interface, repositoryDomain domain
 			result.active = enabled
 		}
 	}
+	if strings.TrimSpace(config.HTTP.LogPath) == "" {
+		config.HTTP.LogPath = serverLogPath
+	}
 	migrationHTTP := config.HTTP
 	httpManager, err := webServer.NewManager(filepath.Join(root, "http"), config.HTTP)
 	if err != nil && storedHTTP {
@@ -111,6 +119,9 @@ func newService(repositorySite siteRepository.Interface, repositoryDomain domain
 		storedHTTPValid = false
 		split, splitExists, splitErr := result.loadHTTP(false)
 		if splitErr == nil && splitExists {
+			if strings.TrimSpace(split.LogPath) == "" {
+				split.LogPath = serverLogPath
+			}
 			if manager, managerErr := webServer.NewManager(filepath.Join(root, "http"), split); managerErr == nil {
 				httpManager = manager
 				migrationHTTP = split
@@ -121,8 +132,8 @@ func newService(repositorySite siteRepository.Interface, repositoryDomain domain
 		}
 		if err != nil {
 			log.Printf("网站 HTTP 配置无法加载，已使用默认配置启动: %v", configErr)
-			httpManager, err = webServer.NewManager(filepath.Join(root, "http"), webServer.Options{})
-			migrationHTTP = webServer.Options{}
+			httpManager, err = webServer.NewManager(filepath.Join(root, "http"), webServer.Options{LogPath: serverLogPath})
+			migrationHTTP = webServer.Options{LogPath: serverLogPath}
 		}
 	}
 	if err != nil {

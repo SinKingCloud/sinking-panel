@@ -1332,9 +1332,6 @@ func (m *Manager) siteLogPath(id string, logType LogType) (string, error) {
 	directory := filepath.Join(m.root, "logs")
 	switch logType {
 	case LogAccess, LogProcess:
-		if m.logPath != "-" {
-			directory = filepath.Dir(m.logPath)
-		}
 	case LogWAF:
 		directory = filepath.Dir(m.wafLogPath)
 	default:

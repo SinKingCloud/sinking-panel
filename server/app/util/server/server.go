@@ -17,7 +17,9 @@ import (
 )
 
 func init() {
-	// Caddy 会在包初始化时接管标准日志，非交互环境下会导致面板日志变成 JSON。
+	// 首次加载配置前先缓存 Caddy 日志，加载成功后由配置中的文件日志接管。
+	caddy.BufferedLog()
+	// Caddy 会在包初始化时接管标准日志，恢复面板原有的控制台日志格式。
 	log.SetOutput(os.Stderr)
 	log.SetFlags(log.LstdFlags)
 	log.SetPrefix("")
