@@ -348,13 +348,32 @@ func (s *service) Delete(id int64) error {
 	cacheErr := s.http.DeleteSiteCache(strconv.FormatInt(id, 10))
 	s.logMu.Lock()
 	var logErr error
-	for _, path := range logPaths {
-		if clearErr := fileLog.Clear(path); clearErr != nil {
-			logErr = errors.Join(logErr, clearErr)
-			continue
-		}
-		if removeErr := os.Remove(path); removeErr != nil && !os.IsNotExist(removeErr) {
-			logErr = errors.Join(logErr, removeErr)
+	logDirectory := filepath.Dir(logPaths[0])
+	directoryInfo, directoryErr := os.Lstat(logDirectory)
+	if directoryErr != nil && !os.IsNotExist(directoryErr) {
+		logErr = directoryErr
+	} else if directoryErr == nil {
+		if directoryInfo.Mode()&os.ModeSymlink != 0 || !directoryInfo.IsDir() {
+			logErr = errors.New("网站日志目录无效")
+		} else {
+			for _, path := range logPaths {
+				if filepath.Dir(path) != logDirectory {
+					logErr = errors.Join(logErr, errors.New("网站日志文件不在同一目录"))
+					continue
+				}
+				if clearErr := fileLog.Clear(path); clearErr != nil {
+					logErr = errors.Join(logErr, clearErr)
+					continue
+				}
+				if removeErr := os.Remove(path); removeErr != nil && !os.IsNotExist(removeErr) {
+					logErr = errors.Join(logErr, removeErr)
+				}
+			}
+			if logErr == nil {
+				if removeErr := os.Remove(logDirectory); removeErr != nil && !os.IsNotExist(removeErr) {
+					logErr = removeErr
+				}
+			}
 		}
 	}
 	s.logMu.Unlock()
