@@ -187,6 +187,11 @@ func (m *Manager) setOptions(options Options) error {
 	}
 
 	var err error
+	options.DataPath = strings.TrimSpace(options.DataPath)
+	options.CachePath = strings.TrimSpace(options.CachePath)
+	options.LogPath = strings.TrimSpace(options.LogPath)
+	options.WAFLogPath = strings.TrimSpace(options.WAFLogPath)
+	options.ConfigPath = strings.TrimSpace(options.ConfigPath)
 	if options.DataPath == "" {
 		options.DataPath = filepath.Join(m.root, "data")
 	}

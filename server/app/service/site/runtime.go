@@ -109,31 +109,41 @@ func newService(repositorySite siteRepository.Interface, repositoryDomain domain
 			result.active = enabled
 		}
 	}
-	if strings.TrimSpace(config.HTTP.LogPath) == "" {
-		config.HTTP.LogPath = serverLogPath
-	}
 	migrationHTTP := config.HTTP
-	httpManager, err := webServer.NewManager(filepath.Join(root, "http"), config.HTTP)
-	if err != nil && storedHTTP {
+	effectiveHTTP := config.HTTP
+	if strings.TrimSpace(effectiveHTTP.LogPath) == "" {
+		effectiveHTTP.LogPath = serverLogPath
+	}
+	if strings.TrimSpace(effectiveHTTP.ConfigPath) == "" {
+		effectiveHTTP.ConfigPath = filepath.Join(root, "http", "config.json")
+	}
+	httpManager, err := webServer.NewManager(filepath.Join(root, "http"), effectiveHTTP)
+	if err != nil {
 		configErr := err
 		storedHTTPValid = false
-		split, splitExists, splitErr := result.loadHTTP(false)
-		if splitErr == nil && splitExists {
-			if strings.TrimSpace(split.LogPath) == "" {
-				split.LogPath = serverLogPath
-			}
-			if manager, managerErr := webServer.NewManager(filepath.Join(root, "http"), split); managerErr == nil {
-				httpManager = manager
-				migrationHTTP = split
-				storedHTTPValid = true
-				err = nil
-				log.Printf("网站旧版 HTTP 配置无法加载，已使用拆分配置: %v", configErr)
+		if storedHTTP {
+			split, splitExists, splitErr := result.loadHTTP(false)
+			if splitErr == nil && splitExists {
+				effectiveSplit := split
+				if strings.TrimSpace(effectiveSplit.LogPath) == "" {
+					effectiveSplit.LogPath = serverLogPath
+				}
+				if strings.TrimSpace(effectiveSplit.ConfigPath) == "" {
+					effectiveSplit.ConfigPath = filepath.Join(root, "http", "config.json")
+				}
+				if manager, managerErr := webServer.NewManager(filepath.Join(root, "http"), effectiveSplit); managerErr == nil {
+					httpManager = manager
+					migrationHTTP = split
+					storedHTTPValid = true
+					err = nil
+					log.Printf("网站旧版 HTTP 配置无法加载，已使用拆分配置: %v", configErr)
+				}
 			}
 		}
 		if err != nil {
 			log.Printf("网站 HTTP 配置无法加载，已使用默认配置启动: %v", configErr)
 			httpManager, err = webServer.NewManager(filepath.Join(root, "http"), webServer.Options{LogPath: serverLogPath})
-			migrationHTTP = webServer.Options{LogPath: serverLogPath}
+			migrationHTTP = webServer.Options{}
 		}
 	}
 	if err != nil {

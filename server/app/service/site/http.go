@@ -83,26 +83,19 @@ func (s *service) updateHTTPLocked(config *HTTPUpdate) error {
 	mergePage(&candidate.SiteNotFoundPage, config.SiteNotFoundPage)
 	mergePage(&candidate.SiteDisabledPage, config.SiteDisabledPage)
 	if config.DataPath != nil {
-		candidate.DataPath = *config.DataPath
+		candidate.DataPath = strings.TrimSpace(*config.DataPath)
 	}
 	if config.CachePath != nil {
-		candidate.CachePath = *config.CachePath
+		candidate.CachePath = strings.TrimSpace(*config.CachePath)
 	}
 	if config.LogPath != nil {
 		candidate.LogPath = strings.TrimSpace(*config.LogPath)
-		if candidate.LogPath == "" {
-			candidate.LogPath, err = filepath.Abs(constant.ServerLogPath)
-			if err != nil {
-				return fmt.Errorf("解析 HTTP 服务日志路径失败: %w", err)
-			}
-			candidate.LogPath = filepath.Clean(candidate.LogPath)
-		}
 	}
 	if config.WAFLogPath != nil {
-		candidate.WAFLogPath = *config.WAFLogPath
+		candidate.WAFLogPath = strings.TrimSpace(*config.WAFLogPath)
 	}
 	if config.ConfigPath != nil {
-		candidate.ConfigPath = *config.ConfigPath
+		candidate.ConfigPath = strings.TrimSpace(*config.ConfigPath)
 	}
 	if config.LogLevel != nil {
 		candidate.LogLevel = *config.LogLevel
@@ -150,7 +143,18 @@ func (s *service) updateHTTPLocked(config *HTTPUpdate) error {
 	if len(configs) == 0 {
 		return nil
 	}
-	if err = s.http.UpdateOptions(candidate); err != nil {
+	effective := candidate
+	if effective.LogPath == "" {
+		effective.LogPath, err = filepath.Abs(constant.ServerLogPath)
+		if err != nil {
+			return fmt.Errorf("解析 HTTP 服务日志路径失败: %w", err)
+		}
+		effective.LogPath = filepath.Clean(effective.LogPath)
+	}
+	if effective.ConfigPath == "" {
+		effective.ConfigPath = filepath.Join(s.root, "http", "config.json")
+	}
+	if err = s.http.UpdateOptions(effective); err != nil {
 		return err
 	}
 	rollback := func(cause error) error {
