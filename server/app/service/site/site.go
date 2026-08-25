@@ -26,6 +26,8 @@ type Service interface {
 	Sync() error
 	GetHTTP() webServer.Options
 	UpdateHTTP(config *HTTPUpdate) error
+	ReadServerLog(after int64, before int64, pageSize int) (map[string]interface{}, error)
+	ClearServerLog() error
 	ReadLog(id int64, logType webServer.LogType, after int64, before int64, pageSize int) (map[string]interface{}, error)
 	ClearLog(id int64, logType webServer.LogType) error
 	Create(data *CreateSite) (*Site, error)

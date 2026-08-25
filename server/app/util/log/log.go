@@ -3,6 +3,7 @@ package log
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -18,8 +19,9 @@ const (
 )
 
 // Read 按字节游标读取日志。首次读取最新内容，after 读取新增内容，before 读取更早内容。
-// 路径安全和并发锁由调用方负责；文件不存在时返回空结果且不会创建文件。
-func Read(path string, after int64, before int64, pageSize int) map[string]interface{} {
+// previous 按时间顺序传入当前日志之前的滚动文件；路径安全和并发锁由调用方负责。
+// 文件不存在时返回空结果且不会创建文件。
+func Read(path string, after int64, before int64, pageSize int, previous ...string) (map[string]interface{}, error) {
 	if pageSize < 1 {
 		pageSize = 300
 	}
@@ -38,29 +40,97 @@ func Read(path string, after int64, before int64, pageSize int) map[string]inter
 		"has_previous": false,
 		"end":          true,
 	}
-	file, err := os.Open(path)
-	if err != nil {
-		return result
+	type segment struct {
+		file  *os.File
+		start int64
+		size  int64
 	}
-	defer func() { _ = file.Close() }()
-
-	stat, err := file.Stat()
-	if err != nil {
-		return result
+	paths := append(append(make([]string, 0, len(previous)+1), previous...), path)
+	segments := make([]segment, 0, len(paths))
+	closeSegments := func() {
+		for _, item := range segments {
+			_ = item.file.Close()
+		}
 	}
-	if stat.Size() == 0 {
+	var size int64
+	for _, item := range paths {
+		info, err := os.Lstat(item)
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			closeSegments()
+			return result, fmt.Errorf("读取日志文件信息失败: %w", err)
+		}
+		if !info.Mode().IsRegular() {
+			closeSegments()
+			return result, fmt.Errorf("日志路径不是普通文件: %s", filepath.Base(item))
+		}
+		file, err := os.Open(item)
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			closeSegments()
+			return result, fmt.Errorf("打开日志文件失败: %w", err)
+		}
+		stat, err := file.Stat()
+		if err != nil {
+			_ = file.Close()
+			closeSegments()
+			return result, fmt.Errorf("读取日志文件信息失败: %w", err)
+		}
+		if !stat.Mode().IsRegular() {
+			_ = file.Close()
+			closeSegments()
+			return result, fmt.Errorf("日志路径不是普通文件: %s", filepath.Base(item))
+		}
+		segments = append(segments, segment{file: file, start: size, size: stat.Size()})
+		size += stat.Size()
+	}
+	defer closeSegments()
+	if size == 0 {
 		result["cursor"] = int64(0)
 		result["start_cursor"] = int64(0)
-		return result
+		return result, nil
 	}
 	result["end"] = false
+	readAt := func(buffer []byte, offset int64) (int, error) {
+		if offset < 0 || offset >= size {
+			return 0, io.EOF
+		}
+		read := 0
+		for _, item := range segments {
+			end := item.start + item.size
+			if offset >= end || item.size == 0 {
+				continue
+			}
+			if offset < item.start {
+				offset = item.start
+			}
+			length := int64(len(buffer) - read)
+			if remaining := end - offset; length > remaining {
+				length = remaining
+			}
+			count, readErr := item.file.ReadAt(buffer[read:read+int(length)], offset-item.start)
+			read += count
+			offset += int64(count)
+			if readErr != nil && !errors.Is(readErr, io.EOF) {
+				return read, readErr
+			}
+			if read == len(buffer) {
+				return read, nil
+			}
+		}
+		return read, io.EOF
+	}
 
-	readBefore := func(end int64) ([]string, []int64) {
+	readBefore := func(end int64) ([]string, []int64, int64, error) {
 		if end < 0 {
 			end = 0
 		}
-		if end > stat.Size() {
-			end = stat.Size()
+		if end > size {
+			end = size
 		}
 		position := end
 		lineCount := 0
@@ -76,9 +146,9 @@ func Read(path string, after int64, before int64, pageSize int) map[string]inter
 			}
 			position -= readSize
 			chunk := make([]byte, int(readSize))
-			readCount, readErr := file.ReadAt(chunk, position)
+			readCount, readErr := readAt(chunk, position)
 			if readErr != nil && !errors.Is(readErr, io.EOF) {
-				return []string{}, []int64{}
+				return nil, nil, position, fmt.Errorf("读取日志失败: %w", readErr)
 			}
 			if readCount == 0 {
 				break
@@ -109,7 +179,10 @@ func Read(path string, after int64, before int64, pageSize int) map[string]inter
 		for start < len(data) {
 			relativeEnd := bytes.IndexByte(data[start:], '\n')
 			if relativeEnd < 0 {
-				appendLine(start, len(data), leftComplete && end == stat.Size())
+				// 历史页右侧的残缺内容属于下一页已经展示的同一物理行。
+				if end == size {
+					appendLine(start, len(data), leftComplete)
+				}
 				break
 			}
 			lineEnd := start + relativeEnd
@@ -124,15 +197,15 @@ func Read(path string, after int64, before int64, pageSize int) map[string]inter
 			lines = lines[first:]
 			starts = starts[first:]
 		}
-		return lines, starts
+		return lines, starts, position, nil
 	}
 
-	readAfter := func(start int64) ([]string, int64) {
+	readAfter := func(start int64) ([]string, int64, error) {
 		if start < 0 {
 			start = 0
 		}
-		if start >= stat.Size() {
-			return []string{}, start
+		if start >= size {
+			return []string{}, start, nil
 		}
 		lines := make([]string, 0, pageSize)
 		next := start
@@ -140,30 +213,41 @@ func Read(path string, after int64, before int64, pageSize int) map[string]inter
 		totalSize := 0
 		line := make([]byte, 0, min(maxLineSize, readChunkSize))
 		lineTooLong := false
+		skipLongLine := false
 		if start > 0 {
 			var previous [1]byte
-			if count, _ := file.ReadAt(previous[:], start-1); count == 1 {
+			count, readErr := readAt(previous[:], start-1)
+			if readErr != nil && !errors.Is(readErr, io.EOF) {
+				return nil, start, fmt.Errorf("读取日志失败: %w", readErr)
+			}
+			if count == 1 {
 				totalSize++
 				lineTooLong = previous[0] != '\n'
+				skipLongLine = lineTooLong
 			}
 		}
 		buffer := make([]byte, readChunkSize)
-		for position < stat.Size() && len(lines) < pageSize && totalSize < maxReadSize {
+		for position < size && len(lines) < pageSize && totalSize < maxReadSize {
 			readSize := int64(len(buffer))
-			if remaining := stat.Size() - position; readSize > remaining {
+			if remaining := size - position; readSize > remaining {
 				readSize = remaining
 			}
 			if remaining := int64(maxReadSize - totalSize); readSize > remaining {
 				readSize = remaining
 			}
-			readCount, readErr := file.ReadAt(buffer[:readSize], position)
+			readCount, readErr := readAt(buffer[:readSize], position)
+			if readErr != nil && !errors.Is(readErr, io.EOF) {
+				return nil, start, fmt.Errorf("读取日志失败: %w", readErr)
+			}
 			if readCount == 0 {
 				break
 			}
 			for index, value := range buffer[:readCount] {
 				if value == '\n' {
 					if lineTooLong {
-						lines = append(lines, longLineText)
+						if !skipLongLine {
+							lines = append(lines, longLineText)
+						}
 					} else {
 						content := strings.TrimSuffix(strings.ToValidUTF8(string(line), "�"), "\r")
 						lines = append(lines, content)
@@ -171,8 +255,9 @@ func Read(path string, after int64, before int64, pageSize int) map[string]inter
 					next = position + int64(index) + 1
 					line = line[:0]
 					lineTooLong = false
+					skipLongLine = false
 					if len(lines) >= pageSize {
-						return lines, next
+						return lines, next, nil
 					}
 					continue
 				}
@@ -187,54 +272,66 @@ func Read(path string, after int64, before int64, pageSize int) map[string]inter
 			}
 			position += int64(readCount)
 			totalSize += readCount
-			if readErr != nil && !errors.Is(readErr, io.EOF) {
-				break
-			}
 		}
 		if lineTooLong {
-			lines = append(lines, longLineText)
+			if !skipLongLine {
+				lines = append(lines, longLineText)
+			}
 			next = position
 		}
-		return lines, next
+		return lines, next, nil
 	}
 
 	if after > 0 {
-		if after > stat.Size() {
-			lines, starts := readBefore(stat.Size())
+		if after > size {
+			lines, starts, scannedStart, err := readBefore(size)
+			if err != nil {
+				return result, err
+			}
 			result["lines"] = lines
-			result["cursor"] = stat.Size()
+			result["cursor"] = size
 			result["end"] = true
 			if len(starts) > 0 {
 				result["start_cursor"] = starts[0]
 				result["has_previous"] = starts[0] > 0
+			} else {
+				result["start_cursor"] = scannedStart
+				result["has_previous"] = scannedStart > 0
 			}
-			return result
+			return result, nil
 		}
-		lines, next := readAfter(after)
+		lines, next, err := readAfter(after)
+		if err != nil {
+			return result, err
+		}
 		result["lines"] = lines
 		result["cursor"] = next
 		result["start_cursor"] = after
 		result["has_previous"] = after > 0
-		result["end"] = next >= stat.Size()
-		return result
+		result["end"] = next >= size
+		return result, nil
 	}
 
-	end := stat.Size()
+	end := size
 	if before > 0 {
 		end = before
 	}
-	lines, starts := readBefore(end)
+	lines, starts, scannedStart, err := readBefore(end)
+	if err != nil {
+		return result, err
+	}
 	result["lines"] = lines
-	result["cursor"] = stat.Size()
+	result["cursor"] = size
 	if len(starts) > 0 {
 		result["start_cursor"] = starts[0]
 		result["has_previous"] = starts[0] > 0
 		result["end"] = starts[0] <= 0
 	} else {
-		result["start_cursor"] = int64(0)
-		result["end"] = true
+		result["start_cursor"] = scannedStart
+		result["has_previous"] = scannedStart > 0
+		result["end"] = scannedStart <= 0
 	}
-	return result
+	return result, nil
 }
 
 // Clear 截断日志；文件不存在时创建空文件。路径安全和并发锁由调用方负责。

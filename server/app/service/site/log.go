@@ -12,6 +12,36 @@ import (
 	"gorm.io/gorm"
 )
 
+// ReadServerLog 按字节游标读取 HTTP 服务运行日志。
+func (s *service) ReadServerLog(after int64, before int64, pageSize int) (map[string]interface{}, error) {
+	s.logMu.RLock()
+	defer s.logMu.RUnlock()
+	path, err := s.http.LogPath("", webServer.LogServer)
+	if err != nil {
+		return nil, err
+	}
+	return fileLog.Read(path, after, before, pageSize)
+}
+
+// ClearServerLog 清空 HTTP 服务运行日志和已滚动的历史文件。
+func (s *service) ClearServerLog() error {
+	s.logMu.Lock()
+	defer s.logMu.Unlock()
+	path, err := s.http.LogPath("", webServer.LogServer)
+	if err != nil {
+		return err
+	}
+	if err = fileLog.Clear(path); err != nil {
+		return fmt.Errorf("清理 HTTP 服务运行日志失败: %w", err)
+	}
+	if s.http.Running() {
+		if err = s.http.Reload(); err != nil {
+			return fmt.Errorf("日志已清理，但重新加载 HTTP 日志写入器失败: %w", err)
+		}
+	}
+	return nil
+}
+
 // ReadLog 按字节游标读取网站日志。
 func (s *service) ReadLog(id int64, logType webServer.LogType, after int64, before int64, pageSize int) (map[string]interface{}, error) {
 	s.logMu.RLock()
@@ -20,7 +50,7 @@ func (s *service) ReadLog(id int64, logType webServer.LogType, after int64, befo
 	if err != nil {
 		return nil, err
 	}
-	return fileLog.Read(path, after, before, pageSize), nil
+	return fileLog.Read(path, after, before, pageSize)
 }
 
 // ClearLog 清空网站日志和已滚动的历史文件。

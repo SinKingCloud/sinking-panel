@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	standardRuntime "runtime"
+	fileLog "server/app/util/log"
 	"strings"
 	"sync"
 	"time"
@@ -839,24 +840,14 @@ func (m *Manager) clearPlatformLog(id, path string) error {
 		runtime.logMu.Lock()
 		defer runtime.logMu.Unlock()
 	}
-	var truncateErr error
-	if runtime != nil && runtime.logFile != nil {
-		truncateErr = runtime.logFile.Truncate(0)
-	} else {
-		file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
-		if err != nil {
-			truncateErr = err
-		} else {
-			truncateErr = file.Close()
-		}
-	}
+	clearErr := fileLog.Clear(path)
 	var removeErr error
 	for _, name := range []string{path + ".1", path + ".1.tmp"} {
 		if err := os.Remove(name); err != nil && !errors.Is(err, os.ErrNotExist) {
 			removeErr = errors.Join(removeErr, err)
 		}
 	}
-	return errors.Join(truncateErr, removeErr)
+	return errors.Join(clearErr, removeErr)
 }
 
 func (m *Manager) stopPlatformRuntime(instance *Instance) error {

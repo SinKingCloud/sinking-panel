@@ -32,7 +32,11 @@ func Log(c *context.Context) {
 		c.Success("清理成功")
 		return
 	}
-	logs := service.Task.ReadLog(data.Id, form.After, form.Before, form.PageSize)
+	logs, err := service.Task.ReadLog(data.Id, form.After, form.Before, form.PageSize)
+	if err != nil {
+		c.Error(err.Error())
+		return
+	}
 	query := c.Request.URL.Query()
 	if !query.Has("after") && !query.Has("before") {
 		service.Log.Create(c.GetRequestIp(), log_type.EventShow, "查看任务日志", "查看计划任务["+data.Name+"]日志")

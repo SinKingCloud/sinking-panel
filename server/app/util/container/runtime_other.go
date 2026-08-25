@@ -5,6 +5,7 @@ package container
 import (
 	"errors"
 	"os"
+	fileLog "server/app/util/log"
 )
 
 func (m *Manager) configurePlatformSecurity(root string) error {
@@ -71,18 +72,14 @@ func (m *Manager) statsPlatform(id string) (*Stats, error) {
 }
 
 func (m *Manager) clearPlatformLog(id, path string) error {
-	file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
-	if err != nil {
-		return err
-	}
-	closeErr := file.Close()
+	clearErr := fileLog.Clear(path)
 	var removeErr error
 	for _, name := range []string{path + ".1", path + ".1.tmp"} {
 		if err := os.Remove(name); err != nil && !errors.Is(err, os.ErrNotExist) {
 			removeErr = errors.Join(removeErr, err)
 		}
 	}
-	return errors.Join(closeErr, removeErr)
+	return errors.Join(clearErr, removeErr)
 }
 
 func (m *Manager) lockPlatformLog(id string) func() {

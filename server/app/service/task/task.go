@@ -23,7 +23,7 @@ type Service interface {
 	Close()
 	FindById(id int64) (*Info, error)
 	Select(where *repositoryTask.SelectTask, queryPage *page.Query) (*page.Result[*repositoryTask.Task], error)
-	ReadLog(id int64, after int64, before int64, pageSize int) map[string]interface{}
+	ReadLog(id int64, after int64, before int64, pageSize int) (map[string]interface{}, error)
 	ClearLog(id int64) error
 	WriteLog(id int64, content string) error
 	UpdateByIds(ids []int64, data *repositoryTask.UpdateTask) error

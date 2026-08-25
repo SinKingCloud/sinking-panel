@@ -51,7 +51,12 @@ func Task(c *context.Context) {
 			c.Error("任务不存在")
 			return
 		}
-		c.SuccessWithData("获取成功", service.System.TaskLog(form.ID, form.After, form.Before, form.PageSize))
+		result, err := service.System.TaskLog(form.ID, form.After, form.Before, form.PageSize)
+		if err != nil {
+			c.Error(err.Error())
+			return
+		}
+		c.SuccessWithData("获取成功", result)
 	case "info":
 		if form.ID == "" {
 			c.Error("任务ID不能为空")

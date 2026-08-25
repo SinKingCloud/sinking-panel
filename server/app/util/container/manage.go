@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	standardRuntime "runtime"
+	fileLog "server/app/util/log"
 	"sort"
 	"strings"
 	"sync"
@@ -775,11 +776,7 @@ func (m *Manager) ReadLog(id string, after int64, before int64, pageSize int) (m
 	m.mu.RUnlock()
 	unlockLog := m.lockPlatformLog(id)
 	defer unlockLog()
-	data, err := m.readLogData([]string{path + ".1", path}, 0)
-	if err != nil {
-		return nil, err
-	}
-	return readCursorLog(data, filepath.Base(path), after, before, pageSize), nil
+	return fileLog.Read(path, after, before, pageSize, path+".1")
 }
 
 // ClearLog 清空一个已存在实例的日志。

@@ -421,7 +421,7 @@ func (s *service) getTaskLogFile(id int64) string {
 }
 
 // ReadLog 读取日志。首次读取最新内容，after 读取新增内容，before 读取更早内容。
-func (s *service) ReadLog(id int64, after int64, before int64, pageSize int) map[string]interface{} {
+func (s *service) ReadLog(id int64, after int64, before int64, pageSize int) (map[string]interface{}, error) {
 	s.logLock.RLock()
 	defer s.logLock.RUnlock()
 	return cursorLog.Read(s.getTaskLogFilePath(id), after, before, pageSize)

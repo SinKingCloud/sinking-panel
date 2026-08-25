@@ -15,7 +15,7 @@ type WAFMode string
 // CertificateCA 表示证书签发环境。
 type CertificateCA string
 
-// LogType 表示站点日志类型。
+// LogType 表示 HTTP 服务和站点日志类型。
 type LogType string
 
 const (
@@ -45,4 +45,5 @@ const (
 	LogAccess  LogType = "access"  // 访问日志
 	LogWAF     LogType = "waf"     // WAF 审计日志
 	LogProcess LogType = "process" // 通用网站进程日志
+	LogServer  LogType = "server"  // HTTP 服务运行日志
 )

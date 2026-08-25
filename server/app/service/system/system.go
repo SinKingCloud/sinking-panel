@@ -22,7 +22,7 @@ type Service interface {
 	TaskUpdate(id string, status int, progress float64, message string)
 	TaskCancel(id string) bool
 	TaskDelete(id string) bool
-	TaskLog(id string, after int64, before int64, pageSize int) map[string]interface{}
+	TaskLog(id string, after int64, before int64, pageSize int) (map[string]interface{}, error)
 }
 
 // service 注入结构

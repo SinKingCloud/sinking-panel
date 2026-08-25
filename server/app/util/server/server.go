@@ -287,10 +287,16 @@ func (m *Manager) UpdateOptions(options Options) error {
 	return m.updateOptions(options)
 }
 
-// LogPath 返回指定站点的日志文件路径。
+// LogPath 返回 HTTP 服务或指定站点的日志文件路径。
 func (m *Manager) LogPath(id string, logType LogType) (string, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
+	if logType == LogServer {
+		if m.logPath == "" || m.logPath == "-" {
+			return "", errors.New("HTTP 服务运行日志未启用")
+		}
+		return m.logPath, nil
+	}
 	return m.siteLogPath(id, logType)
 }
 
