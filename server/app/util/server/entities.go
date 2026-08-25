@@ -21,7 +21,7 @@ type Options struct {
 	DataPath             string          `json:"data_path"`              // 证书和运行数据目录，默认 root/data
 	CachePath            string          `json:"cache_path"`             // 站点响应缓存根目录，默认 root/cache
 	LogPath              string          `json:"log_path"`               // HTTP 运行日志文件，- 表示不保存运行日志
-	WAFLogPath           string          `json:"waf_log_path"`           // WAF 审计日志基准文件，站点日志写入同级 waf 目录
+	WAFLogPath           string          `json:"waf_log_path"`           // 全局 WAF 模块日志文件
 	ConfigPath           string          `json:"config_path"`            // 配置快照文件，为空时不保存
 	LogLevel             string          `json:"log_level"`              // HTTP 日志级别，默认 INFO
 	TrustedProxies       []string        `json:"trusted_proxies"`        // 可信代理 IP 或 CIDR

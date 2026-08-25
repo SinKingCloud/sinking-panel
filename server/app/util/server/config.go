@@ -230,25 +230,6 @@ func (m *Manager) setOptions(options Options) error {
 		relative, relativeErr := filepath.Rel(parent, child)
 		return relativeErr == nil && (relative == "." || (relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator))))
 	}
-	logDirectory := filepath.Join(m.root, "logs")
-	siteLogDirectories := []string{
-		filepath.Join(logDirectory, string(LogAccess)),
-		filepath.Join(filepath.Dir(options.WAFLogPath), string(LogWAF)),
-		filepath.Join(logDirectory, string(LogProcess)),
-	}
-	validateSiteLogPaths := func() error {
-		for _, directory := range siteLogDirectories {
-			for _, file := range []string{options.LogPath, options.WAFLogPath, options.ConfigPath} {
-				if file != "" && file != "-" && (pathInside(directory, file) || pathInside(file, directory)) {
-					return errors.New("站点日志目录不能与 http 日志或配置文件重叠")
-				}
-			}
-		}
-		return nil
-	}
-	if err = validateSiteLogPaths(); err != nil {
-		return err
-	}
 	for _, directory := range []string{m.root, options.DataPath, options.CachePath, filepath.Dir(options.WAFLogPath)} {
 		if err = os.MkdirAll(directory, 0700); err != nil {
 			return fmt.Errorf("创建 http 目录失败: %w", err)
@@ -257,14 +238,6 @@ func (m *Manager) setOptions(options Options) error {
 	if options.LogPath != "-" {
 		if err = os.MkdirAll(filepath.Dir(options.LogPath), 0700); err != nil {
 			return fmt.Errorf("创建 http 日志目录失败: %w", err)
-		}
-	}
-	for _, directory := range siteLogDirectories {
-		if err = os.MkdirAll(directory, 0700); err != nil {
-			return fmt.Errorf("创建站点日志目录失败: %w", err)
-		}
-		if err = os.Chmod(directory, 0700); err != nil {
-			return fmt.Errorf("设置站点日志目录权限失败: %w", err)
 		}
 	}
 	if options.ConfigPath != "" {
@@ -288,15 +261,6 @@ func (m *Manager) setOptions(options Options) error {
 			return fmt.Errorf("解析 http 文件目录失败: %w", evalErr)
 		}
 		*target = filepath.Join(parent, filepath.Base(*target))
-	}
-	logDirectory = filepath.Join(m.root, "logs")
-	siteLogDirectories = []string{
-		filepath.Join(logDirectory, string(LogAccess)),
-		filepath.Join(filepath.Dir(options.WAFLogPath), string(LogWAF)),
-		filepath.Join(logDirectory, string(LogProcess)),
-	}
-	if err = validateSiteLogPaths(); err != nil {
-		return err
 	}
 	files := map[string]string{}
 	for name, path := range map[string]string{
@@ -378,6 +342,9 @@ func (m *Manager) updateOptions(options Options) error {
 	if err != nil {
 		return err
 	}
+	if err = candidate.ensureSiteLogDirectories(prepared); err != nil {
+		return err
+	}
 	changed := !bytes.Equal(config, currentConfig)
 	if !running {
 		if err = candidate.validateConfig(config); err != nil {
@@ -436,6 +403,9 @@ func (m *Manager) applySites(candidate map[string]*Site) error {
 	candidate = prepared
 	config, err := m.buildConfig(candidate)
 	if err != nil {
+		return err
+	}
+	if err = m.ensureSiteLogDirectories(candidate); err != nil {
 		return err
 	}
 	m.mu.RLock()
@@ -575,7 +545,8 @@ func (m *Manager) buildConfig(sites map[string]*Site) ([]byte, error) {
 	accessLoggerNames := make(map[string][]string)
 	accessLoggerBySite := make(map[string]string, len(all))
 	accessLogs := make(map[string]interface{}, len(all))
-	accessLogNamespaces := make([]string, 0, len(all))
+	wafLogNamespace := "http.handlers." + string(HandlerWAF)
+	excludedLogNamespaces := []string{wafLogNamespace}
 	for _, site := range all {
 		fingerprint := sha256.Sum256([]byte(site.ID))
 		loggerName := fmt.Sprintf("site_%x", fingerprint)
@@ -588,7 +559,7 @@ func (m *Manager) buildConfig(sites map[string]*Site) ([]byte, error) {
 			accessLoggerNames[domain] = []string{loggerName}
 		}
 		namespace := "http.log.access." + loggerName
-		accessLogNamespaces = append(accessLogNamespaces, namespace)
+		excludedLogNamespaces = append(excludedLogNamespaces, namespace)
 		accessLogs[loggerName] = map[string]interface{}{
 			"include": []string{namespace},
 			"encoder": logEncoder,
@@ -915,9 +886,7 @@ func (m *Manager) buildConfig(sites map[string]*Site) ([]byte, error) {
 		"apps":    apps,
 	}
 	logConfig := map[string]interface{}{"level": m.options.LogLevel, "encoder": logEncoder}
-	if len(accessLogNamespaces) > 0 {
-		logConfig["exclude"] = accessLogNamespaces
-	}
+	logConfig["exclude"] = excludedLogNamespaces
 	if m.logPath != "-" {
 		logConfig["writer"] = map[string]interface{}{
 			"output":           "file",
@@ -932,7 +901,24 @@ func (m *Manager) buildConfig(sites map[string]*Site) ([]byte, error) {
 	} else {
 		logConfig["writer"] = map[string]interface{}{"output": "discard"}
 	}
-	logs := map[string]interface{}{"default": logConfig}
+	logs := map[string]interface{}{
+		"default": logConfig,
+		"waf": map[string]interface{}{
+			"include": []string{wafLogNamespace},
+			"level":   m.options.LogLevel,
+			"encoder": logEncoder,
+			"writer": map[string]interface{}{
+				"output":           "file",
+				"filename":         m.wafLogPath,
+				"mode":             "0600",
+				"dir_mode":         "0700",
+				"roll_size_mb":     50,
+				"roll_keep":        10,
+				"roll_keep_days":   30,
+				"roll_compression": "gzip",
+			},
+		},
+	}
 	for name, accessLog := range accessLogs {
 		logs[name] = accessLog
 	}

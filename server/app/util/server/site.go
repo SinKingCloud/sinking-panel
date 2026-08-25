@@ -1214,20 +1214,23 @@ func (m *Manager) validateSiteSet(sites map[string]*Site) error {
 		}
 		return path
 	}
-	siteLogDirectories := make([]string, 0, 3)
-	for _, logType := range []LogType{LogAccess, LogWAF, LogProcess} {
-		logPath, err := m.siteLogPath("site", logType)
-		if err != nil {
-			return err
-		}
-		siteLogDirectories = append(siteLogDirectories, canonicalPath(filepath.Dir(logPath)))
-	}
+	siteLogDirectories := make([]string, 0, len(sites))
+	siteLogDirectorySet := make(map[string]struct{}, len(sites))
 	for _, site := range sites {
 		identifier := strings.ToLower(site.ID)
 		if owner := identifiers[identifier]; owner != "" && owner != site.ID {
 			return fmt.Errorf("站点 ID %s 和 %s 在当前文件系统上可能冲突", owner, site.ID)
 		}
 		identifiers[identifier] = site.ID
+		logPath, err := m.siteLogPath(site.ID, LogAccess)
+		if err != nil {
+			return err
+		}
+		logDirectory := canonicalPath(filepath.Dir(logPath))
+		if _, exists := siteLogDirectorySet[logDirectory]; !exists {
+			siteLogDirectorySet[logDirectory] = struct{}{}
+			siteLogDirectories = append(siteLogDirectories, logDirectory)
+		}
 		for _, domain := range site.Domains {
 			if owner := domains[domain]; owner != "" && owner != site.ID {
 				return fmt.Errorf("域名 %s 同时属于站点 %s 和 %s", domain, owner, site.ID)
@@ -1267,6 +1270,10 @@ func (m *Manager) validateSiteSet(sites map[string]*Site) error {
 		}
 	}
 	for _, directory := range siteLogDirectories {
+		if pathInside(directory, m.cachePath) || pathInside(m.cachePath, directory) ||
+			pathInside(directory, m.dataPath) || pathInside(m.dataPath, directory) {
+			return errors.New("站点日志目录不能与 http 缓存或证书数据目录重叠")
+		}
 		for _, file := range managedFiles {
 			if pathInside(directory, file) || pathInside(file, directory) {
 				return errors.New("站点日志目录不能与 http 日志或配置文件重叠")
@@ -1329,15 +1336,42 @@ func (m *Manager) siteLogPath(id string, logType LogType) (string, error) {
 	if !m.validID(id) {
 		return "", errors.New("站点 ID 无效")
 	}
-	directory := filepath.Join(m.root, "logs")
+	fileName := ""
 	switch logType {
-	case LogAccess, LogProcess:
+	case LogAccess:
+		fileName = "http.log"
 	case LogWAF:
-		directory = filepath.Dir(m.wafLogPath)
+		fileName = "waf.log"
+	case LogProcess:
+		fileName = "process.log"
 	default:
 		return "", errors.New("站点日志类型无效")
 	}
-	return filepath.Join(directory, string(logType), id+".log"), nil
+	return filepath.Join(m.root, id, fileName), nil
+}
+
+func (m *Manager) ensureSiteLogDirectories(sites map[string]*Site) error {
+	for id := range sites {
+		path, err := m.siteLogPath(id, LogAccess)
+		if err != nil {
+			return err
+		}
+		directory := filepath.Dir(path)
+		if err = os.MkdirAll(directory, 0700); err != nil {
+			return fmt.Errorf("创建站点 %s 日志目录失败: %w", id, err)
+		}
+		info, err := os.Lstat(directory)
+		if err != nil {
+			return fmt.Errorf("检查站点 %s 日志目录失败: %w", id, err)
+		}
+		if info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
+			return fmt.Errorf("站点 %s 日志目录无效", id)
+		}
+		if err = os.Chmod(directory, 0700); err != nil {
+			return fmt.Errorf("设置站点 %s 日志目录权限失败: %w", id, err)
+		}
+	}
+	return nil
 }
 
 func (m *Manager) resolvePath(value string) (string, error) {

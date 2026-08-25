@@ -118,6 +118,11 @@ func (m *Manager) Start(sites ...Site) error {
 	if err != nil {
 		return err
 	}
+	if !nextConfigMode {
+		if err = m.ensureSiteLogDirectories(candidate); err != nil {
+			return err
+		}
+	}
 	httpRuntime.Lock()
 	defer httpRuntime.Unlock()
 	if httpRuntime.owner != nil && httpRuntime.owner != m {

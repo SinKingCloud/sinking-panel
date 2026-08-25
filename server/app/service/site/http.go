@@ -144,15 +144,24 @@ func (s *service) updateHTTPLocked(config *HTTPUpdate) error {
 		return nil
 	}
 	effective := candidate
-	if effective.LogPath == "" {
-		effective.LogPath, err = filepath.Abs(constant.ServerLogPath)
-		if err != nil {
-			return fmt.Errorf("解析 HTTP 服务日志路径失败: %w", err)
+	for _, item := range []struct {
+		target *string
+		path   string
+	}{
+		{&effective.DataPath, constant.ServerDataPath},
+		{&effective.CachePath, constant.ServerCachePath},
+		{&effective.LogPath, constant.ServerLogPath},
+		{&effective.WAFLogPath, constant.ServerWAFLogPath},
+		{&effective.ConfigPath, constant.ServerConfigPath},
+	} {
+		if *item.target != "" {
+			continue
 		}
-		effective.LogPath = filepath.Clean(effective.LogPath)
-	}
-	if effective.ConfigPath == "" {
-		effective.ConfigPath = filepath.Join(s.root, "http", "config.json")
+		*item.target, err = filepath.Abs(item.path)
+		if err != nil {
+			return fmt.Errorf("解析 HTTP 服务默认路径失败: %w", err)
+		}
+		*item.target = filepath.Clean(*item.target)
 	}
 	if err = s.http.UpdateOptions(effective); err != nil {
 		return err
@@ -340,6 +349,35 @@ func (s *service) loadHTTP(includeLegacy bool) (webServer.Options, bool, error) 
 	}
 	if !exists {
 		return webServer.Options{}, false, nil
+	}
+	previousRoot := filepath.Join(s.root, "http")
+	for target, previous := range map[*string]string{
+		&config.DataPath:   filepath.Join(previousRoot, "data"),
+		&config.CachePath:  filepath.Join(previousRoot, "cache"),
+		&config.LogPath:    filepath.Join(previousRoot, "logs", "http.log"),
+		&config.WAFLogPath: filepath.Join(previousRoot, "logs", "waf.log"),
+		&config.ConfigPath: filepath.Join(previousRoot, "config.json"),
+	} {
+		value := strings.TrimSpace(*target)
+		if value == "" || value == "-" {
+			continue
+		}
+		if !filepath.IsAbs(value) {
+			value = filepath.Join(previousRoot, value)
+		}
+		absoluteTarget, pathErr := filepath.Abs(value)
+		if pathErr != nil {
+			return webServer.Options{}, false, fmt.Errorf("解析上一版 HTTP 默认路径失败: %w", pathErr)
+		}
+		absolutePrevious, pathErr := filepath.Abs(previous)
+		if pathErr != nil {
+			return webServer.Options{}, false, fmt.Errorf("解析上一版 HTTP 默认路径失败: %w", pathErr)
+		}
+		if filepath.Clean(absoluteTarget) == filepath.Clean(absolutePrevious) {
+			*target = ""
+		} else if !filepath.IsAbs(*target) {
+			*target = filepath.Clean(absoluteTarget)
+		}
 	}
 	return config, true, nil
 }

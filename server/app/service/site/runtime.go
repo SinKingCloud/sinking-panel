@@ -72,11 +72,23 @@ func newService(repositorySite siteRepository.Interface, repositoryDomain domain
 	if err != nil {
 		return nil, fmt.Errorf("解析网站服务目录失败: %w", err)
 	}
-	serverLogPath, err := filepath.Abs(constant.ServerLogPath)
-	if err != nil {
-		return nil, fmt.Errorf("解析 HTTP 服务日志路径失败: %w", err)
+	defaultHTTP := webServer.Options{}
+	for _, item := range []struct {
+		target *string
+		path   string
+	}{
+		{&defaultHTTP.DataPath, constant.ServerDataPath},
+		{&defaultHTTP.CachePath, constant.ServerCachePath},
+		{&defaultHTTP.LogPath, constant.ServerLogPath},
+		{&defaultHTTP.WAFLogPath, constant.ServerWAFLogPath},
+		{&defaultHTTP.ConfigPath, constant.ServerConfigPath},
+	} {
+		*item.target, err = filepath.Abs(item.path)
+		if err != nil {
+			return nil, fmt.Errorf("解析 HTTP 服务默认路径失败: %w", err)
+		}
+		*item.target = filepath.Clean(*item.target)
 	}
-	serverLogPath = filepath.Clean(serverLogPath)
 	result := &service{
 		repositorySite:   repositorySite,
 		repositoryDomain: repositoryDomain,
@@ -111,13 +123,18 @@ func newService(repositorySite siteRepository.Interface, repositoryDomain domain
 	}
 	migrationHTTP := config.HTTP
 	effectiveHTTP := config.HTTP
-	if strings.TrimSpace(effectiveHTTP.LogPath) == "" {
-		effectiveHTTP.LogPath = serverLogPath
+	for target, value := range map[*string]string{
+		&effectiveHTTP.DataPath:   defaultHTTP.DataPath,
+		&effectiveHTTP.CachePath:  defaultHTTP.CachePath,
+		&effectiveHTTP.LogPath:    defaultHTTP.LogPath,
+		&effectiveHTTP.WAFLogPath: defaultHTTP.WAFLogPath,
+		&effectiveHTTP.ConfigPath: defaultHTTP.ConfigPath,
+	} {
+		if strings.TrimSpace(*target) == "" {
+			*target = value
+		}
 	}
-	if strings.TrimSpace(effectiveHTTP.ConfigPath) == "" {
-		effectiveHTTP.ConfigPath = filepath.Join(root, "http", "config.json")
-	}
-	httpManager, err := webServer.NewManager(filepath.Join(root, "http"), effectiveHTTP)
+	httpManager, err := webServer.NewManager(root, effectiveHTTP)
 	if err != nil {
 		configErr := err
 		storedHTTPValid = false
@@ -125,13 +142,18 @@ func newService(repositorySite siteRepository.Interface, repositoryDomain domain
 			split, splitExists, splitErr := result.loadHTTP(false)
 			if splitErr == nil && splitExists {
 				effectiveSplit := split
-				if strings.TrimSpace(effectiveSplit.LogPath) == "" {
-					effectiveSplit.LogPath = serverLogPath
+				for target, value := range map[*string]string{
+					&effectiveSplit.DataPath:   defaultHTTP.DataPath,
+					&effectiveSplit.CachePath:  defaultHTTP.CachePath,
+					&effectiveSplit.LogPath:    defaultHTTP.LogPath,
+					&effectiveSplit.WAFLogPath: defaultHTTP.WAFLogPath,
+					&effectiveSplit.ConfigPath: defaultHTTP.ConfigPath,
+				} {
+					if strings.TrimSpace(*target) == "" {
+						*target = value
+					}
 				}
-				if strings.TrimSpace(effectiveSplit.ConfigPath) == "" {
-					effectiveSplit.ConfigPath = filepath.Join(root, "http", "config.json")
-				}
-				if manager, managerErr := webServer.NewManager(filepath.Join(root, "http"), effectiveSplit); managerErr == nil {
+				if manager, managerErr := webServer.NewManager(root, effectiveSplit); managerErr == nil {
 					httpManager = manager
 					migrationHTTP = split
 					storedHTTPValid = true
@@ -142,7 +164,9 @@ func newService(repositorySite siteRepository.Interface, repositoryDomain domain
 		}
 		if err != nil {
 			log.Printf("网站 HTTP 配置无法加载，已使用默认配置启动: %v", configErr)
-			httpManager, err = webServer.NewManager(filepath.Join(root, "http"), webServer.Options{LogPath: serverLogPath})
+			fallbackHTTP := defaultHTTP
+			fallbackHTTP.ConfigPath = ""
+			httpManager, err = webServer.NewManager(root, fallbackHTTP)
 			migrationHTTP = webServer.Options{}
 		}
 	}
