@@ -188,12 +188,16 @@ func (m *Manager) setOptions(options Options) error {
 
 	var err error
 	options.DataPath = strings.TrimSpace(options.DataPath)
+	options.ACMEPath = strings.TrimSpace(options.ACMEPath)
 	options.CachePath = strings.TrimSpace(options.CachePath)
 	options.LogPath = strings.TrimSpace(options.LogPath)
 	options.WAFLogPath = strings.TrimSpace(options.WAFLogPath)
 	options.ConfigPath = strings.TrimSpace(options.ConfigPath)
 	if options.DataPath == "" {
 		options.DataPath = filepath.Join(m.root, "data")
+	}
+	if options.ACMEPath == "" {
+		options.ACMEPath = filepath.Join(m.root, "acme")
 	}
 	if options.CachePath == "" {
 		options.CachePath = filepath.Join(m.root, "cache")
@@ -206,6 +210,7 @@ func (m *Manager) setOptions(options Options) error {
 	}
 	for target, destination := range map[*string]string{
 		&options.DataPath:   options.DataPath,
+		&options.ACMEPath:   options.ACMEPath,
 		&options.CachePath:  options.CachePath,
 		&options.WAFLogPath: options.WAFLogPath,
 	} {
@@ -230,7 +235,7 @@ func (m *Manager) setOptions(options Options) error {
 		relative, relativeErr := filepath.Rel(parent, child)
 		return relativeErr == nil && (relative == "." || (relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator))))
 	}
-	for _, directory := range []string{m.root, options.DataPath, options.CachePath, filepath.Dir(options.WAFLogPath)} {
+	for _, directory := range []string{m.root, options.DataPath, options.ACMEPath, options.CachePath, filepath.Dir(options.WAFLogPath)} {
 		if err = os.MkdirAll(directory, 0700); err != nil {
 			return fmt.Errorf("创建 http 目录失败: %w", err)
 		}
@@ -245,7 +250,7 @@ func (m *Manager) setOptions(options Options) error {
 			return fmt.Errorf("创建 http 配置目录失败: %w", err)
 		}
 	}
-	for _, target := range []*string{&options.DataPath, &options.CachePath} {
+	for _, target := range []*string{&options.DataPath, &options.ACMEPath, &options.CachePath} {
 		*target, err = filepath.EvalSymlinks(*target)
 		if err != nil {
 			return fmt.Errorf("解析 http 目录失败: %w", err)
@@ -280,8 +285,19 @@ func (m *Manager) setOptions(options Options) error {
 	if options.CachePath == volumeRoot || options.CachePath == m.root {
 		return errors.New("CachePath 不能是磁盘根目录或 Manager 根目录")
 	}
-	if pathInside(options.CachePath, m.root) || pathInside(options.CachePath, options.DataPath) || pathInside(options.DataPath, options.CachePath) {
-		return errors.New("CachePath 不能包含 Manager 根目录或与 DataPath 重叠")
+	acmeVolumeRoot := filepath.Clean(filepath.VolumeName(options.ACMEPath) + string(filepath.Separator))
+	if options.ACMEPath == acmeVolumeRoot || pathInside(options.ACMEPath, m.root) {
+		return errors.New("ACMEPath 不能是磁盘根目录、Manager 根目录或其父目录")
+	}
+	if err = os.Chmod(options.ACMEPath, 0700); err != nil {
+		return fmt.Errorf("设置 ACME 目录权限失败: %w", err)
+	}
+	if pathInside(options.CachePath, m.root) || pathInside(options.CachePath, options.DataPath) || pathInside(options.DataPath, options.CachePath) ||
+		pathInside(options.CachePath, options.ACMEPath) || pathInside(options.ACMEPath, options.CachePath) {
+		return errors.New("CachePath 不能包含 Manager 根目录或与 DataPath、ACMEPath 重叠")
+	}
+	if pathInside(options.DataPath, options.ACMEPath) || pathInside(options.ACMEPath, options.DataPath) {
+		return errors.New("DataPath 不能与 ACMEPath 重叠")
 	}
 	for _, file := range []string{options.LogPath, options.WAFLogPath, options.ConfigPath} {
 		if file == "" || file == "-" {
@@ -292,6 +308,9 @@ func (m *Manager) setOptions(options Options) error {
 		}
 		if pathInside(options.DataPath, file) {
 			return errors.New("日志或配置文件不能位于 DataPath 内")
+		}
+		if pathInside(options.ACMEPath, file) {
+			return errors.New("日志或配置文件不能位于 ACMEPath 内")
 		}
 	}
 	wafLog, err := os.OpenFile(options.WAFLogPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
@@ -307,11 +326,12 @@ func (m *Manager) setOptions(options Options) error {
 	}
 	m.options = options
 	m.dataPath = options.DataPath
+	m.acmePath = options.ACMEPath
 	m.cachePath = options.CachePath
 	m.logPath = options.LogPath
 	m.wafLogPath = options.WAFLogPath
 	m.configPath = options.ConfigPath
-	m.storage = &certmagic.FileStorage{Path: m.dataPath}
+	m.acmeStorage = &certmagic.FileStorage{Path: m.acmePath}
 	return nil
 }
 
@@ -324,6 +344,9 @@ func (m *Manager) updateOptions(options Options) error {
 	running := m.running
 	currentConfig := append([]byte(nil), m.config...)
 	storedSites := m.cloneSites(m.sites)
+	if strings.TrimSpace(options.ACMEPath) == "" {
+		options.ACMEPath = m.acmePath
+	}
 	m.mu.RUnlock()
 
 	candidate := &Manager{root: m.root, sites: make(map[string]*Site)}
@@ -355,11 +378,12 @@ func (m *Manager) updateOptions(options Options) error {
 		m.mu.Lock()
 		m.options = candidate.options
 		m.dataPath = candidate.dataPath
+		m.acmePath = candidate.acmePath
 		m.cachePath = candidate.cachePath
 		m.logPath = candidate.logPath
 		m.wafLogPath = candidate.wafLogPath
 		m.configPath = candidate.configPath
-		m.storage = candidate.storage
+		m.acmeStorage = candidate.acmeStorage
 		m.sites = candidate.cloneSites(prepared)
 		m.config = append([]byte(nil), config...)
 		m.configMode = false

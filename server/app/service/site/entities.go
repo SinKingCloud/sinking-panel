@@ -351,7 +351,7 @@ type HTTPUpdate struct {
 	NotFoundPage         *HTTPPageUpdate `json:"not_found_page"`         // 站点内资源不存在页面
 	SiteNotFoundPage     *HTTPPageUpdate `json:"site_not_found_page"`    // 请求域名未绑定网站时显示的页面
 	SiteDisabledPage     *HTTPPageUpdate `json:"site_disabled_page"`     // 请求域名所属网站已停用时显示的页面
-	DataPath             *string         `json:"data_path"`              // 证书和运行数据目录
+	DataPath             *string         `json:"data_path"`              // HTTP 运行数据目录
 	CachePath            *string         `json:"cache_path"`             // 站点响应缓存根目录
 	LogPath              *string         `json:"log_path"`               // HTTP 运行日志文件
 	WAFLogPath           *string         `json:"waf_log_path"`           // WAF 审计日志文件

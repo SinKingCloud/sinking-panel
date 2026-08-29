@@ -18,7 +18,8 @@ type Options struct {
 	NotFoundPage         ResponseOptions `json:"not_found_page"`         // 站点内资源不存在页面
 	SiteNotFoundPage     ResponseOptions `json:"site_not_found_page"`    // 请求域名未绑定网站时显示的页面
 	SiteDisabledPage     ResponseOptions `json:"site_disabled_page"`     // 请求域名所属网站已停用时显示的页面
-	DataPath             string          `json:"data_path"`              // 证书和运行数据目录，默认 root/data
+	DataPath             string          `json:"data_path"`              // HTTP 运行数据目录，默认 root/data
+	ACMEPath             string          `json:"-"`                      // ACME 账户和签发数据目录，默认 root/acme
 	CachePath            string          `json:"cache_path"`             // 站点响应缓存根目录，默认 root/cache
 	LogPath              string          `json:"log_path"`               // HTTP 运行日志文件，- 表示不保存运行日志
 	WAFLogPath           string          `json:"waf_log_path"`           // 全局 WAF 模块日志文件
@@ -280,14 +281,15 @@ type Certificate struct {
 
 // Manager 在内存中管理站点，并以事务方式热加载 HTTP 配置。
 type Manager struct {
-	root       string
-	dataPath   string
-	cachePath  string
-	logPath    string
-	wafLogPath string
-	configPath string
-	options    Options
-	storage    *certmagic.FileStorage
+	root        string
+	dataPath    string
+	acmePath    string
+	cachePath   string
+	logPath     string
+	wafLogPath  string
+	configPath  string
+	options     Options
+	acmeStorage *certmagic.FileStorage
 
 	mu          sync.RWMutex
 	operationMu sync.Mutex

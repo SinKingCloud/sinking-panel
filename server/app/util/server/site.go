@@ -1271,8 +1271,9 @@ func (m *Manager) validateSiteSet(sites map[string]*Site) error {
 	}
 	for _, directory := range siteLogDirectories {
 		if pathInside(directory, m.cachePath) || pathInside(m.cachePath, directory) ||
-			pathInside(directory, m.dataPath) || pathInside(m.dataPath, directory) {
-			return errors.New("站点日志目录不能与 http 缓存或证书数据目录重叠")
+			pathInside(directory, m.dataPath) || pathInside(m.dataPath, directory) ||
+			pathInside(directory, m.acmePath) || pathInside(m.acmePath, directory) {
+			return errors.New("站点日志目录不能与 http 缓存、运行数据或 ACME 数据目录重叠")
 		}
 		for _, file := range managedFiles {
 			if pathInside(directory, file) || pathInside(file, directory) {
@@ -1286,8 +1287,9 @@ func (m *Manager) validateSiteSet(sites map[string]*Site) error {
 		}
 	}
 	for _, root := range contentRoots {
-		if pathInside(root, m.cachePath) || pathInside(m.cachePath, root) || pathInside(root, m.dataPath) || pathInside(m.dataPath, root) {
-			return fmt.Errorf("站点内容目录 %s 不能与 http 缓存或证书数据目录重叠", root)
+		if pathInside(root, m.cachePath) || pathInside(m.cachePath, root) || pathInside(root, m.dataPath) || pathInside(m.dataPath, root) ||
+			pathInside(root, m.acmePath) || pathInside(m.acmePath, root) {
+			return fmt.Errorf("站点内容目录 %s 不能与 http 缓存、运行数据或 ACME 数据目录重叠", root)
 		}
 		for _, directory := range siteLogDirectories {
 			if pathInside(root, directory) || pathInside(directory, root) {

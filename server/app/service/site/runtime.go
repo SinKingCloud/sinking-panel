@@ -78,6 +78,7 @@ func newService(repositorySite siteRepository.Interface, repositoryDomain domain
 		path   string
 	}{
 		{&defaultHTTP.DataPath, constant.ServerDataPath},
+		{&defaultHTTP.ACMEPath, constant.AcmePath},
 		{&defaultHTTP.CachePath, constant.ServerCachePath},
 		{&defaultHTTP.LogPath, constant.ServerLogPath},
 		{&defaultHTTP.WAFLogPath, constant.ServerWAFLogPath},
@@ -123,6 +124,7 @@ func newService(repositorySite siteRepository.Interface, repositoryDomain domain
 	}
 	migrationHTTP := config.HTTP
 	effectiveHTTP := config.HTTP
+	effectiveHTTP.ACMEPath = defaultHTTP.ACMEPath
 	for target, value := range map[*string]string{
 		&effectiveHTTP.DataPath:   defaultHTTP.DataPath,
 		&effectiveHTTP.CachePath:  defaultHTTP.CachePath,
@@ -142,6 +144,7 @@ func newService(repositorySite siteRepository.Interface, repositoryDomain domain
 			split, splitExists, splitErr := result.loadHTTP(false)
 			if splitErr == nil && splitExists {
 				effectiveSplit := split
+				effectiveSplit.ACMEPath = defaultHTTP.ACMEPath
 				for target, value := range map[*string]string{
 					&effectiveSplit.DataPath:   defaultHTTP.DataPath,
 					&effectiveSplit.CachePath:  defaultHTTP.CachePath,

@@ -7,6 +7,7 @@ const (
 
 	SitePath     = TempPath + "/site"         //站点服务运行目录
 	SiteRootPath = BasePath + "/data/wwwroot" //网站根目录
+	AcmePath     = BasePath + "/data/acme"    //ACME 账户和签发数据目录
 
 	ServerPath       = TempPath + "/server"        //HTTP 服务运行目录
 	ServerDataPath   = ServerPath + "/data"        //HTTP 服务数据目录
