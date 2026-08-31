@@ -8,7 +8,6 @@ import (
 	repositoryTypes "server/app/repository/types"
 	"server/app/util/cache"
 	"server/app/util/database"
-	"server/app/util/page"
 )
 
 // Service service接口
@@ -17,7 +16,7 @@ type Service interface {
 	DeleteByIds(ids []int64) error
 	FindById(id int64) (*model.Type, error)
 	GetEnum(module string) (map[int64]string, error)
-	Select(where *repositoryTypes.SelectType, queryPage *page.Query) (*page.Result[*model.Type], error)
+	Select(where *repositoryTypes.SelectType, orderByField, orderByType string) ([]*model.Type, error)
 	UpdateByIds(ids []int64, data *repositoryTypes.UpdateType) error
 }
 

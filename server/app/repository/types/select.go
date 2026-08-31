@@ -2,9 +2,9 @@ package types
 
 import (
 	"server/app/model"
-	"server/app/util/page"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // SelectByIds 查询指定ID的类型
@@ -54,7 +54,7 @@ func (r *Repository) SelectIdNameMap(module string) (map[int64]string, error) {
 }
 
 // Select 获取数据
-func (r *Repository) Select(where *SelectType, queryPage *page.Query) (*page.Result[*model.Type], error) {
+func (r *Repository) Select(where *SelectType, orderByField, orderByType string) ([]*model.Type, error) {
 	query := r.Database.Db.Model(&model.Type{})
 	if where != nil {
 		if where.Module != "" {
@@ -64,5 +64,15 @@ func (r *Repository) Select(where *SelectType, queryPage *page.Query) (*page.Res
 			query = query.Where("name LIKE ?", "%"+where.Name+"%")
 		}
 	}
-	return r.Repository.SelectPage(query, queryPage)
+	if orderByField != "id" {
+		orderByField = "sort"
+	}
+	desc := orderByType == "desc"
+	order := []clause.OrderByColumn{{Column: clause.Column{Name: orderByField}, Desc: desc}}
+	if orderByField != "id" {
+		order = append(order, clause.OrderByColumn{Column: clause.Column{Name: "id"}, Desc: desc})
+	}
+	data := make([]*model.Type, 0)
+	err := query.Clauses(clause.OrderBy{Columns: order}).Find(&data).Error
+	return data, err
 }

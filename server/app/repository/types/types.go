@@ -3,7 +3,6 @@ package types
 import (
 	"server/app/model"
 	"server/app/util/database"
-	"server/app/util/page"
 	"server/app/util/repository"
 
 	"gorm.io/gorm"
@@ -15,7 +14,7 @@ type Interface interface {
 	DeleteByIds(ids []int64, tx ...*gorm.DB) error
 	SelectByIds(ids []int64, tx ...*gorm.DB) ([]*model.Type, error)
 	SelectIdNameMap(module string) (map[int64]string, error)
-	Select(where *SelectType, queryPage *page.Query) (*page.Result[*model.Type], error)
+	Select(where *SelectType, orderByField, orderByType string) ([]*model.Type, error)
 	UpdateByIds(ids []int64, data *UpdateType, tx ...*gorm.DB) error
 }
 
