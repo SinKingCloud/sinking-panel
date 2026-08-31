@@ -13,27 +13,9 @@ import (
 func (s *service) Login(account string, pwd string, types string, ip string) (string, error) {
 	sUser := s.configService.Get(constant.LoginGroup, constant.LoginAccount)
 	sPwd := s.configService.Get(constant.LoginGroup, constant.LoginPassword)
-	if sUser == "" && sPwd == "" {
-		password := str.NewStringTool(pwd).GetPassword()
-		if password == "" {
-			return "", errors.New("密码加密失败")
-		}
-		if err := s.configService.Sets(map[string]string{
-			constant.LoginAccount:  account,
-			constant.LoginPassword: password,
-		}); err != nil {
-			return "", err
-		}
-		sUser = account
-		sPwd = password
-	}
-	if (sUser == "") != (sPwd == "") {
-		return "", errors.New("登录配置异常")
-	}
-	if sUser != account || !str.NewStringTool(sPwd).CheckPassword(pwd) {
+	if sUser == "" || sPwd == "" || sUser != account || !str.NewStringTool(sPwd).CheckPassword(pwd) {
 		return "", errors.New("用户名或密码错误")
 	}
-
 	token := str.NewStringTool(strconv.FormatInt(time.Now().UnixMilli(), 10)).Md5()
 	loginTime := str.DateTime(time.Now())
 	if token != "" {

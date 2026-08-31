@@ -4,7 +4,10 @@ import (
 	"fmt"
 	"log"
 	"os"
+
 	"server/app"
+	"server/app/enum/log_type"
+	"server/app/service"
 	"server/app/util/daemon"
 	"server/bootstrap"
 )
@@ -21,7 +24,7 @@ const (
   stop    停止服务
   restart 重启服务
   run     直接运行(非守护进程模式)
-  install 安装系统自启动
+  install 设置登录信息并安装系统自启动
   uninstall 卸载软件并保留data目录数据
   user    修改登录账号
   pwd     修改登录密码`
@@ -102,8 +105,30 @@ func (s *Server) run(stop <-chan struct{}) {
 }
 
 func (s *Server) install() error {
-	if err := s.daemon.InstallAutoStart(); err != nil {
-		return fmt.Errorf("安装系统自启动失败: %w", err)
+	if err := s.requireInteractive("install"); err != nil {
+		return err
+	}
+	account, err := s.readAccount("请输入登录账号: ")
+	if err != nil {
+		return err
+	}
+	password, err := s.readNewPassword("请输入登录密码: ", "请再次输入登录密码: ")
+	if err != nil {
+		return err
+	}
+	defer clear(password)
+
+	bootstrap.Load()
+	defer bootstrap.Close()
+	service.Init()
+	if err = service.Auth.UpdateAccount(account, string(password)); err != nil {
+		return fmt.Errorf("设置登录账号密码失败: %w", err)
+	}
+	service.Log.Create("127.0.0.1", log_type.EventUpdate, "初始化登录信息", "通过安装命令设置登录账号密码")
+	log.Println("登录账号密码设置成功")
+
+	if err = s.daemon.InstallAutoStart(); err != nil {
+		return fmt.Errorf("登录账号密码已设置，但安装系统自启动失败: %w", err)
 	}
 	log.Println("系统自启动安装成功")
 	return nil
