@@ -22,6 +22,7 @@ import (
 
 type siteMutation struct {
 	Name    *string
+	TypeId  *int64
 	Status  *int
 	Root    *string
 	RunPath *string
@@ -37,6 +38,9 @@ func (s *service) Create(data *CreateSite) (*Site, error) {
 		return nil, errors.New("网站数据不能为空")
 	}
 	if err := s.validateSiteEnums(data.Type, data.Status); err != nil {
+		return nil, err
+	}
+	if err := s.validateTypeId(data.TypeId); err != nil {
 		return nil, err
 	}
 	id := str.GetSnowWorkIns().GetId()
@@ -145,6 +149,7 @@ func (s *service) Create(data *CreateSite) (*Site, error) {
 
 	record := &model.Site{
 		Id:      id,
+		TypeId:  data.TypeId,
 		Name:    data.Name,
 		Type:    data.Type,
 		Status:  data.Status,
@@ -192,6 +197,7 @@ func (s *service) Update(id int64, data *UpdateSite) error {
 	}
 	return s.updateLocked(id, &siteMutation{
 		Name:    data.Name,
+		TypeId:  data.TypeId,
 		Root:    data.Root,
 		RunPath: data.RunPath,
 	})
@@ -209,7 +215,7 @@ func (s *service) updateLocked(id int64, data *siteMutation) error {
 		return s.nilIfNotFound("查询网站失败", err)
 	}
 	previous = s.cloneSiteRecord(previous)
-	if data.Name == nil && data.Status == nil && data.Root == nil &&
+	if data.Name == nil && data.TypeId == nil && data.Status == nil && data.Root == nil &&
 		data.RunPath == nil && data.Config == nil && data.Domains == nil {
 		return nil
 	}
@@ -222,6 +228,9 @@ func (s *service) updateLocked(id int64, data *siteMutation) error {
 	candidate := *previous
 	if data.Name != nil {
 		candidate.Name = *data.Name
+	}
+	if data.TypeId != nil {
+		candidate.TypeId = *data.TypeId
 	}
 	if data.Status != nil {
 		candidate.Status = *data.Status
@@ -236,6 +245,9 @@ func (s *service) updateLocked(id int64, data *siteMutation) error {
 		candidate.Config = *data.Config
 	}
 	if err = s.validateSiteEnums(candidate.Type, candidate.Status); err != nil {
+		return err
+	}
+	if err = s.validateTypeId(candidate.TypeId); err != nil {
 		return err
 	}
 	domainsChanged := data.Domains != nil
@@ -416,6 +428,7 @@ func (s *service) findByIdLocked(id int64) (*Site, error) {
 	}
 	return &Site{
 		Id:         record.Id,
+		TypeId:     record.TypeId,
 		Name:       record.Name,
 		Type:       record.Type,
 		Status:     record.Status,
@@ -434,6 +447,17 @@ func (s *service) Select(where *siteRepository.SelectSite, queryPage *page.Query
 	if where != nil {
 		copyWhere := *where
 		condition = &copyWhere
+		if copyWhere.TypeId != "" {
+			value, err := strconv.ParseInt(copyWhere.TypeId, 10, 64)
+			if err != nil || value < 0 {
+				return nil, errors.New("网站分类参数错误")
+			}
+			if value == 0 {
+				copyWhere.TypeId = ""
+			} else {
+				copyWhere.TypeId = strconv.FormatInt(value, 10)
+			}
+		}
 		if copyWhere.Type != "" {
 			value, err := strconv.Atoi(copyWhere.Type)
 			if err != nil {
@@ -515,6 +539,7 @@ func (s *service) restoreSiteRecords(record *model.Site, domains []*model.Domain
 func (s *service) completeSiteUpdate(record *model.Site) *siteRepository.UpdateSite {
 	return &siteRepository.UpdateSite{
 		Name:    &record.Name,
+		TypeId:  &record.TypeId,
 		Status:  &record.Status,
 		Root:    &record.Root,
 		RunPath: &record.RunPath,

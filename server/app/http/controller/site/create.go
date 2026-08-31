@@ -12,6 +12,7 @@ import (
 func Create(c *context.Context) {
 	var form struct {
 		Name    string                     `json:"name" default:"" validate:"required,max=100" label:"网站名称"`
+		TypeId  int64                      `json:"type_id" default:"0" validate:"min=0" label:"网站分类ID"`
 		Type    int                        `json:"type" default:"0" validate:"oneof=0 1 2 3" label:"网站类型"`
 		Status  int                        `json:"status" default:"0" validate:"oneof=0 1" label:"网站状态"`
 		Root    string                     `json:"root" default:"" validate:"omitempty,max=4096" label:"网站根目录"`
@@ -28,6 +29,7 @@ func Create(c *context.Context) {
 	}
 	result, err := service.Site.Create(&siteService.CreateSite{
 		Name:    form.Name,
+		TypeId:  form.TypeId,
 		Type:    form.Type,
 		Status:  form.Status,
 		Root:    form.Root,

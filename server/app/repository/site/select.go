@@ -50,6 +50,9 @@ func (r *Repository) Select(where *SelectSite, queryPage *page.Query) (*page.Res
 		if where.Name != "" {
 			query = query.Where("name LIKE ?", "%"+where.Name+"%")
 		}
+		if where.TypeId != "" {
+			query = query.Where("type_id = ?", where.TypeId)
+		}
 		if where.Type != "" {
 			query = query.Where("type = ?", where.Type)
 		}

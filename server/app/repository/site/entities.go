@@ -6,6 +6,7 @@ import "server/app/util/str"
 type SelectSite struct {
 	Keyword         string
 	Name            string
+	TypeId          string
 	Type            string
 	Status          string
 	CreateTimeStart string
@@ -17,6 +18,7 @@ type SelectSite struct {
 // UpdateSite 网站更新内容。
 type UpdateSite struct {
 	Name    *string
+	TypeId  *int64
 	Type    *int
 	Status  *int
 	Root    *string
@@ -27,6 +29,7 @@ type UpdateSite struct {
 // Site 网站列表数据，不在列表中返回完整配置。
 type Site struct {
 	Id         int64        `gorm:"column:id;PRIMARY_KEY" json:"id"`
+	TypeId     int64        `gorm:"column:type_id" json:"type_id"`
 	Name       string       `gorm:"column:name" json:"name"`
 	Type       int          `gorm:"column:type" json:"type"`
 	Status     int          `gorm:"column:status" json:"status"`

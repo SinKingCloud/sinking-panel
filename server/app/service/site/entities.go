@@ -299,6 +299,7 @@ type Domain struct {
 // CreateSite 创建网站参数。
 type CreateSite struct {
 	Name    string                  `json:"name"`     // 网站名称
+	TypeId  int64                   `json:"type_id"`  // 网站分类 ID
 	Type    int                     `json:"type"`     // 网站类型
 	Status  int                     `json:"status"`   // 网站状态
 	Root    string                  `json:"root"`     // 网站根目录
@@ -313,6 +314,7 @@ type CreateSite struct {
 // UpdateSite 更新网站参数，nil 字段保持原值。
 type UpdateSite struct {
 	Name    *string `json:"name"`     // 网站名称
+	TypeId  *int64  `json:"type_id"`  // 网站分类 ID
 	Root    *string `json:"root"`     // 网站根目录
 	RunPath *string `json:"run_path"` // 相对网站根目录的运行目录
 }
@@ -320,6 +322,7 @@ type UpdateSite struct {
 // Site 网站基础详情，独立设置通过对应 Get 方法读取。
 type Site struct {
 	Id         int64        `json:"id"`          // 网站 ID
+	TypeId     int64        `json:"type_id"`     // 网站分类 ID
 	Name       string       `json:"name"`        // 网站名称
 	Type       int          `json:"type"`        // 网站类型
 	Status     int          `json:"status"`      // 网站状态

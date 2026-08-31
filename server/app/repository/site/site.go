@@ -12,6 +12,7 @@ import (
 // Interface 网站仓储接口。
 type Interface interface {
 	Create(data *model.Site, tx ...*gorm.DB) error
+	ClearTypeId(typeIds []int64, tx ...*gorm.DB) error
 	DeleteById(id int64, tx ...*gorm.DB) error
 	FindById(id int64, tx ...*gorm.DB) (*model.Site, error)
 	Select(where *SelectSite, queryPage *page.Query) (*page.Result[*Site], error)

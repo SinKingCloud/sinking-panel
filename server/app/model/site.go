@@ -10,6 +10,7 @@ import (
 // Site 网站表
 type Site struct {
 	Id         int64        `gorm:"column:id;PRIMARY_KEY" json:"id"`       // 网站ID
+	TypeId     int64        `gorm:"column:type_id" json:"type_id"`         // 网站分类ID
 	Name       string       `gorm:"column:name" json:"name"`               // 网站名称
 	Type       int          `gorm:"column:type" json:"type"`               // 网站类型
 	Status     int          `gorm:"column:status" json:"status"`           // 网站状态

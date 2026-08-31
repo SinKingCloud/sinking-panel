@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"server/app/enum/site_status"
 	"server/app/enum/site_type"
+	"server/app/enum/type_module"
 	"server/app/model"
 	"server/app/util/str"
 	"sort"
@@ -147,6 +148,21 @@ func (s *service) validateSiteEnums(siteType, status int) error {
 	}
 	if _, ok := site_status.Map()[status]; !ok {
 		return errors.New("网站状态不合法")
+	}
+	return nil
+}
+
+// validateTypeId 校验网站分类。
+func (s *service) validateTypeId(typeId int64) error {
+	if typeId < 0 {
+		return errors.New("网站分类不合法")
+	}
+	if typeId == 0 {
+		return nil
+	}
+	data, err := s.typeService.FindById(typeId)
+	if err != nil || data == nil || data.Module != type_module.Site {
+		return errors.New("网站分类不合法")
 	}
 	return nil
 }

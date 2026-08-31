@@ -9,6 +9,7 @@ import (
 	domainRepository "server/app/repository/domain"
 	siteRepository "server/app/repository/site"
 	configService "server/app/service/config"
+	typeService "server/app/service/types"
 	"server/app/util/cache"
 	"server/app/util/database"
 	"server/app/util/page"
@@ -81,6 +82,7 @@ type service struct {
 	repositorySite   siteRepository.Interface
 	repositoryDomain domainRepository.Interface
 	repositoryCert   certRepository.Interface
+	typeService      typeService.Service
 	config           configService.Service
 	cache            cache.Interface
 	database         *database.Database
@@ -94,6 +96,6 @@ type service struct {
 }
 
 // NewService 创建网站管理服务。
-func NewService(repositorySite siteRepository.Interface, repositoryDomain domainRepository.Interface, repositoryCert certRepository.Interface, config configService.Service, database *database.Database, cache cache.Interface, options ...Options) (*service, error) {
-	return newService(repositorySite, repositoryDomain, repositoryCert, config, database, cache, options...)
+func NewService(repositorySite siteRepository.Interface, repositoryDomain domainRepository.Interface, repositoryCert certRepository.Interface, typeService typeService.Service, config configService.Service, database *database.Database, cache cache.Interface, options ...Options) (*service, error) {
+	return newService(repositorySite, repositoryDomain, repositoryCert, typeService, config, database, cache, options...)
 }

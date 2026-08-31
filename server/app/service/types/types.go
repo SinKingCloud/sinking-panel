@@ -3,6 +3,7 @@ package types
 import (
 	"server/app/model"
 	repositoryScript "server/app/repository/script"
+	repositorySite "server/app/repository/site"
 	repositoryTask "server/app/repository/task"
 	repositoryTypes "server/app/repository/types"
 	"server/app/util/cache"
@@ -25,16 +26,18 @@ type service struct {
 	database         *database.Database
 	repositoryTypes  repositoryTypes.Interface
 	repositoryScript repositoryScript.Interface
+	repositorySite   repositorySite.Interface
 	repositoryTask   repositoryTask.Interface
 	cache            cache.Interface
 }
 
 // NewService 实例化service
-func NewService(repositoryTypes repositoryTypes.Interface, repositoryScript repositoryScript.Interface, repositoryTask repositoryTask.Interface, database *database.Database, cache cache.Interface) *service {
+func NewService(repositoryTypes repositoryTypes.Interface, repositoryScript repositoryScript.Interface, repositorySite repositorySite.Interface, repositoryTask repositoryTask.Interface, database *database.Database, cache cache.Interface) *service {
 	return &service{
 		database:         database,
 		repositoryTypes:  repositoryTypes,
 		repositoryScript: repositoryScript,
+		repositorySite:   repositorySite,
 		repositoryTask:   repositoryTask,
 		cache:            cache,
 	}

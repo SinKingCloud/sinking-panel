@@ -149,6 +149,7 @@ create table if not exists cloud_sites
     id          bigint            not null
         constraint cloud_sites_pk_id
             primary key,
+    type_id     bigint  default 0 not null,
     name        varchar(100)      not null,
     type        integer default 0 not null,
     status      integer default 0 not null,
@@ -164,6 +165,9 @@ create index if not exists cloud_sites_createTime_index
 
 create index if not exists cloud_sites_status_index
     on cloud_sites (status);
+
+create index if not exists cloud_sites_typeId_index
+    on cloud_sites (type_id);
 
 create index if not exists cloud_sites_type_index
     on cloud_sites (type);

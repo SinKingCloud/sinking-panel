@@ -55,14 +55,14 @@ func Init() {
 	Auth = auth.NewService(Config, global.App.Cache)
 	Server = serverService.NewService(serverRepo, Config)
 	Script = scriptService.NewService(scriptRepo)
-	Type = typeService.NewService(typeRepo, scriptRepo, taskRepo, global.App.Database, global.App.Cache)
+	Type = typeService.NewService(typeRepo, scriptRepo, siteRepo, taskRepo, global.App.Database, global.App.Cache)
 	Log = logService.NewService(logRepo)
 	Task = taskService.NewService(taskRepo, Type)
 	File = file.NewService(global.App.Cache)
 	Recycle = recycle.NewService()
 	System = system.NewService(File)
 	var err error
-	Site, err = siteService.NewService(siteRepo, domainRepo, certRepo, Config, global.App.Database, global.App.Cache)
+	Site, err = siteService.NewService(siteRepo, domainRepo, certRepo, Type, Config, global.App.Database, global.App.Cache)
 	if err != nil {
 		panic(err)
 	}

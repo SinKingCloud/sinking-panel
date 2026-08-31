@@ -9,10 +9,11 @@ import (
 
 // List 获取网站列表。
 func List(c *context.Context) {
-	query := c.ValidatePage("id", "desc", "id", "id,name,type,status,create_time,update_time")
+	query := c.ValidatePage("id", "desc", "id", "id,type_id,name,type,status,create_time,update_time")
 	var form struct {
 		Keyword         string `json:"keyword" default:"" validate:"omitempty,max=100" label:"关键词"`
 		Name            string `json:"name" default:"" validate:"omitempty,max=100" label:"网站名称"`
+		TypeId          string `json:"type_id" default:"" validate:"omitempty,numeric" label:"网站分类ID"`
 		Type            string `json:"type" default:"" validate:"omitempty,numeric" label:"网站类型"`
 		Status          string `json:"status" default:"" validate:"omitempty,numeric" label:"网站状态"`
 		CreateTimeStart string `json:"create_time_start" default:"" validate:"omitempty,datetime=2006-01-02 15:04:05" label:"创建起始时间"`
@@ -27,6 +28,7 @@ func List(c *context.Context) {
 	result, err := service.Site.Select(&siteRepository.SelectSite{
 		Keyword:         form.Keyword,
 		Name:            form.Name,
+		TypeId:          form.TypeId,
 		Type:            form.Type,
 		Status:          form.Status,
 		CreateTimeStart: form.CreateTimeStart,
