@@ -20,8 +20,12 @@ const (
 )
 
 var (
-	ErrAuthentication    = errors.New("SSH认证失败") // 账号、密码或私钥未通过服务端认证
-	ErrInvalidPrivateKey = errors.New("SSH私钥无效") // 私钥内容无法解析
+	ErrAuthentication    = errors.New("SSH认证失败")   // 账号、密码或私钥未通过服务端认证
+	ErrInvalidPrivateKey = errors.New("SSH私钥无效")   // 私钥内容无法解析
+	ErrConnectionTimeout = errors.New("SSH连接超时")   // 连接服务端超时
+	ErrConnectionRefused = errors.New("SSH连接被拒绝")  // 服务端拒绝连接
+	ErrHostUnreachable   = errors.New("SSH主机无法访问") // 地址解析失败或网络不可达
+	ErrHandshake         = errors.New("SSH握手失败")   // SSH协议握手失败
 )
 
 func NewSshClient(ip string, port int, timeout time.Duration) *SshClient {
@@ -152,8 +156,22 @@ func (s *SshClient) Auth(user string, method ssh.AuthMethod) error {
 		s.client = c
 		return nil
 	}
-	if strings.Contains(strings.ToLower(err.Error()), "unable to authenticate") {
+	errorText := strings.ToLower(err.Error())
+	if strings.Contains(errorText, "unable to authenticate") {
 		return fmt.Errorf("%w: %v", ErrAuthentication, err)
+	}
+	var netErr net.Error
+	switch {
+	case errors.As(err, &netErr) && netErr.Timeout():
+		return fmt.Errorf("%w: %v", ErrConnectionTimeout, err)
+	case strings.Contains(errorText, "connection refused"):
+		return fmt.Errorf("%w: %v", ErrConnectionRefused, err)
+	case strings.Contains(errorText, "no route to host") ||
+		strings.Contains(errorText, "network is unreachable") ||
+		strings.Contains(errorText, "no such host"):
+		return fmt.Errorf("%w: %v", ErrHostUnreachable, err)
+	case strings.Contains(errorText, "handshake failed"):
+		return fmt.Errorf("%w: %v", ErrHandshake, err)
 	}
 	return err
 }
