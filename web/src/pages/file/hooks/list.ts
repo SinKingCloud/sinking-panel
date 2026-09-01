@@ -37,6 +37,7 @@ const useFileList = (initialPath = "/") => {
     const [items, setItems] = useState<any[]>([]);
     const [total, setTotal] = useState(0);
     const [loading, setLoading] = useState(true);
+    const [initialized, setInitialized] = useState(false);
     const [loaded, setLoaded] = useState(false);
     const [error, setError] = useState("");
     const {path, keyword, page, pageSize, sort, order, generation} = query;
@@ -105,6 +106,7 @@ const useFileList = (initialPath = "/") => {
         }).finally(() => {
             if (current() && !pageAdjusted) {
                 setLoading(false);
+                setInitialized(true);
             }
         });
 
@@ -191,6 +193,7 @@ const useFileList = (initialPath = "/") => {
         order,
         items,
         loading,
+        initialized,
         navigating: path !== committedPath,
         loaded,
         error,

@@ -74,6 +74,7 @@ Sinking Panel 是一个面向个人服务器运维场景的轻量级 Web 管理�
 
 ```bash
 chmod +x server
+./server install
 ./server run
 ```
 
@@ -83,7 +84,7 @@ chmod +x server
 http://服务器IP:5678
 ```
 
-首次登录时填写的账号和密码会被初始化为面板登录凭据。首次启动后请及时完成登录初始化，不要在未设置访问控制的情况下长期暴露到公网。
+执行 `./server install` 时会依次询问登录账号、登录密码和确认密码，全部校验通过后再安装系统自启动。登录页不会初始化账号密码。
 
 ## 服务命令
 
@@ -92,13 +93,13 @@ http://服务器IP:5678
 ./server stop        # 停止服务
 ./server restart     # 重启服务
 ./server run         # 前台运行
-./server install     # 安装系统自启动
+./server install     # 设置登录信息并安装系统自启动
 ./server user        # 修改登录账号
 ./server pwd         # 修改登录密码
-./server uninstall   # 卸载自启动并删除软件数据
+./server uninstall   # 卸载服务并保留 data 目录
 ```
 
-`uninstall` 会要求输入 `yes` 确认，并删除当前安装相关的数据文件，执行前请先备份。
+`uninstall` 会要求输入 `yes` 确认，删除程序文件、运行日志、`temp` 和 `config`，网站文件所在的 `data` 目录会被保留。
 
 ## 配置与数据
 
@@ -108,6 +109,7 @@ http://服务器IP:5678
 | --- | --- |
 | `config/application.yml` | 服务监听配置 |
 | `config/server.db` | SQLite 业务数据库 |
+| `data/wwwroot/` | 自动创建的网站文件，卸载时保留 |
 | `temp/recycle/` | 文件回收站 |
 | `temp/cron/` | 计划任务日志 |
 | `temp/task/` | 系统异步任务日志 |

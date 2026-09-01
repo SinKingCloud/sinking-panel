@@ -2,6 +2,7 @@ package log
 
 // SelectLog 日志查询条件
 type SelectLog struct {
+	Keyword         string
 	Type            string
 	Ip              string
 	Location        string

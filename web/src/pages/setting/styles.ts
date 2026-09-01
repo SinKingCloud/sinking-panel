@@ -69,7 +69,7 @@ export default createStyles(({css, token, isDarkMode}: any, props: any = {}) => 
                 position: relative;
                 z-index: 2;
                 min-width: 0;
-                max-width: 52%;
+                max-width: calc(100% - 178px);
                 padding: ${compact ? "14px 18px" : "18px 22px"};
             }
 
@@ -84,7 +84,7 @@ export default createStyles(({css, token, isDarkMode}: any, props: any = {}) => 
                 letter-spacing: 0;
             }
 
-            .status-dot {
+            .eyebrow .status-dot {
                 width: 5px;
                 height: 5px;
                 flex: none;
@@ -106,8 +106,8 @@ export default createStyles(({css, token, isDarkMode}: any, props: any = {}) => 
                 position: absolute;
                 z-index: 1;
                 top: 0;
-                right: -4px;
-                width: 54%;
+                right: 82px;
+                width: 52%;
                 height: 100%;
                 opacity: ${dark ? .12 : .25};
                 filter: ${dark ? "blur(.8px) saturate(.78)" : "blur(.25px)"};
@@ -120,7 +120,7 @@ export default createStyles(({css, token, isDarkMode}: any, props: any = {}) => 
                 min-height: ${compact ? 104 : 116}px;
 
                 .hero-copy {
-                    max-width: 58%;
+                    max-width: calc(100% - 145px);
                     padding: 16px 14px;
                 }
 
@@ -130,24 +130,25 @@ export default createStyles(({css, token, isDarkMode}: any, props: any = {}) => 
                 }
 
                 .hero-visual {
-                    right: -24px;
-                    width: 70%;
+                    right: 42px;
+                    width: 68%;
                     opacity: ${dark ? .07 : .14};
                 }
 
-                .hero-visual .setting-detail {
+                .hero-visual .flow-secondary,
+                .hero-visual .flow-detail {
                     display: none;
                 }
             }
 
             @container setting-workspace (max-width: 430px) {
                 .hero-visual {
-                    right: -56px;
-                    width: 80%;
+                    right: 16px;
+                    width: 76%;
                     opacity: ${dark ? .045 : .09};
                 }
 
-                .hero-visual .setting-point-a {
+                .hero-visual .flow-node-a {
                     display: none;
                 }
             }

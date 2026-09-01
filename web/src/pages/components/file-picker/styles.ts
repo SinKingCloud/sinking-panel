@@ -18,18 +18,13 @@ const useStyles = createStyles<{compact: boolean}>(({css, token}, props) => ({
             min-width: 0;
             overflow-y: auto;
         }
+
     `,
     field: css`
         width: 100%;
 
         .ant-input {
             min-width: 0;
-        }
-
-        .ant-btn {
-            width: ${props.compact ? 30 : 32}px;
-            flex: none;
-            padding-inline: 0;
         }
     `,
     browser: css`
@@ -72,7 +67,8 @@ const useStyles = createStyles<{compact: boolean}>(({css, token}, props) => ({
         }
 
         .file-picker-path {
-            height: ${props.compact ? 28 : 30}px;
+            box-sizing: border-box;
+            height: ${props.compact ? 30 : 32}px;
             min-width: 0;
             margin: 0;
             padding: 0 ${props.compact ? 6 : 8}px;
@@ -172,7 +168,7 @@ const useStyles = createStyles<{compact: boolean}>(({css, token}, props) => ({
             width: min(100%, ${props.compact ? 420 : 480}px);
             min-width: 40px;
             max-width: 100%;
-            height: ${props.compact ? 28 : 30}px;
+            height: ${props.compact ? 30 : 32}px;
             padding: 0 ${props.compact ? 6 : 8}px;
             justify-self: start;
             border-color: ${token.colorPrimaryBorder};
@@ -306,13 +302,14 @@ const useStyles = createStyles<{compact: boolean}>(({css, token}, props) => ({
         }
 
         .file-picker-status {
-            min-height: ${props.compact ? 38 : 42}px;
-            padding: ${props.compact ? "6px 9px" : "7px 11px"};
+            box-sizing: border-box;
+            min-height: ${props.compact ? 36 : 40}px;
+            padding: ${props.compact ? "5px 9px" : "6px 11px"};
             display: flex;
             min-width: 0;
             align-items: center;
             justify-content: space-between;
-            gap: 12px;
+            gap: ${props.compact ? 8 : 10}px;
             border-top: 1px solid ${token.colorSplit};
             background: ${token.colorFillQuaternary};
         }
@@ -323,6 +320,7 @@ const useStyles = createStyles<{compact: boolean}>(({css, token}, props) => ({
             flex: 1;
             align-items: center;
             gap: ${props.compact ? 6 : 8}px;
+            overflow: hidden;
         }
 
         .file-picker-status-icon {
@@ -339,24 +337,35 @@ const useStyles = createStyles<{compact: boolean}>(({css, token}, props) => ({
         .file-picker-status-value {
             min-width: 0;
             flex: 1;
+            display: block;
+            overflow: hidden;
             color: ${token.colorTextSecondary};
             font-size: ${token.fontSizeSM}px;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
 
         .file-picker-status-meta {
+            min-width: 0;
             display: flex;
             flex: none;
             align-items: center;
+            flex-wrap: nowrap;
             gap: ${props.compact ? 7 : 9}px;
+            white-space: nowrap;
         }
 
         .file-picker-count {
+            min-width: 0;
+            overflow: hidden;
             color: ${token.colorTextTertiary};
             font-size: ${token.fontSizeSM}px;
+            text-overflow: ellipsis;
             white-space: nowrap;
         }
 
         .file-picker-pagination {
+            flex: none;
             margin: 0;
             color: ${token.colorTextSecondary};
             font-size: ${token.fontSizeSM}px;
@@ -392,14 +401,17 @@ const useStyles = createStyles<{compact: boolean}>(({css, token}, props) => ({
             }
 
             .file-picker-status {
-                align-items: flex-start;
+                min-height: 0;
+                padding: 6px 9px 7px;
+                align-items: stretch;
                 flex-direction: column;
-                gap: 5px;
+                gap: 4px;
             }
 
             .file-picker-status-main,
             .file-picker-status-meta {
                 width: 100%;
+                min-width: 0;
             }
 
             .file-picker-status-meta {

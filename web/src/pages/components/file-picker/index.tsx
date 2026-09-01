@@ -1,5 +1,5 @@
-import React, {memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from "react";
-import {App, Button, Grid, Input, Space, Tooltip} from "antd";
+import React, {forwardRef, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from "react";
+import {App, Button, ConfigProvider, Form, Grid, Input, Space, Tooltip} from "antd";
 import type {InputRef, TableRef} from "antd";
 import {Icon, ProModal, Title, useTheme} from "sinking-antd";
 import {getFileDisks, getFileInfo, getFileList} from "@/service/api/file";
@@ -14,14 +14,17 @@ import {
 import FilePickerBrowser from "./browser";
 import useStyles from "./styles";
 
-const FilePicker = ({
+const FilePicker = forwardRef<InputRef, any>(({
     disabled,
+    initialPath,
     mode = "directory",
     onChange,
+    onSelect,
     placeholder,
+    size,
     value = "",
     ...inputProps
-}: any) => {
+}, ref) => {
     const theme = useTheme();
     const {message} = App.useApp();
     const compact = Boolean(theme?.isCompactTheme?.());
@@ -94,12 +97,14 @@ const FilePicker = ({
     const show = useCallback(() => {
         const input = String(value || "").trim();
         const absolute = isAbsoluteFilePath(input) ? normalizeFilePath(input) : "";
-        const initialPath = mode === "file" && absolute ? parentFilePath(absolute) : absolute;
+        const preferred = String(initialPath || "").trim();
+        const preferredPath = isAbsoluteFilePath(preferred) ? normalizeFilePath(preferred) : "";
+        const initialDirectory = preferredPath || (mode === "file" && absolute ? parentFilePath(absolute) : absolute);
         const breadcrumbs = absolute ? buildFileBreadcrumbs(absolute) : [];
         const initialName = breadcrumbs.length > 1 ? breadcrumbs[breadcrumbs.length - 1].label : "";
         const selectionRequest = ++selectionRequestRef.current;
         requestRef.current += 1;
-        setPath(initialPath);
+        setPath(initialDirectory);
         setLoadedPath("");
         setSelectedFile(undefined);
         setDisks([]);
@@ -109,7 +114,7 @@ const FilePicker = ({
         setError("");
         setLoading(true);
         setEditingPath(false);
-        setPathDraft(initialPath);
+        setPathDraft(initialDirectory);
         setOpen(true);
         if (mode === "file" && absolute && initialName) {
             void getFileInfo({body: {path: absolute}}).then((response) => {
@@ -119,7 +124,7 @@ const FilePicker = ({
                 }
             }).catch(() => undefined);
         }
-    }, [mode, value]);
+    }, [initialPath, mode, value]);
 
     const close = useCallback(() => {
         requestRef.current += 1;
@@ -135,9 +140,16 @@ const FilePicker = ({
         if (!selectedPath) {
             return;
         }
-        onChange?.(normalizeFilePath(selectedPath));
+        const normalized = normalizeFilePath(selectedPath);
+        if (onSelect) {
+            if (onSelect(normalized) === false) {
+                return;
+            }
+        } else {
+            onChange?.(normalized);
+        }
         close();
-    }, [close, loadedPath, mode, onChange, selectedFile]);
+    }, [close, loadedPath, mode, onChange, onSelect, selectedFile]);
 
     const selectFile = useCallback((file: any) => {
         selectionRequestRef.current += 1;
@@ -303,13 +315,16 @@ const FilePicker = ({
         <>
             <Space.Compact className={styles.field} block>
                 <Input
+                    ref={ref}
                     {...inputProps}
+                    size={size}
                     value={value}
                     disabled={disabled}
                     placeholder={placeholder || (mode === "directory" ? "请输入或选择目录" : "请输入或选择文件")}
                     onChange={(event) => onChange?.(event.target.value)}/>
                 <Tooltip title={title}>
                     <Button
+                        size={size}
                         disabled={disabled}
                         aria-label={title}
                         icon={<Icon type={mode === "directory" ? "FolderOpenOutlined" : "FileSearchOutlined"}/>}
@@ -317,63 +332,69 @@ const FilePicker = ({
                 </Tooltip>
             </Space.Compact>
 
-            <ProModal
-                title={<Title>{title}</Title>}
-                width="640px"
-                okText="选择"
-                onOk={() => confirm()}
-                onCancel={close}
-                modalProps={{
-                    open,
-                    rootClassName: styles.modal,
-                    style: {top: screens.md ? 100 : 24, paddingBottom: screens.md ? 100 : 24},
-                    cancelText: "取消",
-                    okButtonProps: {
-                        disabled: loading || Boolean(error) || (mode === "directory"
-                            ? !loadedPath || comparablePath(loadedPath) !== comparablePath(path)
-                            : !selectedFile),
-                    },
-                    focusable: {focusTriggerAfterClose: false},
-                    mask: {closable: true},
-                    styles: {body: {paddingTop: compact ? 10 : 15}},
-                }}>
-                <FilePickerBrowser
-                    className={styles.browser}
-                    compact={compact}
-                    mode={mode}
-                    path={path}
-                    loadedPath={loadedPath}
-                    selectedFile={selectedFile}
-                    disks={disks}
-                    selectedDisk={selectedDisk}
-                    pathBreadcrumbs={pathBreadcrumbs}
-                    parentPath={parentPath}
-                    diskRoot={diskRoot}
-                    canGoUp={canGoUp}
-                    editingPath={editingPath}
-                    pathDraft={pathDraft}
-                    loading={loading}
-                    error={error}
-                    items={items}
-                    page={page}
-                    pageSize={50}
-                    total={total}
-                    pathRef={pathRef}
-                    pathInputRef={pathInputRef}
-                    currentPathRef={currentPathRef}
-                    tableRef={tableRef}
-                    onNavigate={navigate}
-                    onOpenPathEditor={openPathEditor}
-                    onCancelPathEditor={cancelPathEditor}
-                    onSubmitPathEditor={submitPathEditor}
-                    onPathDraftChange={setPathDraft}
-                    onSelectFile={selectFile}
-                    onConfirm={confirm}
-                    onPageChange={changePage}
-                    onReload={reloadList}/>
-            </ProModal>
+            <ConfigProvider componentSize={compact ? "small" : "middle"} variant="outlined">
+                <ProModal
+                    title={<Title>{title}</Title>}
+                    width="640px"
+                    okText="选择"
+                    onOk={() => confirm()}
+                    onCancel={close}
+                    modalProps={{
+                        open,
+                        rootClassName: styles.modal,
+                        style: {top: screens.md ? 100 : 24, paddingBottom: screens.md ? 100 : 24},
+                        cancelText: "取消",
+                        okButtonProps: {
+                            disabled: loading || Boolean(error) || (mode === "directory"
+                                ? !loadedPath || comparablePath(loadedPath) !== comparablePath(path)
+                                : !selectedFile),
+                        },
+                        focusable: {focusTriggerAfterClose: false},
+                        mask: {closable: true},
+                        styles: {body: {paddingTop: compact ? 10 : 15}},
+                    }}>
+                    <Form component={false} size={compact ? "small" : "middle"} variant="outlined">
+                        <FilePickerBrowser
+                            className={styles.browser}
+                            compact={compact}
+                            mode={mode}
+                            path={path}
+                            loadedPath={loadedPath}
+                            selectedFile={selectedFile}
+                            disks={disks}
+                            selectedDisk={selectedDisk}
+                            pathBreadcrumbs={pathBreadcrumbs}
+                            parentPath={parentPath}
+                            diskRoot={diskRoot}
+                            canGoUp={canGoUp}
+                            editingPath={editingPath}
+                            pathDraft={pathDraft}
+                            loading={loading}
+                            error={error}
+                            items={items}
+                            page={page}
+                            pageSize={50}
+                            total={total}
+                            pathRef={pathRef}
+                            pathInputRef={pathInputRef}
+                            currentPathRef={currentPathRef}
+                            tableRef={tableRef}
+                            onNavigate={navigate}
+                            onOpenPathEditor={openPathEditor}
+                            onCancelPathEditor={cancelPathEditor}
+                            onSubmitPathEditor={submitPathEditor}
+                            onPathDraftChange={setPathDraft}
+                            onSelectFile={selectFile}
+                            onConfirm={confirm}
+                            onPageChange={changePage}
+                            onReload={reloadList}/>
+                    </Form>
+                </ProModal>
+            </ConfigProvider>
         </>
     );
-};
+});
+
+FilePicker.displayName = "FilePicker";
 
 export default memo(FilePicker);

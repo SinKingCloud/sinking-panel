@@ -40,7 +40,7 @@ export default (): React.ReactNode => {
                                 <div className="eyebrow"><span className="status-dot"/>SYSTEM SETTINGS</div>
                                 <h1>系统设置</h1>
                             </div>
-                            <div className="hero-visual"><HeroGraphic variant="setting"/></div>
+                            <div className="hero-visual"><HeroGraphic variant="task"/></div>
                         </section>
                         <div className={styles.settingsMain}>
                             <div className={styles.leftMenu}>

@@ -15,6 +15,7 @@ func Log(c *context.Context) {
 	var form struct {
 		Action          string `json:"action" default:"list" validate:"omitempty,oneof=list clear" label:"操作类型"`
 		Day             string `json:"day" default:"" validate:"omitempty,numeric,min=1" label:"保留天数"`
+		Keyword         string `json:"keyword" default:"" validate:"omitempty,max=200" label:"关键词"`
 		Type            string `json:"type" default:"" validate:"omitempty,numeric" label:"类型"`
 		Ip              string `json:"ip" default:"" validate:"omitempty" label:"IP地址"`
 		Location        string `json:"location" default:"" validate:"omitempty,max=100" label:"IP归属地"`
@@ -49,7 +50,7 @@ func Log(c *context.Context) {
 		c.Success(fmt.Sprintf("成功清理%d条操作日志", total))
 		return
 	}
-	where := &repositoryLog.SelectLog{}
+	where := &repositoryLog.SelectLog{Keyword: form.Keyword}
 	if form.Ip != "" {
 		where.Ip = form.Ip
 	}

@@ -1,117 +1,61 @@
 import React, {useRef} from "react";
-import {Button} from "antd";
-import {Body, ProTable, Title} from "sinking-antd";
-import type {ProTableRef} from "sinking-antd";
-import {getLog} from "@/service/api/system";
+import {Body} from "sinking-antd";
+import PageTable from "@/pages/components/table";
 import useEnum from "@/utils/enum";
-import {dateRangeTransform, getData} from "@/utils/page";
+import Header from "./components/header";
 import Clear, {ClearRef} from "./components/clear";
+import Table from "./components/table";
+import useList from "./hooks/list";
+import useStyles from "./styles";
 
-const color: Record<string, string> = {
-    "0": "green",
-    "1": "geekblue",
-    "2": "red",
-    "3": "warning",
-    "4": "blue",
-};
+const emptyEnum = {};
 
 export default (): React.ReactNode => {
+    const {styles} = useStyles();
     const [enumData, enumLoading] = useEnum("log");
-    const tableRef = useRef<ProTableRef | null>(null);
     const clearRef = useRef<ClearRef | null>(null);
-
-    const columns: any[] = [
-        {
-            title: "ID",
-            dataIndex: "id",
-            tip: "日志ID",
-            width: 180,
-            sorter: true,
-            hideInTable: true,
-            hideInSearch: true,
-            copyable: true,
-            ellipsis: true,
-        },
-        {
-            title: "操作IP",
-            dataIndex: "ip",
-            tip: "请求来源IP地址",
-            width: 120,
-            valueType: "text",
-            copyable: true,
-            ellipsis: true,
-        },
-        {
-            title: "IP归属地",
-            dataIndex: "location",
-            tip: "请求来源IP归属地",
-            width: 200,
-            valueType: "text",
-            copyable: true,
-            ellipsis: true,
-        },
-        {
-            title: "操作类型",
-            dataIndex: "type",
-            tip: "操作事件类型",
-            width: 100,
-            valueEnum: Object.fromEntries(Object.entries(enumData?.type || {}).map(([key, value]) => {
-                return [key, {text: value, color: color[key]}];
-            })),
-            ellipsis: true,
-        },
-        {
-            title: "操作标题",
-            dataIndex: "title",
-            tip: "操作事件标题",
-            width: 120,
-            valueType: "text",
-            ellipsis: true,
-            hideInSearch: true,
-        },
-        {
-            title: "操作内容",
-            dataIndex: "content",
-            tip: "操作事件详细内容",
-            width: 160,
-            valueType: "text",
-            ellipsis: true,
-            hideInSearch: true,
-        },
-        {
-            title: "操作时间",
-            dataIndex: "create_time",
-            tip: "日志创建时间",
-            width: 100,
-            valueType: "dateRange",
-            sorter: true,
-            transform: dateRangeTransform("create_time"),
-            ellipsis: true,
-        },
-    ];
+    const list = useList();
+    const typeData = enumData?.type || emptyEnum;
 
     return (
         <Body loading={enumLoading}>
-            <ProTable
-                ref={tableRef}
-                extraRefreshBtn
-                title={<Title>操作日志</Title>}
-                extra={(
-                    <Button
-                        type="primary"
-                        aria-label="清理操作日志"
-                        onClick={() => clearRef.current?.open()}
-                    >
-                        清理
-                    </Button>
+            <PageTable
+                ariaLabel="操作日志"
+                header={(
+                    <Header
+                        dateFilterClassName={styles.dateFilter}
+                        datePickerAnchorClassName={styles.datePickerAnchor}
+                        datePickerPopupClassName={styles.datePickerPopup}
+                        keyword={list.keyword}
+                        type={list.type}
+                        dateRange={list.dateRange}
+                        typeData={typeData}
+                        refreshing={list.loading}
+                        onKeywordChange={list.changeKeyword}
+                        onSearch={list.search}
+                        onTypeChange={list.changeType}
+                        onDateRangeChange={list.changeDateRange}
+                        onRefresh={list.reload}
+                        onClear={() => clearRef.current?.open()}/>
                 )}
-                rowKey="id"
-                columns={columns}
-                defaultPage={1}
-                defaultPageSize={10}
-                request={(params, sort) => getData(params, sort, getLog)}
-            />
-            <Clear ref={clearRef} onSuccess={() => tableRef.current?.refreshTableData?.()}/>
+                empty={list.initialized && list.logs.length === 0}
+                pagination={{
+                    page: list.page,
+                    pageSize: list.pageSize,
+                    total: list.total,
+                    unit: "条",
+                    onChange: list.changePage,
+                }}>
+                <Table
+                    className={styles.logTable}
+                    logs={list.logs}
+                    loading={list.loading}
+                    typeData={typeData}
+                    sort={list.sort}
+                    order={list.order}
+                    onSortChange={list.changeSort}/>
+            </PageTable>
+            <Clear ref={clearRef} onSuccess={list.reload}/>
         </Body>
     );
 };

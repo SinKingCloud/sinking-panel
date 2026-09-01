@@ -1,13 +1,12 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from "react";
-import {Col, Empty, Row} from "antd";
-import {Body, useTheme} from "sinking-antd";
+import {Body} from "sinking-antd";
 import useEnum from "@/utils/enum";
+import PageTable from "@/pages/components/table";
 import TypeManager, {TypeManagerRef} from "@/pages/components/type-manager";
 import {getAllTypes} from "@/service/api/type";
 import Form, {FormRef} from "./components/form";
 import Header from "./components/header";
 import Log, {LogRef} from "@/pages/components/task-log";
-import Pagination from "./components/pagination";
 import Table from "./components/table";
 import useList from "./hooks/list";
 import useStyles from "./styles";
@@ -19,10 +18,7 @@ const defaultExecTypeEnum = {
 };
 
 export default (): React.ReactNode => {
-    const theme = useTheme();
-    const isCompactMode = theme?.isCompactTheme?.() || false;
-    const isDarkMode = Boolean(theme?.isDarkMode?.() || theme?.isDarkTheme?.());
-    const {styles} = useStyles({isCompactMode, isDarkMode});
+    const {styles} = useStyles();
     const [enumData, enumLoading] = useEnum("task");
     const formRef = useRef<FormRef>({} as FormRef);
     const logRef = useRef<LogRef>({} as LogRef);
@@ -67,59 +63,51 @@ export default (): React.ReactNode => {
 
     return (
         <Body loading={enumLoading}>
-            <Row className={styles.page} gutter={[0, isCompactMode ? 10 : 12]}>
-                <Col span={24}>
-                    <section className={styles.workspace}>
-                        <Header
-                            styles={styles}
-                            keyword={list.keyword}
-                            typeId={list.typeId}
-                            execType={list.execType}
-                            status={list.status}
-                            typeData={typeData}
-                            typeItems={typeItems || undefined}
-                            execTypeData={execTypeData}
-                            statusData={statusData}
-                            onKeywordChange={list.changeKeyword}
-                            onSearch={list.search}
-                            onTypeIdChange={list.changeTypeId}
-                            onManageTypes={openTypeManager}
-                            onExecTypeChange={list.changeExecType}
-                            onStatusChange={list.changeStatus}
-                            onCreate={openCreate}/>
-
-                        <main className={styles.dataPanel}>
-                            {list.loading || list.tasks.length > 0 ? (
-                                <Table
-                                    className={styles.taskTable}
-                                    tasks={list.tasks}
-                                    loading={list.loading}
-                                    typeData={typeData}
-                                    execTypeData={execTypeData}
-                                    statusData={statusData}
-                                    sort={list.sort}
-                                    order={list.order}
-                                    operating={list.operating}
-                                    onSortChange={list.changeSort}
-                                    onAction={list.confirmAction}
-                                    onEdit={openEdit}
-                                    onLog={openLog}/>
-                            ) : (
-                                <div className={styles.state}>
-                                    <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无数据"/>
-                                </div>
-                            )}
-                        </main>
-                    </section>
-
-                    <Pagination
-                        styles={styles}
-                        page={list.page}
-                        pageSize={list.pageSize}
-                        total={list.total}
-                        onChange={list.changePage}/>
-                </Col>
-            </Row>
+            <PageTable
+                ariaLabel="计划任务"
+                header={(
+                    <Header
+                        keyword={list.keyword}
+                        typeId={list.typeId}
+                        execType={list.execType}
+                        status={list.status}
+                        typeData={typeData}
+                        typeItems={typeItems || undefined}
+                        execTypeData={execTypeData}
+                        statusData={statusData}
+                        refreshing={list.loading}
+                        onKeywordChange={list.changeKeyword}
+                        onSearch={list.search}
+                        onTypeIdChange={list.changeTypeId}
+                        onManageTypes={openTypeManager}
+                        onExecTypeChange={list.changeExecType}
+                        onStatusChange={list.changeStatus}
+                        onRefresh={list.reload}
+                        onCreate={openCreate}/>
+                )}
+                empty={list.initialized && list.tasks.length === 0}
+                pagination={{
+                    page: list.page,
+                    pageSize: list.pageSize,
+                    total: list.total,
+                    unit: "条",
+                    onChange: list.changePage,
+                }}>
+                <Table
+                    className={styles.taskTable}
+                    tasks={list.tasks}
+                    loading={list.loading}
+                    typeData={typeData}
+                    execTypeData={execTypeData}
+                    statusData={statusData}
+                    sort={list.sort}
+                    order={list.order}
+                    operating={list.operating}
+                    onSortChange={list.changeSort}
+                    onAction={list.confirmAction}
+                    onEdit={openEdit}
+                    onLog={openLog}/>
+            </PageTable>
             <Form
                 ref={formRef}
                 typeData={typeData}

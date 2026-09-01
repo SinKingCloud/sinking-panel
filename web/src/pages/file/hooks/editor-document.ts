@@ -1,18 +1,21 @@
 import {useCallback, useEffect, useRef, useState} from "react";
 import {App} from "antd";
+import {getFilePreviewKind} from "@/pages/components/file-preview/media";
+import type {FilePreviewKind} from "@/pages/components/file-preview/media";
 import {getFileInfo, updateFile} from "@/service/api/file";
 import {
     contentByteSize,
     editorReadPageSize,
     editorTreeKey,
     maxEditorContentSize,
-} from "../components/editor.utils";
+} from "../components/editor/utils";
 
 export interface FileEditorTab {
     key: string;
     generation: number;
     path: string;
     name: string;
+    previewKind?: FilePreviewKind;
     contentLength: number;
     version: string;
     loading: boolean;
@@ -34,6 +37,7 @@ interface FileEditorTabRuntime {
     saveToken: number;
     path: string;
     name: string;
+    previewKind?: FilePreviewKind;
     content: string;
     baseline: string;
     version: string;
@@ -51,6 +55,7 @@ const createTab = (key: string, runtime: FileEditorTabRuntime): FileEditorTab =>
     generation: runtime.generation,
     path: runtime.path,
     name: runtime.name,
+    previewKind: runtime.previewKind,
     contentLength: runtime.content.length,
     version: runtime.version,
     loading: runtime.loading,
@@ -260,16 +265,18 @@ const useFileEditorDocument = ({onMutation, message}: UseFileEditorDocumentOptio
         }
 
         const generation = ++generationRef.current;
+        const previewKind = getFilePreviewKind(name);
         const runtime: FileEditorTabRuntime = {
             generation,
             loadToken: 1,
             saveToken: 0,
             path,
             name,
+            previewKind,
             content: "",
             baseline: "",
             version: "",
-            loading: true,
+            loading: !previewKind,
             saving: false,
             dirty: false,
         };
@@ -277,7 +284,9 @@ const useFileEditorDocument = ({onMutation, message}: UseFileEditorDocumentOptio
         commitTabs([...tabsRef.current, createTab(key, runtime)]);
         activeKeyRef.current = key;
         setActiveKey(key);
-        void load(key, generation, runtime.loadToken, path);
+        if (!previewKind) {
+            void load(key, generation, runtime.loadToken, path);
+        }
         return key;
     }, [commitTabs, load]);
 
@@ -322,10 +331,11 @@ const useFileEditorDocument = ({onMutation, message}: UseFileEditorDocumentOptio
             saveToken: previous.saveToken + 1,
             path: previous.path,
             name: previous.name,
+            previewKind: previous.previewKind,
             content: "",
             baseline: "",
             version: "",
-            loading: true,
+            loading: !previous.previewKind,
             saving: false,
             dirty: false,
         };
@@ -333,14 +343,17 @@ const useFileEditorDocument = ({onMutation, message}: UseFileEditorDocumentOptio
         updateTab(key, previous.generation, (tab) => ({
             ...tab,
             generation,
+            previewKind: previous.previewKind,
             contentLength: 0,
             version: "",
-            loading: true,
+            loading: !previous.previewKind,
             saving: false,
             dirty: false,
             error: "",
         }));
-        void load(key, generation, runtime.loadToken, runtime.path);
+        if (!runtime.previewKind) {
+            void load(key, generation, runtime.loadToken, runtime.path);
+        }
         return true;
     }, [load, updateTab]);
 
@@ -351,7 +364,7 @@ const useFileEditorDocument = ({onMutation, message}: UseFileEditorDocumentOptio
             return;
         }
         const runtime = runtimesRef.current.get(key);
-        if (!runtime || runtime.loading) {
+        if (!runtime || runtime.loading || runtime.previewKind) {
             return;
         }
         runtime.content = value;
@@ -371,7 +384,7 @@ const useFileEditorDocument = ({onMutation, message}: UseFileEditorDocumentOptio
             return false;
         }
         const runtime = runtimesRef.current.get(key);
-        if (!runtime || runtime.loading || runtime.saving) {
+        if (!runtime || runtime.loading || runtime.saving || runtime.previewKind) {
             return false;
         }
         flushContentUpdates();

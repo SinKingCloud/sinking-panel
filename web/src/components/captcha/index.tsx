@@ -177,9 +177,9 @@ const Captcha = forwardRef<CaptchaRef>((_, ref): any => {
                 open: visible,
                 destroyOnHidden: true,
                 footer: null,
-                closable: false,
-                mask: {closable: false},
-                keyboard: false,
+                closable: true,
+                mask: {closable: true},
+                keyboard: true,
                 rootClassName: styles?.modal,
             }}>
             <Spin spinning={loading} size={"large"}>

@@ -666,6 +666,7 @@ const TypeManager = forwardRef<TypeManagerRef, TypeManagerProps>(({module, onCha
     const modalRef = useRef<ProModalRef>({} as ProModalRef);
     const [form] = AntForm.useForm<TypeFormValues>();
     const requestRef = useRef(0);
+    const lifecycleRef = useRef(0);
     const actionRef = useRef(false);
     const sortingRef = useRef(false);
     const sortRequestRef = useRef(0);
@@ -683,14 +684,13 @@ const TypeManager = forwardRef<TypeManagerRef, TypeManagerProps>(({module, onCha
     const [formSubmitting, setFormSubmitting] = useState(false);
     const [sorting, setSorting] = useState(false);
     const [operatingId, setOperatingId] = useState<number | null>(null);
-    const [draggingId, setDraggingId] = useState<number | null>(null);
+    const [, setDraggingId] = useState<number | null>(null);
     const loadingRef = useRef(loading);
     const formActiveRef = useRef(formActive);
     loadingRef.current = loading;
     formActiveRef.current = formActive;
     const editing = formRecord !== undefined;
     const operationBusy = formSubmitting || sorting || operatingId !== null;
-    const busy = operationBusy || draggingId !== null || formActive;
     const dragDisabled = operationBusy || loading || formActive;
     const rowBusy = formSubmitting || operatingId !== null || formActive;
     const dragDisabledRef = useRef(dragDisabled);
@@ -700,6 +700,7 @@ const TypeManager = forwardRef<TypeManagerRef, TypeManagerProps>(({module, onCha
         mountedRef.current = true;
         return () => {
             mountedRef.current = false;
+            lifecycleRef.current += 1;
             requestRef.current += 1;
             sortRequestRef.current += 1;
         };
@@ -818,6 +819,7 @@ const TypeManager = forwardRef<TypeManagerRef, TypeManagerProps>(({module, onCha
 
     const reset = useCallback(() => {
         const reconcile = sortDirtyRef.current;
+        lifecycleRef.current += 1;
         requestRef.current += 1;
         sortRequestRef.current += 1;
         actionRef.current = false;
@@ -839,6 +841,7 @@ const TypeManager = forwardRef<TypeManagerRef, TypeManagerProps>(({module, onCha
     }, [clearPointerDrag, form, load, module]);
 
     const open = useCallback(() => {
+        lifecycleRef.current += 1;
         requestRef.current += 1;
         sortRequestRef.current += 1;
         actionRef.current = false;
@@ -887,19 +890,25 @@ const TypeManager = forwardRef<TypeManagerRef, TypeManagerProps>(({module, onCha
     }, [clearPointerDrag, form]);
 
     const closeForm = useCallback(() => {
+        lifecycleRef.current += 1;
+        actionRef.current = false;
+        setFormSubmitting(false);
         setFormOpen(false);
     }, []);
 
     const resetForm = useCallback(() => {
+        actionRef.current = false;
         form.resetFields();
         setFormRecord(undefined);
         setFormActive(false);
+        setFormSubmitting(false);
     }, [form]);
 
     const submitForm = useCallback(async (values: TypeFormValues) => {
         if (actionRef.current) {
             return;
         }
+        const lifecycle = lifecycleRef.current;
         const name = values.name.trim();
         actionRef.current = true;
         setFormSubmitting(true);
@@ -907,6 +916,14 @@ const TypeManager = forwardRef<TypeManagerRef, TypeManagerProps>(({module, onCha
             const response = await (formRecord
                 ? updateType({body: {ids: [formRecord.id], name}})
                 : createType({body: {module, name}}));
+            if (lifecycleRef.current !== lifecycle) {
+                if (response?.code === 200) {
+                    clearEnumCache(module);
+                    onMutation?.();
+                    await reloadAfterChange();
+                }
+                return;
+            }
             if (!response) {
                 return;
             }
@@ -919,8 +936,10 @@ const TypeManager = forwardRef<TypeManagerRef, TypeManagerProps>(({module, onCha
             onMutation?.();
             await reloadAfterChange();
         } finally {
-            actionRef.current = false;
-            setFormSubmitting(false);
+            if (lifecycleRef.current === lifecycle) {
+                actionRef.current = false;
+                setFormSubmitting(false);
+            }
         }
     }, [editing, formRecord, message, module, onMutation, reloadAfterChange]);
 
@@ -934,6 +953,7 @@ const TypeManager = forwardRef<TypeManagerRef, TypeManagerProps>(({module, onCha
         ) {
             return;
         }
+        const lifecycle = lifecycleRef.current;
         modal.confirm({
             title: "删除分类",
             content: `删除“${record.name}”后，关联项将恢复为全部分类。`,
@@ -942,13 +962,21 @@ const TypeManager = forwardRef<TypeManagerRef, TypeManagerProps>(({module, onCha
             okButtonProps: {danger: true, type: "default"},
             mask: {closable: true},
             onOk: async () => {
-                if (actionRef.current) {
+                if (lifecycleRef.current !== lifecycle || actionRef.current) {
                     return;
                 }
                 actionRef.current = true;
                 setOperatingId(record.id);
                 try {
                     const response = await deleteType({body: {ids: [record.id]}});
+                    if (lifecycleRef.current !== lifecycle) {
+                        if (response?.code === 200) {
+                            clearEnumCache(module);
+                            onMutation?.();
+                            await reloadAfterChange();
+                        }
+                        return;
+                    }
                     if (!response) {
                         return;
                     }
@@ -960,18 +988,21 @@ const TypeManager = forwardRef<TypeManagerRef, TypeManagerProps>(({module, onCha
                     onMutation?.();
                     await reloadAfterChange();
                 } finally {
-                    actionRef.current = false;
-                    setOperatingId(null);
+                    if (lifecycleRef.current === lifecycle) {
+                        actionRef.current = false;
+                        setOperatingId(null);
+                    }
                 }
             },
         } as any);
-    }, [message, modal, onMutation, reloadAfterChange]);
+    }, [message, modal, module, onMutation, reloadAfterChange]);
 
     const persistMove = useCallback(async (
         originItems: any[],
         nextItems: any[],
         activeId: number,
     ) => {
+        const lifecycle = lifecycleRef.current;
         const oldIndex = originItems.findIndex((item) => item.id === activeId);
         const newIndex = nextItems.findIndex((item) => item.id === activeId);
         const affectedIds = moveRangeIds(originItems, oldIndex, newIndex);
@@ -1007,6 +1038,13 @@ const TypeManager = forwardRef<TypeManagerRef, TypeManagerProps>(({module, onCha
                 },
             });
             committed = response?.code === 200;
+            if (lifecycleRef.current !== lifecycle) {
+                if (committed) {
+                    clearEnumCache(module);
+                    await load(true, true);
+                }
+                return;
+            }
             if (committed) {
                 sortDirtyRef.current = true;
             }
@@ -1025,22 +1063,24 @@ const TypeManager = forwardRef<TypeManagerRef, TypeManagerProps>(({module, onCha
             clearEnumCache(module);
             await load(true, true);
         } finally {
-            if (sortRequestRef.current === sortRequestId) {
-                sortingRef.current = false;
-                setSorting(false);
-                if (sortDirtyRef.current) {
+            if (lifecycleRef.current === lifecycle) {
+                if (sortRequestRef.current === sortRequestId) {
+                    sortingRef.current = false;
+                    setSorting(false);
+                    if (sortDirtyRef.current) {
+                        clearEnumCache(module);
+                        if (mountedRef.current) {
+                            await load(true, true);
+                        }
+                    }
+                } else if (committed) {
+                    sortDirtyRef.current = true;
                     clearEnumCache(module);
-                    if (mountedRef.current) {
+                    if (sortingRef.current) {
+                        sortDirtyRef.current = true;
+                    } else if (mountedRef.current) {
                         await load(true, true);
                     }
-                }
-            } else if (committed) {
-                sortDirtyRef.current = true;
-                clearEnumCache(module);
-                if (sortingRef.current) {
-                    sortDirtyRef.current = true;
-                } else if (mountedRef.current) {
-                    await load(true, true);
                 }
             }
         }
@@ -1262,10 +1302,12 @@ const TypeManager = forwardRef<TypeManagerRef, TypeManagerProps>(({module, onCha
                 rootClassName: styles.modal,
                 okText: "添加",
                 cancelText: "取消",
-                closable: !busy,
-                keyboard: !busy,
+                closable: true,
+                keyboard: true,
                 forceRender: true,
-                mask: {closable: !busy},
+                footer: loading && items.length === 0 ? null : undefined,
+                okButtonProps: {disabled: loading || operationBusy},
+                mask: {closable: true},
                 afterClose: reset,
             } as any}>
             <>
@@ -1276,7 +1318,7 @@ const TypeManager = forwardRef<TypeManagerRef, TypeManagerProps>(({module, onCha
                             className={[styles.list, dragDisabled ? styles.listLocked : ""]
                                 .filter(Boolean).join(" ")}>
                             {loading && items.length === 0 ? (
-                                <div className={styles.loading}><Spin size="small"/></div>
+                                <div className={styles.loading}><Spin size="medium"/></div>
                             ) : items.length === 0 ? (
                                 <div className={styles.empty}>
                                     <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无数据"/>
@@ -1319,9 +1361,9 @@ const TypeManager = forwardRef<TypeManagerRef, TypeManagerProps>(({module, onCha
                         open: formOpen,
                         cancelText: "取消",
                         confirmLoading: formSubmitting,
-                        closable: !formSubmitting,
-                        keyboard: !formSubmitting,
-                        mask: {closable: !formSubmitting},
+                        closable: true,
+                        keyboard: true,
+                        mask: {closable: true},
                         forceRender: true,
                         focusable: {focusTriggerAfterClose: false},
                         styles: {body: {paddingTop: compact ? 10 : 15}},

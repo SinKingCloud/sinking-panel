@@ -35,6 +35,17 @@ export async function updateHTTPService(params: API.RequestParams = {}) {
     return post("/system/http", params?.body, params?.onSuccess, params?.onFail, params?.onFinally);
 }
 
+/** 读取或清理 HTTP 服务运行日志 GET|POST /system/http */
+export async function getHTTPLog(params: API.RequestParams = {}) {
+    const body = {...params?.body};
+    const clear = body.action === "clear";
+    delete body.id;
+    body.action = "log";
+    body.log_action = clear ? "clear" : "read";
+    const request = clear ? post : get;
+    return request("/system/http", body, params?.onSuccess, params?.onFail, params?.onFinally);
+}
+
 /** 获取系统枚举 GET /system/enum */
 export async function getEnum(params: API.RequestParams = {}) {
     return get("/system/enum", params?.body, params?.onSuccess, params?.onFail, params?.onFinally);

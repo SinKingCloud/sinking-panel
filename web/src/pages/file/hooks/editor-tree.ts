@@ -10,8 +10,8 @@ import {
     getEditorAncestorPaths,
     resolveEditorRoot,
     setEditorTreeChildren,
-} from "../components/editor.utils";
-import type {FileEditorTreeNode} from "../components/editor.utils";
+} from "../components/editor/utils";
+import type {FileEditorTreeNode} from "../components/editor/utils";
 import {normalizeFilePath, parentFilePath} from "../utils";
 
 export interface UseFileEditorTreeOptions {

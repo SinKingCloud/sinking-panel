@@ -10,9 +10,6 @@ const pollInterval = 1000;
 export const logLayout = {
     lineHeight: 20,
     overscan: 24,
-    paddingHorizontal: 18,
-    paddingTop: 16,
-    paddingBottom: 20,
     viewportHeight: 520,
 };
 
@@ -41,7 +38,9 @@ const useLog = (
         stickToBottom: true,
         historyAnchor: null,
         scrollFrame: 0,
+        historyFrame: 0,
     });
+    const loadHistoryRef = useRef<() => Promise<void>>(async () => undefined);
     const [taskId, setTaskId] = useState<any>();
     const [fileName, setFileName] = useState("");
     const [logs, setLogs] = useState<string[]>([]);
@@ -53,14 +52,14 @@ const useLog = (
     const virtual = logs.length > maxDisplayLines;
     const virtualStart = Math.max(
         0,
-        Math.floor((scrollTop - logLayout.paddingTop) / logLayout.lineHeight) - logLayout.overscan,
+        Math.floor(scrollTop / logLayout.lineHeight) - logLayout.overscan,
     );
     const virtualEnd = Math.min(
         logs.length,
-        Math.ceil((scrollTop + logLayout.viewportHeight - logLayout.paddingTop) / logLayout.lineHeight)
+        Math.ceil((scrollTop + logLayout.viewportHeight) / logLayout.lineHeight)
         + logLayout.overscan,
     );
-    const virtualHeight = logLayout.paddingTop + logs.length * logLayout.lineHeight + logLayout.paddingBottom;
+    const virtualHeight = logs.length * logLayout.lineHeight;
 
     const resetPosition = useCallback(() => {
         const control = controlRef.current;
@@ -72,6 +71,10 @@ const useLog = (
         if (control.scrollFrame) {
             cancelAnimationFrame(control.scrollFrame);
             control.scrollFrame = 0;
+        }
+        if (control.historyFrame) {
+            cancelAnimationFrame(control.historyFrame);
+            control.historyFrame = 0;
         }
         setScrollTop(0);
     }, []);
@@ -187,6 +190,7 @@ const useLog = (
             };
         }
         control.historyLoading = true;
+        let continueHistory = false;
         try {
             const data = await requestLogs({
                 id: taskId,
@@ -199,11 +203,14 @@ const useLog = (
             }
 
             const olderLogs = Array.isArray(data.lines) ? data.lines : [];
-            const previous = !data.end && Boolean(data.has_previous);
-            control.startCursor = toCursor(data.start_cursor);
+            const currentStart = control.startCursor;
+            const nextStart = toCursor(data.start_cursor);
+            const previous = !data.end && Boolean(data.has_previous) && nextStart < currentStart;
+            control.startCursor = nextStart;
             if (olderLogs.length === 0) {
                 control.historyAnchor = null;
                 hasPreviousRef.current = previous;
+                continueHistory = previous;
                 return;
             }
             if (control.lineCount + olderLogs.length > maxCachedLines) {
@@ -217,8 +224,24 @@ const useLog = (
             hasPreviousRef.current = previous;
         } finally {
             control.historyLoading = false;
+            if (continueHistory && !control.historyFrame) {
+                const continueLoading = () => {
+                    control.historyFrame = 0;
+                    const container = consoleRef.current;
+                    if (!container || container.scrollTop > 64 || !hasPreviousRef.current) {
+                        return;
+                    }
+                    if (control.requesting || control.historyLoading) {
+                        control.historyFrame = requestAnimationFrame(continueLoading);
+                        return;
+                    }
+                    void loadHistoryRef.current();
+                };
+                control.historyFrame = requestAnimationFrame(continueLoading);
+            }
         }
     }, [requestLogs]);
+    loadHistoryRef.current = loadHistory;
 
     const handleScroll = useCallback(() => {
         const container = consoleRef.current;
@@ -290,9 +313,12 @@ const useLog = (
     }, [logs]);
 
     useEffect(() => () => {
-        const frame = controlRef.current.scrollFrame;
-        if (frame) {
-            cancelAnimationFrame(frame);
+        const control = controlRef.current;
+        if (control.scrollFrame) {
+            cancelAnimationFrame(control.scrollFrame);
+        }
+        if (control.historyFrame) {
+            cancelAnimationFrame(control.historyFrame);
         }
     }, []);
 

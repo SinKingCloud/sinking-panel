@@ -6,42 +6,14 @@ export async function getTypeList(params: API.RequestParams = {}) {
 }
 
 /** 获取指定模块的全部分类 */
-export async function getAllTypes(module: string) {
-    const items: any[] = [];
-    let page = 1;
-    let lastResponse: any;
-    while (true) {
-        const response = await getTypeList({
-            body: {
-                module,
-                page,
-                page_size: 1000,
-                order_by_field: "sort",
-                order_by_type: "asc",
-            },
-        });
-        if (!response || response.code !== 200) {
-            return response;
-        }
-        lastResponse = response;
-        const batch = Array.isArray(response.data?.list) ? response.data.list : [];
-        items.push(...batch);
-        const total = Number(response.data?.total || 0);
-        if (batch.length === 0 || items.length >= total) {
-            break;
-        }
-        page += 1;
-    }
-    return {
-        ...lastResponse,
-        data: {
-            ...lastResponse?.data,
-            total: items.length,
-            page: 1,
-            page_size: items.length,
-            list: items,
+export async function getAllTypes(module: string, orderByField = "sort", orderByType = "asc") {
+    return getTypeList({
+        body: {
+            module,
+            order_by_field: orderByField,
+            order_by_type: orderByType,
         },
-    } as any;
+    });
 }
 
 /** 创建分类 POST /type/create */

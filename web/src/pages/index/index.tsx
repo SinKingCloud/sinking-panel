@@ -3,7 +3,7 @@ import {Alert, Col, Row} from "antd";
 import {createStyles} from "antd-style";
 import {Body} from "sinking-antd";
 import {getSystemInfo, getSystemStatus} from "@/service/api/system";
-import {gutter, numberValue} from "./components/helper";
+import {gutter, numberValue} from "./utils";
 import HostOverview from "./components/host-overview";
 import MonitorOverview from "./components/monitor-overview";
 import ResourceOverview from "./components/resource-overview";

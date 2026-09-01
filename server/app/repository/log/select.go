@@ -9,6 +9,10 @@ import (
 func (r *Repository) Select(where *SelectLog, queryPage *page.Query) (*page.Result[*model.Log], error) {
 	query := r.Database.Db.Model(&model.Log{})
 	if where != nil {
+		if where.Keyword != "" {
+			keyword := "%" + where.Keyword + "%"
+			query = query.Where("(ip LIKE ? OR location LIKE ? OR title LIKE ? OR content LIKE ?)", keyword, keyword, keyword, keyword)
+		}
 		if where.Type != "" {
 			query = query.Where("type = ?", where.Type)
 		}

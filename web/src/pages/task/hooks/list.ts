@@ -68,6 +68,7 @@ const useList = () => {
         order: "desc",
     });
     const [loading, setLoading] = useState(true);
+    const [initialized, setInitialized] = useState(false);
     const [reloadKey, setReloadKey] = useState(0);
     const [operating, setOperating] = useState(() => new Set<string>());
     const {page, pageSize, name, typeId, execType, status, sort, order} = query;
@@ -118,6 +119,7 @@ const useList = () => {
         }).finally(() => {
             if (active && requestRef.current === requestId && !pageAdjusted) {
                 setLoading(false);
+                setInitialized(true);
             }
         });
 
@@ -243,6 +245,7 @@ const useList = () => {
         sort,
         order,
         loading,
+        initialized,
         operating,
         reload,
         changeKeyword,

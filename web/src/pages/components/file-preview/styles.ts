@@ -71,6 +71,12 @@ const useStyles = createStyles<{compact?: boolean}>(({css, token}, props = {}) =
                 background: ${token.colorFillQuaternary};
             }
 
+            .file-preview-stage.is-embedded {
+                width: 100%;
+                height: 100%;
+                border-radius: 0;
+            }
+
             .file-preview-stage:fullscreen {
                 width: 100vw;
                 height: 100vh;
@@ -218,6 +224,10 @@ const useStyles = createStyles<{compact?: boolean}>(({css, token}, props = {}) =
 
                 .file-preview-stage {
                     height: clamp(240px, 48dvh, 420px);
+                }
+
+                .file-preview-stage.is-embedded {
+                    height: 100%;
                 }
 
                 .file-preview-nav.ant-btn {

@@ -75,7 +75,6 @@ const useStyles = createStyles(({css, token}: any) => ({
         min-width: 100%;
         min-height: 100%;
         margin: 0;
-        padding: ${logLayout.paddingTop}px ${logLayout.paddingHorizontal}px ${logLayout.paddingBottom}px;
         box-sizing: border-box;
         color: ${token.colorTextSecondary};
         font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
@@ -90,7 +89,6 @@ const useStyles = createStyles(({css, token}: any) => ({
         position: relative;
         width: max-content;
         min-width: 100%;
-        padding: ${logLayout.paddingTop}px 0 ${logLayout.paddingBottom}px;
         box-sizing: border-box;
         color: ${token.colorTextSecondary};
         font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
@@ -100,9 +98,9 @@ const useStyles = createStyles(({css, token}: any) => ({
     `,
     virtualLine: css`
         position: absolute;
-        left: ${logLayout.paddingHorizontal}px;
+        left: 0;
         width: max-content;
-        min-width: calc(100% - ${logLayout.paddingHorizontal * 2}px);
+        min-width: 100%;
         height: ${logLayout.lineHeight}px;
         color: inherit;
         font: inherit;
@@ -237,7 +235,7 @@ const Log = forwardRef<LogRef, LogProps>(({request, showClear = true, title = "ä
                                         <div
                                             className={styles.virtualLine}
                                             key={lineIndex}
-                                            style={{top: logLayout.paddingTop + lineIndex * logLayout.lineHeight}}>
+                                            style={{top: lineIndex * logLayout.lineHeight}}>
                                             {line}
                                         </div>
                                     );
