@@ -3,9 +3,11 @@ package webssh
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -15,6 +17,11 @@ import (
 const (
 	sshOutputBufferLimit = 1024 * 1024 // 单个 SSH 会话的输出缓冲上限
 	sshOutputChunkSize   = 32 * 1024   // WebSocket 单条输出消息大小
+)
+
+var (
+	ErrAuthentication    = errors.New("SSH认证失败") // 账号、密码或私钥未通过服务端认证
+	ErrInvalidPrivateKey = errors.New("SSH私钥无效") // 私钥内容无法解析
 )
 
 func NewSshClient(ip string, port int, timeout time.Duration) *SshClient {
@@ -127,7 +134,7 @@ func (s *SshClient) AuthWithPrivateKey(user string, key string) error {
 	if err == nil {
 		return s.Auth(s.User, ssh.PublicKeys(signer))
 	}
-	return err
+	return fmt.Errorf("%w: %v", ErrInvalidPrivateKey, err)
 }
 
 // Auth 执行命令
@@ -144,6 +151,9 @@ func (s *SshClient) Auth(user string, method ssh.AuthMethod) error {
 	if err == nil {
 		s.client = c
 		return nil
+	}
+	if strings.Contains(strings.ToLower(err.Error()), "unable to authenticate") {
+		return fmt.Errorf("%w: %v", ErrAuthentication, err)
 	}
 	return err
 }
