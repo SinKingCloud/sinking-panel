@@ -7,8 +7,12 @@ import ServerTerminal, {
     type ConnectionStatus,
     type TerminalRef,
 } from "@/pages/server/components/terminal";
+import ServerForm, {
+    type FormRef as ServerFormRef,
+    type FormSuccessResult,
+} from "@/pages/server/components/form";
 import useServerStyles from "@/pages/server/styles";
-import {localServer} from "@/pages/server/hooks/servers";
+import {localServer, type ServerRecord} from "@/pages/server/hooks/servers";
 
 interface FileTerminalProps {
     path: string;
@@ -17,6 +21,7 @@ interface FileTerminalProps {
 }
 
 const terminalBackground = "rgb(15, 15, 15)";
+const authTypeData: Record<string, string> = {};
 
 const useStyles = createStyles(({css, token}: any, props: {compact?: boolean; dark?: boolean} = {}) => {
     const compact = Boolean(props.compact);
@@ -154,12 +159,14 @@ const FileTerminal = ({path, open, onClose}: FileTerminalProps) => {
         terminalBackground,
     });
     const terminalRef = useRef<TerminalRef | null>(null);
+    const formRef = useRef<ServerFormRef>({} as ServerFormRef);
     const pathRef = useRef(path);
     const requestRef = useRef(0);
     const [server, setServer] = useState(localServer);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(false);
     const [status, setStatus] = useState<ConnectionStatus>("idle");
+    const [resetKey, setResetKey] = useState(0);
     const serverLoadedRef = useRef(false);
     const enteredPathRef = useRef("");
 
@@ -217,7 +224,7 @@ const FileTerminal = ({path, open, onClose}: FileTerminalProps) => {
         }
         const frame = window.requestAnimationFrame(connect);
         return () => window.cancelAnimationFrame(frame);
-    }, [connect, error, loading, open, path, server]);
+    }, [connect, error, loading, open, path, resetKey, server]);
 
     const clearAndEnterDirectory = useCallback(() => {
         const currentPath = pathRef.current;
@@ -249,60 +256,82 @@ const FileTerminal = ({path, open, onClose}: FileTerminalProps) => {
         setStatus(nextStatus);
     }, []);
 
+    const openEdit = useCallback((record: ServerRecord) => {
+        formRef.current?.open(record);
+    }, []);
+
+    const handleFormSuccess = useCallback(({server: nextServer, reconnectRequired}: FormSuccessResult) => {
+        if (nextServer) {
+            setServer(nextServer);
+        }
+        if (reconnectRequired) {
+            enteredPathRef.current = "";
+            setResetKey((value) => value + 1);
+        }
+    }, []);
+
     return (
-        <ProModal
-            title={(
-                <div className={styles.titleBar}>
-                    <Title size="small">本机终端</Title>
-                    <button
-                        className={styles.closeButton}
-                        type="button"
-                        aria-label="关闭本机终端"
-                        onClick={onClose}>
-                        <Icon type="CloseOutlined"/>
-                    </button>
-                </div>
-            )}
-            width={compact ? "min(960px, calc(100vw - 24px))" : "min(1040px, calc(100vw - 24px))"}
-            onCancel={onClose}
-            modalProps={{
-                open: open && Boolean(path),
-                rootClassName: styles.modal,
-                destroyOnHidden: false,
-                style: {
-                    top: screens.md ? 100 : 24,
-                    paddingBottom: screens.md ? 100 : 24,
-                },
-                closable: false,
-                footer: null,
-                mask: {closable: true},
-                styles: {
-                    container: {padding: 0},
-                    body: {padding: 0},
-                },
-            }}>
-            <div className={styles.host}>
-                {!path ? null : loading ? (
-                    <div className={styles.loading}>
-                        <Spin size="small"/>
+        <>
+            <ProModal
+                title={(
+                    <div className={styles.titleBar}>
+                        <Title size="small">本机终端</Title>
+                        <button
+                            className={styles.closeButton}
+                            type="button"
+                            aria-label="关闭本机终端"
+                            onClick={onClose}>
+                            <Icon type="CloseOutlined"/>
+                        </button>
                     </div>
-                ) : (
-                    <ServerTerminal
-                        ref={terminalRef}
-                        styles={serverStyles}
-                        server={server}
-                        active
-                        initializing={false}
-                        unavailable={error}
-                        resetKey={0}
-                        compact={compact}
-                        showHeader={false}
-                        terminalBackground={terminalBackground}
-                        terminalAccent={dark ? "#c3ccd6" : undefined}
-                        onStatusChange={handleStatusChange}/>
                 )}
-            </div>
-        </ProModal>
+                width={compact ? "min(960px, calc(100vw - 24px))" : "min(1040px, calc(100vw - 24px))"}
+                onCancel={onClose}
+                modalProps={{
+                    open: open && Boolean(path),
+                    rootClassName: styles.modal,
+                    destroyOnHidden: false,
+                    style: {
+                        top: screens.md ? 100 : 24,
+                        paddingBottom: screens.md ? 100 : 24,
+                    },
+                    closable: false,
+                    footer: null,
+                    mask: {closable: true},
+                    styles: {
+                        container: {padding: 0},
+                        body: {padding: 0},
+                    },
+                }}>
+                <div className={styles.host}>
+                    {!path ? null : loading ? (
+                        <div className={styles.loading}>
+                            <Spin size="small"/>
+                        </div>
+                    ) : (
+                        <ServerTerminal
+                            ref={terminalRef}
+                            styles={serverStyles}
+                            server={server}
+                            active={open}
+                            initializing={false}
+                            unavailable={error}
+                            resetKey={resetKey}
+                            compact={compact}
+                            showHeader={false}
+                            terminalBackground={terminalBackground}
+                            terminalAccent={dark ? "#c3ccd6" : undefined}
+                            onEdit={openEdit}
+                            onStatusChange={handleStatusChange}/>
+                    )}
+                </div>
+            </ProModal>
+            <ServerForm
+                ref={formRef}
+                authTypeData={authTypeData}
+                layered
+                onSuccess={handleFormSuccess}/>
+        </>
     );
 };
 

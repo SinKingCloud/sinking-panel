@@ -8,6 +8,13 @@ import type {ServerRecord} from "../../hooks/servers";
 
 export type ConnectionStatus = "idle" | "connecting" | "connected" | "disconnected" | "error";
 
+const socketDecoder = new TextDecoder();
+
+interface ConnectionFailure {
+    code: string;
+    message: string;
+}
+
 interface TerminalProps {
     styles: any;
     server: ServerRecord;
@@ -20,6 +27,7 @@ interface TerminalProps {
     terminalBackground?: string;
     terminalAccent?: string;
     onStatusChange?: (serverId: number, status: ConnectionStatus) => void;
+    onEdit?: (server: ServerRecord) => void;
 }
 
 export interface TerminalRef {
@@ -66,6 +74,7 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
                                                              terminalBackground,
                                                              terminalAccent,
                                                              onStatusChange,
+                                                             onEdit,
                                                          }, ref): any => {
     const {message} = App.useApp();
     const screenRef = useRef<HTMLDivElement | any>(null);
@@ -78,10 +87,12 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
     const statusCallbackRef = useRef(onStatusChange);
     const generationRef = useRef(0);
     const failedRef = useRef(false);
+    const failureRef = useRef<ConnectionFailure | null>(null);
     const mountedRef = useRef(false);
     const [socket, setSocket] = useState<WebSocket | undefined>(undefined);
     const [status, setStatus] = useState<ConnectionStatus>("idle");
     const [fullscreen, setFullscreen] = useState(false);
+    const [failure, setFailure] = useState<ConnectionFailure | null>(null);
     serverRef.current = server;
     activeRef.current = active;
     initializingRef.current = initializing;
@@ -94,6 +105,13 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
         }
         setStatus(value);
         statusCallbackRef.current?.(serverRef.current.id, value);
+    }, []);
+
+    const changeFailure = useCallback((value: ConnectionFailure | null) => {
+        failureRef.current = value;
+        if (mountedRef.current) {
+            setFailure(value);
+        }
     }, []);
 
     const closeSocket = useCallback((nextStatus?: ConnectionStatus) => {
@@ -122,6 +140,19 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
         return terminalRef.current?.paste(command) || false;
     }, []);
 
+    const openEditForm = useCallback(() => {
+        const open = () => {
+            if (mountedRef.current) {
+                onEdit?.(serverRef.current);
+            }
+        };
+        if (document.fullscreenElement === screenRef.current && typeof document.exitFullscreen === "function") {
+            void document.exitFullscreen().then(open).catch(open);
+            return;
+        }
+        open();
+    }, [onEdit]);
+
     const connect = useCallback(() => {
         const currentServer = serverRef.current;
         const terminal = terminalRef.current;
@@ -137,10 +168,12 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
         const headers = getHeaders();
         if (!headers.token) {
             closeSocket("error");
+            changeFailure({code: "authorization_failed", message: "登录状态已失效，请重新登录"});
             return;
         }
 
         closeSocket();
+        changeFailure(null);
         terminal.reset();
         const {cols, rows} = terminal.getSize();
         changeStatus("connecting");
@@ -152,6 +185,7 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
                 createSocketProtocol(headers),
             );
         } catch {
+            changeFailure({code: "connection_failed", message: "无法创建终端连接，请稍后重试"});
             changeStatus("error");
             return;
         }
@@ -160,22 +194,64 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
         failedRef.current = false;
         setSocket(nextSocket);
 
+        const handleControl = (control: any) => {
+            if (control?.event === "ready") {
+                failedRef.current = false;
+                changeFailure(null);
+                changeStatus("connected");
+                terminalRef.current?.fit(activeRef.current);
+                return true;
+            }
+            if (control?.event === "error") {
+                const nextFailure = {
+                    code: String(control.code || "connection_failed"),
+                    message: String(control.content || "SSH连接失败"),
+                };
+                failedRef.current = true;
+                changeFailure(nextFailure);
+                changeStatus("error");
+                return true;
+            }
+            return control?.event === "pong";
+        };
+
+        const handleBinary = (value: ArrayBuffer) => {
+            const payload = new Uint8Array(value);
+            if (payload[0] === 123 && payload[payload.length - 1] === 125) {
+                try {
+                    if (handleControl(JSON.parse(socketDecoder.decode(payload)))) {
+                        return;
+                    }
+                } catch {
+                    // 普通终端输出继续交给 xterm 处理。
+                }
+            }
+            terminalRef.current?.write(payload);
+        };
+
         nextSocket.onmessage = (event) => {
             if (generationRef.current !== generation || socketRef.current !== nextSocket) {
                 return;
             }
             if (typeof event.data === "string") {
+                try {
+                    if (handleControl(JSON.parse(event.data))) {
+                        return;
+                    }
+                } catch {
+                    // 兼容旧服务端发送的文本输出。
+                }
                 terminalRef.current?.write(event.data);
                 return;
             }
             if (event.data instanceof ArrayBuffer) {
-                terminalRef.current?.write(new Uint8Array(event.data));
+                handleBinary(event.data);
                 return;
             }
             if (event.data instanceof Blob) {
                 void event.data.arrayBuffer().then((value) => {
                     if (generationRef.current === generation && socketRef.current === nextSocket) {
-                        terminalRef.current?.write(new Uint8Array(value));
+                        handleBinary(value);
                     }
                 });
             }
@@ -186,12 +262,14 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
                 nextSocket.close();
                 return;
             }
-            changeStatus("connected");
             terminalRef.current?.fit(activeRef.current);
         };
         nextSocket.onerror = () => {
             if (generationRef.current === generation && socketRef.current === nextSocket) {
                 failedRef.current = true;
+                if (!failureRef.current) {
+                    changeFailure({code: "connection_failed", message: "终端连接失败，请检查面板网络"});
+                }
                 changeStatus("error");
             }
         };
@@ -203,9 +281,9 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
             if (mountedRef.current) {
                 setSocket(undefined);
             }
-            changeStatus(failedRef.current ? "error" : "disconnected");
+            changeStatus(failedRef.current || failureRef.current ? "error" : "disconnected");
         };
-    }, [changeStatus, closeSocket]);
+    }, [changeFailure, changeStatus, closeSocket]);
 
     useImperativeHandle(ref, () => ({
         clear: () => {
@@ -226,9 +304,11 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
 
     useEffect(() => {
         closeSocket();
+        changeFailure(null);
         terminalRef.current?.reset();
         changeStatus("idle");
     }, [
+        changeFailure,
         changeStatus,
         closeSocket,
         resetKey,
@@ -283,6 +363,9 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
                 : server.id === 0 ? "尚未配置本机 SSH" : `${server.ip}:${server.port}`;
     const needsConfiguration = !localUnavailable && server.id === 0 &&
         (!server.ip || !server.user);
+    const needsCredentialUpdate = failure?.code === "credential_invalid" ||
+        failure?.code === "password_invalid" ||
+        failure?.code === "private_key_invalid";
 
     return (
         <section
@@ -348,12 +431,30 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
                                 <Button type="text" disabled icon={<Icon type="SettingOutlined"/>}>
                                     请先配置本机连接
                                 </Button>
+                            ) : status === "error" ? (
+                                <div className="terminal-error">
+                                    <div className="terminal-error-title">
+                                        <Icon type="WarningOutlined"/>
+                                        <span>连接失败</span>
+                                    </div>
+                                    <div className="terminal-error-message">
+                                        {failure?.message || "终端连接失败，请稍后重试"}
+                                    </div>
+                                    <div className="terminal-error-actions">
+                                        {needsCredentialUpdate && (
+                                            <Button type="primary" onClick={openEditForm}>
+                                                修改信息
+                                            </Button>
+                                        )}
+                                        <Button onClick={connect}>重新连接</Button>
+                                    </div>
+                                </div>
                             ) : (
                                 <Button
                                     type="primary"
-                                    icon={<Icon type={status === "error" ? "ReloadOutlined" : "LinkOutlined"}/>}
+                                    icon={<Icon type="LinkOutlined"/>}
                                     onClick={connect}>
-                                    {status === "error" ? "重新连接" : "连接终端"}
+                                    连接终端
                                 </Button>
                             )}
                         </div>

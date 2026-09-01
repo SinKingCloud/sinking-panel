@@ -10,6 +10,7 @@ export interface FormRef {
 
 interface FormProps {
     authTypeData: Record<string, string>;
+    layered?: boolean;
     onSuccess?: (result: FormSuccessResult) => void;
 }
 
@@ -24,7 +25,7 @@ const fallbackAuthTypes = {
     "1": "证书验证",
 };
 
-const Form = forwardRef<FormRef, FormProps>(({authTypeData, onSuccess}, ref): any => {
+const Form = forwardRef<FormRef, FormProps>(({authTypeData, layered = false, onSuccess}, ref): any => {
     const {message} = App.useApp();
     const modalRef = useRef<ProModalRef>({} as ProModalRef);
     const requestRef = useRef(0);
@@ -174,12 +175,14 @@ const Form = forwardRef<FormRef, FormProps>(({authTypeData, onSuccess}, ref): an
             modalProps={{
                 confirmLoading: submitting,
                 cancelButtonProps: {disabled: false},
+                zIndex: layered ? 2000 : undefined,
                 closable: true,
                 keyboard: true,
                 forceRender: true,
                 okText: editing ? "保存" : "添加",
                 cancelText: "取消",
                 style: {top: 100, paddingBottom: 100},
+                focusable: {focusTriggerAfterClose: layered},
                 mask: {closable: true},
                 afterClose: reset,
             } as any}>

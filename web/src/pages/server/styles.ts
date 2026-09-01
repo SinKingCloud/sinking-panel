@@ -1029,6 +1029,60 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
                 background: transparent;
                 color: rgba(255, 255, 255, .52);
             }
+
+            .terminal-error {
+                width: min(360px, calc(100% - 32px));
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 10px;
+                color: rgba(255, 255, 255, .86);
+                text-align: center;
+            }
+
+            .terminal-error-title {
+                display: inline-flex;
+                align-items: center;
+                gap: 7px;
+                color: #fff;
+                font-size: 14px;
+                font-weight: 600;
+            }
+
+            .terminal-error-title .anticon {
+                color: ${token.colorWarning};
+                font-size: 15px;
+            }
+
+            .terminal-error-message {
+                max-width: 100%;
+                color: rgba(255, 255, 255, .58);
+                font-size: 12px;
+                line-height: 20px;
+                overflow-wrap: anywhere;
+            }
+
+            .terminal-error-actions {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 8px;
+            }
+
+            .terminal-error-actions .ant-btn {
+                height: ${compact ? 28 : 30}px;
+                padding-inline: 13px;
+                border-color: rgba(255, 255, 255, .14);
+                background: rgba(255, 255, 255, .07);
+                color: rgba(255, 255, 255, .82);
+                box-shadow: none;
+            }
+
+            .terminal-error-actions .ant-btn-primary {
+                border-color: ${token.colorPrimary};
+                background: ${token.colorPrimary};
+                color: #fff;
+            }
         `,
         scriptPane: css`
             min-width: 0;

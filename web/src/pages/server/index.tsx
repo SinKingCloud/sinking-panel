@@ -273,6 +273,7 @@ export default (): React.ReactNode => {
                                         (!list.localLoaded || list.localError)}
                                     resetKey={session.resetKey}
                                     compact={isCompactMode}
+                                    onEdit={openEdit}
                                     onStatusChange={changeSessionStatus}/>
                             );
                         })}

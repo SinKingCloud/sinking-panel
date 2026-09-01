@@ -165,6 +165,16 @@ const useServers = () => {
         setReloadKey((value) => value + 1);
     }, []);
 
+    const update = useCallback((server: ServerRecord) => {
+        if (server.id === 0) {
+            setLocal(server);
+            setLocalLoaded(true);
+            setLocalError(false);
+            return;
+        }
+        setRemoteServers((current) => current.map((item) => item.id === server.id ? server : item));
+    }, []);
+
     const loadMore = useCallback(async () => {
         if (loadingMoreRef.current || loading || !hasMore || !nextCursor) {
             return;
@@ -230,6 +240,7 @@ const useServers = () => {
         setKeyword,
         loadMore,
         reload,
+        update,
     };
 };
 
