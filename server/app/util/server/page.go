@@ -45,30 +45,35 @@ const defaultPageStyle = `<style>
         }
         .content {
             width: 100%;
-            max-width: 760px;
+            max-width: 900px;
             text-align: center;
         }
-        .code {
+        .title {
             margin: 0;
             color: var(--text);
-            font-size: 96px;
+            font-size: 64px;
             font-weight: 300;
-            line-height: 1;
-            overflow-wrap: anywhere;
-        }
-        h1 {
-            margin: 22px 0 0;
-            color: var(--text);
-            font-size: 24px;
-            font-weight: 600;
-            line-height: 34px;
+            line-height: 1.25;
+            overflow-wrap: break-word;
         }
         .description {
-            margin: 10px 0 0;
+            margin: 18px 0 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 8px;
             color: var(--text-secondary);
             font-size: 14px;
             line-height: 24px;
             overflow-wrap: anywhere;
+        }
+        .status {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+            font-size: 12px;
+        }
+        .divider {
+            color: var(--text-tertiary);
         }
         .footer {
             padding: 20px 20px calc(20px + env(safe-area-inset-bottom));
@@ -89,16 +94,13 @@ const defaultPageStyle = `<style>
             .stage {
                 padding: 36px 20px;
             }
-            .code {
-                font-size: 54px;
-            }
-            h1 {
-                margin-top: 16px;
-                font-size: 20px;
-                line-height: 30px;
+            .title {
+                font-size: 38px;
+                line-height: 1.3;
             }
             .description {
-                margin-top: 6px;
+                margin-top: 12px;
+                gap: 6px;
                 font-size: 13px;
                 line-height: 22px;
             }
@@ -128,9 +130,8 @@ var (
 <body>
     <main class="stage">
         <section class="content" aria-labelledby="page-title">
-            <div class="code" aria-hidden="true">404</div>
-            <h1 id="page-title">页面不存在</h1>
-            <p class="description">您访问的页面不存在，可能已被移动或删除。</p>
+            <h1 class="title" id="page-title">页面不存在</h1>
+            <p class="description"><span class="status">HTTP 404</span><span class="divider" aria-hidden="true">·</span><span>您访问的页面不存在，可能已被移动或删除。</span></p>
         </section>
     </main>
     <footer class="footer">© ` + pageYear + ` All Rights Reserved</footer>
@@ -147,9 +148,8 @@ var (
 <body>
     <main class="stage">
         <section class="content" aria-labelledby="page-title">
-            <div class="code" aria-hidden="true">404</div>
-            <h1 id="page-title">网站不存在</h1>
-            <p class="description">当前域名尚未绑定可用的网站。</p>
+            <h1 class="title" id="page-title">网站不存在</h1>
+            <p class="description"><span class="status">HTTP 404</span><span class="divider" aria-hidden="true">·</span><span>当前域名尚未绑定可用的网站。</span></p>
         </section>
     </main>
     <footer class="footer">© ` + pageYear + ` All Rights Reserved</footer>
@@ -166,9 +166,8 @@ var (
 <body>
     <main class="stage">
         <section class="content" aria-labelledby="page-title">
-            <div class="code" aria-hidden="true">503</div>
-            <h1 id="page-title">网站已停用</h1>
-            <p class="description">当前网站已暂停访问，请稍后再试。</p>
+            <h1 class="title" id="page-title">网站已停用</h1>
+            <p class="description"><span class="status">HTTP 503</span><span class="divider" aria-hidden="true">·</span><span>当前网站已暂停访问，请稍后再试。</span></p>
         </section>
     </main>
     <footer class="footer">© ` + pageYear + ` All Rights Reserved</footer>
