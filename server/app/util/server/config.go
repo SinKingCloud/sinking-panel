@@ -18,13 +18,6 @@ import (
 	"github.com/caddyserver/certmagic"
 )
 
-const (
-	defaultPageStyle        = `<style>*{box-sizing:border-box}html,body{height:100%;margin:0}body{display:grid;place-items:center;background:#f6f7f9;color:#202124;font:14px/1.6 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}main{text-align:center;padding:32px}strong{display:block;font-size:56px;line-height:1.1;font-weight:600}p{margin:12px 0 0;color:#6b7280}@media(prefers-color-scheme:dark){body{background:#0f0f0f;color:#f3f4f6}p{color:#9ca3af}}</style>` // 默认页面样式
-	defaultNotFoundPage     = `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>404 - 页面不存在</title>` + defaultPageStyle + `</head><body><main><strong>404</strong><p>请求的页面不存在</p></main></body></html>`                                                                                                                                                                                               // 默认 404 页面
-	defaultSiteNotFoundPage = `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>网站不存在</title>` + defaultPageStyle + `</head><body><main><strong>404</strong><p>当前域名尚未绑定网站</p></main></body></html>`                                                                                                                                                                                                   // 默认网站不存在页面
-	defaultSiteDisabledPage = `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>网站已停用</title>` + defaultPageStyle + `</head><body><main><strong>503</strong><p>当前网站已暂停访问</p></main></body></html>`                                                                                                                                                                                                    // 默认网站停用页面
-)
-
 func (m *Manager) setOptions(options Options) error {
 	if options.HTTPListen == nil {
 		options.HTTPListen = []string{":80"}
