@@ -18,6 +18,7 @@ const Header = ({
     pasteDisabled,
     directoryActionsDisabled,
     selectedCount,
+    editorMinimized,
     selectionClipboardDisabled,
     selectionOperationDisabled,
     selectionClearDisabled,
@@ -31,6 +32,7 @@ const Header = ({
     onCompressSelected,
     onDeleteSelected,
     onClearSelection,
+    onRestoreEditor,
     onRemoteDownload,
     onOpenTerminal,
     onOpenRecycle,
@@ -65,6 +67,7 @@ const Header = ({
                 pasteDisabled={pasteDisabled}
                 directoryActionsDisabled={directoryActionsDisabled}
                 selectedCount={selectedCount}
+                editorMinimized={editorMinimized}
                 selectionClipboardDisabled={selectionClipboardDisabled}
                 selectionOperationDisabled={selectionOperationDisabled}
                 selectionClearDisabled={selectionClearDisabled}
@@ -75,6 +78,7 @@ const Header = ({
                 onCompressSelected={onCompressSelected}
                 onDeleteSelected={onDeleteSelected}
                 onClearSelection={onClearSelection}
+                onRestoreEditor={onRestoreEditor}
                 styles={styles}/>
         </>
     );

@@ -23,7 +23,7 @@ const defaultPreferences: FileEditorPreferences = {
     theme: "auto",
     fontSize: 12,
     tabSize: 4,
-    wrapEnabled: true,
+    wrapEnabled: false,
     showLineNumbers: true,
 };
 

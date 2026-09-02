@@ -30,6 +30,7 @@ import FileTerminal from "../file-terminal";
 export interface FileDialogHostRef {
     openCreate: (mode: any) => void;
     openEditor: (path?: string, name?: string) => void;
+    restoreEditor: () => void;
     openRename: (record: any) => void;
     openPermissions: (record: any) => void;
     openProperties: (record: any) => void;
@@ -57,6 +58,7 @@ export interface FileDialogHostProps {
     onReload: () => void;
     onUploadingChange: (uploading: boolean) => void;
     onOperationCompleted: (paths: string[]) => void;
+    onEditorMinimizedChange: (minimized: boolean) => void;
 }
 
 const FileDialogHost = forwardRef<FileDialogHostRef, FileDialogHostProps>(({
@@ -69,6 +71,7 @@ const FileDialogHost = forwardRef<FileDialogHostRef, FileDialogHostProps>(({
     onReload,
     onUploadingChange,
     onOperationCompleted,
+    onEditorMinimizedChange,
 }, ref) => {
     const {message} = App.useApp();
     const formRef = useRef<FileFormRef | null>(null);
@@ -160,6 +163,10 @@ const FileDialogHost = forwardRef<FileDialogHostRef, FileDialogHostProps>(({
         editorRef.current?.open(targetPath || path, name);
     }, [loaded, loading, message, navigating, path]);
 
+    const restoreEditor = useCallback(() => {
+        editorRef.current?.restore();
+    }, []);
+
     const openPreview = useCallback((files: readonly any[], active: string) => {
         if (!loaded || loading || navigating) {
             message.info("目录正在加载");
@@ -228,6 +235,7 @@ const FileDialogHost = forwardRef<FileDialogHostRef, FileDialogHostProps>(({
     useImperativeHandle(ref, () => ({
         openCreate,
         openEditor,
+        restoreEditor,
         openRename,
         openPermissions,
         openProperties,
@@ -243,6 +251,7 @@ const FileDialogHost = forwardRef<FileDialogHostRef, FileDialogHostProps>(({
         closePathBound,
         openCreate,
         openEditor,
+        restoreEditor,
         openRename,
         openPermissions,
         openOperation,
@@ -295,7 +304,11 @@ const FileDialogHost = forwardRef<FileDialogHostRef, FileDialogHostProps>(({
     return (
         <>
             <FileForm ref={formRef} onSuccess={handleFormSuccess}/>
-            <FileEditor ref={editorRef} roots={roots} onMutation={scheduleReload}/>
+            <FileEditor
+                ref={editorRef}
+                roots={roots}
+                onMutation={scheduleReload}
+                onMinimizedChange={onEditorMinimizedChange}/>
             <FileProperties
                 ref={propertiesRef}
                 onRename={renameFromProperties}

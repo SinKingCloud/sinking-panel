@@ -70,10 +70,12 @@ interface Destroyable {
 interface FileEditorProps {
     roots: string[];
     onMutation: () => void;
+    onMinimizedChange: (minimized: boolean) => void;
 }
 
 export interface FileEditorRef {
     open: (path: string, name?: string) => void;
+    restore: () => void;
     close: (force?: boolean) => void;
 }
 
@@ -82,7 +84,7 @@ const isMobileViewport = () => (
 );
 
 const FileEditor = forwardRef(function FileEditor(
-    {roots, onMutation}: FileEditorProps,
+    {roots, onMutation, onMinimizedChange}: FileEditorProps,
     ref: React.ForwardedRef<FileEditorRef>,
 ) {
     const {modal} = App.useApp();
@@ -113,6 +115,10 @@ const FileEditor = forwardRef(function FileEditor(
     const [aceAttempt, setAceAttempt] = useState(0);
     const [fullscreen, setFullscreen] = useState(false);
     const [minimized, setMinimized] = useState(false);
+
+    useEffect(() => {
+        onMinimizedChange(Boolean(session && minimized));
+    }, [minimized, onMinimizedChange, session]);
 
     const getWorkspacePopupContainer = useCallback(() => {
         const workspace = workspaceRef.current;
@@ -310,10 +316,17 @@ const FileEditor = forwardRef(function FileEditor(
         runAfterDiscard(closeNow);
     }, [closeNow, runAfterDiscard]);
 
+    const restore = useCallback(() => {
+        if (sessionRef.current) {
+            setMinimized(false);
+        }
+    }, []);
+
     useImperativeHandle(ref, () => ({
         open: requestOpen,
+        restore,
         close: requestClose,
-    }), [requestClose, requestOpen]);
+    }), [requestClose, requestOpen, restore]);
 
     useEffect(() => () => {
         discardConfirmRef.current?.destroy();

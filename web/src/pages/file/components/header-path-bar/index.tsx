@@ -15,6 +15,7 @@ interface HeaderPathBarProps {
     pasteDisabled: boolean;
     directoryActionsDisabled: boolean;
     selectedCount: number;
+    editorMinimized: boolean;
     selectionClipboardDisabled: boolean;
     selectionOperationDisabled: boolean;
     selectionClearDisabled: boolean;
@@ -25,6 +26,7 @@ interface HeaderPathBarProps {
     onCompressSelected: () => void;
     onDeleteSelected: () => void;
     onClearSelection: () => void;
+    onRestoreEditor: () => void;
     styles: Pick<
         HeaderStyles,
         "pathSection" | "pathBar"
@@ -40,6 +42,7 @@ const HeaderPathBar = ({
     pasteDisabled,
     directoryActionsDisabled,
     selectedCount,
+    editorMinimized,
     selectionClipboardDisabled,
     selectionOperationDisabled,
     selectionClearDisabled,
@@ -50,6 +53,7 @@ const HeaderPathBar = ({
     onCompressSelected,
     onDeleteSelected,
     onClearSelection,
+    onRestoreEditor,
     styles,
 }: HeaderPathBarProps) => {
     const breadcrumbRef = useRef<HTMLOListElement>(null);
@@ -250,8 +254,16 @@ const HeaderPathBar = ({
                         })}
                     </ol>
                 )}
-                {(selectedCount > 0 || clipboardCount > 0) && (
+                {(editorMinimized || selectedCount > 0 || clipboardCount > 0) && (
                     <div className="path-actions" role="group" aria-label="当前目录操作">
+                        {editorMinimized && (
+                            <TableAction
+                                className="path-editor"
+                                label="编辑器"
+                                icon="EditOutlined"
+                                aria-label="恢复文件编辑器"
+                                onClick={onRestoreEditor}/>
+                        )}
                         {selectedCount > 0 && (
                             <TableAction
                                 className="path-batch"

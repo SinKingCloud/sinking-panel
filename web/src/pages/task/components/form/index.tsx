@@ -256,8 +256,6 @@ const Form = forwardRef<FormRef, {typeData?: any; typeItems?: any[]; execTypeDat
                                     name="type_id"
                                     label="任务分类">
                                     <Select
-                                        showSearch
-                                        optionFilterProp="label"
                                         placeholder="全部分类"
                                         options={typeOptions}
                                     />

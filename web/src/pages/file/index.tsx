@@ -20,6 +20,7 @@ export default (): React.ReactNode => {
     const dialogHostRef = useRef<FileDialogHostRef | null>(null);
     const cancelPendingNavigationRef = useRef<() => void>(() => undefined);
     const [uploading, setUploading] = useState(false);
+    const [editorMinimized, setEditorMinimized] = useState(false);
 
     const cancelPendingNavigation = useCallback(() => {
         cancelPendingNavigationRef.current();
@@ -89,6 +90,9 @@ export default (): React.ReactNode => {
     }, []);
     const openEditor = useCallback((path?: string, name?: string) => {
         dialogHostRef.current?.openEditor(path, name);
+    }, []);
+    const restoreEditor = useCallback(() => {
+        dialogHostRef.current?.restoreEditor();
     }, []);
     const openRename = useCallback((record: any) => {
         dialogHostRef.current?.openRename(record);
@@ -161,6 +165,7 @@ export default (): React.ReactNode => {
                         pasteDisabled={!list.loaded || list.navigating}
                         directoryActionsDisabled={!list.loaded || list.navigating}
                         selectedCount={selection.selectedRecords.length}
+                        editorMinimized={editorMinimized}
                         selectionClipboardDisabled={list.loading
                             || list.navigating
                             || selection.hasBusySelection
@@ -179,6 +184,7 @@ export default (): React.ReactNode => {
                         onCompressSelected={openSelectedCompress}
                         onDeleteSelected={deletion.confirmSelection}
                         onClearSelection={selection.clear}
+                        onRestoreEditor={restoreEditor}
                         onRemoteDownload={openRemoteDownload}
                         onOpenTerminal={openTerminal}
                         onOpenRecycle={openRecycle}
@@ -240,6 +246,7 @@ export default (): React.ReactNode => {
                 uploading={uploading}
                 onReload={list.reload}
                 onUploadingChange={setUploading}
+                onEditorMinimizedChange={setEditorMinimized}
                 onOperationCompleted={removeCompletedSelection}/>
         </Body>
     );

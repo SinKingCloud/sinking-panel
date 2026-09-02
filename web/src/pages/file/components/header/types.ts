@@ -11,6 +11,7 @@ export interface HeaderProps {
     pasteDisabled: boolean;
     directoryActionsDisabled: boolean;
     selectedCount: number;
+    editorMinimized: boolean;
     selectionClipboardDisabled: boolean;
     selectionOperationDisabled: boolean;
     selectionClearDisabled: boolean;
@@ -24,6 +25,7 @@ export interface HeaderProps {
     onCompressSelected: () => void;
     onDeleteSelected: () => void;
     onClearSelection: () => void;
+    onRestoreEditor: () => void;
     onRemoteDownload: () => void;
     onOpenTerminal: () => void;
     onOpenRecycle: () => void;

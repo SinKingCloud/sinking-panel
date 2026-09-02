@@ -154,6 +154,7 @@ const useStyles = createStyles(({css, token}, props: {compact?: boolean} = {}) =
                 scrollbar-width: none;
             }
 
+            .path-actions > .path-editor.ant-btn,
             .path-actions > .path-batch,
             .path-actions > .path-paste.ant-btn {
                 min-width: max-content;
