@@ -15,6 +15,12 @@ type WAFMode string
 // CertificateCA 表示证书签发环境。
 type CertificateCA string
 
+// CertificateChallenge 表示 ACME 域名所有权验证方式。
+type CertificateChallenge string
+
+// DNSProvider 表示 ACME DNS-01 服务商。
+type DNSProvider string
+
 // LogType 表示 HTTP 服务和站点日志类型。
 type LogType string
 
@@ -41,6 +47,14 @@ const (
 
 	CertificateCAProd    CertificateCA = "production" // Let's Encrypt 正式环境
 	CertificateCAStaging CertificateCA = "staging"    // Let's Encrypt 测试环境
+
+	CertificateChallengeHTTP CertificateChallenge = "http" // HTTP-01 验证
+	CertificateChallengeDNS  CertificateChallenge = "dns"  // DNS-01 验证
+
+	DNSProviderAliDNS       DNSProvider = "alidns"       // 阿里云 DNS
+	DNSProviderDNSPod       DNSProvider = "dnspod"       // DNSPod
+	DNSProviderTencentCloud DNSProvider = "tencentcloud" // 腾讯云 DNS
+	DNSProviderHuaweiCloud  DNSProvider = "huaweicloud"  // 华为云 DNS
 
 	LogAccess  LogType = "access"  // 访问日志
 	LogWAF     LogType = "waf"     // WAF 审计日志

@@ -10,11 +10,26 @@ import (
 	"net/mail"
 	"strings"
 
-	"github.com/caddyserver/caddy/v2"
+	caddyDNSPod "github.com/caddy-dns/dnspod"
 	"github.com/caddyserver/certmagic"
+	libdnsAliDNS "github.com/libdns/alidns"
+	libdnsHuaweiCloud "github.com/libdns/huaweicloud"
+	libdnsTencentCloud "github.com/libdns/tencentcloud"
+	"go.uber.org/zap"
 )
 
-func (m *Manager) obtainCertificate(ctx context.Context, request CertificateRequest, renew bool) (*Certificate, error) {
+func (m *Manager) obtainCertificate(ctx context.Context, request CertificateRequest, renew bool) (certificate *Certificate, err error) {
+	action := "申请"
+	if renew {
+		action = "续签"
+	}
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			certificate = nil
+			err = fmt.Errorf("%s证书时发生异常，请检查验证参数后重试", action)
+		}
+	}()
+
 	if ctx == nil {
 		return nil, errors.New("证书申请上下文不能为空")
 	}
@@ -22,11 +37,18 @@ func (m *Manager) obtainCertificate(ctx context.Context, request CertificateRequ
 	if err != nil {
 		return nil, fmt.Errorf("证书域名无效: %w", err)
 	}
-	if strings.HasPrefix(domain, "*.") {
-		return nil, errors.New("HTTP-01 验证不支持通配符证书")
-	}
 	if net.ParseIP(domain) != nil || !certmagic.SubjectQualifiesForPublicCert(domain) {
 		return nil, errors.New("域名不能申请公开证书")
+	}
+	challenge := CertificateChallenge(strings.ToLower(strings.TrimSpace(string(request.Challenge))))
+	if challenge == "" {
+		challenge = CertificateChallengeHTTP
+	}
+	if challenge != CertificateChallengeHTTP && challenge != CertificateChallengeDNS {
+		return nil, errors.New("证书验证方式只支持 http 或 dns")
+	}
+	if strings.HasPrefix(domain, "*.") && challenge != CertificateChallengeDNS {
+		return nil, errors.New("通配符证书必须使用 DNS 验证")
 	}
 
 	caName := CertificateCA(strings.ToLower(strings.TrimSpace(string(request.CA))))
@@ -54,7 +76,7 @@ func (m *Manager) obtainCertificate(ctx context.Context, request CertificateRequ
 			return nil, errors.New("ACME 邮箱地址无效")
 		}
 	}
-	logger := caddy.Log().Named("certificate")
+	logger := zap.NewNop()
 	var magic *certmagic.Config
 	cache := certmagic.NewCache(certmagic.CacheOptions{
 		Logger: logger,
@@ -68,14 +90,65 @@ func (m *Manager) obtainCertificate(ctx context.Context, request CertificateRequ
 		Storage: m.acmeStorage,
 		Logger:  logger,
 	})
-	issuer := certmagic.NewACMEIssuer(magic, certmagic.ACMEIssuer{
+	issuerOptions := certmagic.ACMEIssuer{
 		CA:                      caURL,
 		Email:                   email,
 		Agreed:                  true,
+		Logger:                  logger,
 		DisableTLSALPNChallenge: true,
 		ListenHost:              strings.TrimSpace(m.options.HTTPChallengeHost),
 		AltHTTPPort:             m.options.HTTPChallengePort,
-	})
+	}
+	if challenge == CertificateChallengeDNS {
+		credentials := request.DNSCredentials
+		credentials.AliyunAccessKeyID = strings.TrimSpace(credentials.AliyunAccessKeyID)
+		credentials.AliyunAccessKeySecret = strings.TrimSpace(credentials.AliyunAccessKeySecret)
+		credentials.DNSPodAPIToken = strings.TrimSpace(credentials.DNSPodAPIToken)
+		credentials.TencentSecretID = strings.TrimSpace(credentials.TencentSecretID)
+		credentials.TencentSecretKey = strings.TrimSpace(credentials.TencentSecretKey)
+		credentials.HuaweiAccessKeyID = strings.TrimSpace(credentials.HuaweiAccessKeyID)
+		credentials.HuaweiSecretAccessKey = strings.TrimSpace(credentials.HuaweiSecretAccessKey)
+
+		providerName := DNSProvider(strings.ToLower(strings.TrimSpace(string(request.DNSProvider))))
+		var provider certmagic.DNSProvider
+		manager := certmagic.DNSManager{Logger: logger}
+		switch providerName {
+		case DNSProviderAliDNS:
+			if credentials.AliyunAccessKeyID == "" || credentials.AliyunAccessKeySecret == "" {
+				return nil, errors.New("阿里云 DNS 验证需要 AccessKey ID 和 AccessKey Secret")
+			}
+			provider = &libdnsAliDNS.Provider{CredentialInfo: libdnsAliDNS.CredentialInfo{
+				AccessKeyID:     credentials.AliyunAccessKeyID,
+				AccessKeySecret: credentials.AliyunAccessKeySecret,
+			}}
+		case DNSProviderDNSPod:
+			parts := strings.Split(credentials.DNSPodAPIToken, ",")
+			if len(parts) != 2 || strings.TrimSpace(parts[0]) == "" || strings.TrimSpace(parts[1]) == "" {
+				return nil, errors.New("DNSPod API Token 格式必须为 ID,TOKEN")
+			}
+			credentials.DNSPodAPIToken = strings.TrimSpace(parts[0]) + "," + strings.TrimSpace(parts[1])
+			provider = &caddyDNSPod.Provider{APIToken: credentials.DNSPodAPIToken}
+		case DNSProviderTencentCloud:
+			if credentials.TencentSecretID == "" || credentials.TencentSecretKey == "" {
+				return nil, errors.New("腾讯云 DNS 验证需要 Secret ID 和 Secret Key")
+			}
+			provider = &libdnsTencentCloud.Provider{SecretId: credentials.TencentSecretID, SecretKey: credentials.TencentSecretKey}
+		case DNSProviderHuaweiCloud:
+			if credentials.HuaweiAccessKeyID == "" || credentials.HuaweiSecretAccessKey == "" {
+				return nil, errors.New("华为云 DNS 验证需要 AccessKey ID 和 Secret Access Key")
+			}
+			provider = &libdnsHuaweiCloud.Provider{
+				AccessKeyId:     credentials.HuaweiAccessKeyID,
+				SecretAccessKey: credentials.HuaweiSecretAccessKey,
+			}
+		default:
+			return nil, errors.New("DNS 服务商只支持 alidns、dnspod、tencentcloud 或 huaweicloud")
+		}
+		manager.DNSProvider = provider
+		issuerOptions.DisableHTTPChallenge = true
+		issuerOptions.DNS01Solver = &certmagic.DNS01Solver{DNSManager: manager}
+	}
+	issuer := certmagic.NewACMEIssuer(magic, issuerOptions)
 	magic.Issuers = []certmagic.Issuer{issuer}
 
 	issuerKey := issuer.IssuerKey()
@@ -88,10 +161,7 @@ func (m *Manager) obtainCertificate(ctx context.Context, request CertificateRequ
 		err = magic.ObtainCertSync(ctx, domain)
 	}
 	if err != nil {
-		if renew {
-			return nil, fmt.Errorf("续签证书失败: %w", err)
-		}
-		return nil, fmt.Errorf("申请证书失败: %w", err)
+		return nil, fmt.Errorf("%s证书失败: %w", action, err)
 	}
 
 	certificatePEM, err := m.acmeStorage.Load(ctx, certificateKey)

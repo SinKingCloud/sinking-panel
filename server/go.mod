@@ -3,15 +3,20 @@ module server
 go 1.25.1
 
 require (
-	github.com/SinKingCloud/sinking-go/sinking-web v0.0.0-20260721071049-38c96ad3bbb0
 	github.com/DeRuina/timberjack v1.4.2
+	github.com/SinKingCloud/sinking-go/sinking-web v0.0.0-20260721071049-38c96ad3bbb0
 	github.com/afocus/captcha v0.0.0-20191010092841-4bd1f21c8868
 	github.com/axgle/mahonia v0.0.0-20180208002826-3358181d7394
+	github.com/caddy-dns/alidns v1.0.29
+	github.com/caddy-dns/dnspod v0.0.5-0.20260325061251-fb7cc31cc04c
+	github.com/caddy-dns/huaweicloud v1.0.1
+	github.com/caddy-dns/tencentcloud v0.4.3
 	github.com/caddyserver/cache-handler v0.16.0
 	github.com/caddyserver/caddy/v2 v2.11.4
 	github.com/caddyserver/certmagic v0.25.3
 	github.com/containerd/console v1.0.5
 	github.com/corazawaf/coraza-caddy/v2 v2.5.0
+	github.com/corazawaf/coraza/v3 v3.7.0
 	github.com/cyphar/filepath-securejoin v0.7.0
 	github.com/darkweak/storages/core v0.0.15
 	github.com/dustin/go-humanize v1.0.1
@@ -21,6 +26,9 @@ require (
 	github.com/go-playground/validator/v10 v10.30.3
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/gorilla/websocket v1.5.3
+	github.com/libdns/alidns v1.0.7
+	github.com/libdns/huaweicloud v1.0.1
+	github.com/libdns/tencentcloud v1.4.3
 	github.com/mholt/caddy-ratelimit v0.1.1-0.20260612195517-5625512f24f6
 	github.com/moby/profiles/seccomp v0.2.3
 	github.com/moby/sys/mountinfo v0.7.2
@@ -77,7 +85,6 @@ require (
 	github.com/cilium/ebpf v0.17.3 // indirect
 	github.com/cloudflare/circl v1.6.3 // indirect
 	github.com/corazawaf/coraza-coreruleset/v4 v4.25.0 // indirect
-	github.com/corazawaf/coraza/v3 v3.7.0 // indirect
 	github.com/corazawaf/libinjection-go v0.3.2 // indirect
 	github.com/coreos/go-oidc/v3 v3.17.0 // indirect
 	github.com/coreos/go-systemd/v22 v22.7.0 // indirect
@@ -152,6 +159,7 @@ require (
 	github.com/mrunalp/fileutils v0.5.1 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/ncruces/go-strftime v1.0.0 // indirect
+	github.com/nrdcg/dnspod-go v0.4.0 // indirect
 	github.com/opencontainers/selinux v1.13.1 // indirect
 	github.com/pbnjay/memory v0.0.0-20210728143218-7b4eea64cf58 // indirect
 	github.com/pelletier/go-toml/v2 v2.4.3 // indirect
