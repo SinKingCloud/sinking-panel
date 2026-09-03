@@ -27,7 +27,9 @@ func (*Server) TableName() string {
 
 // BeforeCreate 创建前
 func (t *Server) BeforeCreate(_ *gorm.DB) error {
-	t.CreateTime = str.DateTime(time.Now())
+	now := str.DateTime(time.Now())
+	t.CreateTime = now
+	t.UpdateTime = now
 	return nil
 }
 
