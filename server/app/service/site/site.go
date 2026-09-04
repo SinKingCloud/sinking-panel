@@ -61,7 +61,7 @@ type Service interface {
 	UpdateFastCGI(id int64, config *FastCGIUpdate) error
 	GetProcess(id int64) (*ProcessConfig, error)
 	UpdateProcess(id int64, config *ProcessUpdate) error
-	Delete(id int64) error
+	Delete(id int64, deleteRoot bool) error
 	Enable(id int64) error
 	Disable(id int64) error
 	FindById(id int64) (*Site, error)

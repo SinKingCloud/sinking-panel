@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"server/app/constant"
 	"server/app/enum/site_status"
 	"server/app/enum/site_type"
@@ -47,7 +48,7 @@ func (s *service) Create(data *CreateSite) (*Site, error) {
 	root := strings.TrimSpace(data.Root)
 	autoRoot := false
 	createdRoot := false
-	if data.Type != site_type.Proxy && root == "" {
+	if root == "" {
 		if len(data.Domains) == 0 {
 			return nil, errors.New("网站至少需要绑定一个域名")
 		}
@@ -289,8 +290,8 @@ func (s *service) updateLocked(id int64, data *siteMutation) error {
 	return nil
 }
 
-// Delete 删除网站和域名，运行时同步成功后不再保留其缓存。
-func (s *service) Delete(id int64) error {
+// Delete 删除网站和域名，可在运行时同步成功后同时删除网站根目录。
+func (s *service) Delete(id int64, deleteRoot bool) error {
 	s.operationMu.Lock()
 	defer s.operationMu.Unlock()
 	if id <= 0 {
@@ -299,6 +300,147 @@ func (s *service) Delete(id int64) error {
 	previous, err := s.repositorySite.FindById(id)
 	if err != nil {
 		return s.nilIfNotFound("查询网站失败", err)
+	}
+	rootToDelete := ""
+	if deleteRoot {
+		rootToDelete = strings.TrimSpace(previous.Root)
+		if rootToDelete == "" {
+			return errors.New("网站根目录为空，无法删除")
+		}
+		rootToDelete, err = filepath.Abs(rootToDelete)
+		if err != nil {
+			return fmt.Errorf("解析网站根目录失败: %w", err)
+		}
+		rootToDelete = filepath.Clean(rootToDelete)
+		pathContains := func(parent, child string) bool {
+			relative, relativeErr := filepath.Rel(parent, child)
+			return relativeErr == nil && relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator))
+		}
+		panelRoot, pathErr := filepath.Abs(constant.BasePath)
+		if pathErr != nil {
+			return fmt.Errorf("解析面板目录失败: %w", pathErr)
+		}
+		managedRoot, pathErr := filepath.Abs(constant.SiteRootPath)
+		if pathErr != nil {
+			return fmt.Errorf("解析网站目录失败: %w", pathErr)
+		}
+		if resolved, resolveErr := filepath.EvalSymlinks(panelRoot); resolveErr == nil {
+			panelRoot = filepath.Clean(resolved)
+		}
+		if resolved, resolveErr := filepath.EvalSymlinks(managedRoot); resolveErr == nil {
+			managedRoot = filepath.Clean(resolved)
+		}
+		validateDeleteRoot := func(root string) error {
+			volumeRoot := filepath.VolumeName(root) + string(filepath.Separator)
+			if root == filepath.Clean(volumeRoot) {
+				return errors.New("不能删除磁盘或文件系统根目录")
+			}
+			insideManagedRoot := root != managedRoot && pathContains(managedRoot, root)
+			if pathContains(root, panelRoot) || pathContains(root, managedRoot) || (pathContains(panelRoot, root) && !insideManagedRoot) {
+				return errors.New("网站根目录包含面板数据，不能删除")
+			}
+			if home, homeErr := os.UserHomeDir(); homeErr == nil && home != "" {
+				home, homeErr = filepath.Abs(home)
+				if homeErr == nil {
+					home = filepath.Clean(home)
+					if resolved, resolveErr := filepath.EvalSymlinks(home); resolveErr == nil {
+						home = filepath.Clean(resolved)
+					}
+					if pathContains(root, home) {
+						return errors.New("不能删除用户主目录")
+					}
+				}
+			}
+			protected := make([]string, 0, 16)
+			if runtime.GOOS == "windows" {
+				protected = append(protected, os.Getenv("SystemRoot"), os.Getenv("ProgramFiles"), os.Getenv("ProgramFiles(x86)"), os.Getenv("ProgramData"))
+			} else {
+				protected = append(protected, "/bin", "/boot", "/dev", "/etc", "/lib", "/lib64", "/proc", "/run", "/sbin", "/sys", "/usr", "/var/lib", "/var/log", "/var/run", "/var/spool")
+				if runtime.GOOS == "darwin" {
+					protected = append(protected, "/Applications", "/Library", "/System", "/private/etc", "/private/var")
+				}
+			}
+			for _, path := range protected {
+				if path == "" {
+					continue
+				}
+				path, pathErr := filepath.Abs(path)
+				if pathErr != nil {
+					return fmt.Errorf("解析受保护目录失败: %w", pathErr)
+				}
+				path = filepath.Clean(path)
+				if resolved, resolveErr := filepath.EvalSymlinks(path); resolveErr == nil {
+					path = filepath.Clean(resolved)
+				}
+				if pathContains(root, path) || pathContains(path, root) {
+					return errors.New("网站根目录包含系统数据，不能删除")
+				}
+			}
+			protectedRoots := make([]string, 0, 12)
+			if runtime.GOOS == "windows" {
+				protectedRoots = append(protectedRoots, filepath.Join(filepath.VolumeName(root)+string(filepath.Separator), "Users"))
+			} else {
+				protectedRoots = append(protectedRoots, "/data", "/home", "/media", "/mnt", "/opt", "/root", "/srv", "/tmp", "/var/tmp", "/var/www", "/www")
+				if runtime.GOOS == "darwin" {
+					protectedRoots = append(protectedRoots, "/Users", "/Volumes")
+				}
+			}
+			for _, path := range protectedRoots {
+				path, pathErr := filepath.Abs(path)
+				if pathErr != nil {
+					return fmt.Errorf("解析受保护目录失败: %w", pathErr)
+				}
+				path = filepath.Clean(path)
+				if resolved, resolveErr := filepath.EvalSymlinks(path); resolveErr == nil {
+					path = filepath.Clean(resolved)
+				}
+				if pathContains(root, path) {
+					return errors.New("不能删除网站公共根目录")
+				}
+			}
+			return nil
+		}
+		if err = validateDeleteRoot(rootToDelete); err != nil {
+			return err
+		}
+		if info, statErr := os.Lstat(rootToDelete); statErr == nil {
+			if info.Mode()&os.ModeSymlink != 0 {
+				return errors.New("网站根目录是符号链接，不能自动删除")
+			}
+			if !info.IsDir() {
+				return errors.New("网站根目录不是目录，不能自动删除")
+			}
+			resolved, resolveErr := filepath.EvalSymlinks(rootToDelete)
+			if resolveErr != nil {
+				return fmt.Errorf("解析网站根目录失败: %w", resolveErr)
+			}
+			rootToDelete = filepath.Clean(resolved)
+			if err = validateDeleteRoot(rootToDelete); err != nil {
+				return err
+			}
+		} else if !os.IsNotExist(statErr) {
+			return fmt.Errorf("检查网站根目录失败: %w", statErr)
+		}
+		sites, selectErr := s.repositorySite.SelectAll()
+		if selectErr != nil {
+			return fmt.Errorf("检查网站目录占用失败: %w", selectErr)
+		}
+		for _, item := range sites {
+			if item.Id == id || strings.TrimSpace(item.Root) == "" {
+				continue
+			}
+			otherRoot, pathErr := filepath.Abs(item.Root)
+			if pathErr != nil {
+				return fmt.Errorf("解析网站[%s]根目录失败: %w", item.Name, pathErr)
+			}
+			otherRoot = filepath.Clean(otherRoot)
+			if resolved, resolveErr := filepath.EvalSymlinks(otherRoot); resolveErr == nil {
+				otherRoot = filepath.Clean(resolved)
+			}
+			if pathContains(rootToDelete, otherRoot) || pathContains(otherRoot, rootToDelete) {
+				return fmt.Errorf("网站根目录与网站[%s]共用或嵌套，请保留目录后再删除", item.Name)
+			}
+		}
 	}
 	previousHTTP := s.http.Options()
 	clearDefault := previousHTTP.DefaultSite == strconv.FormatInt(id, 10)
@@ -358,6 +500,12 @@ func (s *service) Delete(id int64) error {
 		return s.mutationSyncError("删除网站", syncErr, compensateErr, restoreRuntimeErr)
 	}
 	cacheErr := s.http.DeleteSiteCache(strconv.FormatInt(id, 10))
+	var rootErr error
+	if rootToDelete != "" {
+		if removeErr := os.RemoveAll(rootToDelete); removeErr != nil {
+			rootErr = fmt.Errorf("删除网站根目录失败: %w", removeErr)
+		}
+	}
 	s.logMu.Lock()
 	var logErr error
 	logDirectory := filepath.Dir(logPaths[0])
@@ -389,7 +537,7 @@ func (s *service) Delete(id int64) error {
 		}
 	}
 	s.logMu.Unlock()
-	if cleanupErr := errors.Join(cacheErr, logErr); cleanupErr != nil {
+	if cleanupErr := errors.Join(cacheErr, logErr, rootErr); cleanupErr != nil {
 		return fmt.Errorf("网站已删除，但清理运行数据失败: %w", cleanupErr)
 	}
 	return nil

@@ -40,14 +40,13 @@ func (s *service) prepareSite(data *model.Site, input []Domain, previous []*mode
 	data.Config = config
 	data.Root = strings.TrimSpace(data.Root)
 	data.RunPath = strings.TrimSpace(data.RunPath)
-	if data.Type == site_type.Proxy {
-		if data.Root != "" || data.RunPath != "" {
-			return nil, nil, errors.New("反向代理网站不能配置网站目录")
-		}
-	} else {
-		if data.Root == "" {
-			return nil, nil, errors.New("网站根目录不能为空")
-		}
+	if data.Type == site_type.Proxy && data.RunPath != "" {
+		return nil, nil, errors.New("反向代理网站不能配置运行目录")
+	}
+	if data.Root == "" && data.Type != site_type.Proxy {
+		return nil, nil, errors.New("网站根目录不能为空")
+	}
+	if data.Root != "" {
 		root, err := filepath.Abs(data.Root)
 		if err != nil {
 			return nil, nil, fmt.Errorf("解析网站根目录失败: %w", err)

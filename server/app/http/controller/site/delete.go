@@ -11,16 +11,21 @@ import (
 // Delete 删除网站。
 func Delete(c *context.Context) {
 	var form struct {
-		Id int64 `json:"id" default:"0" validate:"required,min=1" label:"网站ID"`
+		Id         int64 `json:"id" default:"0" validate:"required,min=1" label:"网站ID"`
+		DeleteRoot bool  `json:"delete_root" default:"false" label:"删除网站根目录"`
 	}
 	if ok, message := c.ValidatorAll(&form); !ok {
 		c.Error(message)
 		return
 	}
-	if err := service.Site.Delete(form.Id); err != nil {
+	if err := service.Site.Delete(form.Id, form.DeleteRoot); err != nil {
 		c.Error(err.Error())
 		return
 	}
-	service.Log.Create(c.GetRequestIp(), log_type.EventDelete, "删除网站", "删除网站["+strconv.FormatInt(form.Id, 10)+"]")
+	detail := "删除网站[" + strconv.FormatInt(form.Id, 10) + "]"
+	if form.DeleteRoot {
+		detail += "，同时删除网站根目录"
+	}
+	service.Log.Create(c.GetRequestIp(), log_type.EventDelete, "删除网站", detail)
 	c.Success("删除成功")
 }
