@@ -119,7 +119,7 @@ const defaultPageStyle = `<style>
 
 var (
 	pageYear            = strconv.Itoa(time.Now().Year())
-	defaultNotFoundPage = `<!doctype html>
+	DefaultNotFoundPage = `<!doctype html>
 <html lang="zh-CN">
 <head>
     <meta charset="utf-8">
@@ -137,7 +137,7 @@ var (
     <footer class="footer">© ` + pageYear + ` All Rights Reserved</footer>
 </body>
 </html>` // 默认 404 页面
-	defaultSiteNotFoundPage = `<!doctype html>
+	DefaultSiteNotFoundPage = `<!doctype html>
 <html lang="zh-CN">
 <head>
     <meta charset="utf-8">
@@ -155,7 +155,7 @@ var (
     <footer class="footer">© ` + pageYear + ` All Rights Reserved</footer>
 </body>
 </html>` // 默认网站不存在页面
-	defaultSiteDisabledPage = `<!doctype html>
+	DefaultSiteDisabledPage = `<!doctype html>
 <html lang="zh-CN">
 <head>
     <meta charset="utf-8">
@@ -173,7 +173,7 @@ var (
     <footer class="footer">© ` + pageYear + ` All Rights Reserved</footer>
 </body>
 </html>` // 默认网站停用页面
-	defaultWAFBlockPage = `<!doctype html>
+	DefaultWAFBlockPage = `<!doctype html>
 <html lang="zh-CN">
 <head>
     <meta charset="utf-8">
@@ -193,7 +193,7 @@ var (
 </html>` // 默认 WAF 拦截页面
 )
 
-var browseTemplate = `{{- $nonce := uuidv4 -}}
+var BrowseTemplate = `{{- $nonce := uuidv4 -}}
 {{- $csp := printf "default-src 'none'; style-src 'nonce-%s'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'" $nonce -}}
 {{- .RespHeader.Set "Content-Security-Policy" $csp -}}
 <!doctype html>
@@ -691,5 +691,5 @@ var browseTemplate = `{{- $nonce := uuidv4 -}}
 </html>`
 
 func init() {
-	fileserver.BrowseTemplate = browseTemplate
+	fileserver.BrowseTemplate = BrowseTemplate
 }

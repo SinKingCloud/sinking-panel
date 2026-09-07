@@ -95,9 +95,9 @@ func (m *Manager) setOptions(options Options) error {
 		status int
 		body   string
 	}{
-		{value: &options.NotFoundPage, status: 404, body: defaultNotFoundPage},
-		{value: &options.SiteNotFoundPage, status: 404, body: defaultSiteNotFoundPage},
-		{value: &options.SiteDisabledPage, status: 503, body: defaultSiteDisabledPage},
+		{value: &options.NotFoundPage, status: 404, body: DefaultNotFoundPage},
+		{value: &options.SiteNotFoundPage, status: 404, body: DefaultSiteNotFoundPage},
+		{value: &options.SiteDisabledPage, status: 503, body: DefaultSiteDisabledPage},
 	} {
 		if err := normalizePage(page.value, page.status, page.body); err != nil {
 			return err
@@ -973,7 +973,7 @@ func (m *Manager) buildHTTPServer(listen []string, routes []interface{}, tlsPoli
 		}
 		body := site.WAF.BlockPage
 		if strings.TrimSpace(body) == "" {
-			body = defaultWAFBlockPage
+			body = DefaultWAFBlockPage
 		}
 		response := m.buildResponseHandler(ResponseOptions{
 			Body: body,

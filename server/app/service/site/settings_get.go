@@ -3,6 +3,7 @@ package site
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"server/app/model"
 	webServer "server/app/util/server"
@@ -45,6 +46,9 @@ func (s *service) GetWAF(id int64) (*webServer.WAFOptions, error) {
 	config, err := s.getHTTPConfig(id)
 	if err != nil {
 		return nil, err
+	}
+	if strings.TrimSpace(config.WAF.BlockPage) == "" {
+		config.WAF.BlockPage = webServer.DefaultWAFBlockPage
 	}
 	return &config.WAF, nil
 }
