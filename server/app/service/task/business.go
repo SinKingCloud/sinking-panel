@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"server/app/constant"
 	"server/app/enum/task_exec_type"
 	"server/app/enum/task_status"
@@ -396,18 +397,14 @@ func (s *service) Close() {
 	})
 }
 
-// getTaskLogFile 获取任务日志文件
+// getTaskLogPath 获取任务日志目录
 func (s *service) getTaskLogPath() string {
-	path := constant.TempPath + "/cron"
-	if !strings.HasSuffix(path, "/") {
-		path += "/"
-	}
-	return strings.ReplaceAll(path, "//", "")
+	return filepath.Clean(constant.CronPath)
 }
 
 func (s *service) getTaskLogFilePath(id int64) string {
 	name := "task-" + strconv.FormatInt(id, 10) + ".log"
-	return strings.ReplaceAll(s.getTaskLogPath()+name, "//", "")
+	return filepath.Join(s.getTaskLogPath(), name)
 }
 
 // getTaskLogFile 获取任务日志文件

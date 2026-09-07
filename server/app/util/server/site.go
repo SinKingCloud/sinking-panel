@@ -8,12 +8,15 @@ import (
 	"fmt"
 	"mime"
 	"net"
+	"net/netip"
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	serverCache "server/app/util/server/cache"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -799,22 +802,204 @@ func (m *Manager) normalizeWAF(waf *WAFOptions) error {
 		waf.OWASP.SetupDirectives = setupDirectives
 	}
 	hasRule := false
+	targets := map[string]string{
+		"REQUEST_URI":                     "REQUEST_URI",
+		"REQUEST_FILENAME":                "REQUEST_FILENAME",
+		"REQUEST_BASENAME":                "REQUEST_BASENAME",
+		"QUERY_STRING":                    "QUERY_STRING",
+		"ARGS":                            "ARGS",
+		"ARGS_NAMES":                      "ARGS_NAMES",
+		"ARGS_COMBINED_SIZE":              "ARGS_COMBINED_SIZE",
+		"ARGS_GET":                        "ARGS_GET",
+		"ARGS_GET_NAMES":                  "ARGS_GET_NAMES",
+		"ARGS_POST":                       "ARGS_POST",
+		"ARGS_POST_NAMES":                 "ARGS_POST_NAMES",
+		"REQUEST_BODY":                    "REQUEST_BODY",
+		"FILES":                           "FILES",
+		"FILES_NAMES":                     "FILES_NAMES",
+		"REQUEST_METHOD":                  "REQUEST_METHOD",
+		"REQUEST_PROTOCOL":                "REQUEST_PROTOCOL",
+		"REQUEST_HEADERS":                 "REQUEST_HEADERS",
+		"REQUEST_HEADERS_NAMES":           "REQUEST_HEADERS_NAMES",
+		"REQUEST_HEADERS:HOST":            "REQUEST_HEADERS:Host",
+		"REQUEST_HEADERS:USER-AGENT":      "REQUEST_HEADERS:User-Agent",
+		"REQUEST_HEADERS:REFERER":         "REQUEST_HEADERS:Referer",
+		"REQUEST_HEADERS:CONTENT-TYPE":    "REQUEST_HEADERS:Content-Type",
+		"REQUEST_HEADERS:ORIGIN":          "REQUEST_HEADERS:Origin",
+		"REQUEST_HEADERS:AUTHORIZATION":   "REQUEST_HEADERS:Authorization",
+		"REQUEST_HEADERS:X-FORWARDED-FOR": "REQUEST_HEADERS:X-Forwarded-For",
+		"REQUEST_COOKIES":                 "REQUEST_COOKIES",
+		"REQUEST_COOKIES_NAMES":           "REQUEST_COOKIES_NAMES",
+		"REMOTE_ADDR":                     "REMOTE_ADDR",
+	}
+	normalizeConditions := func(ruleID, location string, conditions []WAFCondition) error {
+		for conditionIndex := range conditions {
+			condition := &conditions[conditionIndex]
+			target, exists := targets[strings.ToUpper(strings.TrimSpace(condition.Target))]
+			if !exists {
+				return fmt.Errorf("WAF 规则 %s %s第 %d 个检查对象无效", ruleID, location, conditionIndex+1)
+			}
+			condition.Target = target
+			condition.Operator = WAFOperator(strings.ToLower(strings.TrimSpace(string(condition.Operator))))
+			switch condition.Operator {
+			case WAFOperatorContains, WAFOperatorEquals, WAFOperatorStartsWith, WAFOperatorEndsWith, WAFOperatorRegex, WAFOperatorIP, WAFOperatorExists, WAFOperatorNotEmpty, WAFOperatorGreater, WAFOperatorLess:
+			default:
+				return fmt.Errorf("WAF 规则 %s %s第 %d 个匹配方式无效", ruleID, location, conditionIndex+1)
+			}
+			if condition.IgnoreCase {
+				switch condition.Operator {
+				case WAFOperatorContains, WAFOperatorEquals, WAFOperatorStartsWith, WAFOperatorEndsWith, WAFOperatorRegex:
+				default:
+					return fmt.Errorf("WAF 规则 %s %s第 %d 个匹配方式不支持忽略大小写", ruleID, location, conditionIndex+1)
+				}
+			}
+			if strings.ContainsAny(condition.Value, "\r\n\x00") {
+				return fmt.Errorf("WAF 规则 %s %s第 %d 个匹配内容包含非法字符", ruleID, location, conditionIndex+1)
+			}
+			condition.Value = strings.TrimSpace(condition.Value)
+			if condition.Operator == WAFOperatorExists || condition.Operator == WAFOperatorNotEmpty {
+				if condition.Value != "" {
+					return fmt.Errorf("WAF 规则 %s %s第 %d 个匹配方式不需要匹配内容", ruleID, location, conditionIndex+1)
+				}
+				continue
+			}
+			if condition.Value == "" {
+				return fmt.Errorf("WAF 规则 %s %s第 %d 个匹配内容不能为空", ruleID, location, conditionIndex+1)
+			}
+			if len(condition.Value) > 2048 {
+				return fmt.Errorf("WAF 规则 %s %s第 %d 个匹配内容不能超过 2048 个字符", ruleID, location, conditionIndex+1)
+			}
+			backslashes := 0
+			for valueIndex := 0; valueIndex < len(condition.Value); valueIndex++ {
+				if condition.Value[valueIndex] == '\\' {
+					backslashes++
+					continue
+				}
+				if condition.Value[valueIndex] == '"' && backslashes%2 != 0 {
+					return fmt.Errorf("WAF 规则 %s %s第 %d 个匹配内容中的双引号前不能包含奇数个连续反斜线", ruleID, location, conditionIndex+1)
+				}
+				backslashes = 0
+			}
+			if backslashes%2 != 0 {
+				return fmt.Errorf("WAF 规则 %s %s第 %d 个匹配内容不能以奇数个连续反斜线结尾", ruleID, location, conditionIndex+1)
+			}
+			if condition.Operator == WAFOperatorRegex {
+				if _, err := regexp.Compile(condition.Value); err != nil {
+					return fmt.Errorf("WAF 规则 %s %s第 %d 个正则表达式无效: %w", ruleID, location, conditionIndex+1, err)
+				}
+			}
+			if condition.Target == "ARGS_COMBINED_SIZE" {
+				switch condition.Operator {
+				case WAFOperatorEquals, WAFOperatorGreater, WAFOperatorLess:
+				default:
+					return fmt.Errorf("WAF 规则 %s %s第 %d 个请求参数大小关系无效", ruleID, location, conditionIndex+1)
+				}
+				if condition.IgnoreCase {
+					return fmt.Errorf("WAF 规则 %s %s第 %d 个请求参数大小不支持忽略大小写", ruleID, location, conditionIndex+1)
+				}
+				value, err := strconv.ParseUint(condition.Value, 10, 64)
+				if err != nil {
+					return fmt.Errorf("WAF 规则 %s %s第 %d 个比较值必须是非负整数", ruleID, location, conditionIndex+1)
+				}
+				condition.Value = strconv.FormatUint(value, 10)
+			} else if condition.Operator == WAFOperatorGreater || condition.Operator == WAFOperatorLess {
+				return fmt.Errorf("WAF 规则 %s %s第 %d 个数值比较仅支持请求参数大小", ruleID, location, conditionIndex+1)
+			}
+			if condition.Operator == WAFOperatorIP {
+				values := strings.Fields(strings.ReplaceAll(condition.Value, ",", " "))
+				if len(values) == 0 {
+					return fmt.Errorf("WAF 规则 %s %s第 %d 个 IP 或 CIDR 不能为空", ruleID, location, conditionIndex+1)
+				}
+				for _, value := range values {
+					if strings.Contains(value, "/") {
+						if _, err := netip.ParsePrefix(value); err != nil {
+							return fmt.Errorf("WAF 规则 %s %s第 %d 个 IP 或 CIDR 无效: %s", ruleID, location, conditionIndex+1, value)
+						}
+					} else if _, err := netip.ParseAddr(value); err != nil {
+						return fmt.Errorf("WAF 规则 %s %s第 %d 个 IP 或 CIDR 无效: %s", ruleID, location, conditionIndex+1, value)
+					}
+				}
+				condition.Value = strings.Join(values, ",")
+			}
+		}
+		return nil
+	}
 	ruleIDs := make(map[string]struct{}, len(waf.Rules))
 	for index := range waf.Rules {
-		waf.Rules[index].ID = strings.TrimSpace(waf.Rules[index].ID)
-		waf.Rules[index].Name = strings.TrimSpace(waf.Rules[index].Name)
-		waf.Rules[index].Directive = strings.TrimSpace(waf.Rules[index].Directive)
-		if waf.Rules[index].ID == "" {
+		rule := &waf.Rules[index]
+		rule.ID = strings.TrimSpace(rule.ID)
+		rule.Name = strings.TrimSpace(rule.Name)
+		rule.Directive = strings.TrimSpace(rule.Directive)
+		if rule.ID == "" {
 			return errors.New("WAF 规则 ID 不能为空")
 		}
-		if _, exists := ruleIDs[waf.Rules[index].ID]; exists {
-			return fmt.Errorf("WAF 规则 ID 重复: %s", waf.Rules[index].ID)
+		if strings.ContainsAny(rule.ID, "\r\n\x00") {
+			return errors.New("WAF 规则 ID 包含非法字符")
 		}
-		ruleIDs[waf.Rules[index].ID] = struct{}{}
-		if waf.Rules[index].Enabled {
-			if waf.Rules[index].Directive == "" {
-				return fmt.Errorf("WAF 规则 %s 内容不能为空", waf.Rules[index].ID)
+		if _, exists := ruleIDs[rule.ID]; exists {
+			return fmt.Errorf("WAF 规则 ID 重复: %s", rule.ID)
+		}
+		if strings.ContainsAny(rule.Name, "\r\n\x00") {
+			return fmt.Errorf("WAF 规则 %s 的名称包含非法字符", rule.ID)
+		}
+		ruleIDs[rule.ID] = struct{}{}
+		structured := len(rule.Conditions) > 0 || len(rule.Groups) > 0
+		if structured {
+			if len(rule.Conditions) > 0 && len(rule.Groups) > 0 {
+				return fmt.Errorf("WAF 规则 %s 不能同时配置条件和条件组", rule.ID)
 			}
+			rule.Match = WAFMatch(strings.ToLower(strings.TrimSpace(string(rule.Match))))
+			if rule.Match == "" {
+				rule.Match = WAFMatchAny
+			}
+			if rule.Match != WAFMatchAny && rule.Match != WAFMatchAll {
+				return fmt.Errorf("WAF 规则 %s 的匹配逻辑无效", rule.ID)
+			}
+			rule.Action = WAFAction(strings.ToLower(strings.TrimSpace(string(rule.Action))))
+			if rule.Action == "" {
+				rule.Action = WAFActionBlock
+			}
+			if rule.Action != WAFActionBlock && rule.Action != WAFActionLog {
+				return fmt.Errorf("WAF 规则 %s 的命中动作无效", rule.ID)
+			}
+			if len(rule.Conditions) > 0 {
+				if len(rule.Conditions) > 20 {
+					return fmt.Errorf("WAF 规则 %s 最多只能配置 20 个条件", rule.ID)
+				}
+				if err := normalizeConditions(rule.ID, "", rule.Conditions); err != nil {
+					return err
+				}
+			} else {
+				if len(rule.Groups) > 10 {
+					return fmt.Errorf("WAF 规则 %s 最多只能配置 10 个条件组", rule.ID)
+				}
+				totalConditions := 0
+				for groupIndex := range rule.Groups {
+					group := &rule.Groups[groupIndex]
+					group.Match = WAFMatch(strings.ToLower(strings.TrimSpace(string(group.Match))))
+					if group.Match == "" {
+						group.Match = WAFMatchAll
+					}
+					if group.Match != WAFMatchAny && group.Match != WAFMatchAll {
+						return fmt.Errorf("WAF 规则 %s 的第 %d 个条件组匹配逻辑无效", rule.ID, groupIndex+1)
+					}
+					if len(group.Conditions) == 0 {
+						return fmt.Errorf("WAF 规则 %s 的第 %d 个条件组不能为空", rule.ID, groupIndex+1)
+					}
+					totalConditions += len(group.Conditions)
+					if totalConditions > 20 {
+						return fmt.Errorf("WAF 规则 %s 最多只能配置 20 个条件", rule.ID)
+					}
+					if err := normalizeConditions(rule.ID, fmt.Sprintf("第 %d 个条件组的", groupIndex+1), group.Conditions); err != nil {
+						return err
+					}
+				}
+			}
+			rule.Directive = ""
+		} else if rule.Enabled && rule.Directive == "" {
+			return fmt.Errorf("WAF 规则 %s 内容不能为空", rule.ID)
+		}
+		if rule.Enabled {
 			hasRule = true
 		}
 	}
@@ -887,6 +1072,10 @@ func (m *Manager) normalizeCache(cache *CacheOptions, siteID string) error {
 }
 
 func (m *Manager) normalizeRateLimit(limit *RateLimitOptions) error {
+	limit.Key = strings.TrimSpace(limit.Key)
+	if limit.Key == "" || limit.Key == "{http.request.client_ip}" {
+		limit.Key = "{http.vars.client_ip}"
+	}
 	if !limit.Enabled {
 		return nil
 	}
@@ -898,10 +1087,6 @@ func (m *Manager) normalizeRateLimit(limit *RateLimitOptions) error {
 	}
 	if limit.MaxEvents == 0 {
 		limit.MaxEvents = 100
-	}
-	limit.Key = strings.TrimSpace(limit.Key)
-	if limit.Key == "" {
-		limit.Key = "{http.request.client_ip}"
 	}
 	if limit.IPv4Prefix < 0 || limit.IPv4Prefix > 32 || limit.IPv6Prefix < 0 || limit.IPv6Prefix > 128 {
 		return errors.New("限流 IP 前缀范围无效")

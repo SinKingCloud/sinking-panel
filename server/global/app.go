@@ -4,6 +4,7 @@ import (
 	"log"
 
 	"server/app/util/cache"
+	"server/app/util/container"
 	"server/app/util/database"
 
 	"github.com/spf13/viper"
@@ -32,5 +33,11 @@ func (a *Application) SetCache(c cache.Interface) *Application {
 // SetLog 设置日志实例，支持链式调用
 func (a *Application) SetLog(l *log.Logger) *Application {
 	a.Log = l
+	return a
+}
+
+// SetContainer 设置轻量容器管理器，支持链式调用
+func (a *Application) SetContainer(c *container.Manager) *Application {
+	a.Container = c
 	return a
 }

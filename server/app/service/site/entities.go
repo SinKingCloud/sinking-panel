@@ -128,6 +128,7 @@ type OWASPUpdate struct {
 type WAFUpdate struct {
 	Enabled          *bool                `json:"enabled"`            // 是否启用 WAF
 	Mode             *webServer.WAFMode   `json:"mode"`               // WAF 检测或拦截模式
+	BlockPage        *string              `json:"block_page"`         // 自定义拦截 HTML，留空使用默认页面
 	OWASP            *OWASPUpdate         `json:"owasp"`              // OWASP CRS 设置
 	AuditLog         *bool                `json:"audit_log"`          // 是否记录 WAF 审计日志
 	RequestBodyLimit *int64               `json:"request_body_limit"` // 可检查的请求体最大字节数

@@ -182,6 +182,7 @@ type CertificatePair struct {
 type WAFOptions struct {
 	Enabled          bool         `json:"enabled"`            // 是否启用 WAF
 	Mode             WAFMode      `json:"mode"`               // WAF 检测或拦截模式
+	BlockPage        string       `json:"block_page"`         // 自定义拦截 HTML，留空使用默认页面
 	OWASP            OWASPOptions `json:"owasp"`              // OWASP CRS 配置
 	AuditLog         bool         `json:"audit_log"`          // 是否记录 WAF 审计日志
 	RequestBodyLimit int64        `json:"request_body_limit"` // 可检查的请求体最大字节数
@@ -218,12 +219,31 @@ type OWASPOptions struct {
 	SetupDirectives               []string `json:"setup_directives"`                 // CRS 规则加载前执行的自定义指令
 }
 
-// WAFRule 保存一条可由业务层独立开关的 Coraza 规则。
+// WAFRule 保存一条可由业务层独立开关的 WAF 规则。
 type WAFRule struct {
-	ID        string `json:"id"`        // 规则唯一标识
-	Name      string `json:"name"`      // 规则显示名称
-	Enabled   bool   `json:"enabled"`   // 是否启用规则
-	Directive string `json:"directive"` // Coraza 规则指令
+	ID         string         `json:"id"`         // 规则唯一标识
+	Name       string         `json:"name"`       // 规则显示名称
+	Enabled    bool           `json:"enabled"`    // 是否启用规则
+	Match      WAFMatch       `json:"match"`      // 多个条件组之间的匹配逻辑
+	Action     WAFAction      `json:"action"`     // 规则命中后的处理动作
+	Conditions []WAFCondition `json:"conditions"` // 旧版扁平条件，读取已有配置时继续兼容
+	Groups     []WAFGroup     `json:"groups"`     // 最多两层的条件分组
+	Directive  string         `json:"directive"`  // 旧版 Coraza 规则指令，仅用于兼容已有配置
+}
+
+// WAFGroup 定义 WAF 规则中的一组匹配条件。
+type WAFGroup struct {
+	Match      WAFMatch       `json:"match"`      // 组内条件的匹配逻辑
+	Conditions []WAFCondition `json:"conditions"` // 当前组包含的匹配条件
+}
+
+// WAFCondition 定义 WAF 规则中的一个匹配条件。
+type WAFCondition struct {
+	Target     string      `json:"target"`      // 检查的请求数据
+	Operator   WAFOperator `json:"operator"`    // 匹配操作符
+	Value      string      `json:"value"`       // 匹配内容
+	Negated    bool        `json:"negated"`     // 是否对当前匹配结果取反
+	IgnoreCase bool        `json:"ignore_case"` // 是否忽略英文字母大小写
 }
 
 // CacheOptions 定义站点响应缓存。默认 no-store，必须显式允许缓存动态响应。

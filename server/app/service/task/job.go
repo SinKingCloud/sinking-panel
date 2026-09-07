@@ -39,7 +39,7 @@ func (j *job) Run() {
 	}()
 	switch j.ExecType {
 	case task_exec_type.Script:
-		c := cmd.NewScriptExec(constant.TempPath, 43200, func(s string) {
+		c := cmd.NewScriptExec(constant.CmdPath, 43200, func(s string) {
 			_ = j.service.WriteLog(j.Id, s)
 		})
 		_, _, _ = c.ExecuteContext(j.ctx, j.Script)

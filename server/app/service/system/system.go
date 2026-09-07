@@ -2,6 +2,7 @@ package system
 
 import (
 	"context"
+	"server/app/constant"
 	"server/app/service/file"
 	"sync"
 	"time"
@@ -86,7 +87,7 @@ func NewService(fileService file.Service) *service {
 		queue:                  make([]string, 0),
 		fileService:            fileService,
 		maxTaskWorkers:         maxTaskWorkers,
-		systemTaskLogDirectory: systemTaskLogDirectory,
+		systemTaskLogDirectory: constant.TaskPath,
 		systemBaseCache:        make(map[string]interface{}),
 		cpuInfoCache:           make(map[string]interface{}),
 		memoryInfoCache:        make(map[string]interface{}),

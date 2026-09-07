@@ -1,6 +1,10 @@
 package recycle
 
-import "sync"
+import (
+	"path/filepath"
+	"server/app/constant"
+	"sync"
+)
 
 // Service service接口
 type Service interface {
@@ -20,5 +24,5 @@ type service struct {
 
 // NewService 实例化service
 func NewService() *service {
-	return &service{path: recyclePath}
+	return &service{path: filepath.Clean(constant.RecyclePath)}
 }

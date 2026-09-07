@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -201,31 +200,31 @@ func (s *service) httpConfigs(config webServer.Options, update *HTTPUpdate) (map
 		changed bool
 		value   interface{}
 	}{
-		{constant.SiteHTTPListen, update == nil || update.HTTPListen != nil, config.HTTPListen},
-		{constant.SiteHTTPSListen, update == nil || update.HTTPSListen != nil, config.HTTPSListen},
-		{constant.SiteHTTPProtocols, update == nil || update.Protocols != nil, config.Protocols},
-		{constant.SiteHTTPDefaultSite, update == nil || update.DefaultSite != nil, config.DefaultSite},
-		{constant.SiteHTTPNotFoundPage, update == nil || update.NotFoundPage != nil, config.NotFoundPage},
-		{constant.SiteHTTPSiteNotFoundPage, update == nil || update.SiteNotFoundPage != nil, config.SiteNotFoundPage},
-		{constant.SiteHTTPSiteDisabledPage, update == nil || update.SiteDisabledPage != nil, config.SiteDisabledPage},
-		{constant.SiteHTTPDataPath, update == nil || update.DataPath != nil, config.DataPath},
-		{constant.SiteHTTPCachePath, update == nil || update.CachePath != nil, config.CachePath},
-		{constant.SiteHTTPLogPath, update == nil || update.LogPath != nil, config.LogPath},
-		{constant.SiteHTTPWAFLogPath, update == nil || update.WAFLogPath != nil, config.WAFLogPath},
-		{constant.SiteHTTPConfigPath, update == nil || update.ConfigPath != nil, config.ConfigPath},
-		{constant.SiteHTTPLogLevel, update == nil || update.LogLevel != nil, config.LogLevel},
-		{constant.SiteHTTPTrustedProxies, update == nil || update.TrustedProxies != nil, config.TrustedProxies},
-		{constant.SiteHTTPClientIPHeaders, update == nil || update.ClientIPHeaders != nil, config.ClientIPHeaders},
-		{constant.SiteHTTPTrustedProxiesStrict, update == nil || update.TrustedProxiesStrict != nil, config.TrustedProxiesStrict},
-		{constant.SiteHTTPReadTimeout, update == nil || update.ReadTimeout != nil, config.ReadTimeout},
-		{constant.SiteHTTPReadHeaderTimeout, update == nil || update.ReadHeaderTimeout != nil, config.ReadHeaderTimeout},
-		{constant.SiteHTTPWriteTimeout, update == nil || update.WriteTimeout != nil, config.WriteTimeout},
-		{constant.SiteHTTPIdleTimeout, update == nil || update.IdleTimeout != nil, config.IdleTimeout},
-		{constant.SiteHTTPGracePeriod, update == nil || update.GracePeriod != nil, config.GracePeriod},
-		{constant.SiteHTTPMaxHeaderBytes, update == nil || update.MaxHeaderBytes != nil, config.MaxHeaderBytes},
-		{constant.SiteHTTPChallengeHost, update == nil || update.HTTPChallengeHost != nil, config.HTTPChallengeHost},
-		{constant.SiteHTTPChallengePort, update == nil || update.HTTPChallengePort != nil, config.HTTPChallengePort},
-		{constant.SiteHTTPACMEEmail, update == nil || update.ACMEEmail != nil, config.ACMEEmail},
+		{constant.SiteHTTPListen, update.HTTPListen != nil, config.HTTPListen},
+		{constant.SiteHTTPSListen, update.HTTPSListen != nil, config.HTTPSListen},
+		{constant.SiteHTTPProtocols, update.Protocols != nil, config.Protocols},
+		{constant.SiteHTTPDefaultSite, update.DefaultSite != nil, config.DefaultSite},
+		{constant.SiteHTTPNotFoundPage, update.NotFoundPage != nil, config.NotFoundPage},
+		{constant.SiteHTTPSiteNotFoundPage, update.SiteNotFoundPage != nil, config.SiteNotFoundPage},
+		{constant.SiteHTTPSiteDisabledPage, update.SiteDisabledPage != nil, config.SiteDisabledPage},
+		{constant.SiteHTTPDataPath, update.DataPath != nil, config.DataPath},
+		{constant.SiteHTTPCachePath, update.CachePath != nil, config.CachePath},
+		{constant.SiteHTTPLogPath, update.LogPath != nil, config.LogPath},
+		{constant.SiteHTTPWAFLogPath, update.WAFLogPath != nil, config.WAFLogPath},
+		{constant.SiteHTTPConfigPath, update.ConfigPath != nil, config.ConfigPath},
+		{constant.SiteHTTPLogLevel, update.LogLevel != nil, config.LogLevel},
+		{constant.SiteHTTPTrustedProxies, update.TrustedProxies != nil, config.TrustedProxies},
+		{constant.SiteHTTPClientIPHeaders, update.ClientIPHeaders != nil, config.ClientIPHeaders},
+		{constant.SiteHTTPTrustedProxiesStrict, update.TrustedProxiesStrict != nil, config.TrustedProxiesStrict},
+		{constant.SiteHTTPReadTimeout, update.ReadTimeout != nil, config.ReadTimeout},
+		{constant.SiteHTTPReadHeaderTimeout, update.ReadHeaderTimeout != nil, config.ReadHeaderTimeout},
+		{constant.SiteHTTPWriteTimeout, update.WriteTimeout != nil, config.WriteTimeout},
+		{constant.SiteHTTPIdleTimeout, update.IdleTimeout != nil, config.IdleTimeout},
+		{constant.SiteHTTPGracePeriod, update.GracePeriod != nil, config.GracePeriod},
+		{constant.SiteHTTPMaxHeaderBytes, update.MaxHeaderBytes != nil, config.MaxHeaderBytes},
+		{constant.SiteHTTPChallengeHost, update.HTTPChallengeHost != nil, config.HTTPChallengeHost},
+		{constant.SiteHTTPChallengePort, update.HTTPChallengePort != nil, config.HTTPChallengePort},
+		{constant.SiteHTTPACMEEmail, update.ACMEEmail != nil, config.ACMEEmail},
 	} {
 		if !item.changed {
 			continue
@@ -240,7 +239,7 @@ func (s *service) httpConfigs(config webServer.Options, update *HTTPUpdate) (map
 }
 
 // loadHTTP 读取并合并已保存的 HTTP 服务全局参数。
-func (s *service) loadHTTP(includeLegacy bool) (webServer.Options, bool, error) {
+func (s *service) loadHTTP() (webServer.Options, bool, error) {
 	values := s.config.Group(constant.SiteGroup)
 	config := webServer.Options{}
 	exists := false
@@ -293,92 +292,10 @@ func (s *service) loadHTTP(includeLegacy bool) (webServer.Options, bool, error) 
 		{constant.SiteHTTPChallengePort, &config.HTTPChallengePort},
 		{constant.SiteHTTPACMEEmail, &config.ACMEEmail},
 	}
-	splitCount := 0
-	for _, item := range fields {
-		if _, ok := values[item.key]; ok {
-			splitCount++
-		}
-	}
-	legacyRaw := strings.TrimSpace(values[constant.SiteHTTPGroup])
-	if includeLegacy && legacyRaw != "" && splitCount < len(fields) {
-		var legacy *webServer.Options
-		legacyErr := func() error {
-			decoder := json.NewDecoder(strings.NewReader(legacyRaw))
-			decoder.DisallowUnknownFields()
-			if err := decoder.Decode(&legacy); err != nil {
-				return fmt.Errorf("旧版 HTTP 配置格式错误: %w", err)
-			}
-			if legacy == nil {
-				return errors.New("旧版 HTTP 配置必须是 JSON 对象")
-			}
-			if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
-				if err == nil {
-					return errors.New("旧版 HTTP 配置只能包含一个 JSON 对象")
-				}
-				return fmt.Errorf("旧版 HTTP 配置包含多余内容: %w", err)
-			}
-			return nil
-		}()
-		if legacyErr != nil {
-			if splitCount == 0 {
-				return webServer.Options{}, false, legacyErr
-			}
-			log.Printf("%v，已忽略旧配置并使用拆分配置", legacyErr)
-		} else {
-			config = *legacy
-			exists = true
-			legacyRoot, pathErr := filepath.Abs(filepath.Join(constant.BasePath, "data", "site", "http"))
-			if pathErr != nil {
-				return webServer.Options{}, false, fmt.Errorf("解析旧版 HTTP 目录失败: %w", pathErr)
-			}
-			for target, path := range map[*string]string{
-				&config.DataPath:   filepath.Join(legacyRoot, "data"),
-				&config.CachePath:  filepath.Join(legacyRoot, "cache"),
-				&config.LogPath:    filepath.Join(legacyRoot, "logs", "http.log"),
-				&config.WAFLogPath: filepath.Join(legacyRoot, "logs", "waf.log"),
-			} {
-				if filepath.Clean(*target) == filepath.Clean(path) {
-					*target = ""
-				}
-			}
-		}
-	}
 	for _, item := range fields {
 		if err := decode(item.key, item.target); err != nil {
 			return webServer.Options{}, false, err
 		}
 	}
-	if !exists {
-		return webServer.Options{}, false, nil
-	}
-	previousRoot := filepath.Join(s.root, "http")
-	for target, previous := range map[*string]string{
-		&config.DataPath:   filepath.Join(previousRoot, "data"),
-		&config.CachePath:  filepath.Join(previousRoot, "cache"),
-		&config.LogPath:    filepath.Join(previousRoot, "logs", "http.log"),
-		&config.WAFLogPath: filepath.Join(previousRoot, "logs", "waf.log"),
-		&config.ConfigPath: filepath.Join(previousRoot, "config.json"),
-	} {
-		value := strings.TrimSpace(*target)
-		if value == "" || value == "-" {
-			continue
-		}
-		if !filepath.IsAbs(value) {
-			value = filepath.Join(previousRoot, value)
-		}
-		absoluteTarget, pathErr := filepath.Abs(value)
-		if pathErr != nil {
-			return webServer.Options{}, false, fmt.Errorf("解析上一版 HTTP 默认路径失败: %w", pathErr)
-		}
-		absolutePrevious, pathErr := filepath.Abs(previous)
-		if pathErr != nil {
-			return webServer.Options{}, false, fmt.Errorf("解析上一版 HTTP 默认路径失败: %w", pathErr)
-		}
-		if filepath.Clean(absoluteTarget) == filepath.Clean(absolutePrevious) {
-			*target = ""
-		} else if !filepath.IsAbs(*target) {
-			*target = filepath.Clean(absoluteTarget)
-		}
-	}
-	return config, true, nil
+	return config, exists, nil
 }

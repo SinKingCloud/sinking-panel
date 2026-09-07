@@ -16,7 +16,7 @@ func (s *service) Restore(name string, path2 string) error {
 	if name == "." || name == ".." || filepath.Base(name) != name {
 		return errors.New("文件名称不合法")
 	}
-	oldPath := filepath.Join(filepath.Dir(s.path), name)
+	oldPath := filepath.Join(s.path, name)
 	if !f.Exists(oldPath) {
 		return errors.New("该目录或文件不存在")
 	}

@@ -12,6 +12,15 @@ type ProxyScheme string
 // WAFMode 表示 WAF 运行模式。
 type WAFMode string
 
+// WAFMatch 表示一组 WAF 条件的匹配逻辑。
+type WAFMatch string
+
+// WAFAction 表示 WAF 规则命中后的动作。
+type WAFAction string
+
+// WAFOperator 表示 WAF 条件的匹配操作符。
+type WAFOperator string
+
 // CertificateCA 表示证书签发环境。
 type CertificateCA string
 
@@ -31,6 +40,7 @@ const (
 	ProxySchemeHTTPS      ProxyScheme    = "https"   // HTTPS 上游协议
 
 	HandlerWAF            Module = "waf"             // WAF 处理器
+	HandlerVars           Module = "vars"            // 请求上下文变量处理器
 	HandlerRateLimit      Module = "rate_limit"      // 访问频率限制处理器
 	HandlerTrafficLimit   Module = "traffic_limit"   // 并发和响应速度限制处理器
 	HandlerHeaders        Module = "headers"         // 请求和响应头处理器
@@ -44,6 +54,23 @@ const (
 
 	WAFModeDetection WAFMode = "detection" // WAF 仅记录不拦截
 	WAFModeBlock     WAFMode = "block"     // WAF 检测并拦截
+
+	WAFMatchAny WAFMatch = "any" // 任一条件满足即命中
+	WAFMatchAll WAFMatch = "all" // 全部条件满足才命中
+
+	WAFActionBlock WAFAction = "block" // 拦截命中的请求
+	WAFActionLog   WAFAction = "log"   // 仅记录命中的请求
+
+	WAFOperatorContains   WAFOperator = "contains"     // 包含指定内容
+	WAFOperatorEquals     WAFOperator = "equals"       // 等于指定内容
+	WAFOperatorStartsWith WAFOperator = "starts_with"  // 以指定内容开头
+	WAFOperatorEndsWith   WAFOperator = "ends_with"    // 以指定内容结尾
+	WAFOperatorRegex      WAFOperator = "regex"        // 匹配正则表达式
+	WAFOperatorIP         WAFOperator = "ip"           // 匹配 IP 或 CIDR
+	WAFOperatorExists     WAFOperator = "exists"       // 检查对象是否存在
+	WAFOperatorNotEmpty   WAFOperator = "not_empty"    // 检查对象内容是否非空
+	WAFOperatorGreater    WAFOperator = "greater_than" // 大于指定整数
+	WAFOperatorLess       WAFOperator = "less_than"    // 小于指定整数
 
 	CertificateCAProd    CertificateCA = "production" // Let's Encrypt 正式环境
 	CertificateCAStaging CertificateCA = "staging"    // Let's Encrypt 测试环境

@@ -5,6 +5,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"server/app/constant"
@@ -95,10 +96,7 @@ func init() {
 
 // initIPFile 初始化ip文件
 func initIPFile(name string) (string, error) {
-	path := constant.TempPath + "/ip"
-	if !strings.HasSuffix(path, "/") {
-		path += "/"
-	}
+	path := constant.IPPath
 	f := file.NewDisk(path)
 	if !f.Exists(name) {
 		_ = f.AutoCreate(name)
@@ -123,5 +121,5 @@ func initIPFile(name string) (string, error) {
 			return "", err
 		}
 	}
-	return strings.ReplaceAll(path+name, "//", ""), nil
+	return filepath.Join(path, name), nil
 }

@@ -844,14 +844,14 @@ func (m *Manager) buildConfig(sites map[string]*Site) ([]byte, error) {
 			if defaultSite != nil {
 				defaultLoggerName = accessLoggerBySite[defaultSite.ID]
 			}
-			servers["http"] = m.buildHTTPServer(m.options.HTTPListen, httpRoutes, nil, accessLoggerNames, defaultLoggerName)
+			servers["http"] = m.buildHTTPServer(m.options.HTTPListen, httpRoutes, nil, accessLoggerNames, defaultLoggerName, enabled)
 		}
 	}
 	if len(httpsRoutes) > 0 {
 		if len(m.options.HTTPSListen) == 0 {
 			return nil, errors.New("存在 TLS 站点，但没有配置 HTTPS 监听地址")
 		}
-		servers["https"] = m.buildHTTPServer(m.options.HTTPSListen, httpsRoutes, tlsPolicies, accessLoggerNames, "")
+		servers["https"] = m.buildHTTPServer(m.options.HTTPSListen, httpsRoutes, tlsPolicies, accessLoggerNames, "", enabled)
 	}
 
 	loadFiles := make([]certificateFileConfig, 0, len(certificateFiles))
@@ -947,7 +947,7 @@ func (m *Manager) buildConfig(sites map[string]*Site) ([]byte, error) {
 	return result, nil
 }
 
-func (m *Manager) buildHTTPServer(listen []string, routes []interface{}, tlsPolicies []interface{}, loggerNames map[string][]string, defaultLoggerName string) map[string]interface{} {
+func (m *Manager) buildHTTPServer(listen []string, routes []interface{}, tlsPolicies []interface{}, loggerNames map[string][]string, defaultLoggerName string, sites []*Site) map[string]interface{} {
 	routes = append([]interface{}{
 		map[string]interface{}{
 			"handle": []interface{}{map[string]interface{}{
@@ -966,20 +966,44 @@ func (m *Manager) buildHTTPServer(listen []string, routes []interface{}, tlsPoli
 	if defaultLoggerName != "" {
 		logOptions["default_logger_name"] = defaultLoggerName
 	}
-	server := map[string]interface{}{
-		"listen": append([]string(nil), listen...),
-		"routes": routes,
-		"errors": map[string]interface{}{
-			"routes": []interface{}{
-				map[string]interface{}{
-					"match": []interface{}{map[string]interface{}{
-						"expression": "{http.error.status_code} == 404",
-					}},
-					"handle":   []interface{}{m.buildResponseHandler(m.options.NotFoundPage)},
-					"terminal": true,
-				},
+	errorRoutes := make([]interface{}, 0, len(sites)+1)
+	for _, site := range sites {
+		if !site.WAF.Enabled {
+			continue
+		}
+		body := site.WAF.BlockPage
+		if strings.TrimSpace(body) == "" {
+			body = defaultWAFBlockPage
+		}
+		response := m.buildResponseHandler(ResponseOptions{
+			Body: body,
+			Headers: map[string][]string{
+				"Content-Type":  {"text/html; charset=utf-8"},
+				"Cache-Control": {"no-store"},
 			},
-		},
+		})
+		response["status_code"] = "{http.error.status_code}"
+		errorRoutes = append(errorRoutes, map[string]interface{}{
+			"match": []interface{}{map[string]interface{}{
+				"vars": map[string][]string{"waf_site_id": {site.ID}},
+				// 官方 WAF 的拦截错误携带事务 ID，避免覆盖网站自身的错误响应。
+				"expression": "{http.error.message} == 'interruption triggered' && {http.error.id} != '' && {http.error.id} == {http.transaction_id}",
+			}},
+			"handle":   []interface{}{response},
+			"terminal": true,
+		})
+	}
+	errorRoutes = append(errorRoutes, map[string]interface{}{
+		"match": []interface{}{map[string]interface{}{
+			"expression": "{http.error.status_code} == 404",
+		}},
+		"handle":   []interface{}{m.buildResponseHandler(m.options.NotFoundPage)},
+		"terminal": true,
+	})
+	server := map[string]interface{}{
+		"listen":              append([]string(nil), listen...),
+		"routes":              routes,
+		"errors":              map[string]interface{}{"routes": errorRoutes},
 		"automatic_https":     map[string]interface{}{"disable": true},
 		"protocols":           append([]string(nil), m.options.Protocols...),
 		"read_header_timeout": m.options.ReadHeaderTimeout.String(),

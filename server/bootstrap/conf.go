@@ -5,7 +5,6 @@ import (
 	"server/app/constant"
 	"server/app/util/file"
 	"server/global"
-	"strings"
 )
 
 // LoadConf 加载本地配置
@@ -14,9 +13,6 @@ func LoadConf() {
 		return
 	}
 	path := constant.ConfPath
-	if !strings.HasSuffix(path, "/") {
-		path += "/"
-	}
 	fileName := constant.ConfFile
 	disk := file.NewDisk(path)
 	_ = disk.AutoCreate(fileName)

@@ -28,7 +28,7 @@ const (
 	SshName     = SshGroup + ".name"      //本地ssh 名称
 
 	SiteGroup                    = "site"                                    //网站服务配置组
-	SiteHTTPGroup                = SiteGroup + ".http"                       //网站 HTTP 配置前缀，兼容旧版整包配置键
+	SiteHTTPGroup                = SiteGroup + ".http"                       //网站 HTTP 配置前缀
 	SiteHTTPEnabled              = SiteHTTPGroup + ".enabled"                //网站 HTTP 服务启用状态
 	SiteHTTPListen               = SiteHTTPGroup + ".http_listen"            //HTTP 监听地址
 	SiteHTTPSListen              = SiteHTTPGroup + ".https_listen"           //HTTPS 监听地址

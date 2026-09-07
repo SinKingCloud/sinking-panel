@@ -17,7 +17,7 @@ import (
 
 // NewManager 创建镜像、实例和运行时状态目录，并恢复已有实例状态。
 // options 可选；未提供或字段为零时使用内置默认配置。
-func NewManager(root string, options ...ManagerOptions) (*Manager, error) {
+func NewManager(root string, options ...ManagerOptions) (_ *Manager, err error) {
 	if strings.TrimSpace(root) == "" {
 		return nil, errors.New("容器数据目录不能为空")
 	}
@@ -177,8 +177,7 @@ func NewManager(root string, options ...ManagerOptions) (*Manager, error) {
 	ready := false
 	defer func() {
 		if !ready {
-			cancel()
-			m.workers.Wait()
+			err = errors.Join(err, m.StopAll())
 		}
 	}()
 	if err := m.ensureManagedDirectory(absRoot); err != nil {
@@ -659,8 +658,9 @@ func (m *Manager) Stats(id string) (*Stats, error) {
 	return m.statsPlatform(id)
 }
 
-// Shutdown 平滑停止全部实例和后台任务。关闭后 Manager 不可再次启动实例。
-func (m *Manager) Shutdown() error {
+// StopAll 停止全部容器并释放终端和后台任务，用于程序退出或初始化失败时清理。
+// 可重复调用；完成后 Manager 不再接受启动请求。
+func (m *Manager) StopAll() error {
 	m.closeOnce.Do(func() {
 		m.lifecycleMu.Lock()
 		m.mu.Lock()

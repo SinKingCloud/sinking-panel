@@ -119,6 +119,9 @@ func (s *service) UpdateWAF(id int64, config *WAFUpdate) error {
 		if config.Mode != nil {
 			current.Mode = *config.Mode
 		}
+		if config.BlockPage != nil {
+			current.BlockPage = *config.BlockPage
+		}
 		if config.OWASP != nil {
 			update := config.OWASP
 			owasp := &current.OWASP

@@ -103,16 +103,12 @@ func newService(repositorySite siteRepository.Interface, repositoryDomain domain
 		root:             filepath.Clean(root),
 		active:           true,
 	}
-	storedHTTP := false
-	storedHTTPValid := true
 	if len(options) == 0 {
-		stored, exists, loadErr := result.loadHTTP(true)
+		stored, exists, loadErr := result.loadHTTP()
 		if loadErr != nil {
-			storedHTTPValid = false
 			log.Printf("网站 HTTP 配置损坏，已使用默认配置启动: %v", loadErr)
 		} else if exists {
 			config.HTTP = stored
-			storedHTTP = true
 		}
 	}
 	storedConfigs := configService.Group(constant.SiteGroup)
@@ -124,7 +120,6 @@ func newService(repositorySite siteRepository.Interface, repositoryDomain domain
 			result.active = enabled
 		}
 	}
-	migrationHTTP := config.HTTP
 	effectiveHTTP := config.HTTP
 	effectiveHTTP.ACMEPath = defaultHTTP.ACMEPath
 	for target, value := range map[*string]string{
@@ -140,62 +135,15 @@ func newService(repositorySite siteRepository.Interface, repositoryDomain domain
 	}
 	httpManager, err := webServer.NewManager(root, effectiveHTTP)
 	if err != nil {
-		configErr := err
-		storedHTTPValid = false
-		if storedHTTP {
-			split, splitExists, splitErr := result.loadHTTP(false)
-			if splitErr == nil && splitExists {
-				effectiveSplit := split
-				effectiveSplit.ACMEPath = defaultHTTP.ACMEPath
-				for target, value := range map[*string]string{
-					&effectiveSplit.DataPath:   defaultHTTP.DataPath,
-					&effectiveSplit.CachePath:  defaultHTTP.CachePath,
-					&effectiveSplit.LogPath:    defaultHTTP.LogPath,
-					&effectiveSplit.WAFLogPath: defaultHTTP.WAFLogPath,
-					&effectiveSplit.ConfigPath: defaultHTTP.ConfigPath,
-				} {
-					if strings.TrimSpace(*target) == "" {
-						*target = value
-					}
-				}
-				if manager, managerErr := webServer.NewManager(root, effectiveSplit); managerErr == nil {
-					httpManager = manager
-					migrationHTTP = split
-					storedHTTPValid = true
-					err = nil
-					log.Printf("网站旧版 HTTP 配置无法加载，已使用拆分配置: %v", configErr)
-				}
-			}
-		}
-		if err != nil {
-			log.Printf("网站 HTTP 配置无法加载，已使用默认配置启动: %v", configErr)
-			fallbackHTTP := defaultHTTP
-			fallbackHTTP.ConfigPath = ""
-			httpManager, err = webServer.NewManager(root, fallbackHTTP)
-			migrationHTTP = webServer.Options{}
-		}
+		log.Printf("网站 HTTP 配置无法加载，已使用默认配置启动: %v", err)
+		fallbackHTTP := defaultHTTP
+		fallbackHTTP.ConfigPath = ""
+		httpManager, err = webServer.NewManager(root, fallbackHTTP)
 	}
 	if err != nil {
 		return nil, err
 	}
 	result.http = httpManager
-	if len(options) == 0 && storedHTTPValid && strings.TrimSpace(storedConfigs[constant.SiteHTTPGroup]) != "" {
-		configs, encodeErr := result.httpConfigs(migrationHTTP, nil)
-		complete := encodeErr == nil
-		for key := range configs {
-			if _, exists := storedConfigs[key]; !exists {
-				complete = false
-				break
-			}
-		}
-		if encodeErr != nil {
-			log.Printf("迁移旧版网站 HTTP 配置失败: %v", encodeErr)
-		} else if !complete {
-			if saveErr := configService.Sets(configs); saveErr != nil {
-				log.Printf("迁移旧版网站 HTTP 配置失败: %v", saveErr)
-			}
-		}
-	}
 	return result, nil
 }
 

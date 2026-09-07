@@ -25,7 +25,7 @@ const (
   restart 重启服务
   run     直接运行(非守护进程模式)
   install 设置登录信息并安装系统自启动
-  uninstall 卸载软件并保留data目录数据
+  uninstall 卸载软件，保留网站数据并询问是否保留容器
   user    修改登录账号
   pwd     修改登录密码`
 )
@@ -101,6 +101,7 @@ func (s *Server) run(stop <-chan struct{}) {
 		}
 	}()
 	bootstrap.Load()
+	bootstrap.LoadContainer()
 	app.Run(stop)
 }
 

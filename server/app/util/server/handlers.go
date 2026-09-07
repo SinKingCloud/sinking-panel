@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 )
@@ -93,7 +94,10 @@ func (m *Manager) buildSiteRoute(site *Site, domains, excludedDomains []string, 
 		return nil, err
 	}
 	if handler != nil {
-		stages[HandlerWAF] = append(stages[HandlerWAF], handler)
+		stages[HandlerWAF] = append(stages[HandlerWAF], map[string]interface{}{
+			"handler":     HandlerVars,
+			"waf_site_id": site.ID,
+		}, handler)
 	}
 	if handler := m.buildRateLimitHandler(site, scope); handler != nil {
 		stages[HandlerRateLimit] = append(stages[HandlerRateLimit], handler)
@@ -379,9 +383,218 @@ func (m *Manager) buildWAFHandler(siteID string, options WAFOptions) (map[string
 			directives = append(directives, directive)
 		}
 	}
+	usedRuleIDs := make(map[int64]struct{})
+	ruleIDPattern := regexp.MustCompile(`(?i)\bid\s*:\s*['"]?([0-9]+)\b['"]?`)
+	for _, values := range [][]string{options.OWASP.SetupDirectives, options.Directives} {
+		for _, directive := range values {
+			for _, match := range ruleIDPattern.FindAllStringSubmatch(directive, -1) {
+				if id, parseErr := strconv.ParseInt(match[1], 10, 64); parseErr == nil {
+					usedRuleIDs[id] = struct{}{}
+				}
+			}
+		}
+	}
 	for _, rule := range options.Rules {
-		if rule.Enabled {
+		if !rule.Enabled || len(rule.Conditions) > 0 || len(rule.Groups) > 0 {
+			continue
+		}
+		for _, match := range ruleIDPattern.FindAllStringSubmatch(rule.Directive, -1) {
+			if id, parseErr := strconv.ParseInt(match[1], 10, 64); parseErr == nil {
+				usedRuleIDs[id] = struct{}{}
+			}
+		}
+	}
+	nextRuleID := int64(5_000_000)
+	allocateRuleID := func() (int64, error) {
+		const maxRuleID = int64(2_147_483_647)
+		for nextRuleID <= maxRuleID {
+			id := nextRuleID
+			nextRuleID++
+			if _, exists := usedRuleIDs[id]; exists {
+				continue
+			}
+			usedRuleIDs[id] = struct{}{}
+			return id, nil
+		}
+		return 0, errors.New("WAF 规则引擎 ID 已用尽")
+	}
+	bodyTarget := func(target string) bool {
+		switch target {
+		case "ARGS", "ARGS_NAMES", "ARGS_COMBINED_SIZE", "ARGS_POST", "ARGS_POST_NAMES", "REQUEST_BODY", "FILES", "FILES_NAMES":
+			return true
+		}
+		return false
+	}
+	needsRequestBody := false
+	for _, rule := range options.Rules {
+		if !rule.Enabled {
+			continue
+		}
+		for _, condition := range rule.Conditions {
+			needsRequestBody = needsRequestBody || bodyTarget(condition.Target)
+		}
+		for _, group := range rule.Groups {
+			for _, condition := range group.Conditions {
+				needsRequestBody = needsRequestBody || bodyTarget(condition.Target)
+			}
+		}
+	}
+	if !options.OWASP.Enabled && needsRequestBody {
+		directives = append(directives, "SecRequestBodyAccess On")
+		engineRuleID, allocateErr := allocateRuleID()
+		if allocateErr != nil {
+			return nil, allocateErr
+		}
+		directives = append(directives, fmt.Sprintf(`SecAction "id:%d,phase:1,pass,nolog,noauditlog,ctl:forceRequestBodyVariable=On"`, engineRuleID))
+	}
+	operator := func(condition WAFCondition) (string, string) {
+		target := condition.Target
+		name := "@contains"
+		switch condition.Operator {
+		case WAFOperatorEquals:
+			name = "@streq"
+		case WAFOperatorStartsWith:
+			name = "@beginsWith"
+		case WAFOperatorEndsWith:
+			name = "@endsWith"
+		case WAFOperatorRegex:
+			name = "@rx"
+		case WAFOperatorIP:
+			name = "@ipMatch"
+		case WAFOperatorExists:
+			return "&" + target, "@gt 0"
+		case WAFOperatorNotEmpty:
+			return target, "@rx .+"
+		case WAFOperatorGreater:
+			name = "@gt"
+		case WAFOperatorLess:
+			name = "@lt"
+		}
+		value := condition.Value
+		if condition.IgnoreCase {
+			if condition.Operator == WAFOperatorRegex {
+				value = "(?i)" + value
+			} else {
+				value = strings.ToLower(value)
+			}
+		}
+		return target, strings.ReplaceAll(name+" "+value, "\"", "\\\"")
+	}
+	for ruleIndex, rule := range options.Rules {
+		if !rule.Enabled {
+			continue
+		}
+		if len(rule.Conditions) == 0 && len(rule.Groups) == 0 {
 			directives = append(directives, rule.Directive)
+			continue
+		}
+		groups := rule.Groups
+		if len(rule.Groups) == 0 {
+			groups = []WAFGroup{{Match: rule.Match, Conditions: rule.Conditions}}
+		}
+		phase := 1
+		for _, group := range groups {
+			for _, condition := range group.Conditions {
+				if bodyTarget(condition.Target) {
+					phase = 2
+					break
+				}
+			}
+			if phase == 2 {
+				break
+			}
+		}
+		name := rule.Name
+		if name == "" {
+			name = rule.ID
+		}
+		name = strings.NewReplacer("\\", "\\\\", "\"", "\\\"", "'", "\\'").Replace(name)
+		action := "pass,log,auditlog"
+		if rule.Action == WAFActionBlock {
+			action = "deny,status:403,log,auditlog"
+		}
+		conditionMarkers := make([][]string, len(groups))
+		for groupIndex, group := range groups {
+			conditionMarkers[groupIndex] = make([]string, len(group.Conditions))
+			for conditionIndex, condition := range group.Conditions {
+				target, expression := operator(condition)
+				engineRuleID, allocateErr := allocateRuleID()
+				if allocateErr != nil {
+					return nil, allocateErr
+				}
+				marker := fmt.Sprintf("sc_waf_r%d_c%d_%d", ruleIndex, groupIndex, conditionIndex)
+				conditionMarkers[groupIndex][conditionIndex] = marker
+				transform := ""
+				if condition.IgnoreCase && condition.Operator != WAFOperatorRegex {
+					transform = ",t:lowercase"
+				}
+				directives = append(directives, fmt.Sprintf(`SecRule %s "%s" "id:%d,phase:%d,t:none%s,pass,nolog,noauditlog,setvar:'tx.%s=1'"`, target, expression, engineRuleID, phase, transform, marker))
+			}
+		}
+		groupMarkers := make([]string, len(groups))
+		for groupIndex, group := range groups {
+			groupMarker := fmt.Sprintf("sc_waf_r%d_g%d", ruleIndex, groupIndex)
+			groupMarkers[groupIndex] = groupMarker
+			if group.Match == WAFMatchAny {
+				for conditionIndex, condition := range group.Conditions {
+					engineRuleID, allocateErr := allocateRuleID()
+					if allocateErr != nil {
+						return nil, allocateErr
+					}
+					target := "TX:" + conditionMarkers[groupIndex][conditionIndex]
+					expression := "@eq 1"
+					if condition.Negated {
+						target = "&" + target
+						expression = "@eq 0"
+					}
+					directives = append(directives, fmt.Sprintf(`SecRule %s "%s" "id:%d,phase:%d,t:none,pass,nolog,noauditlog,setvar:'tx.%s=1'"`, target, expression, engineRuleID, phase, groupMarker))
+				}
+				continue
+			}
+			engineRuleID, allocateErr := allocateRuleID()
+			if allocateErr != nil {
+				return nil, allocateErr
+			}
+			for conditionIndex, condition := range group.Conditions {
+				target := "TX:" + conditionMarkers[groupIndex][conditionIndex]
+				expression := "@eq 1"
+				if condition.Negated {
+					target = "&" + target
+					expression = "@eq 0"
+				}
+				actions := "t:none"
+				if conditionIndex == 0 {
+					actions = fmt.Sprintf("id:%d,phase:%d,t:none,pass,nolog,noauditlog", engineRuleID, phase)
+				}
+				if conditionIndex == len(group.Conditions)-1 {
+					actions += fmt.Sprintf(",setvar:'tx.%s=1'", groupMarker)
+				} else {
+					actions += ",chain"
+				}
+				directives = append(directives, fmt.Sprintf(`SecRule %s "%s" "%s"`, target, expression, actions))
+			}
+		}
+		engineRuleID, allocateErr := allocateRuleID()
+		if allocateErr != nil {
+			return nil, allocateErr
+		}
+		if rule.Match == WAFMatchAny && len(groupMarkers) > 1 {
+			targets := make([]string, len(groupMarkers))
+			for index, marker := range groupMarkers {
+				targets[index] = "TX:" + marker
+			}
+			directives = append(directives, fmt.Sprintf(`SecRule %s "@eq 1" "id:%d,phase:%d,t:none,%s,msg:'%s'"`, strings.Join(targets, "|"), engineRuleID, phase, action, name))
+			continue
+		}
+		for groupIndex, marker := range groupMarkers {
+			actions := "t:none"
+			if groupIndex == 0 {
+				actions = fmt.Sprintf("id:%d,phase:%d,t:none,%s,msg:'%s'", engineRuleID, phase, action, name)
+			}
+			if groupIndex < len(groupMarkers)-1 {
+				actions += ",chain"
+			}
+			directives = append(directives, fmt.Sprintf(`SecRule TX:%s "@eq 1" "%s"`, marker, actions))
 		}
 	}
 	if options.RequestBodyLimit > 0 {
@@ -397,14 +610,18 @@ func (m *Manager) buildWAFHandler(siteID string, options WAFOptions) (map[string
 		if err != nil {
 			return nil, err
 		}
+		engineRuleID, allocateErr := allocateRuleID()
+		if allocateErr != nil {
+			return nil, allocateErr
+		}
 		directives = append(directives,
 			"SecAuditEngine RelevantOnly",
-			`SecAuditLogRelevantStatus "^(?:4|5)"`,
 			"SecAuditLogParts ABCHIJKZ",
 			"SecAuditLogType rotating",
 			"SecAuditLogFormat JSON",
 			"SecAuditLogFileMode 0600",
 			"SecAuditLog "+strconv.Quote(logPath),
+			fmt.Sprintf(`SecRule RESPONSE_STATUS "@rx ^(?:4|5)" "id:%d,phase:5,t:none,pass,nolog,auditlog,msg:'HTTP error response'"`, engineRuleID),
 		)
 	} else {
 		directives = append(directives, "SecAuditEngine Off")

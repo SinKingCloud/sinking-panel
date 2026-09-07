@@ -173,6 +173,24 @@ var (
     <footer class="footer">© ` + pageYear + ` All Rights Reserved</footer>
 </body>
 </html>` // 默认网站停用页面
+	defaultWAFBlockPage = `<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="noindex, nofollow">
+    <title>访问被拦截</title>` + defaultPageStyle + `
+</head>
+<body>
+    <main class="stage">
+        <section class="content" aria-labelledby="page-title">
+            <h1 class="title" id="page-title">访问被拦截</h1>
+            <p class="description"><span class="status">WAF</span><span class="divider" aria-hidden="true">·</span><span>当前请求未通过网站安全检查，请联系网站管理员。</span></p>
+        </section>
+    </main>
+    <footer class="footer">© ` + pageYear + ` All Rights Reserved</footer>
+</body>
+</html>` // 默认 WAF 拦截页面
 )
 
 var browseTemplate = `{{- $nonce := uuidv4 -}}

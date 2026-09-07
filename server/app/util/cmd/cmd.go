@@ -37,10 +37,11 @@ const (
 )
 
 // NewScriptExec 创建脚本执行器实例
+// tempPath: 完整的脚本执行临时目录，不追加子目录
 // writeLog: 日志回调函数，可以为nil
-func NewScriptExec(TempPath string, timeout int, writeLog func(string)) *scriptExec {
+func NewScriptExec(tempPath string, timeout int, writeLog func(string)) *scriptExec {
 	return &scriptExec{
-		tempPath:      TempPath,
+		tempPath:      tempPath,
 		maxScriptSize: 1024 * 1024 * 2,
 		timeout:       timeout,
 		writeLog:      writeLog,
@@ -66,7 +67,7 @@ func (se *scriptExec) ExecuteContext(ctx context.Context, script string) (string
 	if int64(len(script)) > se.maxScriptSize {
 		return "", "", fmt.Errorf("脚本大小超过限制(%d字节)", se.maxScriptSize)
 	}
-	path := se.tempPath + "/exec/"
+	path := se.tempPath
 	if _, err := os.Stat(path); err != nil {
 		_ = os.MkdirAll(path, 0755)
 	}
