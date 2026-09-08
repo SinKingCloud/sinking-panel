@@ -1,19 +1,17 @@
 package cmd
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"crypto/rand"
 	"errors"
 	"fmt"
-	"io"
 	rand2 "math/rand"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -90,6 +88,10 @@ func (se *scriptExec) createScriptFile(dir, content string) (string, error) {
 	ext := ".sh"
 	if runtime.GOOS == "windows" {
 		ext = ".bat"
+		// 先用独立的 ASCII 命令切换代码页，再读取后续 UTF-8 脚本。
+		content = strings.TrimPrefix(content, "\ufeff")
+		content = strings.ReplaceAll(strings.ReplaceAll(content, "\r\n", "\n"), "\n", "\r\n")
+		content = "@chcp 65001 >nul || exit /b 1\r\n" + content
 	}
 
 	scriptFile := filepath.Join(dir, "script_"+se.secureRandomString(8)+ext)
@@ -114,13 +116,7 @@ func (se *scriptExec) executeScript(parent context.Context, path string, timeout
 		return "", "", err
 	}
 
-	var cmd *exec.Cmd
-	if runtime.GOOS == "windows" {
-		cmd = exec.Command("cmd", "/C", path)
-	} else {
-		cmd = exec.Command("bash", path)
-	}
-	prepareCommand(cmd)
+	cmd := newScriptCommand(path)
 
 	stdoutPipe, err := cmd.StdoutPipe()
 	if err != nil {
@@ -140,11 +136,14 @@ func (se *scriptExec) executeScript(parent context.Context, path string, timeout
 	wg.Add(2)
 
 	var stdoutBuf, stderrBuf bytes.Buffer
-	go func() { defer wg.Done(); se.scanOutput(stdoutPipe, &stdoutBuf) }()
-	go func() { defer wg.Done(); se.scanOutput(stderrPipe, &stderrBuf) }()
+	var stdoutErr, stderrErr error
+	go func() { defer wg.Done(); stdoutErr = se.scanOutput(stdoutPipe, &stdoutBuf) }()
+	go func() { defer wg.Done(); stderrErr = se.scanOutput(stderrPipe, &stderrBuf) }()
 
 	wait := make(chan error, 1)
 	go func() {
+		// Wait 会关闭输出管道，必须先读完，避免丢失退出前的日志。
+		wg.Wait()
 		wait <- cmd.Wait()
 	}()
 
@@ -196,29 +195,14 @@ func (se *scriptExec) executeScript(parent context.Context, path string, timeout
 		return stdoutBuf.String(), stderrBuf.String(), err
 	}
 
+	if readErr := errors.Join(stdoutErr, stderrErr); readErr != nil {
+		execErr = errors.Join(execErr, fmt.Errorf("读取命令输出失败: %w", readErr))
+	}
 	if execErr != nil {
 		return stdoutBuf.String(), stderrBuf.String(), fmt.Errorf("执行错误: %w", execErr)
 	}
 
 	return stdoutBuf.String(), stderrBuf.String(), nil
-}
-
-// scanOutput 实时扫描输出流并记录日志
-func (se *scriptExec) scanOutput(rc io.ReadCloser, buf *bytes.Buffer) {
-	defer func(rc io.ReadCloser) {
-		_ = rc.Close()
-	}(rc)
-	scanner := bufio.NewScanner(rc)
-	for scanner.Scan() {
-		line := scanner.Text()
-		buf.WriteString(line + "\n")
-		if se.writeLog != nil {
-			se.writeLog(line)
-		}
-	}
-	if err := scanner.Err(); err != nil && se.writeLog != nil {
-		return
-	}
 }
 
 // secureRandomString 生成安全随机字符串

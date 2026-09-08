@@ -3,13 +3,42 @@
 package cmd
 
 import (
+	"bufio"
+	"bytes"
 	"errors"
+	"io"
 	"os/exec"
+	"strings"
 	"syscall"
 )
 
-func prepareCommand(command *exec.Cmd) {
+func newScriptCommand(path string) *exec.Cmd {
+	command := exec.Command("bash", path)
 	command.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	return command
+}
+
+// scanOutput 实时读取完整输出行并记录日志。
+func (se *scriptExec) scanOutput(rc io.ReadCloser, buf *bytes.Buffer) error {
+	defer rc.Close()
+	reader := bufio.NewReader(rc)
+	for {
+		line, readErr := reader.ReadString('\n')
+		if len(line) > 0 {
+			line = strings.TrimSuffix(strings.TrimSuffix(line, "\n"), "\r")
+			buf.WriteString(line)
+			buf.WriteByte('\n')
+			if se.writeLog != nil {
+				se.writeLog(line)
+			}
+		}
+		if readErr != nil {
+			if errors.Is(readErr, io.EOF) {
+				return nil
+			}
+			return readErr
+		}
+	}
 }
 
 type commandControl struct {
