@@ -59,6 +59,13 @@ func (s *service) updateHTTPLocked(config *HTTPUpdate) error {
 			if record.Status != site_status.Enabled {
 				return errors.New("默认站点必须处于启用状态")
 			}
+			domains, queryErr := s.repositoryDomain.SelectBySiteId(id)
+			if queryErr != nil {
+				return fmt.Errorf("查询默认站点域名失败: %w", queryErr)
+			}
+			if len(domains) == 0 {
+				return errors.New("默认站点至少需要绑定一个域名")
+			}
 		}
 	}
 	mergePage := func(target *webServer.ResponseOptions, update *HTTPPageUpdate) {

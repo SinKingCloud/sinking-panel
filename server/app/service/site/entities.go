@@ -250,6 +250,7 @@ type FastCGIUpdate struct {
 type ProcessUpdate struct {
 	Command      *string            `json:"command"`       // 完整启动命令行
 	Environment  *map[string]string `json:"environment"`   // 追加的环境变量
+	MaxRetries   *int               `json:"max_retries"`   // 连续失败后的最大重试次数，0 使用默认值
 	RestartDelay *time.Duration     `json:"restart_delay"` // 异常退出后的重启等待时间
 	StopTimeout  *time.Duration     `json:"stop_timeout"`  // 停止命令的最长等待时间
 }
@@ -287,6 +288,7 @@ type GeneralConfig struct {
 type ProcessConfig struct {
 	Command      string            `json:"command"`       // 完整启动命令行
 	Environment  map[string]string `json:"environment"`   // 追加的环境变量
+	MaxRetries   int               `json:"max_retries"`   // 连续失败后的最大重试次数
 	RestartDelay time.Duration     `json:"restart_delay"` // 异常退出后的重启等待时间
 	StopTimeout  time.Duration     `json:"stop_timeout"`  // 停止命令的最长等待时间
 }

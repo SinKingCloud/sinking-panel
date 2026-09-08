@@ -17,7 +17,7 @@ func Create(c *context.Context) {
 		Status  int                        `json:"status" default:"0" validate:"oneof=0 1" label:"网站状态"`
 		Root    string                     `json:"root" default:"" validate:"omitempty,max=4096" label:"网站根目录"`
 		RunPath string                     `json:"run_path" default:"" validate:"omitempty,max=4096" label:"网站运行目录"`
-		Domains []string                   `json:"domains" default:"" validate:"required,min=1,max=1000,unique,dive,required,max=253" label:"网站域名"`
+		Domains []string                   `json:"domains" default:"" validate:"max=1000,unique,dive,required,max=253" label:"网站域名"`
 		Static  *siteService.StaticOptions `json:"static" label:"静态网站配置"`
 		Proxy   *webServer.ProxyOptions    `json:"proxy" label:"反向代理配置"`
 		FastCGI *webServer.ProxyOptions    `json:"fastcgi" label:"FastCGI 配置"`

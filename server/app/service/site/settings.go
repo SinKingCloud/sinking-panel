@@ -439,6 +439,9 @@ func (s *service) UpdateProcess(id int64, config *ProcessUpdate) error {
 	if config.Environment != nil {
 		general.Process.Environment = *config.Environment
 	}
+	if config.MaxRetries != nil {
+		general.Process.MaxRetries = *config.MaxRetries
+	}
 	if config.RestartDelay != nil {
 		general.Process.RestartDelay = *config.RestartDelay
 	}

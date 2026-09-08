@@ -13,7 +13,7 @@ func Domain(c *context.Context) {
 	var form struct {
 		Action  string    `json:"action" default:"get" validate:"required,oneof=get set" label:"操作类型"`
 		Id      int64     `json:"id" default:"0" validate:"required,min=1" label:"网站ID"`
-		Domains *[]string `json:"domains" validate:"omitempty,min=1,max=1000,unique,dive,required,max=253" label:"网站域名"`
+		Domains *[]string `json:"domains" validate:"omitempty,max=1000,unique,dive,required,max=253" label:"网站域名"`
 	}
 	if ok, message := c.ValidatorAll(&form); !ok {
 		c.Error(message)

@@ -73,7 +73,7 @@ func (s *service) prepareSite(data *model.Site, input []Domain, previous []*mode
 		}
 		data.RunPath = filepath.ToSlash(relative)
 	}
-	if len(input) == 0 {
+	if len(input) == 0 && data.Type != site_type.General {
 		return nil, nil, errors.New("网站至少需要绑定一个域名")
 	}
 	previousByName := make(map[string]*model.Domain, len(previous))

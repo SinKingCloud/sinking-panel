@@ -37,7 +37,7 @@ func (m *Manager) Start(config Config) (*Status, error) {
 	return m.statusOf(entry), err
 }
 
-// Stop 停止指定进程并取消尚未执行的自动重启。
+// Stop 停止指定进程；尚未同步的 ID 也会保留停止意图，防止后续同步自动启动。
 func (m *Manager) Stop(id string) error {
 	id = strings.TrimSpace(id)
 	if id == "" {
@@ -45,6 +45,11 @@ func (m *Manager) Stop(id string) error {
 	}
 	m.operationMu.Lock()
 	defer m.operationMu.Unlock()
+	m.mu.Lock()
+	if m.processes[id] == nil {
+		m.processes[id] = &managedProcess{config: Config{ID: id}, state: StateStopped, exitCode: -1}
+	}
+	m.mu.Unlock()
 	return m.stopByID(id)
 }
 
@@ -65,6 +70,9 @@ func (m *Manager) Restart(id string) (*Status, error) {
 	}
 	config := m.cloneConfig(entry.config)
 	m.mu.RUnlock()
+	if config.Command == "" {
+		return nil, fmt.Errorf("进程尚未配置启动命令: %s", id)
+	}
 	if err := m.stopEntry(entry); err != nil {
 		status, _ := m.statusByID(id)
 		return status, err
@@ -79,7 +87,7 @@ func (m *Manager) Restart(id string) (*Status, error) {
 }
 
 // Sync 将管理器收敛到 configs 描述的期望集合。
-// 开启自动重启的进程启动失败时会保留错误状态并继续重试，停止或配置错误仍会返回。
+// 手动停止或重试耗尽的进程只更新配置，需显式 Start 或 Restart 才会重新启动。
 func (m *Manager) Sync(configs []Config) error {
 	desired := make(map[string]Config, len(configs))
 	for _, config := range configs {
@@ -124,12 +132,23 @@ func (m *Manager) Sync(configs []Config) error {
 	sort.Strings(desiredIDs)
 	for _, id := range desiredIDs {
 		config := desired[id]
-		m.mu.RLock()
+		m.mu.Lock()
 		entry := m.processes[id]
+		if entry != nil && entry.suspended {
+			if entry.command == nil {
+				entry.config = m.cloneConfig(config)
+			}
+			m.mu.Unlock()
+			continue
+		}
 		same := entry != nil && m.configsEqual(entry.config, config)
 		healthy := entry != nil && entry.desired && (entry.command != nil || entry.restartTimer != nil)
 		occupied := entry != nil && (entry.desired || entry.command != nil || entry.restartTimer != nil)
-		m.mu.RUnlock()
+		if occupied && !(same && healthy) {
+			// 在锁内确定配置重启，避免退出回收同时耗尽重试后又被本次同步唤醒。
+			entry.desired = false
+		}
+		m.mu.Unlock()
 		if same && healthy {
 			continue
 		}
@@ -162,6 +181,9 @@ func (m *Manager) StopAll() error {
 	m.mu.Lock()
 	entries := make([]*managedProcess, 0, len(m.processes))
 	for _, entry := range m.processes {
+		if entry.suspended && entry.command == nil && entry.restartTimer == nil {
+			continue
+		}
 		entry.desired = false
 		if entry.restartTimer != nil {
 			entry.restartTimer.Stop()

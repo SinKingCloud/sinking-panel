@@ -99,10 +99,10 @@ func newService(repositorySite siteRepository.Interface, repositoryDomain domain
 		config:           configService,
 		cache:            cache,
 		database:         database,
-		process:          processManager.NewManager(),
 		root:             filepath.Clean(root),
 		active:           true,
 	}
+	result.process = processManager.NewManager()
 	if len(options) == 0 {
 		stored, exists, loadErr := result.loadHTTP()
 		if loadErr != nil {
@@ -376,18 +376,18 @@ func (s *service) runtime() ([]webServer.Site, []processManager.Config, error) {
 		if err != nil {
 			return nil, nil, err
 		}
-		result = append(result, runtimeSite)
-		if runtimeSite.Enabled {
-			if runtimeProcess != nil {
-				processes = append(processes, *runtimeProcess)
-			}
+		if len(runtimeSite.Domains) > 0 {
+			result = append(result, runtimeSite)
+		}
+		if runtimeProcess != nil {
+			processes = append(processes, *runtimeProcess)
 		}
 	}
 	return result, processes, nil
 }
 
 func (s *service) runtimeSite(record *model.Site, domains []*model.Domain, certificates map[int64]*model.Cert, config interface{}) (webServer.Site, *processManager.Config, error) {
-	if len(domains) == 0 {
+	if len(domains) == 0 && record.Type != site_type.General {
 		return webServer.Site{}, nil, fmt.Errorf("网站 %s 没有绑定域名", record.Name)
 	}
 	runtimeSite := webServer.Site{
@@ -395,6 +395,17 @@ func (s *service) runtimeSite(record *model.Site, domains []*model.Domain, certi
 		Name:    record.Name,
 		Enabled: record.Status == site_status.Enabled,
 		Domains: make([]string, 0, len(domains)),
+	}
+	if len(domains) == 0 {
+		if !runtimeSite.Enabled {
+			return runtimeSite, nil, nil
+		}
+		value, ok := config.(GeneralConfig)
+		if !ok {
+			return webServer.Site{}, nil, fmt.Errorf("网站 %s 配置类型错误", record.Name)
+		}
+		runtimeProcess, err := s.runtimeProcess(record, &value.Process)
+		return runtimeSite, runtimeProcess, err
 	}
 	certDomains := make(map[int64][]string)
 	for _, domain := range domains {
@@ -424,7 +435,7 @@ func (s *service) runtimeSite(record *model.Site, domains []*model.Domain, certi
 		return runtimeSite, nil, nil
 	}
 	runRoot := ""
-	if record.Type != site_type.Proxy {
+	if record.Type != site_type.Proxy && record.Type != site_type.General {
 		var err error
 		runRoot, err = s.runRoot(record)
 		if err != nil {
@@ -455,24 +466,10 @@ func (s *service) runtimeSite(record *model.Site, domains []*model.Domain, certi
 		common = value.HTTPConfig
 		proxy := value.Proxy
 		runtimeSite.Proxy = &proxy
-		processLogPath, pathErr := s.http.LogPath(runtimeSite.ID, webServer.LogProcess)
-		if pathErr != nil {
-			return webServer.Site{}, nil, fmt.Errorf("网站 %s 进程日志路径无效: %w", record.Name, pathErr)
-		}
-		environment := make([]string, 0, len(value.Process.Environment))
-		for name, content := range value.Process.Environment {
-			environment = append(environment, name+"="+content)
-		}
-		sort.Strings(environment)
-		runtimeProcess = &processManager.Config{
-			ID:           runtimeSite.ID,
-			Command:      value.Process.Command,
-			WorkingDir:   runRoot,
-			Env:          environment,
-			AutoRestart:  true,
-			RestartDelay: value.Process.RestartDelay,
-			StopTimeout:  value.Process.StopTimeout,
-			LogPath:      processLogPath,
+		var err error
+		runtimeProcess, err = s.runtimeProcess(record, &value.Process)
+		if err != nil {
+			return webServer.Site{}, nil, err
 		}
 	default:
 		return webServer.Site{}, nil, fmt.Errorf("网站 %s 配置类型错误", record.Name)
@@ -528,6 +525,34 @@ func (s *service) runtimeSite(record *model.Site, domains []*model.Domain, certi
 		return webServer.Site{}, nil, fmt.Errorf("网站 %s 未绑定证书，不能开启 HTTPS 跳转", record.Name)
 	}
 	return runtimeSite, runtimeProcess, nil
+}
+
+func (s *service) runtimeProcess(record *model.Site, config *ProcessConfig) (*processManager.Config, error) {
+	runRoot, err := s.runRoot(record)
+	if err != nil {
+		return nil, fmt.Errorf("网站 %s 运行目录无效: %w", record.Name, err)
+	}
+	id := strconv.FormatInt(record.Id, 10)
+	processLogPath, err := s.http.LogPath(id, webServer.LogProcess)
+	if err != nil {
+		return nil, fmt.Errorf("网站 %s 进程日志路径无效: %w", record.Name, err)
+	}
+	environment := make([]string, 0, len(config.Environment))
+	for name, content := range config.Environment {
+		environment = append(environment, name+"="+content)
+	}
+	sort.Strings(environment)
+	return &processManager.Config{
+		ID:           id,
+		Command:      config.Command,
+		WorkingDir:   runRoot,
+		Env:          environment,
+		AutoRestart:  true,
+		MaxRetries:   config.MaxRetries,
+		RestartDelay: config.RestartDelay,
+		StopTimeout:  config.StopTimeout,
+		LogPath:      processLogPath,
+	}, nil
 }
 
 func (s *service) runRoot(record *model.Site) (string, error) {

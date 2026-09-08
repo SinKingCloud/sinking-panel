@@ -49,18 +49,21 @@ func (s *service) Create(data *CreateSite) (*Site, error) {
 	autoRoot := false
 	createdRoot := false
 	if root == "" {
-		if len(data.Domains) == 0 {
+		if len(data.Domains) == 0 && data.Type != site_type.General {
 			return nil, errors.New("网站至少需要绑定一个域名")
 		}
-		domain, normalizeErr := s.normalizeDomain(data.Domains[0])
-		if normalizeErr != nil {
-			return nil, normalizeErr
-		}
-		directory := domain
-		if strings.HasPrefix(domain, "*.") {
-			directory = "_wildcard." + strings.TrimPrefix(domain, "*.")
-		} else if strings.Contains(domain, ":") {
-			directory = "_ip6-" + strings.NewReplacer(":", "-", "%", "-").Replace(domain)
+		directory := strconv.FormatInt(id, 10)
+		if len(data.Domains) > 0 {
+			domain, normalizeErr := s.normalizeDomain(data.Domains[0])
+			if normalizeErr != nil {
+				return nil, normalizeErr
+			}
+			directory = domain
+			if strings.HasPrefix(domain, "*.") {
+				directory = "_wildcard." + strings.TrimPrefix(domain, "*.")
+			} else if strings.Contains(domain, ":") {
+				directory = "_ip6-" + strings.NewReplacer(":", "-", "%", "-").Replace(domain)
+			}
 		}
 		base, pathErr := filepath.Abs(constant.SiteRootPath)
 		if pathErr != nil {
@@ -256,6 +259,8 @@ func (s *service) updateLocked(id int64, data *siteMutation) error {
 	if domainsChanged {
 		domainInput = append([]Domain(nil), (*data.Domains)...)
 	}
+	previousDefault := s.http.Options().DefaultSite
+	clearDefault := domainsChanged && len(domainInput) == 0 && previousDefault == strconv.FormatInt(id, 10)
 
 	var domains []*model.Domain
 	err = s.database.Transaction(func(tx *gorm.DB) error {
@@ -282,9 +287,19 @@ func (s *service) updateLocked(id int64, data *siteMutation) error {
 		return err
 	}
 	s.cache.Delete(constant.CacheNameWithSiteNameEnum)
-	if syncErr := s.syncLocked(); syncErr != nil {
+	var syncErr error
+	if clearDefault {
+		value := ""
+		syncErr = s.updateHTTPLocked(&HTTPUpdate{DefaultSite: &value})
+	} else {
+		syncErr = s.syncLocked()
+	}
+	if syncErr != nil {
 		compensateErr := s.restoreSiteRecords(previous, previousDomains)
 		restoreRuntimeErr := s.syncLocked()
+		if clearDefault && compensateErr == nil && restoreRuntimeErr == nil {
+			restoreRuntimeErr = s.updateHTTPLocked(&HTTPUpdate{DefaultSite: &previousDefault})
+		}
 		return s.mutationSyncError("更新网站", syncErr, compensateErr, restoreRuntimeErr)
 	}
 	return nil

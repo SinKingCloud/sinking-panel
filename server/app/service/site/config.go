@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/url"
 	"server/app/enum/site_type"
+	processManager "server/app/util/process"
 	webServer "server/app/util/server"
 	"strings"
 	"time"
@@ -221,6 +222,12 @@ func (s *service) checkConfig(raw string, siteType int) (string, interface{}, er
 		}
 		if config.Process.RestartDelay < 0 || config.Process.StopTimeout < 0 {
 			return "", nil, errors.New("进程重启和停止时间不能小于 0")
+		}
+		if config.Process.MaxRetries < 0 {
+			return "", nil, errors.New("进程最大重试次数不能小于 0")
+		}
+		if config.Process.MaxRetries == 0 {
+			config.Process.MaxRetries = processManager.DefaultMaxRetries
 		}
 		if config.Process.RestartDelay == 0 {
 			config.Process.RestartDelay = 2 * time.Second

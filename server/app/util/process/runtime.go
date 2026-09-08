@@ -30,6 +30,12 @@ func (m *Manager) normalizeConfig(config Config) (Config, error) {
 	if config.Command == "" {
 		return Config{}, fmt.Errorf("进程命令不能为空: %s", config.ID)
 	}
+	if config.MaxRetries < 0 {
+		return Config{}, fmt.Errorf("进程最大重试次数不能小于零: %s", config.ID)
+	}
+	if config.MaxRetries == 0 {
+		config.MaxRetries = DefaultMaxRetries
+	}
 	if config.RestartDelay < 0 {
 		return Config{}, fmt.Errorf("进程重启延迟不能小于零: %s", config.ID)
 	}
@@ -68,6 +74,7 @@ func (m *Manager) cloneConfig(config Config) Config {
 func (m *Manager) configsEqual(left, right Config) bool {
 	return left.ID == right.ID && left.Command == right.Command && left.WorkingDir == right.WorkingDir &&
 		left.AutoRestart == right.AutoRestart && left.RestartDelay == right.RestartDelay &&
+		left.MaxRetries == right.MaxRetries &&
 		left.StopTimeout == right.StopTimeout && left.LogPath == right.LogPath && slices.Equal(left.Env, right.Env)
 }
 
@@ -76,18 +83,20 @@ func (m *Manager) statusOf(entry *managedProcess) *Status {
 		return nil
 	}
 	return &Status{
-		ID:           entry.config.ID,
-		State:        entry.state,
-		PID:          entry.pid,
-		Command:      entry.config.Command,
-		WorkingDir:   entry.config.WorkingDir,
-		AutoRestart:  entry.config.AutoRestart,
-		LogPath:      entry.config.LogPath,
-		StartedAt:    entry.startedAt,
-		ExitedAt:     entry.exitedAt,
-		ExitCode:     entry.exitCode,
-		RestartCount: entry.restartCount,
-		Error:        entry.lastError,
+		ID:             entry.config.ID,
+		State:          entry.state,
+		PID:            entry.pid,
+		Command:        entry.config.Command,
+		WorkingDir:     entry.config.WorkingDir,
+		AutoRestart:    entry.config.AutoRestart,
+		MaxRetries:     entry.config.MaxRetries,
+		LogPath:        entry.config.LogPath,
+		StartedAt:      entry.startedAt,
+		ExitedAt:       entry.exitedAt,
+		ExitCode:       entry.exitCode,
+		RestartCount:   entry.restartCount,
+		RetryExhausted: entry.retryExhausted,
+		Error:          entry.lastError,
 	}
 }
 
@@ -108,12 +117,14 @@ func (m *Manager) prepareStartLocked(entry *managedProcess, config Config) {
 	}
 	entry.config = m.cloneConfig(config)
 	entry.desired = true
+	entry.suspended = false
 	entry.generation++
 	entry.pid = 0
 	entry.exitCode = -1
 	entry.startedAt = time.Time{}
 	entry.exitedAt = time.Time{}
 	entry.restartCount = 0
+	entry.retryExhausted = false
 	entry.lastError = ""
 	entry.stopAt = time.Time{}
 	entry.state = StateStarting
@@ -179,6 +190,7 @@ func (m *Manager) handleStartFailureLocked(entry *managedProcess, err error) err
 
 func (m *Manager) waitProcess(entry *managedProcess, generation uint64, command *exec.Cmd, logFile io.WriteCloser, done chan struct{}, grouped bool) {
 	waitErr := command.Wait()
+	exitedAt := time.Now()
 	var cleanupErr error
 	if grouped {
 		m.mu.RLock()
@@ -203,7 +215,7 @@ func (m *Manager) waitProcess(entry *managedProcess, generation uint64, command 
 		entry.grouped = false
 		entry.pid = 0
 		entry.exitCode = exitCode
-		entry.exitedAt = time.Now()
+		entry.exitedAt = exitedAt
 		if !entry.desired {
 			if cleanupErr != nil {
 				entry.state = StateFailed
@@ -213,6 +225,9 @@ func (m *Manager) waitProcess(entry *managedProcess, generation uint64, command 
 				entry.lastError = ""
 			}
 		} else if entry.config.AutoRestart {
+			if exitedAt.Sub(entry.startedAt) >= retryResetAfter {
+				entry.restartCount = 0
+			}
 			if err := errors.Join(waitErr, cleanupErr); err != nil {
 				entry.lastError = err.Error()
 			} else {
@@ -242,6 +257,19 @@ func (m *Manager) scheduleRestartLocked(entry *managedProcess) {
 	}
 	if entry.restartTimer != nil {
 		entry.restartTimer.Stop()
+		entry.restartTimer = nil
+	}
+	if entry.restartCount >= uint64(entry.config.MaxRetries) {
+		entry.desired = false
+		entry.suspended = true
+		entry.retryExhausted = true
+		entry.state = StateFailed
+		reason := entry.lastError
+		if reason == "" {
+			reason = fmt.Sprintf("进程退出，退出码 %d", entry.exitCode)
+		}
+		entry.lastError = fmt.Sprintf("连续失败，已耗尽 %d 次重试: %s", entry.config.MaxRetries, reason)
+		return
 	}
 	entry.state = StateRestarting
 	generation := entry.generation
@@ -260,9 +288,12 @@ func (m *Manager) scheduleRestartLocked(entry *managedProcess) {
 }
 
 func (m *Manager) stopByID(id string) error {
-	m.mu.RLock()
+	m.mu.Lock()
 	entry := m.processes[id]
-	m.mu.RUnlock()
+	if entry != nil {
+		entry.suspended = true
+	}
+	m.mu.Unlock()
 	if entry == nil {
 		return fmt.Errorf("进程不存在: %s", id)
 	}
@@ -272,6 +303,7 @@ func (m *Manager) stopByID(id string) error {
 func (m *Manager) stopEntry(entry *managedProcess) error {
 	m.mu.Lock()
 	entry.desired = false
+	entry.retryExhausted = false
 	if entry.restartTimer != nil {
 		entry.restartTimer.Stop()
 		entry.restartTimer = nil
