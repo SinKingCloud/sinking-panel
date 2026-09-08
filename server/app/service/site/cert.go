@@ -254,8 +254,12 @@ func (s *service) RenewCert(ctx context.Context, id int64, request webServer.Cer
 	if current.Type != cert_type.ACME {
 		return nil, errors.New("只有 ACME 证书可以续签")
 	}
+	var domains []string
+	if err = json.Unmarshal([]byte(current.Domains), &domains); err != nil {
+		return nil, fmt.Errorf("解析证书域名失败: %w", err)
+	}
 	covered := false
-	for _, domain := range current.Domains {
+	for _, domain := range domains {
 		if strings.EqualFold(domain, requestedDomain) {
 			covered = true
 			break
@@ -335,9 +339,13 @@ func (s *service) prepareCertificate(data *model.Cert) error {
 	if !serverAuth {
 		return errors.New("证书不允许用于 TLS 服务器认证")
 	}
+	encodedDomains, err := json.Marshal(domains)
+	if err != nil {
+		return fmt.Errorf("格式化证书域名失败: %w", err)
+	}
 	data.Certificate = certificate + "\n"
 	data.PrivateKey = privateKey + "\n"
-	data.Domains = domains
+	data.Domains = string(encodedDomains)
 	data.StartTime = str.DateTime(leaf.NotBefore)
 	data.ExpireTime = str.DateTime(leaf.NotAfter)
 	return nil
@@ -449,14 +457,13 @@ func (s *service) cloneCertificate(data *model.Cert) *model.Cert {
 		return nil
 	}
 	result := *data
-	result.Domains = append([]string(nil), data.Domains...)
 	return &result
 }
 
 func (s *service) certificateUpdate(data *model.Cert) *certRepository.UpdateCert {
 	name := data.Name
 	certificateType := data.Type
-	domains := append([]string(nil), data.Domains...)
+	domains := data.Domains
 	certificate := data.Certificate
 	privateKey := data.PrivateKey
 	startTime := data.StartTime
@@ -476,15 +483,11 @@ func (s *service) restoreCertificate(data *model.Cert) error {
 	if data == nil {
 		return errors.New("缺少待恢复的证书数据")
 	}
-	domains, err := json.Marshal(data.Domains)
-	if err != nil {
-		return fmt.Errorf("格式化待恢复的证书域名失败: %w", err)
-	}
 	return s.database.Transaction(func(tx *gorm.DB) error {
 		return tx.Model(&model.Cert{}).Where("id = ?", data.Id).UpdateColumns(map[string]interface{}{
 			"name":        data.Name,
 			"type":        data.Type,
-			"domains":     string(domains),
+			"domains":     data.Domains,
 			"certificate": data.Certificate,
 			"private_key": data.PrivateKey,
 			"start_time":  data.StartTime,

@@ -605,6 +605,7 @@ func (m *Manager) buildConfig(sites map[string]*Site) ([]byte, error) {
 	httpsRoutes := make([]interface{}, 0, len(all)+1)
 	exactTLSPolicies := make([]interface{}, 0)
 	wildcardTLSPolicies := make([]interface{}, 0)
+	ipTLSPolicies := make([]map[string]interface{}, 0)
 	type certificateFileConfig struct {
 		Certificate string   `json:"certificate"`
 		Key         string   `json:"key"`
@@ -655,14 +656,18 @@ func (m *Manager) buildConfig(sites map[string]*Site) ([]byte, error) {
 				pairDomains = tlsDomains
 			}
 			exact, wildcard := make([]string, 0, len(pairDomains)), make([]string, 0, len(pairDomains))
+			ipDomains := make([]string, 0)
 			for _, domain := range pairDomains {
+				if net.ParseIP(domain) != nil {
+					ipDomains = append(ipDomains, domain)
+				}
 				if strings.HasPrefix(domain, "*.") {
 					wildcard = append(wildcard, domain)
 				} else {
 					exact = append(exact, domain)
 				}
 			}
-			for policyIndex, domains := range [][]string{exact, wildcard} {
+			for policyIndex, domains := range [][]string{exact, wildcard, ipDomains} {
 				if len(domains) == 0 {
 					continue
 				}
@@ -676,7 +681,15 @@ func (m *Manager) buildConfig(sites map[string]*Site) ([]byte, error) {
 				if site.TLS.MaxVersion != "" {
 					policy["protocol_max"] = site.TLS.MaxVersion
 				}
-				if policyIndex == 0 {
+				if policyIndex == 2 {
+					// IP 访问通常不发送 SNI，通过接收连接的本地地址选择绑定证书。
+					policy["default_sni"] = domains[0]
+					policy["match"] = map[string]interface{}{
+						"sni":      []string{""},
+						"local_ip": map[string]interface{}{"ranges": domains},
+					}
+					ipTLSPolicies = append(ipTLSPolicies, policy)
+				} else if policyIndex == 0 {
 					exactTLSPolicies = append(exactTLSPolicies, policy)
 				} else {
 					wildcardTLSPolicies = append(wildcardTLSPolicies, policy)
@@ -731,28 +744,46 @@ func (m *Manager) buildConfig(sites map[string]*Site) ([]byte, error) {
 				if httpsPort == 0 {
 					return nil, errors.New("存在多个 HTTPS 监听端口，无法确定 HTTP 跳转目标")
 				}
-				location := "https://{http.request.host}"
-				if httpsPort != 443 {
-					location += ":" + strconv.Itoa(httpsPort)
+				type redirectTarget struct {
+					domains []string
+					host    string
 				}
-				location += "{http.request.uri}"
-				redirectMatcher := map[string]interface{}{"host": tlsDomains}
-				if len(excludedDomains) > 0 {
-					redirectMatcher["not"] = []interface{}{map[string]interface{}{"host": excludedDomains}}
+				redirectTargets := []redirectTarget{{host: "{http.request.host}"}}
+				for _, domain := range tlsDomains {
+					if address := net.ParseIP(domain); address != nil && address.To4() == nil {
+						// Host 带端口时占位符会去掉 IPv6 方括号，使用规范地址生成合法 URL。
+						redirectTargets = append(redirectTargets, redirectTarget{domains: []string{domain}, host: "[" + domain + "]"})
+					} else {
+						redirectTargets[0].domains = append(redirectTargets[0].domains, domain)
+					}
 				}
-				redirectHandlers := make([]interface{}, 0, 2)
-				if handler := m.buildTrafficLimitHandler(site); handler != nil {
-					redirectHandlers = append(redirectHandlers, handler)
+				for _, target := range redirectTargets {
+					if len(target.domains) == 0 {
+						continue
+					}
+					location := "https://" + target.host
+					if httpsPort != 443 {
+						location += ":" + strconv.Itoa(httpsPort)
+					}
+					location += "{http.request.uri}"
+					redirectMatcher := map[string]interface{}{"host": target.domains}
+					if len(excludedDomains) > 0 {
+						redirectMatcher["not"] = []interface{}{map[string]interface{}{"host": excludedDomains}}
+					}
+					redirectHandlers := make([]interface{}, 0, 2)
+					if handler := m.buildTrafficLimitHandler(site); handler != nil {
+						redirectHandlers = append(redirectHandlers, handler)
+					}
+					redirectHandlers = append(redirectHandlers, map[string]interface{}{
+						"handler": HandlerStaticResponse, "status_code": 308,
+						"headers": map[string][]string{"Location": {location}},
+					})
+					httpRoutes = append(httpRoutes, map[string]interface{}{
+						"match":    []interface{}{redirectMatcher},
+						"handle":   redirectHandlers,
+						"terminal": true,
+					})
 				}
-				redirectHandlers = append(redirectHandlers, map[string]interface{}{
-					"handler": HandlerStaticResponse, "status_code": 308,
-					"headers": map[string][]string{"Location": {location}},
-				})
-				httpRoutes = append(httpRoutes, map[string]interface{}{
-					"match":    []interface{}{redirectMatcher},
-					"handle":   redirectHandlers,
-					"terminal": true,
-				})
 				if len(plainDomains) > 0 {
 					httpRoute, err := m.buildSiteRoute(site, plainDomains, excludedDomains, "http")
 					if err != nil {
@@ -812,6 +843,13 @@ func (m *Manager) buildConfig(sites map[string]*Site) ([]byte, error) {
 		httpsRoutes = append(httpsRoutes, m.buildResponseRoute(m.options.SiteNotFoundPage, nil, nil))
 	}
 	tlsPolicies := append(exactTLSPolicies, wildcardTLSPolicies...)
+	for _, policy := range ipTLSPolicies {
+		if len(ipTLSPolicies) == 1 {
+			// 只有一组 IP 证书时也支持公网地址映射到内网地址的 NAT 部署。
+			delete(policy["match"].(map[string]interface{}), "local_ip")
+		}
+		tlsPolicies = append(tlsPolicies, policy)
+	}
 	if len(httpsRoutes) > 0 && len(tlsPolicies) == 0 {
 		tlsPolicies = []interface{}{map[string]interface{}{}}
 	}

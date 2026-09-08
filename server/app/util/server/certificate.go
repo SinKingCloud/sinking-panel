@@ -37,8 +37,9 @@ func (m *Manager) obtainCertificate(ctx context.Context, request CertificateRequ
 	if err != nil {
 		return nil, fmt.Errorf("证书域名无效: %w", err)
 	}
-	if net.ParseIP(domain) != nil || !certmagic.SubjectQualifiesForPublicCert(domain) {
-		return nil, errors.New("域名不能申请公开证书")
+	isIP := net.ParseIP(domain) != nil
+	if !certmagic.SubjectQualifiesForPublicCert(domain) {
+		return nil, errors.New("域名或 IP 地址不能申请公开证书")
 	}
 	challenge := CertificateChallenge(strings.ToLower(strings.TrimSpace(string(request.Challenge))))
 	if challenge == "" {
@@ -46,6 +47,9 @@ func (m *Manager) obtainCertificate(ctx context.Context, request CertificateRequ
 	}
 	if challenge != CertificateChallengeHTTP && challenge != CertificateChallengeDNS {
 		return nil, errors.New("证书验证方式只支持 http 或 dns")
+	}
+	if isIP && challenge != CertificateChallengeHTTP {
+		return nil, errors.New("IP 地址证书必须使用 HTTP 验证")
 	}
 	if strings.HasPrefix(domain, "*.") && challenge != CertificateChallengeDNS {
 		return nil, errors.New("通配符证书必须使用 DNS 验证")
@@ -98,6 +102,10 @@ func (m *Manager) obtainCertificate(ctx context.Context, request CertificateRequ
 		DisableTLSALPNChallenge: true,
 		ListenHost:              strings.TrimSpace(m.options.HTTPChallengeHost),
 		AltHTTPPort:             m.options.HTTPChallengePort,
+	}
+	if isIP {
+		// Let's Encrypt 的 IP 证书必须使用短期配置，有效期为 160 小时。
+		issuerOptions.Profile = "shortlived"
 	}
 	if challenge == CertificateChallengeDNS {
 		credentials := request.DNSCredentials
@@ -155,8 +163,9 @@ func (m *Manager) obtainCertificate(ctx context.Context, request CertificateRequ
 	certificateKey := certmagic.StorageKeys.SiteCert(issuerKey, domain)
 	privateKey := certmagic.StorageKeys.SitePrivateKey(issuerKey, domain)
 	metadataKey := certmagic.StorageKeys.SiteMeta(issuerKey, domain)
-	if renew && m.acmeStorage.Exists(ctx, certificateKey) && m.acmeStorage.Exists(ctx, privateKey) && m.acmeStorage.Exists(ctx, metadataKey) {
-		err = magic.RenewCertSync(ctx, domain, true)
+	if m.acmeStorage.Exists(ctx, certificateKey) && m.acmeStorage.Exists(ctx, privateKey) && m.acmeStorage.Exists(ctx, metadataKey) {
+		// 已有证书由 CertMagic 根据 ARI 和有效期判断续签，显式续签则强制执行。
+		err = magic.RenewCertSync(ctx, domain, renew)
 	} else {
 		err = magic.ObtainCertSync(ctx, domain)
 	}
@@ -183,11 +192,16 @@ func (m *Manager) obtainCertificate(ctx context.Context, request CertificateRequ
 	if err != nil {
 		return nil, fmt.Errorf("解析证书信息失败: %w", err)
 	}
+	ipAddresses := make([]string, 0, len(leaf.IPAddresses))
+	for _, address := range leaf.IPAddresses {
+		ipAddresses = append(ipAddresses, address.String())
+	}
 
 	return &Certificate{
 		Domain:          domain,
 		Issuer:          string(caName),
 		DNSNames:        append([]string(nil), leaf.DNSNames...),
+		IPAddresses:     ipAddresses,
 		SerialNumber:    leaf.SerialNumber.String(),
 		NotBefore:       leaf.NotBefore,
 		NotAfter:        leaf.NotAfter,

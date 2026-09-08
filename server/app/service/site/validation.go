@@ -233,9 +233,6 @@ func (s *service) validateCertificate(certificate *model.Cert, domain string) er
 		}
 		return errors.New("证书不覆盖通配符域名")
 	}
-	if net.ParseIP(domain) != nil {
-		return errors.New("当前证书管理不支持为 IP 地址启用 SSL")
-	}
 	if err = leaf.VerifyHostname(domain); err != nil {
 		return errors.New("证书不覆盖当前域名")
 	}

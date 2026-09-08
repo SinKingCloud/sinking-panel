@@ -17,7 +17,7 @@ type SelectCert struct {
 type UpdateCert struct {
 	Name        *string
 	Type        *int
-	Domains     *[]string
+	Domains     *string
 	Certificate *string
 	PrivateKey  *string
 	StartTime   *str.DateTime
@@ -29,7 +29,7 @@ type Cert struct {
 	Id         int64        `gorm:"column:id;PRIMARY_KEY" json:"id"`
 	Name       string       `gorm:"column:name" json:"name"`
 	Type       int          `gorm:"column:type" json:"type"`
-	Domains    []string     `gorm:"column:domains;serializer:json" json:"domains"`
+	Domains    string       `gorm:"column:domains" json:"domains"`
 	StartTime  str.DateTime `gorm:"column:start_time" json:"start_time"`
 	ExpireTime str.DateTime `gorm:"column:expire_time" json:"expire_time"`
 	CreateTime str.DateTime `gorm:"column:create_time" json:"create_time"`

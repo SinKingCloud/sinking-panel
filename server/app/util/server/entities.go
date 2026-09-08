@@ -291,19 +291,20 @@ type DNSCredentials struct {
 
 // CertificateRequest 定义一次显式 ACME 申请。
 type CertificateRequest struct {
-	Domain         string               `json:"domain"`          // 申请证书的域名
+	Domain         string               `json:"domain"`          // 申请证书的域名或公网 IP 地址
 	Email          string               `json:"email"`           // ACME 账户邮箱，为空时使用全局配置
 	CA             CertificateCA        `json:"ca"`              // 证书签发环境，默认 production
-	Challenge      CertificateChallenge `json:"challenge"`       // 域名所有权验证方式，默认 http
+	Challenge      CertificateChallenge `json:"challenge"`       // 所有权验证方式，默认 http，IP 地址仅支持 http
 	DNSProvider    DNSProvider          `json:"dns_provider"`    // DNS-01 服务商
 	DNSCredentials DNSCredentials       `json:"dns_credentials"` // DNS-01 服务商凭据
 }
 
 // Certificate 返回证书信息和 PEM。私钥仅供 Go 调用方使用，不参与 JSON 序列化。
 type Certificate struct {
-	Domain          string    `json:"domain"`           // 申请证书的主域名
+	Domain          string    `json:"domain"`           // 申请证书的主域名或 IP 地址
 	Issuer          string    `json:"issuer"`           // 证书签发环境
 	DNSNames        []string  `json:"dns_names"`        // 证书覆盖的 DNS 名称
+	IPAddresses     []string  `json:"ip_addresses"`     // 证书覆盖的 IP 地址
 	SerialNumber    string    `json:"serial_number"`    // 证书序列号
 	NotBefore       time.Time `json:"not_before"`       // 证书生效时间
 	NotAfter        time.Time `json:"not_after"`        // 证书到期时间

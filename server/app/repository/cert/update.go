@@ -1,7 +1,6 @@
 package cert
 
 import (
-	"encoding/json"
 	"server/app/model"
 	"server/app/util/str"
 	"time"
@@ -22,11 +21,7 @@ func (r *Repository) UpdateById(id int64, data *UpdateCert, tx ...*gorm.DB) erro
 		updates["type"] = *data.Type
 	}
 	if data.Domains != nil {
-		domains, err := json.Marshal(*data.Domains)
-		if err != nil {
-			return err
-		}
-		updates["domains"] = string(domains)
+		updates["domains"] = *data.Domains
 	}
 	if data.Certificate != nil {
 		updates["certificate"] = *data.Certificate

@@ -1223,12 +1223,6 @@ func (m *Manager) normalizeTLS(options *TLSOptions, domains []string) error {
 		}
 		pairCovered := make([]string, 0, len(candidateDomains))
 		for _, domain := range candidateDomains {
-			if net.ParseIP(domain) != nil {
-				if explicitDomains {
-					return fmt.Errorf("第 %d 组证书不覆盖绑定域名: %s", index+1, domain)
-				}
-				continue
-			}
 			matched := false
 			if strings.HasPrefix(domain, "*.") {
 				for _, name := range leaf.DNSNames {
