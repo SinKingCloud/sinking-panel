@@ -372,6 +372,12 @@ const useStyles = createStyles<{compact?: boolean; dark?: boolean}>(({css, token
                 scrollbar-width: thin;
             }
 
+            .file-editor-tree-body .ant-tree-list-holder-inner {
+                box-sizing: border-box;
+                /* Keep the virtual scrollbar's 8px track clear, including when hidden. */
+                padding-inline-end: 8px;
+            }
+
             .file-editor-tree-body .ant-tree-treenode:hover {
                 --file-editor-tree-row-background: ${token.colorFillQuaternary};
             }
