@@ -1,11 +1,11 @@
 import React, {useCallback, useLayoutEffect, useRef, useState} from "react";
 import {App, Button, Empty} from "antd";
 import {Body, Icon} from "sinking-antd";
-import PageTable from "@/pages/components/table";
+import Table from "@/components/table";
 import FileDialogHost from "./components/dialog-host";
 import type {FileDialogHostRef} from "./components/dialog-host";
-import Header from "./components/header";
-import FileTable from "./components/table";
+import FilePathBar from "./components/path-bar";
+import useFileTable from "./components/table";
 import useFileClipboard from "./hooks/clipboard";
 import useFileDeletion from "./hooks/deletion";
 import useDirectoryCounts from "./hooks/directory-counts";
@@ -13,7 +13,7 @@ import useFileDownload from "./hooks/download";
 import useFileNavigation from "./hooks/navigation";
 import useFileOperationLock from "./hooks/operation-lock";
 import useFileSelection from "./hooks/selection";
-import {joinFilePath} from "./utils";
+import {joinFilePath, normalizeFilePath} from "./utils";
 
 export default (): React.ReactNode => {
     const {message} = App.useApp();
@@ -148,48 +148,152 @@ export default (): React.ReactNode => {
         selection.remove(paths);
     }, [selection.remove]);
 
+    const fileTable = useFileTable({
+        path: list.path,
+        items: list.items,
+        loading: list.loading,
+        actionsDisabled: list.loading || list.navigating,
+        sort: list.sort,
+        order: list.order,
+        directoryCounts,
+        onCountDirectory: countDirectory,
+        operatingPaths: operationLock.paths,
+        selectedPaths: selection.selectedPaths,
+        selectionDisabled: list.loading || list.navigating,
+        onSelectionChange: selection.change,
+        onSortChange: list.changeSort,
+        onOpen: openDirectory,
+        onEdit: openEditor,
+        onPreview: openPreview,
+        onDownload: download,
+        onRename: openRename,
+        onPermissions: openPermissions,
+        onCopy: copyRecord,
+        onMove: moveRecord,
+        onProperties: openProperties,
+        onOperation: openOperation,
+        onDelete: deletion.confirmRecord,
+    });
+    const selectionOperationDisabled = list.loading || list.navigating || selection.hasBusySelection;
+    const selectionClipboardDisabled = selectionOperationDisabled || clipboard.pasting;
+
     return (
         <Body>
-            <PageTable
+            <Table
+                {...fileTable}
                 ariaLabel="文件管理"
-                header={(
-                    <Header
+                hero={{
+                    title: "文件管理",
+                    eyebrow: "FILE MANAGER",
+                    action: disks.length > 1 ? {
+                        label: "切换磁盘",
+                        ariaLabel: "切换磁盘",
+                        icon: "DatabaseOutlined",
+                        suffixIcon: "SwapOutlined",
+                        menu: {
+                            items: disks.map((disk, index) => ({key: String(index), label: disk})),
+                            onClick: ({key}) => {
+                                const target = disks[Number(key)];
+                                if (target) navigate(normalizeFilePath(target));
+                            },
+                        },
+                    } : undefined,
+                }}
+                toolbar={{
+                    search: {
+                        value: keyword,
+                        ariaLabel: "搜索当前目录",
+                        placeholder: "搜索当前目录",
+                        onChange: setKeyword,
+                    },
+                    refresh: {loading: list.loading, ariaLabel: "刷新文件列表", onClick: list.reload},
+                    actions: [
+                        {
+                            key: "create",
+                            type: "button",
+                            label: "新建",
+                            icon: "PlusOutlined",
+                            suffixIcon: "DownOutlined",
+                            "aria-label": "新建文件或文件夹",
+                            menu: {
+                                items: [
+                                    {key: "directory", label: "新建文件夹", icon: <Icon type="FolderAddOutlined"/>},
+                                    {key: "file", label: "新建空文件", icon: <Icon type="FileAddOutlined"/>},
+                                ],
+                                onClick: ({key}) => openCreate(key),
+                            },
+                        },
+                        {
+                            key: "upload",
+                            type: "button",
+                            label: uploading ? "查看上传" : "上传文件",
+                            icon: uploading ? "LoadingOutlined" : "UploadOutlined",
+                            "aria-label": uploading ? "查看上传" : "上传文件",
+                            onClick: openUpload,
+                        },
+                        {
+                            key: "download", type: "button", label: "远程下载", icon: "CloudDownloadOutlined",
+                            "aria-label": "远程下载", onClick: openRemoteDownload,
+                        },
+                        {
+                            key: "terminal", type: "button", label: "终端", icon: "CodeOutlined",
+                            "aria-label": "打开终端", onClick: openTerminal,
+                        },
+                        {
+                            key: "recycle", type: "button", label: "回收站", icon: "DeleteOutlined",
+                            "aria-label": "回收站", onClick: openRecycle,
+                        },
+                    ],
+                }}
+                contentBar={{
+                    content: <FilePathBar
                         path={list.path}
-                        disks={disks}
-                        keyword={keyword}
-                        uploading={uploading}
-                        refreshing={list.loading}
-                        clipboardCount={clipboard.count}
-                        clipboardMode={clipboard.mode}
-                        pasting={clipboard.pasting}
-                        pasteDisabled={!list.loaded || list.navigating}
-                        directoryActionsDisabled={!list.loaded || list.navigating}
-                        selectedCount={selection.selectedRecords.length}
-                        editorMinimized={editorMinimized}
-                        selectionClipboardDisabled={list.loading
-                            || list.navigating
-                            || selection.hasBusySelection
-                            || clipboard.pasting}
-                        selectionOperationDisabled={list.loading
-                            || list.navigating
-                            || selection.hasBusySelection}
-                        selectionClearDisabled={list.loading || list.navigating}
-                        onKeywordChange={setKeyword}
-                        onNavigate={navigate}
-                        onCreate={openCreate}
-                        onUpload={openUpload}
-                        onPaste={paste}
-                        onCopySelected={clipboard.copySelected}
-                        onMoveSelected={clipboard.moveSelected}
-                        onCompressSelected={openSelectedCompress}
-                        onDeleteSelected={deletion.confirmSelection}
-                        onClearSelection={selection.clear}
-                        onRestoreEditor={restoreEditor}
-                        onRemoteDownload={openRemoteDownload}
-                        onOpenTerminal={openTerminal}
-                        onOpenRecycle={openRecycle}
-                        onRefresh={list.reload}/>
-                )}
+                        roots={disks}
+                        disabled={!list.loaded || list.navigating}
+                        onNavigate={navigate}/>,
+                    ariaLabel: "当前目录操作",
+                    actions: [
+                        ...(editorMinimized ? [{
+                            key: "editor", type: "button" as const, label: "编辑器", icon: "EditOutlined",
+                            "aria-label": "恢复文件编辑器", onClick: restoreEditor,
+                        }] : []),
+                        ...(clipboard.count > 0 ? [{
+                            key: "paste",
+                            type: "button" as const,
+                            label: `${clipboard.mode === "move" ? "移动" : "粘贴"} ${clipboard.count} 项`,
+                            "aria-label": clipboard.mode === "move"
+                                ? `将 ${clipboard.count} 项移动到当前目录`
+                                : `粘贴 ${clipboard.count} 项`,
+                            disabled: !list.loaded || list.navigating,
+                            loading: clipboard.pasting,
+                            icon: clipboard.mode === "move" ? "ScissorOutlined" : "SnippetsOutlined",
+                            onClick: paste,
+                        }] : []),
+                    ],
+                }}
+                rowSelection={{
+                    ...fileTable.rowSelection,
+                    onClear: selection.clear,
+                    clearDisabled: list.loading || list.navigating,
+                    actions: [
+                        {
+                            key: "copy", type: "button", label: "复制", icon: "CopyOutlined",
+                            disabled: selectionClipboardDisabled, onClick: clipboard.copySelected,
+                        },
+                        {
+                            key: "move", type: "button", label: "移动", icon: "ScissorOutlined",
+                            disabled: selectionClipboardDisabled, onClick: clipboard.moveSelected,
+                        },
+                        {
+                            key: "compress", type: "button", label: "压缩", icon: "FileZipOutlined",
+                            disabled: selectionOperationDisabled, onClick: openSelectedCompress,
+                        },
+                        {
+                            key: "delete", type: "button", label: "删除", icon: "DeleteOutlined",
+                            danger: true, disabled: selectionOperationDisabled, onClick: deletion.confirmSelection,
+                        },
+                    ],
+                }}
                 empty={list.initialized && list.items.length === 0}
                 emptyContent={list.initialError ? (
                     <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="无法读取当前目录">
@@ -208,33 +312,7 @@ export default (): React.ReactNode => {
                     total: list.total,
                     disabled: list.navigating,
                     onChange: list.changePage,
-                }}>
-                <FileTable
-                    path={list.path}
-                    items={list.items}
-                    loading={list.loading}
-                    actionsDisabled={list.loading || list.navigating}
-                    sort={list.sort}
-                    order={list.order}
-                    directoryCounts={directoryCounts}
-                    onCountDirectory={countDirectory}
-                    operatingPaths={operationLock.paths}
-                    selectedPaths={selection.selectedPaths}
-                    selectionDisabled={list.loading || list.navigating}
-                    onSelectionChange={selection.change}
-                    onSortChange={list.changeSort}
-                    onOpen={openDirectory}
-                    onEdit={openEditor}
-                    onPreview={openPreview}
-                    onDownload={download}
-                    onRename={openRename}
-                    onPermissions={openPermissions}
-                    onCopy={copyRecord}
-                    onMove={moveRecord}
-                    onProperties={openProperties}
-                    onOperation={openOperation}
-                    onDelete={deletion.confirmRecord}/>
-            </PageTable>
+                }}/>
 
             <FileDialogHost
                 ref={dialogHostRef}

@@ -5,6 +5,52 @@ export interface FileBreadcrumbItem {
     path: string;
 }
 
+const parsePath = (value: string) => {
+    const raw = String(value || "");
+    const driveMatch = raw.match(/^([a-zA-Z]):(?:[\\/]+|$)/);
+    const source = driveMatch ? raw.replace(/\\/g, "/") : raw;
+    const drive = driveMatch ? `${driveMatch[1].toUpperCase()}:` : "";
+    const normalizedDriveMatch = drive ? source.match(/^([a-zA-Z]):(?:\/+|$)/) : null;
+    const remainder = drive ? source.slice(normalizedDriveMatch?.[0].length || 0) : source.replace(/^\/+/, "");
+    const parts: string[] = [];
+    remainder.split(/\/+/).forEach((part) => {
+        if (!part || part === ".") {
+            return;
+        }
+        if (part === "..") {
+            parts.pop();
+            return;
+        }
+        parts.push(part);
+    });
+    return {drive, parts};
+};
+
+export const normalizeFilePath = (value: string) => {
+    const {drive, parts} = parsePath(value);
+    const root = drive ? `${drive}/` : "/";
+    return parts.length > 0 ? `${root}${parts.join("/")}` : root;
+};
+
+export const parentFilePath = (value: string) => {
+    const {drive, parts} = parsePath(value);
+    parts.pop();
+    return normalizeFilePath(`${drive ? `${drive}/` : "/"}${parts.join("/")}`);
+};
+
+export const buildFileBreadcrumbs = (value: string): FileBreadcrumbItem[] => {
+    const {drive, parts} = parsePath(value);
+    const root = drive ? `${drive}/` : "/";
+    const result: FileBreadcrumbItem[] = [{label: drive || "/", path: root}];
+    parts.forEach((part, index) => {
+        result.push({
+            label: part,
+            path: normalizeFilePath(`${root}${parts.slice(0, index + 1).join("/")}`),
+        });
+    });
+    return result;
+};
+
 export type FileCategory =
     | "folder"
     | "archive"
@@ -56,33 +102,6 @@ const categoryIcons: Record<FileCategory, string> = {
     file: "FileOutlined",
 };
 
-const parsePath = (value: string) => {
-    const raw = String(value || "");
-    const driveMatch = raw.match(/^([a-zA-Z]):(?:[\\/]+|$)/);
-    const source = driveMatch ? raw.replace(/\\/g, "/") : raw;
-    const drive = driveMatch ? `${driveMatch[1].toUpperCase()}:` : "";
-    const normalizedDriveMatch = drive ? source.match(/^([a-zA-Z]):(?:\/+|$)/) : null;
-    const remainder = drive ? source.slice(normalizedDriveMatch?.[0].length || 0) : source.replace(/^\/+/, "");
-    const parts: string[] = [];
-    remainder.split(/\/+/).forEach((part) => {
-        if (!part || part === ".") {
-            return;
-        }
-        if (part === "..") {
-            parts.pop();
-            return;
-        }
-        parts.push(part);
-    });
-    return {drive, parts};
-};
-
-export const normalizeFilePath = (value: string) => {
-    const {drive, parts} = parsePath(value);
-    const root = drive ? `${drive}/` : "/";
-    return parts.length > 0 ? `${root}${parts.join("/")}` : root;
-};
-
 export const comparableFilePath = (value: string) => {
     const normalized = normalizeFilePath(value);
     const withoutTrailingSlash = normalized === "/" || /^[a-z]:\/$/i.test(normalized)
@@ -103,25 +122,6 @@ export const joinFilePath = (base: string, name: string) => {
     const parent = normalizeFilePath(base);
     const child = String(name ?? "");
     return `${parent}${parent.endsWith("/") ? "" : "/"}${child}`;
-};
-
-export const parentFilePath = (value: string) => {
-    const {drive, parts} = parsePath(value);
-    parts.pop();
-    return normalizeFilePath(`${drive ? `${drive}/` : "/"}${parts.join("/")}`);
-};
-
-export const buildFileBreadcrumbs = (value: string): FileBreadcrumbItem[] => {
-    const {drive, parts} = parsePath(value);
-    const root = drive ? `${drive}/` : "/";
-    const result: FileBreadcrumbItem[] = [{label: drive || "/", path: root}];
-    parts.forEach((part, index) => {
-        result.push({
-            label: part,
-            path: normalizeFilePath(`${root}${parts.slice(0, index + 1).join("/")}`),
-        });
-    });
-    return result;
 };
 
 export const formatFileSize = (size: unknown) => {

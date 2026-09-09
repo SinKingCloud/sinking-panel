@@ -894,7 +894,7 @@ const FileEditor = forwardRef(function FileEditor(
                         )}
                         {!activeTab && (
                             <div className="file-editor-empty">
-                                <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="请选择文件"/>
+                                <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无数据"/>
                             </div>
                         )}
                         {activeTab && displayError && (

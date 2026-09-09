@@ -3,15 +3,6 @@ import {createStyles} from "antd-style";
 const useStyles = createStyles(({css, token}, props: {compact?: boolean} = {}) => {
     const compact = Boolean(props.compact);
     return {
-        pathSection: css`
-            min-width: 0;
-            padding: 0 ${compact ? 10 : 12}px ${compact ? 10 : 12}px;
-            background: ${token.colorBgContainer};
-
-            @container data-table-workspace (max-width: 560px) {
-                padding: 0 10px 10px;
-            }
-        `,
         pathBar: css`
             min-width: 0;
             min-height: ${compact ? 28 : 32}px;
@@ -63,8 +54,7 @@ const useStyles = createStyles(({css, token}, props: {compact?: boolean} = {}) =
                 -webkit-overflow-scrolling: touch;
             }
 
-            .path-breadcrumb::-webkit-scrollbar,
-            .path-actions::-webkit-scrollbar {
+            .path-breadcrumb::-webkit-scrollbar {
                 display: none;
             }
 
@@ -122,6 +112,7 @@ const useStyles = createStyles(({css, token}, props: {compact?: boolean} = {}) =
                 font-weight: 500;
             }
 
+            .path-segment:disabled,
             .path-current:disabled {
                 color: ${token.colorText};
                 cursor: default;
@@ -142,26 +133,6 @@ const useStyles = createStyles(({css, token}, props: {compact?: boolean} = {}) =
                 font-size: ${compact ? 11 : 12}px;
             }
 
-            .path-actions {
-                max-width: min(58%, 230px);
-                min-width: 0;
-                margin-inline-start: auto;
-                display: flex;
-                flex: none;
-                align-items: center;
-                gap: 6px;
-                overflow-x: auto;
-                scrollbar-width: none;
-            }
-
-            .path-actions > .path-editor.ant-btn,
-            .path-actions > .path-batch,
-            .path-actions > .path-paste.ant-btn {
-                min-width: max-content;
-                height: ${compact ? 28 : 30}px;
-                flex: none;
-            }
-
             .path-separator {
                 margin-inline: 1px;
                 color: ${token.colorTextQuaternary};
@@ -178,11 +149,6 @@ const useStyles = createStyles(({css, token}, props: {compact?: boolean} = {}) =
 
                 .path-current {
                     max-width: min(55cqw, 220px);
-                }
-
-                .path-actions {
-                    max-width: min(64%, 206px);
-                    gap: 4px;
                 }
             }
         `,

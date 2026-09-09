@@ -238,7 +238,7 @@ const Form = forwardRef<FormRef, {typeData?: any; typeItems?: any[]; execTypeDat
             <AntForm form={form} layout="vertical" onFinish={submit}>
                 {active && (infoLoading ? (
                     <div className={styles.loading}>
-                        <Spin description="加载任务详情..."/>
+                        <Spin/>
                     </div>
                 ) : (
                     <>

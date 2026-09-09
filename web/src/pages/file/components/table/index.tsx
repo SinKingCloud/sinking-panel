@@ -3,7 +3,6 @@ import {App, Button, Tooltip} from "antd";
 import type {MenuProps, TableColumnsType} from "antd";
 import {Icon, useTheme} from "sinking-antd";
 import {isFilePreviewable} from "@/pages/components/file-preview";
-import {DataTable} from "@/pages/components/table";
 import Dropdown from "@/pages/components/stable-dropdown";
 import type {DirectoryCountMap} from "../../hooks/directory-counts";
 import DirectorySize from "../directory-size";
@@ -93,7 +92,7 @@ ContextMenuRow.displayName = "ContextMenuRow";
 
 const tableComponents = {body: {row: ContextMenuRow}};
 
-const FileTable = ({
+const useFileTable = ({
     path,
     items,
     loading,
@@ -375,28 +374,30 @@ const FileTable = ({
         const supported = field === "name" || field === "update_time";
         onSortChange(supported ? field : undefined, value);
     }, [onSortChange]);
+    const rowKey = useCallback((record: any) => joinFilePath(path, record.name), [path]);
+    const selectedRowKeys = useMemo(() => Array.from(selectedPaths), [selectedPaths]);
 
-    return (
-        <FileContextMenu.Provider value={contextMenuValue}>
-            <DataTable<any>
-            columns={columns}
-                dataSource={items}
-                loading={loading}
-                onSortChange={changeSort}
-                components={tableComponents}
-                rowSelection={{
-                    selectedRowKeys: Array.from(selectedPaths),
-                    columnWidth: 44,
-                    fixed: true,
-                    onChange: (keys) => onSelectionChange(keys.map(String)),
-                    getCheckboxProps: (record) => ({
-                        disabled: selectionDisabled || Boolean(operatingPaths?.has(joinFilePath(path, record.name))),
-                    }),
-                }}
-                rowKey={(record) => joinFilePath(path, record.name)}
-                rowClassName={(record) => openRowPath === joinFilePath(path, record.name) ? "action-menu-open" : ""}/>
-        </FileContextMenu.Provider>
-    );
+    return {
+        columns,
+        dataSource: items,
+        loading,
+        onSortChange: changeSort,
+        components: tableComponents,
+        rowSelection: {
+            selectedRowKeys,
+            columnWidth: 44,
+            fixed: true,
+            onChange: (keys: React.Key[]) => onSelectionChange(keys.map(String)),
+            getCheckboxProps: (record: any) => ({
+                disabled: selectionDisabled || Boolean(operatingPaths?.has(joinFilePath(path, record.name))),
+            }),
+        },
+        rowKey,
+        rowClassName: (record: any) => openRowPath === joinFilePath(path, record.name) ? "action-menu-open" : "",
+        tableRender: (table: React.ReactNode) => (
+            <FileContextMenu.Provider value={contextMenuValue}>{table}</FileContextMenu.Provider>
+        ),
+    };
 };
 
-export default React.memo(FileTable);
+export default useFileTable;

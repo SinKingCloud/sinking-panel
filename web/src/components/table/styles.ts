@@ -37,6 +37,10 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
                 color-mix(in srgb, #13c2c2, ${token.colorBgContainer} ${dark ? 97 : 96}%) 100%
             );
 
+            &.plain-background { background: ${token.colorBgContainer}; }
+            &.plain-background::before, &.plain-background::after { display: none; }
+            &.without-action .hero-copy { max-width: 100%; }
+
             &::before {
                 position: absolute;
                 z-index: 0;
@@ -221,6 +225,23 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
             gap: ${compact ? 12 : 16}px;
             background: ${token.colorBgContainer};
 
+            &.without-search .command-actions { width: 100%; margin-left: 0; }
+            &.without-search .command-actions-scroll:empty { flex: 0; }
+            &.without-search .command-actions > .ant-tooltip-open:last-child,
+            &.without-search .command-actions > .ant-btn:last-child { margin-left: auto; }
+            .table-selection-action { flex: none; }
+
+            .command-content {
+                min-width: 0;
+                flex: 1;
+                overflow-x: auto;
+                overflow-y: hidden;
+                scrollbar-width: none;
+                white-space: nowrap;
+            }
+            .command-content::-webkit-scrollbar { display: none; }
+            &.with-content .command-actions { flex: none; max-width: 100%; }
+
             .command-actions {
                 min-width: 0;
                 margin-left: auto;
@@ -272,6 +293,9 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
                 .command-actions-scroll {
                     gap: 4px;
                 }
+
+                &.with-content { display: flex; }
+                &.with-content .command-actions { width: auto; margin-left: auto; }
             }
 
             @container data-table-workspace (max-width: 430px) {
@@ -460,6 +484,8 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
                 background: ${token.colorFillQuaternary};
                 color: ${token.colorTextDisabled};
             }
+
+            &&.ant-btn-dangerous, &&.ant-btn-dangerous .value { color: ${token.colorError}; }
         `,
         toolbarIconButton: css`
             && {
@@ -532,6 +558,87 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
                 color: ${token.colorTextSecondary};
             }
         `,
+        contentBar: css`
+            box-sizing: content-box;
+            min-width: 0;
+            min-height: ${compact ? 30 : 34}px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 0 ${compact ? 10 : 12}px ${compact ? 10 : 12}px;
+
+            .table-bar-content {
+                min-width: 0;
+                flex: 1;
+                overflow-x: auto;
+                scrollbar-width: none;
+            }
+            .table-bar-content::-webkit-scrollbar { display: none; }
+            .table-bar-actions {
+                min-width: 0;
+                max-width: min(58%, 300px);
+                margin-left: auto;
+                display: flex;
+                flex: none;
+                align-items: center;
+                gap: 6px;
+            }
+            .table-bar-actions-scroll {
+                min-width: 0;
+                display: flex;
+                flex: 1 1 auto;
+                align-items: center;
+                gap: 6px;
+                overflow-x: auto;
+                overflow-y: hidden;
+                scrollbar-width: none;
+                overscroll-behavior-inline: contain;
+            }
+            .table-bar-actions-scroll::-webkit-scrollbar { display: none; }
+            .table-bar-actions-scroll > * { flex: none; }
+            .table-bar-actions .table-selection-action {
+                min-width: ${compact ? 104 : 116}px;
+                font-variant-numeric: tabular-nums;
+            }
+            @container data-table-workspace (max-width: 560px) {
+                padding: 0 10px 10px;
+                gap: 4px;
+                .table-bar-actions { max-width: min(64%, 230px); gap: 4px; }
+            }
+        `,
+        dateFilter: css`
+            position: relative;
+            display: inline-flex;
+            flex: none;
+        `,
+        datePickerAnchor: css`
+            && {
+                position: absolute;
+                inset: 0;
+                width: 100%;
+                min-width: 0;
+                height: 100%;
+                padding: 0;
+                overflow: hidden;
+                border: 0;
+                opacity: 0;
+                pointer-events: none;
+            }
+        `,
+        datePickerPopup: css`
+            /* 与弹层共用避让后的箭头坐标，不使用隐藏日期输入框的偏移。 */
+            && .ant-picker-range-arrow {
+                left: clamp(${token.borderRadiusLG}px, calc(var(--arrow-x, 50%) - ${token.sizePopupArrow / 2}px), calc(100% - ${token.borderRadiusLG + token.sizePopupArrow}px)) !important;
+                right: auto;
+                padding-inline: 0;
+                transition: none;
+
+                &::before { inset-inline-start: 0; }
+            }
+            && .ant-picker-panels > :last-child:not(:first-child) { display: none; }
+            && .ant-picker-panels > :first-child .ant-picker-header-next-btn,
+            && .ant-picker-panels > :first-child .ant-picker-header-super-next-btn { visibility: visible !important; }
+        `,
         dataPanel: css`
             position: relative;
             min-width: 0;
@@ -558,6 +665,7 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
         table: css`
             --page-table-text: ${dark ? "rgba(255,255,255,.65)" : "rgba(0,0,0,.65)"};
             min-width: 0;
+            flex: none;
             overflow: hidden;
             border: 1px solid ${token.colorBorderSecondary};
             border-radius: ${token.borderRadiusLG}px;
@@ -722,9 +830,17 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
                 background: ${token.colorFillTertiary};
             }
 
-            .ant-pagination-item-active {
-                background: ${token.colorBgContainer};
-                box-shadow: inset 0 0 0 1px ${token.colorPrimaryBorder};
+            /* 刷新时会临时禁用分页，当前页保持同一套颜色，避免闪色。 */
+            && .ant-pagination-item-active,
+            &&.ant-pagination-disabled .ant-pagination-item-active {
+                &, &:hover, &:active {
+                    background: ${token.colorBgContainer};
+                    box-shadow: inset 0 0 0 1px ${token.colorPrimaryBorder};
+                }
+
+                a, &:hover a, &:active a {
+                    color: ${token.colorPrimary};
+                }
             }
 
             .ant-pagination-options-quick-jumper input {

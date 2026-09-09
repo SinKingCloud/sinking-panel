@@ -1,13 +1,13 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from "react";
 import {Body} from "sinking-antd";
 import useEnum from "@/utils/enum";
-import PageTable from "@/pages/components/table";
+import Table from "@/components/table";
 import TypeManager, {TypeManagerRef} from "@/pages/components/type-manager";
 import {getAllTypes} from "@/service/api/type";
 import Form, {FormRef} from "./components/form";
-import Header from "./components/header";
+import useTaskHeader from "./components/header";
 import Log, {LogRef} from "@/pages/components/task-log";
-import Table from "./components/table";
+import useTaskTable from "./components/table";
 import useList from "./hooks/list";
 import useStyles from "./styles";
 
@@ -61,30 +61,47 @@ export default (): React.ReactNode => {
         }
     }, [list.changeTypeId, list.typeId]);
 
+    const header = useTaskHeader({
+        keyword: list.keyword,
+        typeId: list.typeId,
+        execType: list.execType,
+        status: list.status,
+        typeData,
+        typeItems: typeItems || undefined,
+        execTypeData,
+        statusData,
+        refreshing: list.loading,
+        onKeywordChange: list.changeKeyword,
+        onSearch: list.search,
+        onTypeIdChange: list.changeTypeId,
+        onManageTypes: openTypeManager,
+        onExecTypeChange: list.changeExecType,
+        onStatusChange: list.changeStatus,
+        onRefresh: list.reload,
+        onCreate: openCreate,
+    });
+    const table = useTaskTable({
+        className: styles.taskTable,
+        tasks: list.tasks,
+        loading: list.loading,
+        typeData,
+        execTypeData,
+        statusData,
+        sort: list.sort,
+        order: list.order,
+        operating: list.operating,
+        onSortChange: list.changeSort,
+        onAction: list.confirmAction,
+        onEdit: openEdit,
+        onLog: openLog,
+    });
+
     return (
         <Body loading={enumLoading}>
-            <PageTable
+            <Table
+                {...header}
+                {...table}
                 ariaLabel="计划任务"
-                header={(
-                    <Header
-                        keyword={list.keyword}
-                        typeId={list.typeId}
-                        execType={list.execType}
-                        status={list.status}
-                        typeData={typeData}
-                        typeItems={typeItems || undefined}
-                        execTypeData={execTypeData}
-                        statusData={statusData}
-                        refreshing={list.loading}
-                        onKeywordChange={list.changeKeyword}
-                        onSearch={list.search}
-                        onTypeIdChange={list.changeTypeId}
-                        onManageTypes={openTypeManager}
-                        onExecTypeChange={list.changeExecType}
-                        onStatusChange={list.changeStatus}
-                        onRefresh={list.reload}
-                        onCreate={openCreate}/>
-                )}
                 empty={list.initialized && list.tasks.length === 0}
                 pagination={{
                     page: list.page,
@@ -92,22 +109,7 @@ export default (): React.ReactNode => {
                     total: list.total,
                     unit: "条",
                     onChange: list.changePage,
-                }}>
-                <Table
-                    className={styles.taskTable}
-                    tasks={list.tasks}
-                    loading={list.loading}
-                    typeData={typeData}
-                    execTypeData={execTypeData}
-                    statusData={statusData}
-                    sort={list.sort}
-                    order={list.order}
-                    operating={list.operating}
-                    onSortChange={list.changeSort}
-                    onAction={list.confirmAction}
-                    onEdit={openEdit}
-                    onLog={openLog}/>
-            </PageTable>
+                }}/>
             <Form
                 ref={formRef}
                 typeData={typeData}

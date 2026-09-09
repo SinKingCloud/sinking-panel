@@ -1,7 +1,7 @@
 import React, {useMemo, useState} from "react";
 import {Button, Tooltip} from "antd";
 import Dropdown from "@/pages/components/stable-dropdown";
-import {DataTable} from "@/pages/components/table";
+import type {DataTableProps} from "@/components/table";
 import {ago} from "@/utils/time";
 import {describeTaskSchedule} from "../../utils";
 
@@ -10,7 +10,7 @@ const formatRunTime = (value: any) => {
     return !time || time.startsWith("0001-01-01") ? "尚未运行" : time;
 };
 
-const Table = ({
+const useTaskTable = ({
     className,
     tasks,
     loading,
@@ -24,7 +24,7 @@ const Table = ({
     onAction,
     onEdit,
     onLog,
-}: any) => {
+}: any): DataTableProps<any> => {
     const [openRowId, setOpenRowId] = useState("");
 
     const columns = useMemo<any[]>(() => [
@@ -151,16 +151,15 @@ const Table = ({
         },
     ], [execTypeData, onAction, onEdit, onLog, openRowId, operating, order, sort, statusData, typeData]);
 
-    return (
-        <DataTable
-            className={className}
-            columns={columns}
-            dataSource={tasks}
-            loading={loading}
-            onSortChange={onSortChange}
-            rowKey={(record) => String(record.id)}
-            rowClassName={(record) => openRowId === String(record.id) ? "action-menu-open" : ""}/>
-    );
+    return {
+        className,
+        columns,
+        dataSource: tasks,
+        loading,
+        onSortChange,
+        rowKey: (record) => String(record.id),
+        rowClassName: (record) => openRowId === String(record.id) ? "action-menu-open" : "",
+    };
 };
 
-export default React.memo(Table);
+export default useTaskTable;

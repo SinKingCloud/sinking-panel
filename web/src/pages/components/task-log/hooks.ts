@@ -82,7 +82,7 @@ const useLog = (
     const requestLogs = useCallback(async (body: any, silent = false) => {
         const taskId = body?.id;
         const control = controlRef.current;
-        if (taskId === undefined || taskId === null || (silent && control.requesting)) {
+        if (taskId === undefined || taskId === null || String(taskRef.current?.id) !== String(taskId) || (silent && control.requesting)) {
             return null;
         }
 
@@ -314,6 +314,8 @@ const useLog = (
 
     useEffect(() => () => {
         const control = controlRef.current;
+        control.requestId += 1;
+        taskRef.current = {};
         if (control.scrollFrame) {
             cancelAnimationFrame(control.scrollFrame);
         }
@@ -358,6 +360,12 @@ const useLog = (
         setLoading(false);
         setClearing(false);
     }, [resetPosition]);
+
+    const pause = useCallback(() => {
+        controlRef.current.requestId += 1;
+        taskRef.current = {};
+        setTaskId(undefined);
+    }, []);
 
     const refresh = useCallback(() => {
         const taskId = taskRef.current?.id;
@@ -429,6 +437,7 @@ const useLog = (
         virtualHeight,
         open,
         reset,
+        pause,
         refresh,
         clear,
         handleScroll,

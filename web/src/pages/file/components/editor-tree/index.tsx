@@ -154,6 +154,7 @@ const FileEditorTreeNodeTitle = React.memo(({
                     open
                     destroyOnHidden
                     trigger={["click"]}
+                    placement="bottom"
                     autoAdjustOverflow={{adjustX: true, adjustY: true}}
                     arrow={{pointAtCenter: true}}
                     classNames={{root: menuClassName}}
@@ -409,7 +410,7 @@ const FileEditorTree = ({
                         onScroll={menuNodeKey ? handleTreeScroll : undefined}
                         onSelect={select}/>
                 ) : (
-                    <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无目录"/>
+                    <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无数据"/>
                 )}
             </div>
         </aside>

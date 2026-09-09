@@ -191,6 +191,11 @@ const Log = forwardRef<LogRef, LogProps>(({request, showClear = true, title = "ä
             ref={modalRef}
             title={<Title>{title}</Title>}
             width={900}
+            afterOpenChange={(open) => {
+                if (!open) {
+                    log.pause();
+                }
+            }}
             modalProps={{
                 rootClassName: styles.modal,
                 footer: null,

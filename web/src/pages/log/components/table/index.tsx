@@ -1,6 +1,6 @@
 import React, {useMemo} from "react";
 import {Tooltip, Typography} from "antd";
-import {DataTable} from "@/pages/components/table";
+import type {DataTableProps} from "@/components/table";
 
 const CopyText = ({value}: {value: any}) => {
     const text = String(value || "-");
@@ -11,7 +11,7 @@ const CopyText = ({value}: {value: any}) => {
     );
 };
 
-const Table = ({
+const useLogTable = ({
     className,
     logs,
     loading,
@@ -19,7 +19,7 @@ const Table = ({
     sort,
     order,
     onSortChange,
-}: any) => {
+}: any): DataTableProps<any> => {
     const columns = useMemo<any[]>(() => [
         {
             title: "操作IP",
@@ -81,15 +81,14 @@ const Table = ({
         },
     ], [order, sort, typeData]);
 
-    return (
-        <DataTable
-            className={className}
-            columns={columns}
-            dataSource={logs}
-            loading={loading}
-            onSortChange={onSortChange}
-            rowKey={(record) => String(record.id)}/>
-    );
+    return {
+        className,
+        columns,
+        dataSource: logs,
+        loading,
+        onSortChange,
+        rowKey: (record) => String(record.id),
+    };
 };
 
-export default React.memo(Table);
+export default useLogTable;

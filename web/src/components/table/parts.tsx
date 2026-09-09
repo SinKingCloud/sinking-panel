@@ -1,8 +1,8 @@
-import React, {useCallback, useLayoutEffect, useMemo, useRef, useState} from "react";
+import React, {useCallback, useMemo} from "react";
 import {
     Button,
     Card,
-    Empty,
+    Dropdown,
     Input,
     Pagination,
     Table as AntTable,
@@ -10,11 +10,10 @@ import {
 } from "antd";
 import type {ButtonProps, MenuProps, PaginationProps, TableProps} from "antd";
 import {Icon, useTheme} from "sinking-antd";
-import Dropdown from "@/pages/components/stable-dropdown";
-import HeroGraphic from "@/pages/components/hero-graphic";
+import HeroGraphic from "./hero-graphic";
 import useStyles from "./styles";
 
-const useTableStyles = () => {
+export const useTableStyles = () => {
     const theme = useTheme();
     return useStyles({
         compact: Boolean(theme?.isCompactTheme?.()),
@@ -32,16 +31,7 @@ export interface PageTablePaginationProps {
     onChange: (page: number, pageSize: number) => void;
 }
 
-export interface PageTableProps {
-    header: React.ReactNode;
-    children: React.ReactNode;
-    empty?: boolean;
-    emptyContent?: React.ReactNode;
-    pagination?: PageTablePaginationProps;
-    ariaLabel?: string;
-}
-
-const TablePagination = ({
+export const TablePagination = ({
     page,
     pageSize,
     total,
@@ -82,32 +72,6 @@ const TablePagination = ({
     );
 };
 
-const PageTable = ({
-    header,
-    children,
-    empty = false,
-    emptyContent,
-    pagination,
-    ariaLabel,
-}: PageTableProps) => {
-    const {styles} = useTableStyles();
-    return (
-        <div className={styles.page}>
-            <section className={styles.workspace} aria-label={ariaLabel}>
-                {header}
-                <div className={styles.dataPanel}>
-                    {empty ? (
-                        <div className={styles.state}>
-                            {emptyContent || <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无数据"/>}
-                        </div>
-                    ) : children}
-                </div>
-            </section>
-            {pagination && <TablePagination {...pagination}/>}
-        </div>
-    );
-};
-
 export interface TableHeroAction {
     label: React.ReactNode;
     ariaLabel?: string;
@@ -120,11 +84,13 @@ export interface TableHeroAction {
 
 export interface TableHeroProps {
     title: React.ReactNode;
-    eyebrow: React.ReactNode;
+    eyebrow?: React.ReactNode;
     action?: TableHeroAction;
+    background?: boolean | React.CSSProperties;
+    graphic?: false | "task" | "setting";
 }
 
-export const TableHero = React.memo(({title, eyebrow, action}: TableHeroProps) => {
+export const TableHero = React.memo(({title, eyebrow, action, background = true, graphic = "task"}: TableHeroProps) => {
     const {styles} = useTableStyles();
     const button = action ? (
         <button
@@ -140,12 +106,13 @@ export const TableHero = React.memo(({title, eyebrow, action}: TableHeroProps) =
     ) : null;
 
     return (
-        <section className={styles.hero}>
+        <section className={`${styles.hero} ${background === false ? "plain-background" : ""} ${action ? "" : "without-action"}`}
+                 style={typeof background === "object" ? background : undefined}>
             <div className="hero-copy">
-                <div className="eyebrow"><span className="status-dot"/>{eyebrow}</div>
+                {eyebrow && <div className="eyebrow"><span className="status-dot"/>{eyebrow}</div>}
                 <h1>{title}</h1>
             </div>
-            <div className="hero-visual"><HeroGraphic variant="task"/></div>
+            {background !== false && graphic !== false && <div className="hero-visual"><HeroGraphic variant={graphic}/></div>}
             {action?.menu && button ? (
                 <Dropdown
                     trigger={["click"]}
@@ -178,15 +145,19 @@ export interface TableRefreshProps {
 }
 
 export interface TableToolbarProps {
+    left?: React.ReactNode;
     search?: TableSearchProps;
     refresh?: TableRefreshProps;
     children?: React.ReactNode;
+    extra?: React.ReactNode;
 }
 
-export const TableToolbar = React.memo(({search, refresh, children}: TableToolbarProps) => {
+export const TableToolbar = React.memo(({left, search, refresh, children, extra}: TableToolbarProps) => {
     const {styles} = useTableStyles();
+    const hasLeft = left !== undefined && left !== null && left !== false;
     return (
-        <div className={styles.commandBar}>
+        <div className={`${styles.commandBar} ui-table-toolbar ${!search && !hasLeft ? "without-search" : ""} ${hasLeft && !search ? "with-content" : ""}`}>
+            {hasLeft && <div className="command-content">{left}</div>}
             {search && (
                 <Input
                     className={styles.searchBox}
@@ -202,7 +173,9 @@ export const TableToolbar = React.memo(({search, refresh, children}: TableToolba
                         : undefined}/>
             )}
             <div className="command-actions">
+                {hasLeft && extra}
                 <div className="command-actions-scroll">{children}</div>
+                {!hasLeft && extra}
                 {refresh && (
                     <Tooltip title={refresh.tooltip || "刷新列表"}>
                         <Button
@@ -255,8 +228,6 @@ export const TableFilter = React.memo(({
     onChange,
 }: TableFilterProps) => {
     const {styles} = useTableStyles();
-    const triggerRef = useRef<HTMLButtonElement>(null);
-    const [width, setWidth] = useState(0);
     const commandKey = "__table_filter_command__";
     const active = options.find((item) => item.value === value) || options[0];
     const items = useMemo<MenuProps["items"]>(() => [
@@ -271,28 +242,12 @@ export const TableFilter = React.memo(({
         ] : []),
     ], [command, options]);
 
-    useLayoutEffect(() => {
-        if (!matchWidth) {
-            return;
-        }
-        const update = () => setWidth(triggerRef.current?.offsetWidth || 0);
-        update();
-        if (typeof ResizeObserver === "undefined") {
-            window.addEventListener("resize", update);
-            return () => window.removeEventListener("resize", update);
-        }
-        const observer = new ResizeObserver(update);
-        if (triggerRef.current) observer.observe(triggerRef.current);
-        return () => observer.disconnect();
-    }, [active?.label, matchWidth, options]);
-
     return (
         <Dropdown
             disabled={disabled}
             trigger={["click"]}
             placement="bottomRight"
             classNames={{root: styles.toolbarDropdown}}
-            styles={{root: matchWidth && width ? {minWidth: width} : undefined}}
             menu={{
                 selectable: true,
                 selectedKeys: [value],
@@ -300,7 +255,6 @@ export const TableFilter = React.memo(({
                 onClick: ({key}) => key === commandKey ? command?.onClick() : onChange(key),
             }}>
             <button
-                ref={triggerRef}
                 className={`${styles.toolbarTrigger} ${matchWidth ? "match-width" : ""}`}
                 type="button"
                 disabled={disabled}
@@ -403,5 +357,3 @@ export const DataTable = <RecordType extends object = any>({
             onChange={change}/>
     );
 };
-
-export default React.memo(PageTable);
