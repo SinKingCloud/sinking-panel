@@ -149,47 +149,49 @@ const FileEditorTreeNodeTitle = React.memo(({
     return (
         <span className="file-editor-tree-node-shell">
             {title}
-            {menuOpen ? (
-                <Dropdown
-                    open
-                    destroyOnHidden
-                    trigger={["click"]}
-                    placement="bottom"
-                    autoAdjustOverflow={{adjustX: true, adjustY: true}}
-                    arrow={{pointAtCenter: true}}
-                    classNames={{root: menuClassName}}
-                    getPopupContainer={getPopupContainer}
-                    onOpenChange={(open) => {
-                        if (!open) {
-                            onCloseMenu();
-                        }
-                    }}
-                    menu={{
-                        items: menuItems,
-                        onClick: (info) => {
-                            info.domEvent?.preventDefault();
-                            info.domEvent?.stopPropagation();
-                            onCloseMenu();
-                            if (info.key === "create-directory") {
-                                onCreate("directory", node.path);
-                            } else if (info.key === "create-file") {
-                                onCreate("file", node.path);
-                            } else if (info.key === "rename") {
-                                onRename(node);
-                            } else if (info.key === "permissions") {
-                                onPermissions(node);
-                            } else if (info.key === "copy-name") {
-                                void onCopy(node.name, "名称");
-                            } else if (info.key === "copy-path") {
-                                void onCopy(node.path, "路径");
-                            } else if (info.key === "delete") {
-                                onDelete(node);
+            <span className={`file-editor-tree-node-actions${menuOpen ? " is-open" : ""}`}>
+                {menuOpen ? (
+                    <Dropdown
+                        open
+                        destroyOnHidden
+                        trigger={["click"]}
+                        placement="bottom"
+                        autoAdjustOverflow={{adjustX: true, adjustY: true}}
+                        arrow={{pointAtCenter: true}}
+                        classNames={{root: menuClassName}}
+                        getPopupContainer={getPopupContainer}
+                        onOpenChange={(open) => {
+                            if (!open) {
+                                onCloseMenu();
                             }
-                        },
-                    }}>
-                    {menuButton}
-                </Dropdown>
-            ) : menuButton}
+                        }}
+                        menu={{
+                            items: menuItems,
+                            onClick: (info) => {
+                                info.domEvent?.preventDefault();
+                                info.domEvent?.stopPropagation();
+                                onCloseMenu();
+                                if (info.key === "create-directory") {
+                                    onCreate("directory", node.path);
+                                } else if (info.key === "create-file") {
+                                    onCreate("file", node.path);
+                                } else if (info.key === "rename") {
+                                    onRename(node);
+                                } else if (info.key === "permissions") {
+                                    onPermissions(node);
+                                } else if (info.key === "copy-name") {
+                                    void onCopy(node.name, "名称");
+                                } else if (info.key === "copy-path") {
+                                    void onCopy(node.path, "路径");
+                                } else if (info.key === "delete") {
+                                    onDelete(node);
+                                }
+                            },
+                        }}>
+                        {menuButton}
+                    </Dropdown>
+                ) : menuButton}
+            </span>
         </span>
     );
 });

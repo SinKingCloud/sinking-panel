@@ -7,6 +7,7 @@ export interface FileStorageData {
     editor?: {
         preferences?: unknown;
         treeCollapsed?: boolean;
+        treeWidth?: number;
     };
     lastPath?: string;
     tasks?: FileStorageTask[];

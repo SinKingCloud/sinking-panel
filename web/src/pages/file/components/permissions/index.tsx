@@ -111,6 +111,7 @@ const FilePermissions = forwardRef<FilePermissionsRef, FilePermissionsProps>(({o
             <Form<PermissionsValues>
                 form={form}
                 layout="vertical"
+                variant="filled"
                 preserve={false}
                 requiredMark={false}
                 onFinish={submit}>

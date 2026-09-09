@@ -178,12 +178,13 @@ const useStyles = createStyles<{compact?: boolean; dark?: boolean}>(({css, token
             }
         `,
         workspace: css`
+            --file-editor-tree-width: ${compact ? 238 : 252}px;
             position: relative;
             height: calc(100dvh - 32px);
             min-width: 0;
             min-height: 0;
             display: grid;
-            grid-template-columns: ${compact ? 238 : 252}px minmax(0, 1fr);
+            grid-template-columns: var(--file-editor-tree-width) minmax(0, 1fr);
             overflow: hidden;
             background: ${token.colorBgContainer};
             transition: grid-template-columns ${token.motionDurationMid};
@@ -206,6 +207,49 @@ const useStyles = createStyles<{compact?: boolean; dark?: boolean}>(({css, token
                 grid-template-columns: 0 minmax(0, 1fr);
             }
 
+            &.tree-resizing {
+                transition: none;
+                cursor: col-resize;
+                user-select: none;
+                -webkit-user-select: none;
+            }
+
+            &.tree-resizing .file-editor-sidebar,
+            &.tree-resizing .file-editor-pane {
+                pointer-events: none;
+            }
+
+            .file-editor-tree-resize-handle {
+                position: absolute;
+                z-index: 5;
+                inset-block: 0;
+                inset-inline-start: calc(var(--file-editor-tree-width) - 3px);
+                width: 6px;
+                outline: none;
+                cursor: col-resize;
+                touch-action: none;
+                user-select: none;
+                -webkit-user-select: none;
+            }
+
+            .file-editor-tree-resize-handle::before {
+                content: "";
+                position: absolute;
+                inset-block: 0;
+                inset-inline-start: 2px;
+                width: 1px;
+                background: ${token.colorPrimary};
+                opacity: 0;
+                transition: opacity ${token.motionDurationFast};
+                pointer-events: none;
+            }
+
+            .file-editor-tree-resize-handle:hover::before,
+            .file-editor-tree-resize-handle:focus-visible::before,
+            .file-editor-tree-resize-handle.is-dragging::before {
+                opacity: 1;
+            }
+
             .file-editor-sidebar {
                 min-width: 0;
                 min-height: 0;
@@ -224,7 +268,7 @@ const useStyles = createStyles<{compact?: boolean; dark?: boolean}>(({css, token
             }
 
             .file-editor-tree-toolbar {
-                width: ${compact ? 238 : 252}px;
+                width: var(--file-editor-tree-width);
                 min-width: 0;
                 box-sizing: border-box;
                 min-height: ${compact ? 42 : 46}px;
@@ -280,7 +324,7 @@ const useStyles = createStyles<{compact?: boolean; dark?: boolean}>(({css, token
             }
 
             .file-editor-tree-body {
-                width: ${compact ? 238 : 252}px;
+                width: var(--file-editor-tree-width);
                 min-width: 0;
                 min-height: 0;
                 box-sizing: border-box;
@@ -310,6 +354,7 @@ const useStyles = createStyles<{compact?: boolean; dark?: boolean}>(({css, token
             }
 
             .file-editor-tree-body .ant-tree-treenode {
+                --file-editor-tree-row-background: transparent;
                 width: 100%;
                 height: ${compact ? 26 : 30}px;
                 min-height: ${compact ? 26 : 30}px;
@@ -318,7 +363,7 @@ const useStyles = createStyles<{compact?: boolean; dark?: boolean}>(({css, token
                 align-items: center;
                 position: relative;
                 border-radius: ${token.borderRadiusSM}px;
-                background: transparent;
+                background: var(--file-editor-tree-row-background);
             }
 
             .file-editor-tree-body .ant-tree-list-holder {
@@ -328,12 +373,12 @@ const useStyles = createStyles<{compact?: boolean; dark?: boolean}>(({css, token
             }
 
             .file-editor-tree-body .ant-tree-treenode:hover {
-                background: ${token.colorFillQuaternary};
+                --file-editor-tree-row-background: ${token.colorFillQuaternary};
             }
 
             .file-editor-tree-body .ant-tree-treenode.ant-tree-treenode-selected,
             .file-editor-tree-body .ant-tree-treenode.ant-tree-treenode-selected:hover {
-                background: ${token.colorPrimaryBg};
+                --file-editor-tree-row-background: ${token.colorPrimaryBg};
             }
 
             .file-editor-tree-body .ant-tree-switcher {
@@ -376,7 +421,7 @@ const useStyles = createStyles<{compact?: boolean; dark?: boolean}>(({css, token
                 min-width: 0;
                 height: ${compact ? 26 : 30}px;
                 min-height: ${compact ? 26 : 30}px;
-                padding-inline: 2px ${compact ? 4 : 6}px;
+                padding-inline: 2px 0;
                 display: flex;
                 align-items: center;
                 border-radius: ${token.borderRadiusSM}px;
@@ -434,9 +479,16 @@ const useStyles = createStyles<{compact?: boolean; dark?: boolean}>(({css, token
                 width: auto;
             }
 
-            .file-editor-tree-node-shell > .ant-dropdown-trigger {
-                display: inline-flex;
-                flex: none;
+            .file-editor-tree-node-actions {
+                position: absolute;
+                inset-inline-end: 0;
+                inset-block: 0;
+                z-index: 1;
+                display: flex;
+                align-items: center;
+                background: linear-gradient(var(--file-editor-tree-row-background), var(--file-editor-tree-row-background)), ${token.colorBgContainer};
+                opacity: 0;
+                pointer-events: none;
             }
 
             .file-editor-tree-node-more {
@@ -446,14 +498,14 @@ const useStyles = createStyles<{compact?: boolean; dark?: boolean}>(({css, token
                 flex: none;
                 padding: 0;
                 color: ${token.colorTextTertiary};
-                opacity: 0;
                 transition: background-color ${token.motionDurationFast}, color ${token.motionDurationFast};
             }
 
-            .file-editor-tree-node-shell:hover .file-editor-tree-node-more,
-            .file-editor-tree-node-shell:focus-within .file-editor-tree-node-more,
-            .file-editor-tree-body .ant-tree-node-selected .file-editor-tree-node-more {
+            .file-editor-tree-body .ant-tree-treenode:hover .file-editor-tree-node-actions,
+            .file-editor-tree-node-shell:focus-within .file-editor-tree-node-actions,
+            .file-editor-tree-node-actions.is-open {
                 opacity: 1;
+                pointer-events: auto;
             }
 
             .file-editor-tree-node-more:hover,
@@ -495,7 +547,6 @@ const useStyles = createStyles<{compact?: boolean; dark?: boolean}>(({css, token
 
             .file-editor-tree-name {
                 min-width: 0;
-                max-width: ${compact ? 154 : 170}px;
                 overflow: hidden;
                 text-overflow: ellipsis;
                 white-space: nowrap;
@@ -505,8 +556,13 @@ const useStyles = createStyles<{compact?: boolean; dark?: boolean}>(({css, token
             }
 
             @media (pointer: coarse) {
-                .file-editor-tree-node-more {
+                .file-editor-tree-node-shell > .file-editor-tree-node {
+                    padding-inline-end: ${compact ? 26 : 28}px;
+                }
+
+                .file-editor-tree-node-actions {
                     opacity: 1;
+                    pointer-events: auto;
                 }
             }
 
@@ -791,6 +847,10 @@ const useStyles = createStyles<{compact?: boolean; dark?: boolean}>(({css, token
 
                 &.tree-collapsed {
                     grid-template-columns: minmax(0, 1fr);
+                }
+
+                .file-editor-tree-resize-handle {
+                    display: none;
                 }
 
                 .file-editor-sidebar {

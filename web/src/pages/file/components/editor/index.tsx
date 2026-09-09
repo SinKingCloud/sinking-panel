@@ -31,6 +31,7 @@ import FileEditorTabs from "../editor-tabs";
 import FileEditorTree from "../editor-tree";
 import type {FileEditorTreeNode} from "./utils";
 import {getEditorMode} from "./utils";
+import FileEditorResizeHandle from "./resize-handle";
 import FileForm from "../form";
 import type {FileFormRef} from "../form";
 import FilePermissions from "../permissions";
@@ -765,6 +766,10 @@ const FileEditor = forwardRef(function FileEditor(
                     getPopupContainer={getWorkspacePopupContainer}
                     menuClassName={styles.treeMenu}
                     itemHeight={compact ? 26 : 30}/>
+                <FileEditorResizeHandle
+                    workspaceRef={workspaceRef}
+                    minWidth={compact ? 238 : 252}
+                    disabled={treeCollapsed || treeTransitioning || minimized}/>
 
                 <section className="file-editor-pane" aria-label="文件编辑区">
                     <div className="file-editor-toolbar">
