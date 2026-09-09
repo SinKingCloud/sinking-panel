@@ -25,14 +25,14 @@ import (
 	"gorm.io/gorm"
 )
 
-// CreateCert 导入并保存一组证书和私钥。
+// CreateCert 导入并保存一组证书和私钥，允许导入已过期的证书。
 func (s *service) CreateCert(data *model.Cert) error {
 	if data == nil {
 		return errors.New("证书数据不能为空")
 	}
 	candidate := s.cloneCertificate(data)
 	candidate.Type = cert_type.Manual
-	if err := s.prepareCertificate(candidate); err != nil {
+	if err := s.prepareCertificate(candidate, true); err != nil {
 		return err
 	}
 	candidate.Id = str.GetSnowWorkIns().GetId()
@@ -84,7 +84,7 @@ func (s *service) UpdateCert(id int64, data *certRepository.UpdateCert) error {
 			candidate.PrivateKey = *data.PrivateKey
 		}
 		if contentChanged {
-			if err = s.prepareCertificate(candidate); err != nil {
+			if err = s.prepareCertificate(candidate, false); err != nil {
 				return err
 			}
 		} else {
@@ -207,7 +207,7 @@ func (s *service) ObtainCert(ctx context.Context, name string, request webServer
 		Certificate: string(issued.CertificatePEM),
 		PrivateKey:  string(issued.PrivateKeyPEM),
 	}
-	if err = s.prepareCertificate(candidate); err != nil {
+	if err = s.prepareCertificate(candidate, false); err != nil {
 		return nil, fmt.Errorf("申请得到的证书无效: %w", err)
 	}
 	if err = s.database.Transaction(func(tx *gorm.DB) error {
@@ -277,7 +277,7 @@ func (s *service) RenewCert(ctx context.Context, id int64, request webServer.Cer
 	candidate := s.cloneCertificate(current)
 	candidate.Certificate = string(issued.CertificatePEM)
 	candidate.PrivateKey = string(issued.PrivateKeyPEM)
-	if err = s.prepareCertificate(candidate); err != nil {
+	if err = s.prepareCertificate(candidate, false); err != nil {
 		return nil, fmt.Errorf("续签得到的证书无效: %w", err)
 	}
 	if err = s.database.Transaction(func(tx *gorm.DB) error {
@@ -304,7 +304,7 @@ func (s *service) RenewCert(ctx context.Context, id int64, request webServer.Cer
 	return result, nil
 }
 
-func (s *service) prepareCertificate(data *model.Cert) error {
+func (s *service) prepareCertificate(data *model.Cert, allowExpired bool) error {
 	if data == nil {
 		return errors.New("证书数据不能为空")
 	}
@@ -326,7 +326,7 @@ func (s *service) prepareCertificate(data *model.Cert) error {
 	if now.Before(leaf.NotBefore) {
 		return errors.New("证书尚未生效")
 	}
-	if !now.Before(leaf.NotAfter) {
+	if !allowExpired && !now.Before(leaf.NotAfter) {
 		return errors.New("证书已经过期")
 	}
 	serverAuth := len(leaf.ExtKeyUsage) == 0
