@@ -448,11 +448,15 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
                 transition: transform .16s ease;
             }
 
-            &&:hover,
-            &&.ant-dropdown-open {
+            &&:not(:disabled):not(.ant-btn-disabled):is(:hover, :active, .ant-dropdown-open) {
                 border-color: transparent;
                 background: ${token.colorFillSecondary};
-                color: ${token.colorText};
+                color: ${token.colorTextTertiary};
+
+                &.ant-btn-dangerous,
+                &.ant-btn-color-dangerous {
+                    color: ${token.colorError};
+                }
             }
 
             &&.ant-dropdown-open .arrow {
@@ -465,13 +469,13 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
                 box-shadow: 0 0 0 3px ${token.colorPrimaryBg};
             }
 
-            &&:disabled,
-            &&:disabled:hover {
+            &&:is(.ant-btn-dangerous, .ant-btn-color-dangerous),
+            &&:is(.ant-btn-dangerous, .ant-btn-color-dangerous) .value { color: ${token.colorError}; }
+
+            &&:is(:disabled, .ant-btn-disabled) {
                 background: ${token.colorFillQuaternary};
                 color: ${token.colorTextDisabled};
             }
-
-            &&.ant-btn-dangerous, &&.ant-btn-dangerous .value { color: ${token.colorError}; }
         `,
         toolbarIconButton: css`
             && {
@@ -491,13 +495,25 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
                 font-size: ${compact ? 12 : 13}px;
             }
 
-            &&:hover,
-            &&:focus,
-            &&:active {
+            &&:is(.ant-btn-dangerous, .ant-btn-color-dangerous) {
+                color: ${token.colorError};
+            }
+
+            &&:disabled,
+            &&.ant-btn-disabled {
+                color: ${token.colorTextDisabled};
+            }
+
+            &&:not(:disabled):not(.ant-btn-disabled):is(:hover, :focus, :active, .ant-dropdown-open) {
                 border-color: transparent;
                 background: ${token.colorFillSecondary};
-                color: ${token.colorText};
+                color: ${token.colorTextSecondary};
                 box-shadow: none;
+
+                &.ant-btn-dangerous,
+                &.ant-btn-color-dangerous {
+                    color: ${token.colorError};
+                }
             }
         `,
         toolbarDropdown: css`
