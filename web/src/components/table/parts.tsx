@@ -2,6 +2,7 @@ import React, {useCallback, useMemo} from "react";
 import {
     Button,
     Card,
+    ConfigProvider,
     Dropdown,
     Input,
     Pagination,
@@ -47,27 +48,29 @@ export const TablePagination = ({
 
     return (
         <Card className={styles.paginationCard} variant="borderless">
-            <Pagination
-                className={styles.pagination}
-                size="small"
-                current={page}
-                pageSize={pageSize}
-                total={total}
-                disabled={disabled}
-                align="center"
-                responsive
-                showQuickJumper
-                showLessItems
-                showSizeChanger={{
-                    showSearch: false,
-                    variant: "filled",
-                    size: "small",
-                    className: styles.pageSizeSelect,
-                    classNames: {popup: {root: styles.pageSizeDropdown}},
-                } as PaginationProps["showSizeChanger"]}
-                pageSizeOptions={pageSizeOptions}
-                showTotal={(nextTotal, range) => `第 ${range[0]}-${range[1]} ${unit} / 共 ${nextTotal} ${unit}`}
-                onChange={onChange}/>
+            <ConfigProvider input={{variant: "filled"}}>
+                <Pagination
+                    className={styles.pagination}
+                    size="small"
+                    current={page}
+                    pageSize={pageSize}
+                    total={total}
+                    disabled={disabled}
+                    align="center"
+                    responsive
+                    showQuickJumper
+                    showLessItems
+                    showSizeChanger={{
+                        showSearch: false,
+                        variant: "filled",
+                        size: "small",
+                        className: styles.pageSizeSelect,
+                        classNames: {popup: {root: styles.pageSizeDropdown}},
+                    } as PaginationProps["showSizeChanger"]}
+                    pageSizeOptions={pageSizeOptions}
+                    showTotal={(nextTotal, range) => `第 ${range[0]}-${range[1]} ${unit} / 共 ${nextTotal} ${unit}`}
+                    onChange={onChange}/>
+            </ConfigProvider>
         </Card>
     );
 };
@@ -161,6 +164,7 @@ export const TableToolbar = React.memo(({left, search, refresh, children, extra}
             {search && (
                 <Input
                     className={styles.searchBox}
+                    variant="filled"
                     value={search.value}
                     aria-label={search.ariaLabel}
                     allowClear={search.allowClear !== false}

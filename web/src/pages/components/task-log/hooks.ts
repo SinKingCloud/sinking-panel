@@ -1,5 +1,6 @@
 import {startTransition, useCallback, useEffect, useLayoutEffect, useRef, useState} from "react";
-import {App} from "antd";
+import type {RefObject} from "react";
+import {App, message as antdMessage} from "antd";
 import {getTaskLog} from "@/service/api/task";
 
 const pageSize = 300;
@@ -21,9 +22,14 @@ const toCursor = (value: any) => {
 const useLog = (
     request: (params: API.RequestParams) => Promise<any> = getTaskLog,
     body: Record<string, any> = {},
+    panelRef?: RefObject<HTMLDivElement | null>,
 ) => {
-    const {message, modal} = App.useApp();
+    const {modal} = App.useApp();
+    const getMessageContainer = useCallback(() => panelRef?.current || document.body, [panelRef]);
+    const [message, messageHolder] = antdMessage.useMessage({getContainer: getMessageContainer});
     const consoleRef = useRef<HTMLDivElement>(null);
+    const viewportCleanupRef = useRef<(() => void) | undefined>(undefined);
+    const clearConfirmRef = useRef<{destroy: () => void} | null>(null);
     const taskRef = useRef<any>({});
     const defaultBodyRef = useRef(body);
     const requestBodyRef = useRef(body);
@@ -48,6 +54,7 @@ const useLog = (
     const [loading, setLoading] = useState(false);
     const [clearing, setClearing] = useState(false);
     const [scrollTop, setScrollTop] = useState(0);
+    const [viewportHeight, setViewportHeight] = useState(logLayout.viewportHeight);
 
     const virtual = logs.length > maxDisplayLines;
     const virtualStart = Math.max(
@@ -56,10 +63,43 @@ const useLog = (
     );
     const virtualEnd = Math.min(
         logs.length,
-        Math.ceil((scrollTop + logLayout.viewportHeight) / logLayout.lineHeight)
+        Math.ceil((scrollTop + viewportHeight) / logLayout.lineHeight)
         + logLayout.overscan,
     );
     const virtualHeight = logs.length * logLayout.lineHeight;
+
+    const measureViewport = useCallback(() => {
+        const container = consoleRef.current;
+        if (!container?.clientHeight) {
+            return;
+        }
+        setViewportHeight(container.clientHeight);
+        if (controlRef.current.stickToBottom) {
+            container.scrollTop = container.scrollHeight;
+        }
+        setScrollTop(container.scrollTop);
+    }, []);
+
+    const setConsole = useCallback((container: HTMLDivElement | null) => {
+        viewportCleanupRef.current?.();
+        viewportCleanupRef.current = undefined;
+        consoleRef.current = container;
+        if (!container) return;
+        measureViewport();
+        if (typeof ResizeObserver === "undefined") {
+            window.addEventListener("resize", measureViewport);
+            viewportCleanupRef.current = () => window.removeEventListener("resize", measureViewport);
+        } else {
+            const observer = new ResizeObserver(measureViewport);
+            observer.observe(container);
+            viewportCleanupRef.current = () => observer.disconnect();
+        }
+    }, [measureViewport]);
+
+    const closeClearConfirmation = useCallback(() => {
+        clearConfirmRef.current?.destroy();
+        clearConfirmRef.current = null;
+    }, []);
 
     const resetPosition = useCallback(() => {
         const control = controlRef.current;
@@ -305,14 +345,16 @@ const useLog = (
             const anchor = control.historyAnchor;
             container.scrollTop = anchor.scrollTop + container.scrollHeight - anchor.scrollHeight;
             control.historyAnchor = null;
-            return;
-        }
-        if (logs.length > 0 && control.stickToBottom) {
+        } else if (logs.length > 0 && control.stickToBottom) {
             container.scrollTop = container.scrollHeight;
         }
-    }, [logs]);
+        if (virtual) {
+            setScrollTop(container.scrollTop);
+        }
+    }, [logs, virtual]);
 
     useEffect(() => () => {
+        closeClearConfirmation();
         const control = controlRef.current;
         control.requestId += 1;
         taskRef.current = {};
@@ -322,12 +364,13 @@ const useLog = (
         if (control.historyFrame) {
             cancelAnimationFrame(control.historyFrame);
         }
-    }, []);
+    }, [closeClearConfirmation]);
 
     const open = useCallback((record: any, requestBody?: Record<string, any>) => {
         if (record?.id === undefined || record?.id === null) {
             return false;
         }
+        closeClearConfirmation();
         const control = controlRef.current;
         control.requestId += 1;
         control.requesting = false;
@@ -343,9 +386,10 @@ const useLog = (
         setClearing(false);
         void loadLatest(record.id);
         return true;
-    }, [loadLatest, resetPosition]);
+    }, [closeClearConfirmation, loadLatest, resetPosition]);
 
     const reset = useCallback(() => {
+        closeClearConfirmation();
         const control = controlRef.current;
         control.requestId += 1;
         control.requesting = false;
@@ -359,13 +403,14 @@ const useLog = (
         setLogs([]);
         setLoading(false);
         setClearing(false);
-    }, [resetPosition]);
+    }, [closeClearConfirmation, resetPosition]);
 
     const pause = useCallback(() => {
+        closeClearConfirmation();
         controlRef.current.requestId += 1;
         taskRef.current = {};
         setTaskId(undefined);
-    }, []);
+    }, [closeClearConfirmation]);
 
     const refresh = useCallback(() => {
         const taskId = taskRef.current?.id;
@@ -376,18 +421,26 @@ const useLog = (
 
     const clear = useCallback(() => {
         const currentTask = taskRef.current;
-        if (currentTask?.id === undefined || currentTask?.id === null || clearing) {
+        if (currentTask?.id === undefined || currentTask?.id === null || clearing || clearConfirmRef.current) {
             return;
         }
-        modal.confirm({
+        const confirmation = modal.confirm({
+            getContainer: () => {
+                const panel = panelRef?.current;
+                return panel && document.fullscreenElement === panel ? panel : document.body;
+            },
             title: "清理日志",
             content: `确定清理“${currentTask.name || "-"}”的全部日志吗？清理后无法恢复。`,
             okText: "清理",
             cancelText: "取消",
             okButtonProps: {danger: true},
             mask: {closable: true},
+            afterClose: () => {
+                if (clearConfirmRef.current === confirmation) clearConfirmRef.current = null;
+            },
             onOk: async () => {
                 const taskId = currentTask.id;
+                if (String(taskRef.current?.id) !== String(taskId)) return;
                 const control = controlRef.current;
                 const requestId = ++control.requestId;
                 control.requesting = true;
@@ -423,10 +476,14 @@ const useLog = (
                 }
             },
         } as any);
-    }, [clearing, message, modal, request, resetPosition]);
+        clearConfirmRef.current = confirmation;
+    }, [clearing, message, modal, panelRef, request, resetPosition]);
 
     return {
-        consoleRef,
+        setConsole,
+        message,
+        messageHolder,
+        measureViewport,
         fileName,
         logs,
         loading,

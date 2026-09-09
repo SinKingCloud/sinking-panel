@@ -163,6 +163,7 @@ const FileForm = forwardRef<FileFormRef, FileFormProps>(({onSuccess}, ref) => {
             <AntForm<FormValues>
                 form={form}
                 layout="vertical"
+                variant="filled"
                 preserve={false}
                 requiredMark={false}
                 onFinish={submit}>

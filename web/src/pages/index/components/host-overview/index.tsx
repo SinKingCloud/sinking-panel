@@ -421,13 +421,6 @@ const useStyles = createStyles(({css, token, isDarkMode}: any) => ({
             width: 30px;
             height: 30px;
             padding: 0;
-            color: ${token.colorTextSecondary};
-            background: transparent;
-        }
-
-        &.ant-btn:hover {
-            color: ${token.colorPrimary} !important;
-            background: ${token.colorFillTertiary} !important;
         }
     `,
 }));
@@ -520,7 +513,8 @@ const HostOverview = React.memo(({info, refreshing, onRefresh}: any) => {
                 </Row>
                 <Button
                     className={styles.refreshButton}
-                    type="text"
+                    color="default"
+                    variant="text"
                     size="small"
                     loading={refreshing}
                     icon={<Icon type="ReloadOutlined"/>}

@@ -274,6 +274,7 @@ const FileOperationForm = forwardRef<FileOperationRef, FileOperationProps>(({onT
                 ref={formRef}
                 initialValues={initialValues}
                 layout="vertical"
+                variant="filled"
                 preserve={false}
                 onFinish={submit}>
                 {operation && (

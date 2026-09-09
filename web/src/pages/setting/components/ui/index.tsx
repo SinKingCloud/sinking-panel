@@ -7,7 +7,6 @@ import Error from "../error";
 import Loading from "../loading";
 
 const toBoolean = (value: any) => value === true || value === 1 || value === "1" || value === "true";
-const fieldStyle = {width: "100%", maxWidth: 350};
 const switchOptions = [
     {value: "1", label: "开启"},
     {value: "0", label: "关闭"},
@@ -53,26 +52,26 @@ export default ({styles, info}: any): React.ReactNode => {
                     <Error styles={styles} message={config.error} onRetry={config.load}/>
                 ) : <>
                     <Form.Item name="compact" label="紧凑模式" tooltip="控制界面元素间距，开启后界面更紧凑"
-                               style={fieldStyle} rules={[{required: true, message: "请选择紧凑模式"}]}>
+                               className={styles.formField} rules={[{required: true, message: "请选择紧凑模式"}]}>
                         <Select placeholder="请选择紧凑模式是否开启" options={switchOptions}/>
                     </Form.Item>
                     <Form.Item name="layout" label="界面布局" tooltip="选择界面的整体布局方式，上下布局或左右布局"
-                               style={fieldStyle} rules={[{required: true, message: "请选择界面布局"}]}>
+                               className={styles.formField} rules={[{required: true, message: "请选择界面布局"}]}>
                         <Select placeholder="请选择界面布局方式" options={layoutOptions}/>
                     </Form.Item>
                     <Form.Item name="theme" label="菜单主题" tooltip="选择菜单的主题模式，亮色或暗色"
-                               style={fieldStyle} rules={[{required: true, message: "请选择菜单主题"}]}>
+                               className={styles.formField} rules={[{required: true, message: "请选择菜单主题"}]}>
                         <Select placeholder="请选择菜单主题模式" options={themeOptions}/>
                     </Form.Item>
                     <Form.Item name="watermark" label="界面水印" tooltip="控制界面是否显示账户水印"
-                               style={fieldStyle} rules={[{required: true, message: "请选择界面水印"}]}>
+                               className={styles.formField} rules={[{required: true, message: "请选择界面水印"}]}>
                         <Select placeholder="请选择是否显示界面水印" options={switchOptions}/>
                     </Form.Item>
                     <Form.Item name="radius" label="主题圆角" tooltip="调整界面元素的圆角大小"
-                               style={fieldStyle} rules={[{required: true, message: "请选择主题圆角"}]}>
+                               className={styles.formField} rules={[{required: true, message: "请选择主题圆角"}]}>
                         <Select placeholder="请选择主题圆角大小" options={radiusOptions}/>
                     </Form.Item>
-                    <Form.Item label="主题颜色" tooltip="选择界面的主题颜色" style={fieldStyle}>
+                    <Form.Item label="主题颜色" tooltip="选择界面的主题颜色" className={styles.formField}>
                         <Flex gap={8} align="center">
                             <Form.Item name="color" noStyle
                                        getValueFromEvent={(_: any, value: string) => value}>

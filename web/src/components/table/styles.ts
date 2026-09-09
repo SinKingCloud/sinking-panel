@@ -311,20 +311,7 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
             &.ant-input-affix-wrapper {
                 height: ${compact ? 30 : 34}px;
                 padding: 0 ${compact ? 9 : 12}px;
-                border: 1px solid transparent;
                 border-radius: ${token.borderRadiusSM}px;
-                background: color-mix(in srgb, ${token.colorFillTertiary} 45%, ${token.colorFillQuaternary});
-                box-shadow: none;
-            }
-
-            &.ant-input-affix-wrapper:hover {
-                background: color-mix(in srgb, ${token.colorFillTertiary} 65%, ${token.colorFillQuaternary});
-            }
-
-            &.ant-input-affix-wrapper-focused {
-                border-color: ${token.colorPrimaryBorder};
-                background: ${token.colorBgContainer};
-                box-shadow: 0 0 0 3px ${token.colorPrimaryBg};
             }
 
             .ant-input-prefix {
@@ -339,7 +326,6 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
             }
 
             .ant-input {
-                background: transparent;
                 color: ${token.colorTextSecondary};
             }
 
@@ -847,9 +833,7 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
                 width: ${compact ? 30 : 34}px;
                 height: ${compact ? 22 : 26}px;
                 margin-inline: 4px;
-                border-color: transparent;
                 border-radius: ${token.borderRadiusSM}px;
-                background: ${dark ? "rgba(255,255,255,.1)" : "rgba(0,0,0,.05)"} !important;
                 font-size: ${compact ? 11 : 12}px;
             }
 
@@ -871,22 +855,7 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
                 font-size: ${compact ? 11 : 12}px;
             }
 
-            && .ant-select-selector {
-                height: ${compact ? 22 : 26}px !important;
-                padding-inline: 7px 22px !important;
-                border: 0 !important;
-                border-radius: ${token.borderRadiusSM}px !important;
-                background: ${token.colorBgContainer} !important;
-                box-shadow: inset 0 0 0 1px ${token.colorBorderSecondary} !important;
-            }
-
-            && .ant-select-selection-item {
-                color: ${token.colorTextSecondary} !important;
-                font-size: ${compact ? 11 : 12}px !important;
-                line-height: ${compact ? 22 : 26}px !important;
-            }
-
-            && .ant-select-arrow {
+            && .ant-select-suffix {
                 color: ${token.colorTextQuaternary};
                 font-size: ${compact ? 9 : 10}px;
             }

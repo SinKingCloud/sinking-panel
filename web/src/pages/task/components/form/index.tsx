@@ -1,7 +1,7 @@
 import {forwardRef, memo, useCallback, useImperativeHandle, useMemo, useRef, useState} from "react";
 import {App, Col, Form as AntForm, Input, Row, Select, Spin} from "antd";
 import {createStyles} from "antd-style";
-import {ProModal, ProModalRef, Title} from "sinking-antd";
+import {ProModal, ProModalRef, Title, useTheme} from "sinking-antd";
 import defaultSettings from "@/../config/defaultSettings";
 import AceEditor from "@/components/ace-editor";
 import {createTask, getTaskInfo, updateTask} from "@/service/api/task";
@@ -50,6 +50,8 @@ const Form = forwardRef<FormRef, {typeData?: any; typeItems?: any[]; execTypeDat
     onSuccess,
 }, ref):any => {
     const {message} = App.useApp();
+    const theme = useTheme();
+    const compact = Boolean(theme?.isCompactTheme?.());
     const {styles} = useStyles();
     const modalRef = useRef<ProModalRef>({} as ProModalRef);
     const requestRef = useRef(0);
@@ -235,7 +237,7 @@ const Form = forwardRef<FormRef, {typeData?: any; typeItems?: any[]; execTypeDat
                 mask: {closable: true},
                 afterClose: reset,
             } as any}>
-            <AntForm form={form} layout="vertical" onFinish={submit}>
+            <AntForm form={form} layout="vertical" variant="filled" onFinish={submit}>
                 {active && (infoLoading ? (
                     <div className={styles.loading}>
                         <Spin/>
@@ -300,9 +302,10 @@ const Form = forwardRef<FormRef, {typeData?: any; typeItems?: any[]; execTypeDat
                                 rules={[{required: true, whitespace: true, message: "请输入任务内容"}]}>
                                 <AceEditor
                                     mode="sh"
+                                    theme={theme?.isDarkTheme?.() ? "monokai" : "chrome"}
                                     width="100%"
                                     height={280}
-                                    fontSize={14}
+                                    fontSize={compact ? 12 : 14}
                                     showPrintMargin={false}
                                     wrapEnabled
                                     acePath={acePath}

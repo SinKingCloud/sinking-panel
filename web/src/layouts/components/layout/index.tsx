@@ -250,14 +250,6 @@ const useRightTopStyles = createStyles(({css, token, isDarkMode}: any): any => {
             width: 24px;
             height: 24px;
             padding: 0;
-            border-radius: ${token.borderRadiusSM}px;
-            color: ${token.colorTextTertiary};
-
-            &:hover {
-                color: ${token.colorPrimary};
-                background: ${token.colorFillQuaternary};
-            }
-
             .anticon {
                 font-size: 10px !important;
             }
@@ -584,7 +576,8 @@ const RightTop: React.FC = () => {
                                         </div>
                                         <Tooltip title="查看详细日志">
                                             <Button
-                                                type="text"
+                                                color="default"
+                                                variant="text"
                                                 size="small"
                                                 className={taskLogAction}
                                                 icon={<Icon type="FileTextOutlined" style={{fontSize: 10}}/>}

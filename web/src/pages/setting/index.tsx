@@ -1,6 +1,6 @@
 import React from "react";
 import {Col, Menu, Row} from "antd";
-import {Body, useTheme} from "sinking-antd";
+import {Body, Icon, useTheme} from "sinking-antd";
 import {history, useLocation, useModel} from "umi";
 import Account from "./components/account";
 import Ui from "./components/ui";
@@ -9,9 +9,9 @@ import HeroGraphic from "@/pages/components/hero-graphic";
 import useStyles from "./styles";
 
 const items = [
-    {key: "web", title: "网站设置", component: Web},
-    {key: "ui", title: "界面设置", component: Ui},
-    {key: "account", title: "登录设置", component: Account},
+    {key: "web", title: "网站设置", icon: "GlobalOutlined", component: Web},
+    {key: "ui", title: "界面设置", icon: "LayoutOutlined", component: Ui},
+    {key: "account", title: "登录设置", icon: "SafetyCertificateOutlined", component: Account},
 ];
 
 export default (): React.ReactNode => {
@@ -50,7 +50,11 @@ export default (): React.ReactNode => {
                                         mode="inline"
                                         selectedKeys={[active]}
                                         onClick={({key}) => changeActive(key)}
-                                        items={items.map((item) => ({key: item.key, label: item.title}))}
+                                        items={items.map((item) => ({
+                                            key: item.key,
+                                            label: item.title,
+                                            icon: <Icon type={item.icon}/>,
+                                        }))}
                                     />
                                 </div>
                             </div>

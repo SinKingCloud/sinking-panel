@@ -1371,6 +1371,7 @@ const TypeManager = forwardRef<TypeManagerRef, TypeManagerProps>(({module, onCha
                     <AntForm<TypeFormValues>
                         form={form}
                         layout="vertical"
+                        variant="filled"
                         onFinish={submitForm}>
                         <AntForm.Item
                             name="name"

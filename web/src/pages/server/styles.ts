@@ -203,7 +203,6 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
                 height: ${compact ? 30 : 32}px;
                 padding: 0;
                 flex: none;
-                color: ${token.colorTextSecondary};
             }
 
             .collapsed & {
@@ -254,20 +253,7 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
             .ant-input-affix-wrapper {
                 height: ${compact ? 30 : 34}px;
                 padding-inline: ${compact ? 9 : 10}px;
-                border-color: transparent;
                 border-radius: ${token.borderRadiusSM}px;
-                background: ${token.colorFillQuaternary};
-                box-shadow: none;
-            }
-
-            .ant-input-affix-wrapper:hover {
-                border-color: ${token.colorPrimaryBorder};
-            }
-
-            .ant-input-affix-wrapper-focused {
-                border-color: ${token.colorPrimary};
-                background: ${token.colorBgContainer};
-                box-shadow: 0 0 0 2px ${token.colorPrimaryBg};
             }
 
             .ant-input-prefix {
@@ -276,7 +262,6 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
             }
 
             .ant-input {
-                background: transparent;
                 font-size: ${compact ? 11 : 12}px;
             }
 
@@ -289,7 +274,6 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
                 width: ${compact ? 30 : 34}px;
                 height: ${compact ? 30 : 34}px;
                 padding: 0;
-                color: ${token.colorTextSecondary};
             }
 
             @container terminal-workspace (max-width: 760px) {
@@ -537,33 +521,12 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
                 width: ${compact ? 28 : 30}px;
                 height: ${compact ? 28 : 30}px;
                 padding: 0;
-                display: inline-flex;
-                align-items: center;
-                justify-content: center;
-                border: 0;
-                border-radius: ${token.borderRadiusSM}px;
-                outline: none;
-                background: transparent;
-                color: ${token.colorTextTertiary};
-                cursor: pointer;
-                transition: background-color .16s ease, color .16s ease;
             }
 
             &:hover .server-actions,
             &.selected .server-actions,
             .server-actions:focus-within {
                 opacity: 1;
-            }
-
-            .server-action:hover,
-            .server-action:focus-visible {
-                background: ${token.colorFillSecondary};
-                color: ${token.colorText};
-            }
-
-            .server-action:disabled {
-                cursor: default;
-                opacity: .52;
             }
 
             .collapsed & {
@@ -920,7 +883,6 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
                 width: ${compact ? 30 : 32}px;
                 height: ${compact ? 30 : 32}px;
                 padding: 0;
-                color: ${token.colorTextSecondary};
             }
 
             @container terminal-workspace (max-width: 520px) {
@@ -989,13 +951,6 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
                 width: 30px;
                 height: 30px;
                 padding: 0;
-                color: rgba(255, 255, 255, .76);
-            }
-
-            .fullscreen-actions .ant-btn:hover,
-            .fullscreen-actions .ant-btn:focus-visible {
-                background: rgba(255, 255, 255, .1);
-                color: #fff;
             }
 
             @supports not (height: 100dvh) {
@@ -1022,12 +977,6 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
             .ant-spin-description {
                 color: #a8a8a8;
                 font-size: 12px;
-            }
-
-            .ant-btn-text:disabled {
-                border-color: transparent;
-                background: transparent;
-                color: rgba(255, 255, 255, .52);
             }
 
             .terminal-error {
@@ -1072,16 +1021,6 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
             .terminal-error-actions .ant-btn {
                 height: ${compact ? 28 : 30}px;
                 padding-inline: 13px;
-                border-color: rgba(255, 255, 255, .14);
-                background: rgba(255, 255, 255, .07);
-                color: rgba(255, 255, 255, .82);
-                box-shadow: none;
-            }
-
-            .terminal-error-actions .ant-btn-primary {
-                border-color: ${token.colorPrimary};
-                background: ${token.colorPrimary};
-                color: #fff;
             }
         `,
         scriptPane: css`
@@ -1154,7 +1093,6 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
                 height: ${compact ? 30 : 32}px;
                 padding: 0;
                 flex: none;
-                color: ${token.colorTextSecondary};
             }
 
             .collapsed & {
@@ -1227,20 +1165,7 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
                 min-width: 0;
                 height: ${compact ? 30 : 34}px;
                 padding-inline: ${compact ? 9 : 10}px;
-                border-color: transparent;
                 border-radius: ${token.borderRadiusSM}px;
-                background: ${token.colorFillQuaternary};
-                box-shadow: none;
-            }
-
-            .script-toolbar .ant-input-affix-wrapper:hover {
-                border-color: ${token.colorPrimaryBorder};
-            }
-
-            .script-toolbar .ant-input-affix-wrapper-focused {
-                border-color: ${token.colorPrimary};
-                background: ${token.colorBgContainer};
-                box-shadow: 0 0 0 2px ${token.colorPrimaryBg};
             }
 
             .script-toolbar .ant-input-prefix {
@@ -1249,7 +1174,6 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
             }
 
             .script-toolbar .ant-input {
-                background: transparent;
                 font-size: ${compact ? 11 : 12}px;
             }
 
@@ -1263,19 +1187,8 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
                 min-width: max-content;
                 height: ${compact ? 30 : 34}px;
                 padding: 0 ${compact ? 7 : 10}px;
-                display: inline-flex;
-                align-items: center;
-                justify-content: center;
                 gap: 5px;
-                border: 1px solid transparent;
-                border-radius: ${token.borderRadiusSM}px;
-                outline: none;
-                background: ${token.colorFillQuaternary};
-                color: ${token.colorTextSecondary};
-                cursor: pointer;
-                font: inherit;
                 line-height: 1;
-                transition: background-color .16s ease, color .16s ease;
             }
 
             .script-type-trigger .marker {
@@ -1298,20 +1211,9 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
                 transition: color .16s ease, transform .16s ease;
             }
 
-            .script-type-trigger:hover,
-            .script-type-trigger.ant-dropdown-open {
-                background: ${token.colorFillSecondary};
-            }
-
             .script-type-trigger.ant-dropdown-open .arrow {
                 color: ${token.colorTextTertiary};
                 transform: rotate(180deg);
-            }
-
-            .script-type-trigger:focus-visible {
-                border-color: ${token.colorPrimaryBorder};
-                background: ${token.colorBgContainer};
-                box-shadow: 0 0 0 3px ${token.colorPrimaryBg};
             }
 
             .script-scroll {
@@ -1432,12 +1334,6 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
                 width: ${compact ? 28 : 30}px !important;
                 height: ${compact ? 28 : 30}px !important;
                 padding: 0;
-                color: ${token.colorTextTertiary};
-            }
-
-            .script-terminal:hover,
-            .script-terminal:focus-visible {
-                color: ${token.colorPrimary};
             }
 
             .script-action {
@@ -1448,11 +1344,6 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
             .script-item:hover .script-action,
             .script-item:focus-within .script-action {
                 opacity: 1;
-            }
-
-            .script-action:hover,
-            .script-action:focus-visible {
-                color: ${token.colorText};
             }
 
             .script-state {
@@ -1477,10 +1368,6 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
                 font-size: 11px;
             }
 
-            .script-state .ant-btn {
-                color: ${token.colorPrimary};
-            }
-
             .script-load-more {
                 min-height: 32px;
                 display: flex;
@@ -1492,7 +1379,6 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
                 width: 32px;
                 height: 28px;
                 padding: 0;
-                color: ${token.colorTextTertiary};
             }
 
             @media (pointer: coarse) {
@@ -1610,33 +1496,12 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
                 width: ${compact ? 30 : 32}px;
                 height: ${compact ? 30 : 32}px;
                 padding: 0;
-                display: inline-flex;
-                align-items: center;
-                justify-content: center;
                 flex: none;
-                border: 0;
-                border-radius: ${token.borderRadiusSM}px;
-                outline: none;
-                background: transparent;
-                color: ${token.colorTextTertiary};
-                cursor: pointer;
                 font-size: ${compact ? 14 : 15}px;
-                transition: background-color .16s ease, color .16s ease;
-            }
-
-            .rail-action:hover,
-            .rail-action:focus-visible {
-                background: ${token.colorFillSecondary};
-                color: ${token.colorPrimary};
-            }
-
-            .rail-action:focus-visible {
-                box-shadow: 0 0 0 2px ${token.colorPrimaryBg};
             }
 
             .rail-load-more {
                 margin-top: 2px;
-                color: ${token.colorTextQuaternary};
                 font-size: ${compact ? 10 : 11}px;
             }
 

@@ -6,8 +6,6 @@ import Actions from "../actions";
 import Error from "../error";
 import Loading from "../loading";
 
-const fieldStyle = {width: "100%", maxWidth: 350};
-
 export default ({styles}: any): React.ReactNode => {
     const {message} = App.useApp();
     const user = useModel("user");
@@ -104,7 +102,7 @@ export default ({styles}: any): React.ReactNode => {
                     name="account"
                     label="登录账号"
                     tooltip="用于登录面板的账号"
-                    style={fieldStyle}
+                    className={styles.formField}
                     rules={[
                         {required: true, whitespace: true, message: "请输入登录账号"},
                         {
@@ -131,7 +129,7 @@ export default ({styles}: any): React.ReactNode => {
                     name="password"
                     label="新密码"
                     tooltip="不修改密码时请留空"
-                    style={fieldStyle}
+                    className={styles.formField}
                     rules={[
                         {min: 6, message: "密码至少6个字符"},
                         {max: 20, message: "密码不能超过20个字符"},
@@ -142,7 +140,7 @@ export default ({styles}: any): React.ReactNode => {
                     name="confirm"
                     label="确认密码"
                     tooltip="再次输入新密码"
-                    style={fieldStyle}
+                    className={styles.formField}
                     dependencies={["password"] as any}
                     rules={[
                         ({getFieldValue}) => ({

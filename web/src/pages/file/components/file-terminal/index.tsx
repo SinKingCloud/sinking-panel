@@ -23,9 +23,8 @@ interface FileTerminalProps {
 const terminalBackground = "rgb(15, 15, 15)";
 const authTypeData: Record<string, string> = {};
 
-const useStyles = createStyles(({css, token}: any, props: {compact?: boolean; dark?: boolean} = {}) => {
+const useStyles = createStyles(({css, token}: any, props: {compact?: boolean} = {}) => {
     const compact = Boolean(props.compact);
-    const dark = Boolean(props.dark);
     const headerPadding = compact ? "9px 14px" : "10px 16px";
     const desktopHeight = compact ? "min(560px, calc(100dvh - 140px))" : "min(640px, calc(100dvh - 170px))";
     const mobileHeight = compact ? "calc(100dvh - 88px)" : "calc(100dvh - 100px)";
@@ -105,20 +104,6 @@ const useStyles = createStyles(({css, token}: any, props: {compact?: boolean; da
             border-radius: 0;
         }
 
-        ${dark ? `
-        .ant-btn-primary {
-            border-color: #6f7b88;
-            background: #6f7b88;
-            box-shadow: none;
-        }
-
-        .ant-btn-primary:hover,
-        .ant-btn-primary:focus-visible {
-            border-color: #84919e;
-            background: #84919e;
-        }
-        ` : ""}
-
         @media (max-width: 767px) {
             height: ${mobileHeight};
             padding: 0;
@@ -152,7 +137,7 @@ const FileTerminal = ({path, open, onClose}: FileTerminalProps) => {
     const compact = Boolean(theme?.isCompactTheme?.());
     const dark = Boolean(theme?.isDarkMode?.() || theme?.isDarkTheme?.());
     const screens = Grid.useBreakpoint();
-    const {styles} = useStyles({compact, dark});
+    const {styles} = useStyles({compact});
     const {styles: serverStyles} = useServerStyles({
         isCompactMode: compact,
         isDarkMode: dark,

@@ -321,7 +321,9 @@ const FilePreviewPane = ({
                     <Tooltip title={fullscreen ? "退出全屏" : "全屏"} placement="left" getPopupContainer={getPopupContainer}>
                         <Button
                             className="file-preview-fullscreen"
-                            type="text"
+                            color="default"
+                            variant="outlined"
+                            shape="circle"
                             aria-label={fullscreen ? "退出全屏" : "全屏"}
                             aria-pressed={fullscreen}
                             icon={<Icon type={fullscreen ? "FullscreenExitOutlined" : "FullscreenOutlined"}/>}

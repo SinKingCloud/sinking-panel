@@ -213,7 +213,7 @@ const ScriptForm = forwardRef<ScriptFormRef, ScriptFormProps>(({typeItems, onSuc
                 focusable: {focusTriggerAfterClose: false},
                 afterClose: reset,
             } as any}>
-            <AntForm<ScriptFormValues> form={form} layout="vertical" onFinish={submit}>
+            <AntForm<ScriptFormValues> form={form} layout="vertical" variant="filled" onFinish={submit}>
                 {active && (infoLoading ? (
                     <div className={styles.loading}>
                         <Spin description="加载脚本详情..."/>
@@ -234,10 +234,7 @@ const ScriptForm = forwardRef<ScriptFormRef, ScriptFormProps>(({typeItems, onSuc
                             </Col>
                             <Col xs={24} sm={10}>
                                 <AntForm.Item name="type_id" label="脚本分类">
-                                    <Select
-                                        showSearch
-                                        optionFilterProp="label"
-                                        options={typeOptions}/>
+                                    <Select options={typeOptions}/>
                                 </AntForm.Item>
                             </Col>
                         </Row>
@@ -250,11 +247,12 @@ const ScriptForm = forwardRef<ScriptFormRef, ScriptFormProps>(({typeItems, onSuc
                             ]}>
                             <AceEditor
                                 mode="sh"
+                                theme={theme?.isDarkTheme?.() ? "monokai" : "chrome"}
                                 width="100%"
                                 height={compact
                                     ? "clamp(170px, 34dvh, 250px)"
                                     : "clamp(180px, 36dvh, 280px)"}
-                                fontSize={12}
+                                fontSize={compact ? 12 : 14}
                                 showPrintMargin={false}
                                 wrapEnabled
                                 acePath={acePath}

@@ -1,4 +1,4 @@
-import {forwardRef, memo, useImperativeHandle, useRef} from "react";
+import {forwardRef, memo, useCallback, useEffect, useImperativeHandle, useRef, useState} from "react";
 import {Button, Empty, Spin, Tooltip} from "antd";
 import {createStyles} from "antd-style";
 import {Icon, ProModal, ProModalRef, Title} from "sinking-antd";
@@ -11,15 +11,34 @@ const useStyles = createStyles(({css, token}: any) => ({
         }
     `,
     panel: css`
+        position: relative;
         overflow: hidden;
         border: 1px solid ${token.colorBorderSecondary};
         border-radius: ${token.borderRadiusLG}px;
         background: ${token.colorBgContainer};
+
+        &:fullscreen {
+            width: 100%;
+            height: 100%;
+            padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            border: 0;
+            border-radius: 0;
+
+            .task-log-console {
+                min-height: 0;
+                height: auto;
+                flex: 1;
+            }
+        }
     `,
     panelHeader: css`
         height: 42px;
         padding: 0 9px;
         display: flex;
+        flex: none;
         align-items: center;
         justify-content: space-between;
         gap: 12px;
@@ -111,6 +130,7 @@ const useStyles = createStyles(({css, token}: any) => ({
     `,
     actions: css`
         display: flex;
+        flex: none;
         align-items: center;
         justify-content: flex-end;
         gap: 2px;
@@ -119,15 +139,9 @@ const useStyles = createStyles(({css, token}: any) => ({
             width: 30px;
             height: 30px;
             padding: 0;
-            border: 0;
-            border-radius: ${token.borderRadiusSM}px;
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            background: transparent;
-            color: ${token.colorTextSecondary} !important;
-            box-shadow: none;
-            transition: background-color .16s ease, color .16s ease;
         }
 
         .ant-btn .anticon {
@@ -138,15 +152,6 @@ const useStyles = createStyles(({css, token}: any) => ({
             line-height: 1;
         }
 
-        .ant-btn:hover {
-            color: ${token.colorText} !important;
-            background: ${token.colorFillQuaternary};
-        }
-
-        .ant-btn-dangerous:hover {
-            color: ${token.colorError} !important;
-            background: ${token.colorErrorBg};
-        }
     `,
     state: css`
         min-width: 100%;
@@ -176,11 +181,70 @@ interface LogProps {
 const Log = forwardRef<LogRef, LogProps>(({request, showClear = true, title = "任务日志", body = {}}, ref):any => {
     const {styles} = useStyles();
     const modalRef = useRef<ProModalRef>({} as ProModalRef);
-    const log = useLog(request, body);
+    const panelRef = useRef<HTMLDivElement | null>(null);
+    const openRef = useRef(false);
+    const [fullscreen, setFullscreen] = useState(false);
+    const [fullscreenPending, setFullscreenPending] = useState(false);
+    const log = useLog(request, body, panelRef);
+
+    const exitFullscreen = useCallback(() => {
+        const panel = panelRef.current;
+        if (panel && document.fullscreenElement === panel && typeof document.exitFullscreen === "function") {
+            void document.exitFullscreen().catch(() => undefined);
+        }
+        setFullscreen(false);
+    }, []);
+
+    const setPanel = useCallback((panel: HTMLDivElement | null) => {
+        if (!panel) {
+            const current = panelRef.current;
+            if (current && document.fullscreenElement === current && typeof document.exitFullscreen === "function") {
+                void document.exitFullscreen().catch(() => undefined);
+            }
+        }
+        panelRef.current = panel;
+    }, []);
+
+    const getPopupContainer = useCallback(() => {
+        const panel = panelRef.current;
+        return panel && document.fullscreenElement === panel ? panel : document.body;
+    }, []);
+
+    useEffect(() => {
+        const handleFullscreen = () => {
+            setFullscreen(Boolean(panelRef.current && document.fullscreenElement === panelRef.current));
+            log.measureViewport();
+        };
+        document.addEventListener("fullscreenchange", handleFullscreen);
+        return () => document.removeEventListener("fullscreenchange", handleFullscreen);
+    }, [log.measureViewport]);
+
+    const toggleFullscreen = useCallback(async () => {
+        const panel = panelRef.current;
+        if (!panel || fullscreenPending) return;
+        if (!document.fullscreenEnabled || typeof panel.requestFullscreen !== "function" || typeof document.exitFullscreen !== "function") {
+            log.message.info("当前浏览器不支持全屏");
+            return;
+        }
+        const exiting = document.fullscreenElement === panel;
+        setFullscreenPending(true);
+        try {
+            if (exiting) await document.exitFullscreen();
+            else await panel.requestFullscreen();
+            if ((!openRef.current || panelRef.current !== panel) && document.fullscreenElement === panel) {
+                await document.exitFullscreen();
+            }
+        } catch {
+            if (openRef.current && panelRef.current === panel) log.message.error(exiting ? "退出全屏失败" : "进入全屏失败");
+        } finally {
+            setFullscreenPending(false);
+        }
+    }, [fullscreenPending, log.message]);
 
     useImperativeHandle(ref, () => ({
         open: (record: any, requestBody?: Record<string, any>) => {
             if (log.open(record, requestBody)) {
+                openRef.current = true;
                 modalRef.current?.show();
             }
         },
@@ -193,24 +257,42 @@ const Log = forwardRef<LogRef, LogProps>(({request, showClear = true, title = "�
             width={900}
             afterOpenChange={(open) => {
                 if (!open) {
+                    openRef.current = false;
+                    exitFullscreen();
                     log.pause();
                 }
             }}
             modalProps={{
                 rootClassName: styles.modal,
                 footer: null,
+                keyboard: !fullscreen,
                 zIndex: 1200,
                 style: {top: 100, paddingBottom: 100},
                 mask: {closable: true},
+                afterOpenChange: (open: boolean) => {
+                    if (open) log.measureViewport();
+                },
                 afterClose: log.reset,
             } as any}>
-            <div className={styles.panel}>
+            <div ref={setPanel} className={styles.panel}>
+                {log.messageHolder}
                 <div className={styles.panelHeader}>
                     <span className={styles.panelTitle}>{log.fileName || "日志文件"}</span>
                     <div className={styles.actions}>
-                        <Tooltip title="刷新日志">
+                        <Tooltip title={fullscreen ? "退出全屏" : "全屏"} placement={fullscreen ? "bottom" : "top"} getPopupContainer={getPopupContainer}>
                             <Button
-                                type="text"
+                                color="default"
+                                variant="text"
+                                aria-label={fullscreen ? "退出全屏" : "全屏"}
+                                aria-pressed={fullscreen}
+                                icon={<Icon type={fullscreen ? "FullscreenExitOutlined" : "FullscreenOutlined"}/>}
+                                disabled={fullscreenPending}
+                                onClick={() => void toggleFullscreen()}/>
+                        </Tooltip>
+                        <Tooltip title="刷新日志" placement={fullscreen ? "bottom" : "top"} getPopupContainer={getPopupContainer}>
+                            <Button
+                                color="default"
+                                variant="text"
                                 aria-label="刷新日志"
                                 icon={<Icon type="ReloadOutlined"/>}
                                 loading={log.loading}
@@ -218,10 +300,10 @@ const Log = forwardRef<LogRef, LogProps>(({request, showClear = true, title = "�
                                 onClick={log.refresh}/>
                         </Tooltip>
                         {showClear && (
-                            <Tooltip title="清理日志">
+                            <Tooltip title="清理日志" placement={fullscreen ? "bottom" : "top"} getPopupContainer={getPopupContainer}>
                                 <Button
-                                    type="text"
-                                    danger
+                                    color="danger"
+                                    variant="text"
                                     aria-label="清理日志"
                                     icon={<Icon type="DeleteOutlined"/>}
                                     loading={log.clearing}
@@ -230,7 +312,7 @@ const Log = forwardRef<LogRef, LogProps>(({request, showClear = true, title = "�
                         )}
                     </div>
                 </div>
-                <div ref={log.consoleRef} className={styles.console} onScroll={log.handleScroll}>
+                <div ref={log.setConsole} className={`${styles.console} task-log-console`} onScroll={log.handleScroll}>
                     {log.logs.length > 0 ? (
                         log.virtual ? (
                             <div className={styles.virtualContent} style={{height: log.virtualHeight}}>

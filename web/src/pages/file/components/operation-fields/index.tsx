@@ -102,7 +102,7 @@ export const RemoteDownloadOperationFields = memo(() => {
                     {required: true, whitespace: true, message: "请输入保存目录"},
                     {validator: validatePath},
                 ]}>
-                <FilePicker mode="directory" placeholder="请输入或选择文件保存目录"/>
+                <FilePicker buttonProps={{color: "default", variant: "filled", style: {borderColor: "transparent"}}} mode="directory" placeholder="请输入或选择文件保存目录"/>
             </AntForm.Item>
             <AntForm.Item
                 name="name"

@@ -40,6 +40,7 @@ const useStyles = createStyles(({css, token}: any, props: any = {}) => {
     return {
     schedule: css`
         min-width: 0;
+        container-type: inline-size;
     `,
     editor: css`
         min-width: 0;
@@ -77,11 +78,12 @@ const useStyles = createStyles(({css, token}: any, props: any = {}) => {
             flex: none;
         }
 
-        @media (max-width: 575px) {
-            gap: 4px;
+        @container (max-width: 520px) {
+            flex-direction: column;
+            align-items: stretch;
 
             .cycle-type {
-                width: 92px;
+                width: 100%;
             }
 
             .schedule-number,
@@ -100,7 +102,7 @@ const useStyles = createStyles(({css, token}: any, props: any = {}) => {
     `,
     inlineControl: css`
         min-width: 0;
-        min-height: 32px;
+        min-height: ${token.controlHeight}px;
         display: flex;
         align-items: center;
         gap: 8px;
@@ -110,9 +112,9 @@ const useStyles = createStyles(({css, token}: any, props: any = {}) => {
             flex: none;
         }
 
-        @media (max-width: 575px) {
+        @container (max-width: 520px) {
             gap: 3px;
-            flex-wrap: nowrap;
+            flex-wrap: wrap;
             font-size: 12px;
             white-space: nowrap;
 

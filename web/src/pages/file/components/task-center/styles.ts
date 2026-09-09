@@ -65,12 +65,6 @@ const useStyles = createStyles<{compact?: boolean}>(({css, token}, props = {}) =
                 min-width: 24px;
                 height: 24px;
                 padding: 0;
-                color: ${token.colorTextQuaternary};
-            }
-
-            .file-task-progress-panel-close.ant-btn:hover {
-                color: ${token.colorText};
-                background: ${token.colorFillTertiary};
             }
 
             .file-task-progress-list {
@@ -187,13 +181,6 @@ const useStyles = createStyles<{compact?: boolean}>(({css, token}, props = {}) =
                 min-width: 28px;
                 height: 26px;
                 padding: 0;
-                color: ${token.colorTextQuaternary};
-                border-radius: ${token.borderRadiusSM}px;
-            }
-
-            .file-task-progress-cancel.ant-btn:hover {
-                color: ${token.colorError};
-                background: ${token.colorErrorBg};
             }
 
             @media (max-width: 520px) {

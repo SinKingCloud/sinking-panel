@@ -773,7 +773,8 @@ const FileEditor = forwardRef(function FileEditor(
                             open={fullscreen ? false : undefined}
                             getPopupContainer={getWorkspacePopupContainer}>
                             <Button
-                                type="text"
+                                color="default"
+                                variant="text"
                                 aria-label={treeCollapsed ? "展开目录树" : "收起目录树"}
                                 icon={<Icon type={treeToggleIcon}/>}
                                 onClick={toggleTree}/>
@@ -792,7 +793,8 @@ const FileEditor = forwardRef(function FileEditor(
                                 getPopupContainer={getWorkspacePopupContainer}>
                                 <Button
                                     className="file-editor-reload"
-                                    type="text"
+                                    color="default"
+                                    variant="text"
                                     disabled={!activeTab || activeTab.saving}
                                     aria-label="重新加载文件"
                                     icon={<Icon type="ReloadOutlined"/>}
@@ -803,8 +805,10 @@ const FileEditor = forwardRef(function FileEditor(
                                 open={fullscreen ? false : undefined}
                                 getPopupContainer={getWorkspacePopupContainer}>
                                 <Button
-                                    className={`file-editor-save ${activeTab?.dirty ? "is-dirty" : ""}`}
-                                    type="text"
+                                    className="file-editor-save"
+                                    color={activeTab?.dirty ? "primary" : "default"}
+                                    variant={activeTab?.dirty ? "filled" : "text"}
+                                    style={{borderColor: "transparent"}}
                                     disabled={!activeTab || Boolean(previewKind) || !activeTab.version || actionsDisabled || Boolean(displayError)}
                                     loading={activeTab?.saving}
                                     aria-label="保存文件"
@@ -822,7 +826,8 @@ const FileEditor = forwardRef(function FileEditor(
                                 getPopupContainer={getWorkspacePopupContainer}>
                                 <Button
                                     className="file-editor-minimize"
-                                    type="text"
+                                    color="default"
+                                    variant="text"
                                     aria-label="最小化编辑器"
                                     icon={<Icon type="MinusOutlined"/>}
                                     onClick={handleMinimize}/>
@@ -833,7 +838,8 @@ const FileEditor = forwardRef(function FileEditor(
                                 getPopupContainer={getWorkspacePopupContainer}>
                                 <Button
                                     className="file-editor-fullscreen"
-                                    type="text"
+                                    color="default"
+                                    variant="text"
                                     aria-label={fullscreen ? "退出全屏" : "全屏"}
                                     aria-pressed={fullscreen}
                                     icon={<Icon type={fullscreenIcon}/>}
@@ -847,7 +853,8 @@ const FileEditor = forwardRef(function FileEditor(
                                 <span className="file-editor-close-wrap">
                                     <Button
                                         className="file-editor-close"
-                                        type="text"
+                                        color="danger"
+                                        variant="text"
                                         aria-label="关闭文件编辑器"
                                         icon={<Icon type="CloseOutlined"/>}
                                         onClick={() => requestClose()}/>
@@ -901,8 +908,9 @@ const FileEditor = forwardRef(function FileEditor(
                             <div className="file-editor-error">
                                 <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={displayError}>
                                     <Button
-                                        className="file-editor-error-retry"
-                                        type="text"
+                                        color="default"
+                                        variant="filled"
+                                        style={{borderColor: "transparent"}}
                                         aria-label={currentAceError ? "重新加载编辑器" : "重新读取文件"}
                                         icon={<Icon type="ReloadOutlined"/>}
                                         onClick={currentAceError ? retryAce : reloadCurrent}>

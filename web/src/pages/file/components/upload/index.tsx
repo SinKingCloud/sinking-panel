@@ -272,7 +272,8 @@ const FileUpload = forwardRef<FileUploadRef, FileUploadProps>(({
                                         <div className="upload-file-control">
                                             {activeUploadStatuses.has(item.status) ? (
                                                 <Button
-                                                    type="text"
+                                                    color="default"
+                                                    variant="text"
                                                     size="small"
                                                     aria-label={`暂停上传 ${item.name}`}
                                                     icon={<Icon type="PauseOutlined"/>}
@@ -282,7 +283,8 @@ const FileUpload = forwardRef<FileUploadRef, FileUploadProps>(({
                                             ) : item.status === "error" || item.status === "canceled" ? (
                                                 <>
                                                     <Button
-                                                        type="text"
+                                                        color="default"
+                                                        variant="text"
                                                         size="small"
                                                         aria-label={`${item.status === "canceled" ? "继续" : "重试"}上传 ${item.name}`}
                                                         icon={(
@@ -292,7 +294,8 @@ const FileUpload = forwardRef<FileUploadRef, FileUploadProps>(({
                                                         {item.status === "canceled" ? "继续" : "重试"}
                                                     </Button>
                                                     <Button
-                                                        type="text"
+                                                        color="default"
+                                                        variant="text"
                                                         size="small"
                                                         aria-label={`移除上传记录 ${item.name}`}
                                                         onClick={() => removeItem(item.id)}>
@@ -301,7 +304,8 @@ const FileUpload = forwardRef<FileUploadRef, FileUploadProps>(({
                                                 </>
                                             ) : (
                                                 <Button
-                                                    type="text"
+                                                    color="default"
+                                                    variant="text"
                                                     size="small"
                                                     aria-label={`移除上传记录 ${item.name}`}
                                                     onClick={() => removeItem(item.id)}>

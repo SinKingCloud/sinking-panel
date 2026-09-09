@@ -146,13 +146,14 @@ const Sidebar = ({
                         arrow={{pointAtCenter: true}}
                         classNames={{root: styles.serverMenu}}
                         menu={{items: menuItems}}>
-                        <button
+                        <Button
                             className="server-action"
-                            type="button"
+                            color="default"
+                            variant="text"
                             disabled={pending}
                             aria-label={`${server.name || endpoint}的更多操作`}>
                             <Icon type="MoreOutlined"/>
-                        </button>
+                        </Button>
                     </Dropdown>
                 </div>
             </div>
@@ -179,6 +180,7 @@ const Sidebar = ({
             </header>
             <div className={styles.serverToolbar}>
                 <Input
+                    variant="filled"
                     allowClear
                     value={keyword}
                     aria-label="搜索终端"

@@ -5,8 +5,6 @@ import Actions from "../actions";
 import Error from "../error";
 import Loading from "../loading";
 
-const fieldStyle = {width: "100%", maxWidth: 350};
-
 export default ({styles, info}: any): React.ReactNode => {
     const defaults = useMemo(() => ({
         name: info?.name || "Sinking Panel",
@@ -23,7 +21,7 @@ export default ({styles, info}: any): React.ReactNode => {
                     name="name"
                     label="网站名称"
                     tooltip="网站名称"
-                    style={fieldStyle}
+                    className={styles.formField}
                     rules={[
                         {required: true, whitespace: true, message: "请输入网站名称"},
                         {max: 50, message: "网站名称不能超过50个字符"},
@@ -34,7 +32,7 @@ export default ({styles, info}: any): React.ReactNode => {
                     name="title"
                     label="网站标题"
                     tooltip="网站标题"
-                    style={fieldStyle}
+                    className={styles.formField}
                     rules={[
                         {required: true, whitespace: true, message: "请输入网站标题"},
                         {max: 100, message: "网站标题不能超过100个字符"},

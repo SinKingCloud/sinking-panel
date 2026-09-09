@@ -82,12 +82,6 @@ const useStyles = createStyles<{compact?: boolean}>(({css, token}, props = {}) =
                 height: ${compact ? 26 : 28}px;
                 flex: none;
                 padding: 0;
-                color: ${token.colorTextSecondary};
-            }
-
-            .file-properties-action.ant-btn:hover,
-            .file-properties-action.ant-btn:focus-visible {
-                color: ${token.colorPrimary};
             }
 
             .file-properties-details {

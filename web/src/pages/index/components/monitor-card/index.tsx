@@ -40,19 +40,8 @@ const useStyles = createStyles(({css, token, isDarkMode}: any) => ({
             font-size: 12px;
         }
 
-        && .ant-select-selector {
-            height: 28px !important;
-            padding-inline: 9px 26px !important;
-            border: 0 !important;
-            border-radius: ${token.borderRadiusSM}px !important;
-            background: ${token.colorFillQuaternary} !important;
-            box-shadow: inset 0 0 0 1px transparent !important;
-            transition: background-color .2s ease, box-shadow .2s ease;
-        }
-
         && .ant-select-content,
-        && .ant-select-content-value,
-        && .ant-select-selection-item {
+        && .ant-select-content-value {
             min-width: 0;
             color: ${token.colorTextSecondary} !important;
             font-size: 12px !important;
@@ -60,20 +49,9 @@ const useStyles = createStyles(({css, token, isDarkMode}: any) => ({
             line-height: 28px !important;
         }
 
-        && .ant-select-arrow {
+        && .ant-select-suffix {
             color: ${token.colorTextTertiary};
             font-size: 10px;
-        }
-
-        &&:hover .ant-select-selector {
-            background: ${token.colorFillTertiary} !important;
-            box-shadow: inset 0 0 0 1px ${token.colorBorderSecondary} !important;
-        }
-
-        &&.ant-select-focused .ant-select-selector,
-        &&.ant-select-open .ant-select-selector {
-            background: ${token.colorPrimaryBg} !important;
-            box-shadow: inset 0 0 0 1px color-mix(in srgb, ${token.colorPrimary} 32%, transparent) !important;
         }
     `,
     deviceDropdown: css`

@@ -186,7 +186,7 @@ const Form = forwardRef<FormRef, FormProps>(({authTypeData, layered = false, onS
                 mask: {closable: true},
                 afterClose: reset,
             } as any}>
-            <AntForm form={form} layout="vertical" onFinish={submit}>
+            <AntForm form={form} layout="vertical" variant="filled" onFinish={submit}>
                 <AntForm.Item
                     name="name"
                     label="终端名称"

@@ -1,5 +1,5 @@
-import {forwardRef, memo, useCallback, useEffect, useImperativeHandle, useRef, useState} from "react";
-import {App, Button, Spin, Tooltip} from "antd";
+import {forwardRef, memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState} from "react";
+import {App, Button, ConfigProvider, Spin, Tooltip, theme as antdTheme} from "antd";
 import {Icon} from "sinking-antd";
 import TerminalView, {TerminalRef as TerminalViewRef} from "@/pages/components/terminal";
 import defaultSettings from "@/../config/defaultSettings";
@@ -77,6 +77,9 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
                                                              onEdit,
                                                          }, ref): any => {
     const {message} = App.useApp();
+    const terminalTheme = useMemo(() => ({
+        algorithm: compact ? [antdTheme.darkAlgorithm, antdTheme.compactAlgorithm] : antdTheme.darkAlgorithm,
+    }), [compact]);
     const screenRef = useRef<HTMLDivElement | any>(null);
     const terminalRef = useRef<TerminalViewRef | any>(null);
     const socketRef = useRef<WebSocket | undefined>(undefined);
@@ -406,84 +409,87 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
                     </Tooltip>
                 </div>
             </header>}
-            <div className={styles.terminalBody}>
-                <div className={styles.terminalScreen} ref={screenRef}>
-                    <TerminalView
-                        ref={terminalRef}
-                        socket={socket}
-                        active={active}
-                        compact={compact}
-                        background={terminalBackground}
-                        accentColor={terminalAccent}/>
-                    {(initializing || localUnavailable || status !== "connected") && (
-                        <div className={`${styles.terminalOverlay} ${status}`}>
-                            {initializing ? (
-                                <Button type="text" disabled>
-                                    正在加载本机连接
-                                </Button>
-                            ) : localUnavailable ? (
-                                <Button type="text" disabled icon={<Icon type="WarningOutlined"/>}>
-                                    本机连接加载失败
-                                </Button>
-                            ) : status === "connecting" ? (
-                                <Spin size="small" description="正在连接..."/>
-                            ) : needsConfiguration ? (
-                                <Button type="text" disabled icon={<Icon type="SettingOutlined"/>}>
-                                    请先配置本机连接
-                                </Button>
-                            ) : status === "error" ? (
-                                <div className="terminal-error">
-                                    <div className="terminal-error-title">
-                                        <Icon type="WarningOutlined"/>
-                                        <span>连接失败</span>
+            <ConfigProvider theme={terminalTheme}>
+                <div className={styles.terminalBody}>
+                    <div className={styles.terminalScreen} ref={screenRef}>
+                        <TerminalView
+                            ref={terminalRef}
+                            socket={socket}
+                            active={active}
+                            compact={compact}
+                            background={terminalBackground}
+                            accentColor={terminalAccent}/>
+                        {(initializing || localUnavailable || status !== "connected") && (
+                            <div className={`${styles.terminalOverlay} ${status}`}>
+                                {initializing ? (
+                                    <Button type="text" disabled>
+                                        正在加载本机连接
+                                    </Button>
+                                ) : localUnavailable ? (
+                                    <Button type="text" disabled icon={<Icon type="WarningOutlined"/>}>
+                                        本机连接加载失败
+                                    </Button>
+                                ) : status === "connecting" ? (
+                                    <Spin size="small" description="正在连接..."/>
+                                ) : needsConfiguration ? (
+                                    <Button type="text" disabled icon={<Icon type="SettingOutlined"/>}>
+                                        请先配置本机连接
+                                    </Button>
+                                ) : status === "error" ? (
+                                    <div className="terminal-error">
+                                        <div className="terminal-error-title">
+                                            <Icon type="WarningOutlined"/>
+                                            <span>连接失败</span>
+                                        </div>
+                                        <div className="terminal-error-message">
+                                            {failure?.message || "终端连接失败，请稍后重试"}
+                                        </div>
+                                        <div className="terminal-error-actions">
+                                            {needsCredentialUpdate && (
+                                                <Button color="primary" variant="solid" onClick={openEditForm}>
+                                                    修改信息
+                                                </Button>
+                                            )}
+                                            <Button color="default" variant="filled" style={{borderColor: "transparent"}} onClick={connect}>重新连接</Button>
+                                        </div>
                                     </div>
-                                    <div className="terminal-error-message">
-                                        {failure?.message || "终端连接失败，请稍后重试"}
-                                    </div>
-                                    <div className="terminal-error-actions">
-                                        {needsCredentialUpdate && (
-                                            <Button type="primary" onClick={openEditForm}>
-                                                修改信息
-                                            </Button>
-                                        )}
-                                        <Button onClick={connect}>重新连接</Button>
-                                    </div>
-                                </div>
-                            ) : (
+                                ) : (
+                                    <Button
+                                        color="primary"
+                                        variant="solid"
+                                        icon={<Icon type="LinkOutlined"/>}
+                                        onClick={connect}>
+                                        连接终端
+                                    </Button>
+                                )}
+                            </div>
+                        )}
+                        {fullscreen && (
+                            <div className="fullscreen-actions">
                                 <Button
-                                    type="primary"
-                                    icon={<Icon type="LinkOutlined"/>}
-                                    onClick={connect}>
-                                    连接终端
-                                </Button>
-                            )}
-                        </div>
-                    )}
-                    {fullscreen && (
-                        <div className="fullscreen-actions">
-                            <Button
-                                type="text"
-                                title="清空终端"
-                                aria-label="清空终端"
-                                icon={<Icon type="ClearOutlined"/>}
-                                onClick={() => terminalRef.current?.clear()}/>
-                            <Button
-                                type="text"
-                                disabled={!canDisconnect && (initializing || localUnavailable || needsConfiguration)}
-                                title={canDisconnect ? "断开连接" : initializing ? "正在加载本机连接" : localUnavailable ? "本机连接加载失败" : needsConfiguration ? "请先配置本机连接" : "连接终端"}
-                                aria-label={canDisconnect ? "断开连接" : initializing ? "正在加载本机连接" : localUnavailable ? "本机连接加载失败" : needsConfiguration ? "请先配置本机连接" : "连接终端"}
-                                icon={<Icon type={canDisconnect ? "DisconnectOutlined" : "LinkOutlined"}/>}
-                                onClick={() => canDisconnect ? closeSocket("disconnected") : connect()}/>
-                            <Button
-                                type="text"
-                                title="退出全屏"
-                                aria-label="退出全屏"
-                                icon={<Icon type="FullscreenExitOutlined"/>}
-                                onClick={() => void toggleFullscreen()}/>
-                        </div>
-                    )}
+                                    type="text"
+                                    title="清空终端"
+                                    aria-label="清空终端"
+                                    icon={<Icon type="ClearOutlined"/>}
+                                    onClick={() => terminalRef.current?.clear()}/>
+                                <Button
+                                    type="text"
+                                    disabled={!canDisconnect && (initializing || localUnavailable || needsConfiguration)}
+                                    title={canDisconnect ? "断开连接" : initializing ? "正在加载本机连接" : localUnavailable ? "本机连接加载失败" : needsConfiguration ? "请先配置本机连接" : "连接终端"}
+                                    aria-label={canDisconnect ? "断开连接" : initializing ? "正在加载本机连接" : localUnavailable ? "本机连接加载失败" : needsConfiguration ? "请先配置本机连接" : "连接终端"}
+                                    icon={<Icon type={canDisconnect ? "DisconnectOutlined" : "LinkOutlined"}/>}
+                                    onClick={() => canDisconnect ? closeSocket("disconnected") : connect()}/>
+                                <Button
+                                    type="text"
+                                    title="退出全屏"
+                                    aria-label="退出全屏"
+                                    icon={<Icon type="FullscreenExitOutlined"/>}
+                                    onClick={() => void toggleFullscreen()}/>
+                            </div>
+                        )}
+                    </div>
                 </div>
-            </div>
+            </ConfigProvider>
         </section>
     );
 });

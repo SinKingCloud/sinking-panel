@@ -271,20 +271,12 @@ const useStyles = createStyles<{compact?: boolean; dark?: boolean}>(({css, token
                 gap: 2px;
             }
 
-            .file-editor-tree-actions .ant-btn-text,
-            .file-editor-toolbar .ant-btn-text {
+            .file-editor-tree-actions .ant-btn,
+            .file-editor-toolbar .ant-btn {
                 width: ${compact ? 30 : 32}px;
                 min-width: ${compact ? 30 : 32}px;
                 height: ${compact ? 30 : 32}px;
                 padding: 0;
-                color: ${token.colorTextSecondary};
-                transition: background-color ${token.motionDurationFast}, color ${token.motionDurationFast};
-            }
-
-            .file-editor-tree-actions .ant-btn-text:not(:disabled):hover,
-            .file-editor-toolbar .ant-btn-text:not(:disabled):hover {
-                background: ${token.colorFillSecondary};
-                color: ${token.colorText};
             }
 
             .file-editor-tree-body {
@@ -697,11 +689,6 @@ const useStyles = createStyles<{compact?: boolean; dark?: boolean}>(({css, token
                 flex: none;
             }
 
-            .file-editor-toolbar .file-editor-save.ant-btn-text.is-dirty:not(:disabled) {
-                background: ${token.colorPrimaryBg};
-                color: ${token.colorPrimary};
-            }
-
             .file-editor-toolbar-divider {
                 width: 1px;
                 height: 16px;
@@ -711,11 +698,6 @@ const useStyles = createStyles<{compact?: boolean; dark?: boolean}>(({css, token
 
             .file-editor-close-wrap {
                 display: inline-flex;
-            }
-
-            .file-editor-toolbar .file-editor-close.ant-btn-text:not(:disabled):hover {
-                background: ${token.colorErrorBg};
-                color: ${token.colorError};
             }
 
             .file-editor-canvas {
@@ -756,21 +738,6 @@ const useStyles = createStyles<{compact?: boolean; dark?: boolean}>(({css, token
 
             .file-editor-error .ant-empty-footer {
                 margin-top: ${compact ? 10 : 12}px;
-            }
-
-            .file-editor-error-retry.ant-btn-text {
-                height: ${compact ? 30 : 32}px;
-                padding-inline: ${compact ? 10 : 12}px;
-                border-radius: ${token.borderRadiusSM}px;
-                background: ${token.colorFillQuaternary};
-                color: ${token.colorTextSecondary};
-                font-size: ${token.fontSizeSM}px;
-                font-weight: 500;
-            }
-
-            .file-editor-error-retry.ant-btn-text:not(:disabled):hover {
-                background: ${token.colorFillSecondary};
-                color: ${token.colorPrimary};
             }
 
             .file-editor-status {
@@ -845,8 +812,8 @@ const useStyles = createStyles<{compact?: boolean; dark?: boolean}>(({css, token
                     transform: translateX(-100%);
                 }
 
-                .file-editor-tree-actions .ant-btn-text,
-                .file-editor-toolbar .ant-btn-text {
+                .file-editor-tree-actions .ant-btn,
+                .file-editor-toolbar .ant-btn {
                     width: 40px;
                     min-width: 40px;
                     height: 40px;
@@ -930,7 +897,7 @@ const useStyles = createStyles<{compact?: boolean; dark?: boolean}>(({css, token
                     display: none;
                 }
 
-                .file-editor-toolbar .ant-btn-text {
+                .file-editor-toolbar .ant-btn {
                     width: 36px;
                     min-width: 36px;
                     height: 36px;

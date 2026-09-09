@@ -151,7 +151,8 @@ const FileProperties = forwardRef<FilePropertiesRef, FilePropertiesProps>(({onRe
                                 <div className="file-properties-name" title={current.name}>{current.name}</div>
                                 <Tooltip title="复制名称">
                                     <Button
-                                        type="text"
+                                        color="default"
+                                        variant="text"
                                         size="small"
                                         className="file-properties-action"
                                         aria-label="复制名称"
@@ -160,7 +161,8 @@ const FileProperties = forwardRef<FilePropertiesRef, FilePropertiesProps>(({onRe
                                 </Tooltip>
                                 <Tooltip title="重命名">
                                     <Button
-                                        type="text"
+                                        color="default"
+                                        variant="text"
                                         size="small"
                                         className="file-properties-action"
                                         aria-label="重命名"
@@ -187,7 +189,8 @@ const FileProperties = forwardRef<FilePropertiesRef, FilePropertiesProps>(({onRe
                                 <div className="file-properties-value is-permission">{formatFileMode(current.mode)}</div>
                                 <Tooltip title="修改权限">
                                     <Button
-                                        type="text"
+                                        color="default"
+                                        variant="text"
                                         size="small"
                                         className="file-properties-action"
                                         aria-label="修改权限"
@@ -210,7 +213,8 @@ const FileProperties = forwardRef<FilePropertiesRef, FilePropertiesProps>(({onRe
                                 </div>
                                 <Tooltip title="复制完整路径">
                                     <Button
-                                        type="text"
+                                        color="default"
+                                        variant="text"
                                         size="small"
                                         className="file-properties-action"
                                         aria-label="复制完整路径"

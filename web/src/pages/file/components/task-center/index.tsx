@@ -336,7 +336,8 @@ const FileTaskCenter = forwardRef<FileTaskCenterRef, FileTaskCenterProps>(({onSe
                     <Title size="small">文件任务</Title>
                 </div>
                 <Button
-                    type="text"
+                    color="default"
+                    variant="text"
                     className="file-task-progress-panel-close"
                     aria-label="关闭任务面板"
                     title="关闭任务面板"
@@ -370,8 +371,8 @@ const FileTaskCenter = forwardRef<FileTaskCenterRef, FileTaskCenterProps>(({onSe
                                 )}
                                 {canCancel && (
                                     <Button
-                                        type="text"
-                                        danger
+                                        color="danger"
+                                        variant="text"
                                         size="small"
                                         className="file-task-progress-cancel"
                                         icon={<Icon type="CloseOutlined"/>}

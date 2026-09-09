@@ -134,6 +134,7 @@ const FileEditorSettings = ({
             <div className="file-editor-setting-row">
                 <span>主题</span>
                 <Select
+                    variant="filled"
                     value={value.theme}
                     options={themeOptions}
                     aria-label="编辑器主题"
@@ -145,6 +146,7 @@ const FileEditorSettings = ({
             <div className="file-editor-setting-row">
                 <span>字号</span>
                 <InputNumber
+                    variant="filled"
                     min={12}
                     max={24}
                     precision={0}

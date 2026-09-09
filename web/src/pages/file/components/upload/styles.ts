@@ -207,7 +207,6 @@ const useStyles = createStyles<{compact?: boolean}>(({css, token}, props = {}) =
             .upload-file-control .ant-btn {
                 height: ${compact ? 24 : 26}px;
                 padding-inline: 6px;
-                color: ${token.colorTextSecondary};
                 font-size: ${compact ? 10 : 11}px;
             }
 

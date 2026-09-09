@@ -110,7 +110,9 @@ const FilePreview = memo(forwardRef<any>((_, ref) => {
                                 <Tooltip title="上一个" getPopupContainer={getPopupContainer}>
                                     <Button
                                         className="file-preview-nav is-previous"
-                                        type="text"
+                                        color="default"
+                                        variant="outlined"
+                                        shape="circle"
                                         disabled={index <= 0}
                                         aria-label="预览上一个文件"
                                         icon={<Icon type="LeftOutlined"/>}
@@ -119,7 +121,9 @@ const FilePreview = memo(forwardRef<any>((_, ref) => {
                                 <Tooltip title="下一个" getPopupContainer={getPopupContainer}>
                                     <Button
                                         className="file-preview-nav is-next"
-                                        type="text"
+                                        color="default"
+                                        variant="outlined"
+                                        shape="circle"
                                         disabled={index >= total - 1}
                                         aria-label="预览下一个文件"
                                         icon={<Icon type="RightOutlined"/>}

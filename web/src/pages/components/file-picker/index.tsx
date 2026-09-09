@@ -15,6 +15,7 @@ import FilePickerBrowser from "./browser";
 import useStyles from "./styles";
 
 const FilePicker = forwardRef<InputRef, any>(({
+    buttonProps,
     disabled,
     initialPath,
     mode = "directory",
@@ -324,6 +325,7 @@ const FilePicker = forwardRef<InputRef, any>(({
                     onChange={(event) => onChange?.(event.target.value)}/>
                 <Tooltip title={title}>
                     <Button
+                        {...buttonProps}
                         size={size}
                         disabled={disabled}
                         aria-label={title}

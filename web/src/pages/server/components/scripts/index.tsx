@@ -253,6 +253,7 @@ const Scripts = ({styles, collapsed, connected, selectedId, onCollapsedChange, o
                 <div id="terminal-script-panel" className={styles.scriptBody}>
                     <div className="script-toolbar">
                         <Input
+                            variant="filled"
                             value={list.keyword}
                             allowClear
                             aria-label="搜索常用脚本"
@@ -275,14 +276,16 @@ const Scripts = ({styles, collapsed, connected, selectedId, onCollapsedChange, o
                                     list.setTypeId(key);
                                 },
                             }}>
-                            <button
+                            <Button
                                 className="script-type-trigger"
-                                type="button"
+                                color="default"
+                                variant="filled"
+                                style={{borderColor: "transparent"}}
                                 aria-label={`筛选脚本分类，当前${activeTypeName}`}>
                                 <Icon className="marker" type="FolderOutlined"/>
                                 <span className="value" title={activeTypeName}>{activeTypeName}</span>
                                 <Icon className="arrow" type="DownOutlined"/>
-                            </button>
+                            </Button>
                         </Dropdown>
                     </div>
 
@@ -304,7 +307,8 @@ const Scripts = ({styles, collapsed, connected, selectedId, onCollapsedChange, o
                             <div className="script-state error-state">
                                 <span>脚本加载失败</span>
                                 <Button
-                                    type="text"
+                                    color="primary"
+                                    variant="text"
                                     aria-label="重新加载脚本"
                                     icon={<Icon type="ReloadOutlined"/>}
                                     onClick={list.reload}/>
@@ -407,13 +411,14 @@ const Scripts = ({styles, collapsed, connected, selectedId, onCollapsedChange, o
                     onScroll={handleScroll}>
                     {list.items.map((record) => (
                         <Tooltip key={`rail-script-${record.id}`} placement="left" title={record.name}>
-                            <button
+                            <Button
                                 className="rail-action"
-                                type="button"
+                                color="default"
+                                variant="text"
                                 aria-label={`复制脚本 ${record.name}`}
                                 onClick={() => void copy(record)}>
                                 <Icon type={copyingId === record.id ? "LoadingOutlined" : "CodeOutlined"}/>
-                            </button>
+                            </Button>
                         </Tooltip>
                     ))}
                     {list.loading && list.items.length === 0 && (
@@ -421,13 +426,14 @@ const Scripts = ({styles, collapsed, connected, selectedId, onCollapsedChange, o
                     )}
                     {list.hasMore && !list.loadingMore && (
                         <Tooltip placement="left" title="加载更多脚本">
-                            <button
+                            <Button
                                 className="rail-action rail-load-more"
-                                type="button"
+                                color="default"
+                                variant="text"
                                 aria-label="加载更多脚本"
                                 onClick={() => void list.loadMore()}>
                                 <Icon type="DownOutlined"/>
-                            </button>
+                            </Button>
                         </Tooltip>
                     )}
                     {list.loadingMore && <Icon className="rail-loading" type="LoadingOutlined"/>}
