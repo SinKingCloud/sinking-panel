@@ -1,5 +1,13 @@
 package constant
 
+// SensitiveGroups 保存不允许通用配置接口直接读取或修改的配置组。
+// 配置组下的所有配置项都会被视为敏感配置，新增受保护配置组时只需在这里补充。
+var SensitiveGroups = []string{
+	LoginGroup,
+	SshGroup,
+	SiteGroup,
+}
+
 const (
 	WebGroup = "web"               //网站配置组
 	WebTitle = WebGroup + ".title" //网站标题

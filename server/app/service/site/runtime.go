@@ -270,6 +270,16 @@ func (s *service) Running() bool {
 func (s *service) Sync() error {
 	s.operationMu.Lock()
 	defer s.operationMu.Unlock()
+	config, exists, err := s.loadHTTP()
+	if err != nil {
+		return fmt.Errorf("读取 HTTP 配置失败: %w", err)
+	}
+	if exists {
+		config.ACMEPath = s.http.Options().ACMEPath
+		if err = s.http.UpdateOptions(config); err != nil {
+			return fmt.Errorf("应用 HTTP 配置失败: %w", err)
+		}
+	}
 	return s.syncLocked()
 }
 

@@ -1,6 +1,8 @@
 package config
 
 import (
+	"strings"
+
 	"server/app/constant"
 	"server/app/enum/log_type"
 	"server/app/service"
@@ -19,7 +21,18 @@ func Get(c *context.Context) {
 		c.Error(msg)
 		return
 	}
-	if form.Group == constant.LoginGroup || form.Group == constant.SshGroup {
+	configKey := form.Group
+	if form.Key != "" {
+		configKey += "." + form.Key
+	}
+	isSensitive := false
+	for _, group := range constant.SensitiveGroups {
+		if configKey == group || strings.HasPrefix(configKey, group+".") {
+			isSensitive = true
+			break
+		}
+	}
+	if isSensitive {
 		c.Error("配置不存在")
 		return
 	}

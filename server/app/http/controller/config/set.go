@@ -27,9 +27,14 @@ func Set(c *context.Context) {
 		if v == nil {
 			continue
 		}
-		if v.Key == constant.LoginGroup || strings.HasPrefix(v.Key, constant.LoginGroup+".") ||
-			v.Key == constant.SshGroup || strings.HasPrefix(v.Key, constant.SshGroup+".") ||
-			v.Key == constant.SiteGroup || strings.HasPrefix(v.Key, constant.SiteGroup+".") {
+		isSensitive := false
+		for _, group := range constant.SensitiveGroups {
+			if v.Key == group || strings.HasPrefix(v.Key, group+".") {
+				isSensitive = true
+				break
+			}
+		}
+		if isSensitive {
 			continue
 		}
 		configs[v.Key] = v.Value
