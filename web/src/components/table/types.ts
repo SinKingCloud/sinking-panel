@@ -68,6 +68,10 @@ export interface TableProps<RecordType extends object = any> extends Omit<DataTa
     contentBar?: TableContentBarProps | false;
     rowSelection?: TableRowSelection<RecordType> | boolean;
     pagination?: Partial<PageTablePaginationProps> | false;
+    /** 分页切换后是否滚动到表格顶部，默认保留当前滚动位置。 */
+    scrollToTopOnPageChange?: boolean;
+    /** 是否将页面底部分页栏固钉在视口底部，默认关闭。 */
+    paginationAffix?: boolean;
     ariaLabel?: string;
     rootClassName?: string;
     empty?: boolean;

@@ -1,5 +1,5 @@
-import React, {forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState} from "react";
-import {Empty, Spin} from "antd";
+import React, {forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState} from "react";
+import {Affix, Empty, Spin} from "antd";
 import {DataTable, TableHero, TablePagination, TableToolbar, useTableStyles} from "./parts";
 import {TableCommands, TableSelectionAction} from "./commands";
 import useTableData from "./use-data";
@@ -11,14 +11,62 @@ export {DataTable, TableHero, TableToolbar, TableAction, TableFilter, TablePagin
 export type {DataTableProps, TableHeroProps, TableActionProps, TableFilterProps, TableSearchProps, TableRefreshProps, PageTablePaginationProps} from "./parts";
 export {TableDateFilter} from "./commands";
 
+type ScrollPosition = {
+    element: HTMLElement;
+    left: number;
+    top: number;
+    stickToEnd: boolean;
+};
+
+type PaginationScrollSnapshot = {
+    positions: ScrollPosition[];
+    data: unknown;
+};
+
+const collectScrollPositions = (root: HTMLElement | null): ScrollPosition[] => {
+    if (!root) return [];
+    const scrollingElement = document.scrollingElement;
+    const elements = new Set<HTMLElement>();
+    if (scrollingElement) elements.add(scrollingElement as HTMLElement);
+    const modal = root.closest<HTMLElement>(".ant-modal-wrap");
+    if (modal) elements.add(modal);
+    const dataPanel = root.querySelector<HTMLElement>(".ui-table-data");
+    if (dataPanel) elements.add(dataPanel);
+    for (let parent = root.parentElement; parent; parent = parent.parentElement) {
+        const style = window.getComputedStyle(parent);
+        if (parent.scrollHeight > parent.clientHeight && ["auto", "scroll", "overlay"].includes(style.overflowY)) {
+            elements.add(parent);
+        }
+    }
+    return [...elements].map((element) => {
+        const maxTop = Math.max(0, element.scrollHeight - element.clientHeight);
+        return {
+            element,
+            left: element.scrollLeft,
+            top: element.scrollTop,
+            stickToEnd: maxTop > 0 && maxTop - element.scrollTop <= 8,
+        };
+    });
+};
+
+const restoreScrollPositions = (positions: ScrollPosition[]) => {
+    positions.forEach(({element, left, top, stickToEnd}) => {
+        if (!element.isConnected) return;
+        const maxTop = Math.max(0, element.scrollHeight - element.clientHeight);
+        element.scrollLeft = left;
+        element.scrollTop = stickToEnd ? maxTop : Math.min(top, maxTop);
+    });
+};
+
 const Table = <RecordType extends object = any>(props: TableProps<RecordType>, ref: React.ForwardedRef<TableRef<RecordType>>) => {
     const {
-        hero, toolbar, contentBar, rowSelection, pagination, ariaLabel, rootClassName = "", empty, emptyContent,
+        hero, toolbar, contentBar, rowSelection, pagination, scrollToTopOnPageChange = false, paginationAffix = false, ariaLabel, rootClassName = "", empty, emptyContent,
         tableRender, request, params, defaultPage, defaultPageSize, defaultSort, manualRequest, requestEnabled,
         onLoad, onRequestError, onReload, onSortChange, dataSource, loading, rowKey = "id", ...tableProps
     } = props;
     const {styles} = useTableStyles();
     const rootRef = useRef<HTMLDivElement>(null);
+    const paginationScrollRef = useRef<PaginationScrollSnapshot | null>(null);
     const data = useTableData(props);
     const selection = useTableSelection(data.data, rowKey, rowSelection);
     const selectedKeys = selection.keys;
@@ -31,6 +79,7 @@ const Table = <RecordType extends object = any>(props: TableProps<RecordType>, r
     }, []);
     const searchConfig = toolbar ? toolbar.search : undefined;
     const [keyword, setKeyword] = useState("");
+    const [paginationAffixed, setPaginationAffixed] = useState(false);
     const searchValue = searchConfig?.value ?? keyword;
     const submittedSearch = useRef(searchValue);
     const searchTimer = useRef<number | undefined>(undefined);
@@ -79,10 +128,50 @@ const Table = <RecordType extends object = any>(props: TableProps<RecordType>, r
     const refresh = toolbar && toolbar.refresh;
     const showEmpty = empty ?? data.data.length === 0;
     const spinning = typeof data.loading === "boolean" ? data.loading : Boolean(data.loading?.spinning);
+    const changePage = useCallback((page: number, pageSize: number) => {
+        if (scrollToTopOnPageChange) {
+            paginationScrollRef.current = null;
+            data.changePage(page, pageSize);
+            scrollToTop();
+            return;
+        }
+        paginationScrollRef.current = {
+            positions: collectScrollPositions(rootRef.current),
+            data: data.data,
+        };
+        data.changePage(page, pageSize);
+    }, [data.changePage, data.data, scrollToTop, scrollToTopOnPageChange]);
+
+    useLayoutEffect(() => {
+        const snapshot = paginationScrollRef.current;
+        if (!snapshot) return;
+        restoreScrollPositions(snapshot.positions);
+        let secondFrame = 0;
+        const firstFrame = window.requestAnimationFrame(() => {
+            restoreScrollPositions(snapshot.positions);
+            secondFrame = window.requestAnimationFrame(() => restoreScrollPositions(snapshot.positions));
+        });
+        const timeout = window.setTimeout(() => {
+            if (paginationScrollRef.current === snapshot) paginationScrollRef.current = null;
+        }, 1200);
+        if (data.data !== snapshot.data) paginationScrollRef.current = null;
+        return () => {
+            window.cancelAnimationFrame(firstFrame);
+            window.cancelAnimationFrame(secondFrame);
+            window.clearTimeout(timeout);
+        };
+    }, [data.data, data.loading, data.page, data.pageSize]);
     const table = showEmpty ? <div className={styles.state} role="status">
         {spinning ? <Spin/> : emptyContent ?? <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无数据"/>}
     </div> : <DataTable<RecordType> {...tableProps} dataSource={data.data} loading={data.loading}
                             rowKey={rowKey} rowSelection={selection.rowSelection} onSortChange={data.changeSort}/>;
+    const paginationContent = pagination !== false && data.total > 0 ? (
+        <nav className="ui-table-pagination" aria-label="表格分页">
+            <TablePagination {...pagination} affixed={paginationAffix && paginationAffixed} page={data.page} pageSize={data.pageSize} total={data.total}
+                             disabled={pagination?.disabled ?? spinning}
+                             onChange={changePage}/>
+        </nav>
+    ) : null;
 
     return (
         <div ref={rootRef} className={`${styles.page} ui-table-root ${rootClassName}`}>
@@ -122,11 +211,11 @@ const Table = <RecordType extends object = any>(props: TableProps<RecordType>, r
                     {tableRender ? tableRender(table) : table}
                 </div>
             </section>
-            {pagination !== false && data.total > 0 && <nav className="ui-table-pagination" aria-label="表格分页">
-                <TablePagination {...pagination} page={data.page} pageSize={data.pageSize} total={data.total}
-                                 disabled={pagination?.disabled ?? spinning}
-                                 onChange={(page, size) => {data.changePage(page, size); scrollToTop();}}/>
-            </nav>}
+            {paginationContent && (paginationAffix ? (
+                <Affix offsetBottom={15} onChange={(affixed) => setPaginationAffixed(Boolean(affixed))}>
+                    {paginationContent}
+                </Affix>
+            ) : paginationContent)}
         </div>
     );
 };

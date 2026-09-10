@@ -15,7 +15,7 @@ const defaultQuery: ListQuery = {
     path: "/",
     keyword: "",
     page: 1,
-    pageSize: 10,
+        pageSize: 20,
     generation: 0,
 };
 

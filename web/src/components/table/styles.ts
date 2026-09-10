@@ -790,6 +790,12 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
             background: ${token.colorBgContainer};
             box-shadow: ${token.boxShadowTertiary};
 
+            &.ui-table-pagination-affixed {
+                background: ${dark ? "rgba(255, 255, 255, .05)" : "rgba(255, 255, 255, .72)"};
+                box-shadow: 0 0 10px 4px ${dark ? "rgba(0, 0, 0, .2)" : "rgba(0, 0, 0, .05)"};
+                backdrop-filter: blur(8px);
+            }
+
             .ant-card-body {
                 padding: ${compact ? "10px 12px" : "14px 16px"} !important;
             }
@@ -824,6 +830,12 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
                 color: ${token.colorTextSecondary};
                 font-size: ${compact ? 11 : 12}px;
                 line-height: ${compact ? 22 : 26}px;
+            }
+
+            .ant-pagination-item a,
+            .ant-pagination-prev .ant-pagination-item-link,
+            .ant-pagination-next .ant-pagination-item-link {
+                color: ${token.colorTextTertiary};
             }
 
             .ant-pagination-item:hover,

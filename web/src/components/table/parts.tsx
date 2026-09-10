@@ -29,6 +29,7 @@ export interface PageTablePaginationProps {
     disabled?: boolean;
     unit?: string;
     pageSizeOptions?: number[];
+    affixed?: boolean;
     onChange: (page: number, pageSize: number) => void;
 }
 
@@ -39,6 +40,7 @@ export const TablePagination = ({
     disabled,
     unit = "项",
     pageSizeOptions = [10, 20, 50, 100],
+    affixed = false,
     onChange,
 }: PageTablePaginationProps) => {
     const {styles} = useTableStyles();
@@ -47,7 +49,7 @@ export const TablePagination = ({
     }
 
     return (
-        <Card className={styles.paginationCard} variant="borderless">
+        <Card className={`${styles.paginationCard} ${affixed ? "ui-table-pagination-affixed" : ""}`} variant="borderless">
             <ConfigProvider input={{variant: "filled"}}>
                 <Pagination
                     className={styles.pagination}

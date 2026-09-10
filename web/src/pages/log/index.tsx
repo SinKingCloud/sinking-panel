@@ -46,6 +46,7 @@ export default (): React.ReactNode => {
                 {...header}
                 {...table}
                 ariaLabel="操作日志"
+                paginationAffix
                 empty={list.initialized && list.logs.length === 0}
                 pagination={{
                     page: list.page,

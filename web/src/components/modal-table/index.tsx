@@ -9,7 +9,7 @@ import type {TableProps, TableRef} from "@/components/table";
 export type * from "@/components/table";
 
 /** 工具栏、筛选和请求参数复用 Table API，参见本目录 README。 */
-export interface ModalTableProps<RecordType extends object = any> extends Omit<TableProps<RecordType>, "title"> {
+export interface ModalTableProps<RecordType extends object = any> extends Omit<TableProps<RecordType>, "title" | "paginationAffix"> {
     title?: React.ReactNode;
     width?: ModalProps["width"];
     open?: boolean;
@@ -126,6 +126,7 @@ const ModalTableContent = <RecordType extends object = any>({tableRef, ...props}
 
     return <Table<RecordType>
         {...props}
+        paginationAffix={false}
         ref={tableRef}
         dataSource={waiting ? [] : props.dataSource}
         loading={waiting ? true : props.loading}
