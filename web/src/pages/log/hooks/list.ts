@@ -11,7 +11,7 @@ const useList = () => {
     const [dateRange, setDateRange] = useState<any>(null);
     const [query, setQuery] = useState({
         page: 1,
-        pageSize: 20,
+        pageSize: 10,
         keyword: "",
         type: "",
         createTimeStart: "",
