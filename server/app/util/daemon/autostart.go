@@ -188,26 +188,35 @@ func (u *Daemon) windowsTaskScriptPath(options AutoStartOptions) string {
 }
 
 func (u *Daemon) installWindowsTask(options AutoStartOptions) error {
-	for _, value := range []string{options.Executable, options.WorkingDirectory} {
-		if strings.ContainsRune(value, '"') {
-			return errors.New("Windows自启动路径不能包含双引号")
-		}
+	if err := u.writeWindowsTaskScript(options); err != nil {
+		return err
 	}
-	arguments := make([]string, 0, len(options.Arguments)+1)
-	for _, argument := range options.Arguments {
-		if strings.ContainsAny(argument, "\r\n\"") {
-			return errors.New("Windows自启动参数包含不支持的字符")
-		}
-		arguments = append(arguments, argument)
-	}
-	script := fmt.Sprintf("@echo off\r\ncd /d \"%s\"\r\n\"%s\" %s\r\n", options.WorkingDirectory, options.Executable, strings.Join(arguments, " "))
 	scriptPath := u.windowsTaskScriptPath(options)
-	if err := os.WriteFile(scriptPath, []byte(script), 0644); err != nil {
-		return fmt.Errorf("写入 Windows 自启动脚本失败: %w", err)
-	}
 	if err := u.commandOutput("schtasks.exe", "/Create", "/TN", options.Name, "/TR", fmt.Sprintf(`"%s"`, scriptPath), "/SC", "ONSTART", "/RU", "SYSTEM", "/F"); err != nil {
 		_ = os.Remove(scriptPath)
 		return err
+	}
+	return nil
+}
+
+// writeWindowsTaskScript 保存启动参数，供安装和带参数启动时共用。
+func (u *Daemon) writeWindowsTaskScript(options AutoStartOptions) error {
+	if strings.ContainsAny(options.WorkingDirectory, "\r\n\"") {
+		return errors.New("Windows自启动路径包含不支持的字符")
+	}
+	arguments := make([]string, 0, len(options.Arguments)+1)
+	for _, argument := range append([]string{options.Executable}, options.Arguments...) {
+		if strings.ContainsAny(argument, "\r\n\"") {
+			return errors.New("Windows自启动参数包含不支持的字符")
+		}
+		argument = strings.ReplaceAll(argument, "%", "%%")
+		argument += strings.Repeat(`\`, len(argument)-len(strings.TrimRight(argument, `\`)))
+		arguments = append(arguments, `"`+argument+`"`)
+	}
+	script := fmt.Sprintf("@echo off\r\nsetlocal DisableDelayedExpansion\r\ncd /d \"%s\"\r\n%s\r\n",
+		strings.ReplaceAll(options.WorkingDirectory, "%", "%%"), strings.Join(arguments, " "))
+	if err := os.WriteFile(u.windowsTaskScriptPath(options), []byte(script), 0644); err != nil {
+		return fmt.Errorf("写入 Windows 自启动脚本失败: %w", err)
 	}
 	return nil
 }

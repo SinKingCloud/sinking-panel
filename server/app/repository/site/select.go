@@ -17,7 +17,7 @@ func (r *Repository) SelectIdNameMap() (map[int64]string, error) {
 	if err := r.Database.Db.Model(&model.Site{}).
 		Select("id", "name").
 		Where("status = ?", site_status.Enabled).
-		Where("id IN (?)", r.Database.Db.Model(&model.Domain{}).Select("site_id")).
+		Where("id IN (?)", r.Database.Db.Model(&model.SiteDomain{}).Select("site_id")).
 		Order("id ASC").
 		Find(&data).Error; err != nil {
 		return nil, err

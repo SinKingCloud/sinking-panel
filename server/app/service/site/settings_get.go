@@ -10,7 +10,7 @@ import (
 )
 
 // GetDomains 读取网站当前域名和证书绑定。
-func (s *service) GetDomains(id int64) ([]*model.Domain, error) {
+func (s *service) GetDomains(id int64) ([]*model.SiteDomain, error) {
 	s.operationMu.Lock()
 	defer s.operationMu.Unlock()
 	if id <= 0 {
@@ -19,11 +19,11 @@ func (s *service) GetDomains(id int64) ([]*model.Domain, error) {
 	if _, err := s.repositorySite.FindById(id); err != nil {
 		return nil, s.nilIfNotFound("查询网站失败", err)
 	}
-	domains, err := s.repositoryDomain.SelectBySiteId(id)
+	domains, err := s.repositorySiteDomain.SelectBySiteId(id)
 	if err != nil {
 		return nil, fmt.Errorf("查询网站域名失败: %w", err)
 	}
-	return s.cloneDomainRecords(domains), nil
+	return s.cloneSiteDomainRecords(domains), nil
 }
 
 // GetSSL 读取网站 TLS 策略和域名证书绑定。
@@ -34,11 +34,11 @@ func (s *service) GetSSL(id int64) (*SSLSettings, error) {
 	if err != nil {
 		return nil, err
 	}
-	domains, err := s.repositoryDomain.SelectBySiteId(id)
+	domains, err := s.repositorySiteDomain.SelectBySiteId(id)
 	if err != nil {
 		return nil, fmt.Errorf("查询网站域名失败: %w", err)
 	}
-	return &SSLSettings{Config: config.TLS, Domains: s.cloneDomainRecords(domains)}, nil
+	return &SSLSettings{Config: config.TLS, Domains: s.cloneSiteDomainRecords(domains)}, nil
 }
 
 // GetWAF 读取网站 WAF 设置。

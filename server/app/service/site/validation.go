@@ -22,7 +22,7 @@ import (
 )
 
 // prepareSite 校验网站、规范配置，并生成可写入数据库的域名列表。
-func (s *service) prepareSite(data *model.Site, input []Domain, previous []*model.Domain, validateExistingCertificates bool, tx ...*gorm.DB) (interface{}, []*model.Domain, error) {
+func (s *service) prepareSite(data *model.Site, input []SiteDomain, previous []*model.SiteDomain, validateExistingCertificates bool, tx ...*gorm.DB) (interface{}, []*model.SiteDomain, error) {
 	if data == nil {
 		return nil, nil, errors.New("网站数据不能为空")
 	}
@@ -76,11 +76,11 @@ func (s *service) prepareSite(data *model.Site, input []Domain, previous []*mode
 	if len(input) == 0 && data.Type != site_type.General {
 		return nil, nil, errors.New("网站至少需要绑定一个域名")
 	}
-	previousByName := make(map[string]*model.Domain, len(previous))
+	previousByName := make(map[string]*model.SiteDomain, len(previous))
 	for _, domain := range previous {
 		previousByName[strings.ToLower(domain.Domain)] = domain
 	}
-	result := make([]*model.Domain, 0, len(input))
+	result := make([]*model.SiteDomain, 0, len(input))
 	seen := make(map[string]struct{}, len(input))
 	certIds := make(map[int64]struct{})
 	for _, item := range input {
@@ -95,7 +95,7 @@ func (s *service) prepareSite(data *model.Site, input []Domain, previous []*mode
 			return nil, nil, fmt.Errorf("网站域名重复: %s", domain)
 		}
 		seen[domain] = struct{}{}
-		exists, err := s.repositoryDomain.Exists(domain, data.Id, tx...)
+		exists, err := s.repositorySiteDomain.Exists(domain, data.Id, tx...)
 		if err != nil {
 			return nil, nil, fmt.Errorf("检查网站域名失败: %w", err)
 		}
@@ -106,7 +106,7 @@ func (s *service) prepareSite(data *model.Site, input []Domain, previous []*mode
 		if old := previousByName[domain]; old != nil {
 			id = old.Id
 		}
-		result = append(result, &model.Domain{Id: id, SiteId: data.Id, CertId: item.CertId, Domain: domain})
+		result = append(result, &model.SiteDomain{Id: id, SiteId: data.Id, CertId: item.CertId, Domain: domain})
 		if item.CertId > 0 {
 			certIds[item.CertId] = struct{}{}
 		}

@@ -67,6 +67,11 @@ func (u *Daemon) startWindows() error {
 	if err := u.commandOutput("schtasks.exe", "/Query", "/TN", options.Name); err != nil {
 		return fmt.Errorf("Windows 自启动任务不存在，请先执行 install: %w", err)
 	}
+	if len(options.Arguments) > 1 {
+		if err := u.writeWindowsTaskScript(options); err != nil {
+			return err
+		}
+	}
 	if err := u.commandOutput("schtasks.exe", "/Run", "/TN", options.Name); err != nil {
 		return fmt.Errorf("启动 Windows 服务任务失败: %w", err)
 	}

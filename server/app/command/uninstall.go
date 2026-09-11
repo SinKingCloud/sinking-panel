@@ -74,8 +74,8 @@ func (s *Server) uninstall() error {
 		filepath.Join(root, pidFileName),
 		filepath.Join(root, logFileName),
 	}
-	// data 保存网站文件，卸载时只清理临时文件和面板配置。
-	directoryValues := []string{constant.RuntimePath, constant.DBPath, constant.ConfPath}
+	// 面板配置和数据库位于 data/server，网站文件所在目录保留。
+	directoryValues := []string{constant.RuntimePath, constant.PanelDataPath}
 	directories := make([]string, 0, len(directoryValues))
 	seenDirectories := make(map[string]struct{}, len(directoryValues))
 	for _, directoryValue := range directoryValues {

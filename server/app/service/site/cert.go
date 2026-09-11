@@ -121,7 +121,7 @@ func (s *service) DeleteCert(id int64) error {
 		if _, err := s.repositoryCert.FindById(id, tx); err != nil {
 			return err
 		}
-		count, err := s.repositoryDomain.CountByCertId(id, tx)
+		count, err := s.repositorySiteDomain.CountByCertId(id, tx)
 		if err != nil {
 			return fmt.Errorf("查询证书引用失败: %w", err)
 		}
@@ -499,7 +499,7 @@ func (s *service) restoreCertificate(data *model.Cert) error {
 }
 
 func (s *service) syncCertificateLocked(id int64, action string, rollback func() error) error {
-	if count, err := s.repositoryDomain.CountByCertId(id); err == nil && count == 0 {
+	if count, err := s.repositorySiteDomain.CountByCertId(id); err == nil && count == 0 {
 		return nil
 	}
 	if err := s.syncLocked(); err != nil {

@@ -6,8 +6,8 @@ import (
 
 	"server/app/model"
 	certRepository "server/app/repository/cert"
-	domainRepository "server/app/repository/domain"
 	siteRepository "server/app/repository/site"
+	siteDomainRepository "server/app/repository/site_domain"
 	configService "server/app/service/config"
 	typeService "server/app/service/types"
 	"server/app/util/cache"
@@ -33,10 +33,10 @@ type Service interface {
 	ClearLog(id int64, logType webServer.LogType) error
 	Create(data *CreateSite) (*Site, error)
 	Update(id int64, data *UpdateSite) error
-	GetDomains(id int64) ([]*model.Domain, error)
+	GetDomains(id int64) ([]*model.SiteDomain, error)
 	UpdateDomains(id int64, domains []string) error
 	GetSSL(id int64) (*SSLSettings, error)
-	UpdateSSL(id int64, config *TLSUpdate, bindings []DomainCertificate) error
+	UpdateSSL(id int64, config *TLSUpdate, bindings []SiteDomainCertificate) error
 	GetWAF(id int64) (*webServer.WAFOptions, error)
 	UpdateWAF(id int64, config *WAFUpdate) error
 	GetCache(id int64) (*CacheConfig, error)
@@ -80,23 +80,23 @@ type Service interface {
 
 // service 注入网站、域名、证书仓储和运行时管理器。
 type service struct {
-	repositorySite   siteRepository.Interface
-	repositoryDomain domainRepository.Interface
-	repositoryCert   certRepository.Interface
-	typeService      typeService.Service
-	config           configService.Service
-	cache            cache.Interface
-	database         *database.Database
-	http             *webServer.Manager
-	process          *processManager.Manager
-	processes        []processManager.Config
-	root             string
-	active           bool
-	operationMu      sync.Mutex
-	logMu            sync.RWMutex
+	repositorySite       siteRepository.Interface
+	repositorySiteDomain siteDomainRepository.Interface
+	repositoryCert       certRepository.Interface
+	typeService          typeService.Service
+	config               configService.Service
+	cache                cache.Interface
+	database             *database.Database
+	http                 *webServer.Manager
+	process              *processManager.Manager
+	processes            []processManager.Config
+	root                 string
+	active               bool
+	operationMu          sync.Mutex
+	logMu                sync.RWMutex
 }
 
 // NewService 创建网站管理服务。
-func NewService(repositorySite siteRepository.Interface, repositoryDomain domainRepository.Interface, repositoryCert certRepository.Interface, typeService typeService.Service, config configService.Service, database *database.Database, cache cache.Interface, options ...Options) (*service, error) {
-	return newService(repositorySite, repositoryDomain, repositoryCert, typeService, config, database, cache, options...)
+func NewService(repositorySite siteRepository.Interface, repositorySiteDomain siteDomainRepository.Interface, repositoryCert certRepository.Interface, typeService typeService.Service, config configService.Service, database *database.Database, cache cache.Interface, options ...Options) (*service, error) {
+	return newService(repositorySite, repositorySiteDomain, repositoryCert, typeService, config, database, cache, options...)
 }

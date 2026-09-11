@@ -12,10 +12,10 @@ import (
 // SSL 获取或更新网站 TLS 策略和域名证书绑定。
 func SSL(c *context.Context) {
 	var form struct {
-		Action   string                          `json:"action" default:"get" validate:"required,oneof=get set" label:"操作类型"`
-		Id       int64                           `json:"id" default:"0" validate:"required,min=1" label:"网站ID"`
-		Config   *siteService.TLSUpdate          `json:"config" validate:"omitempty" label:"SSL配置"`
-		Bindings []siteService.DomainCertificate `json:"bindings" validate:"omitempty,max=1000,dive" label:"证书绑定"`
+		Action   string                              `json:"action" default:"get" validate:"required,oneof=get set" label:"操作类型"`
+		Id       int64                               `json:"id" default:"0" validate:"required,min=1" label:"网站ID"`
+		Config   *siteService.TLSUpdate              `json:"config" validate:"omitempty" label:"SSL配置"`
+		Bindings []siteService.SiteDomainCertificate `json:"bindings" validate:"omitempty,max=1000,dive" label:"证书绑定"`
 	}
 	if ok, message := c.ValidatorAll(&form); !ok {
 		c.Error(message)

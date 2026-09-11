@@ -49,7 +49,7 @@ type RouteConfig struct {
 	Response      *webServer.ResponseOptions `json:"response"`      // 固定响应或跳转配置
 }
 
-// TLSConfig 保存站点级 TLS 策略，证书由域名表的 cert_id 关联。
+// TLSConfig 保存站点级 TLS 策略，证书由网站域名表的 cert_id 关联。
 type TLSConfig struct {
 	RedirectHTTP bool   `json:"redirect_http"` // 是否将已开启 SSL 的域名跳转到 HTTPS
 	MinVersion   string `json:"min_version"`   // 最低 TLS 版本
@@ -58,12 +58,12 @@ type TLSConfig struct {
 
 // SSLSettings 保存 TLS 策略和网站当前域名证书绑定。
 type SSLSettings struct {
-	Config  TLSConfig       `json:"config"`  // TLS 策略
-	Domains []*model.Domain `json:"domains"` // 域名及证书绑定
+	Config  TLSConfig           `json:"config"`  // TLS 策略
+	Domains []*model.SiteDomain `json:"domains"` // 域名及证书绑定
 }
 
-// DomainCertificate 保存一次域名证书绑定更新。
-type DomainCertificate struct {
+// SiteDomainCertificate 保存一次域名证书绑定更新。
+type SiteDomainCertificate struct {
 	DomainId int64 `json:"domain_id"` // 域名 ID
 	CertId   int64 `json:"cert_id"`   // 证书 ID，0 表示关闭 SSL
 }
@@ -293,8 +293,8 @@ type ProcessConfig struct {
 	StopTimeout  time.Duration     `json:"stop_timeout"`  // 停止命令的最长等待时间
 }
 
-// Domain 保存网站域名和证书绑定。
-type Domain struct {
+// SiteDomain 保存网站域名和证书绑定。
+type SiteDomain struct {
 	Domain string `json:"domain"`  // 域名或通配符域名
 	CertId int64  `json:"cert_id"` // 证书 ID，0 表示仅使用 HTTP
 }

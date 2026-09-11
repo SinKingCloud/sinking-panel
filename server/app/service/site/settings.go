@@ -15,7 +15,7 @@ func (s *service) UpdateDomains(id int64, domains []string) error {
 	if id <= 0 {
 		return errors.New("网站 ID 不合法")
 	}
-	previous, err := s.repositoryDomain.SelectBySiteId(id)
+	previous, err := s.repositorySiteDomain.SelectBySiteId(id)
 	if err != nil {
 		return fmt.Errorf("查询网站域名失败: %w", err)
 	}
@@ -30,19 +30,19 @@ func (s *service) UpdateDomains(id int64, domains []string) error {
 		}
 		certificateByDomain[normalized] = domain.CertId
 	}
-	input := make([]Domain, 0, len(domains))
+	input := make([]SiteDomain, 0, len(domains))
 	for _, value := range domains {
 		domain, normalizeErr := s.normalizeDomain(value)
 		if normalizeErr != nil {
 			return normalizeErr
 		}
-		input = append(input, Domain{Domain: domain, CertId: certificateByDomain[domain]})
+		input = append(input, SiteDomain{Domain: domain, CertId: certificateByDomain[domain]})
 	}
 	return s.updateLocked(id, &siteMutation{Domains: &input})
 }
 
 // UpdateSSL 更新 TLS 策略和列出的域名证书绑定。
-func (s *service) UpdateSSL(id int64, config *TLSUpdate, bindings []DomainCertificate) error {
+func (s *service) UpdateSSL(id int64, config *TLSUpdate, bindings []SiteDomainCertificate) error {
 	if config == nil && len(bindings) == 0 {
 		return errors.New("SSL 配置和证书绑定不能同时为空")
 	}
@@ -68,20 +68,20 @@ func (s *service) UpdateSSL(id int64, config *TLSUpdate, bindings []DomainCertif
 			return err
 		}
 	}
-	var domainInput *[]Domain
+	var domainInput *[]SiteDomain
 	if len(bindings) > 0 {
-		domains, queryErr := s.repositoryDomain.SelectBySiteId(id)
+		domains, queryErr := s.repositorySiteDomain.SelectBySiteId(id)
 		if queryErr != nil {
 			return fmt.Errorf("查询网站域名失败: %w", queryErr)
 		}
 		indices := make(map[int64]int, len(domains))
-		updated := make([]Domain, 0, len(domains))
+		updated := make([]SiteDomain, 0, len(domains))
 		for _, domain := range domains {
 			if domain == nil {
 				continue
 			}
 			indices[domain.Id] = len(updated)
-			updated = append(updated, Domain{Domain: domain.Domain, CertId: domain.CertId})
+			updated = append(updated, SiteDomain{Domain: domain.Domain, CertId: domain.CertId})
 		}
 		seen := make(map[int64]struct{}, len(bindings))
 		for _, binding := range bindings {
@@ -661,7 +661,7 @@ func (s *service) loadConfigLocked(id int64) (interface{}, error) {
 	return config, nil
 }
 
-func (s *service) saveConfigLocked(id int64, config interface{}, domains *[]Domain) error {
+func (s *service) saveConfigLocked(id int64, config interface{}, domains *[]SiteDomain) error {
 	encoded, err := json.Marshal(config)
 	if err != nil {
 		return fmt.Errorf("网站配置格式化失败: %w", err)

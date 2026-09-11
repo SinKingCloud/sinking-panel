@@ -1,4 +1,4 @@
-package domain
+package site_domain
 
 import (
 	"server/app/model"
@@ -9,13 +9,13 @@ import (
 
 // Interface 网站域名仓储接口。
 type Interface interface {
-	CreateBatch(data []*model.Domain, tx ...*gorm.DB) error
+	CreateBatch(data []*model.SiteDomain, tx ...*gorm.DB) error
 	CountByCertId(certId int64, tx ...*gorm.DB) (int64, error)
 	DeleteBySiteId(siteId int64, tx ...*gorm.DB) error
 	Exists(domain string, excludeSiteId int64, tx ...*gorm.DB) (bool, error)
-	FindById(id int64, tx ...*gorm.DB) (*model.Domain, error)
-	SelectBySiteId(siteId int64, tx ...*gorm.DB) ([]*model.Domain, error)
-	SelectBySiteIds(siteIds []int64, tx ...*gorm.DB) ([]*model.Domain, error)
+	FindById(id int64, tx ...*gorm.DB) (*model.SiteDomain, error)
+	SelectBySiteId(siteId int64, tx ...*gorm.DB) ([]*model.SiteDomain, error)
+	SelectBySiteIds(siteIds []int64, tx ...*gorm.DB) ([]*model.SiteDomain, error)
 	UpdateCertId(id, certId int64, tx ...*gorm.DB) error
 }
 

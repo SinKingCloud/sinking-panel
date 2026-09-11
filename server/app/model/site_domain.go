@@ -7,8 +7,8 @@ import (
 	"gorm.io/gorm"
 )
 
-// Domain 网站域名表
-type Domain struct {
+// SiteDomain 网站域名表
+type SiteDomain struct {
 	Id         int64        `gorm:"column:id;PRIMARY_KEY" json:"id"`       // 域名ID
 	SiteId     int64        `gorm:"column:site_id" json:"site_id"`         // 所属网站ID
 	CertId     int64        `gorm:"column:cert_id" json:"cert_id"`         // 证书ID，0表示未开启SSL
@@ -18,12 +18,12 @@ type Domain struct {
 }
 
 // TableName 获取表名
-func (*Domain) TableName() string {
-	return "cloud_domains"
+func (*SiteDomain) TableName() string {
+	return "cloud_site_domains"
 }
 
 // BeforeCreate 创建前
-func (d *Domain) BeforeCreate(_ *gorm.DB) error {
+func (d *SiteDomain) BeforeCreate(_ *gorm.DB) error {
 	now := str.DateTime(time.Now())
 	d.CreateTime = now
 	d.UpdateTime = now
@@ -31,7 +31,7 @@ func (d *Domain) BeforeCreate(_ *gorm.DB) error {
 }
 
 // BeforeUpdate 更新前
-func (d *Domain) BeforeUpdate(_ *gorm.DB) error {
+func (d *SiteDomain) BeforeUpdate(_ *gorm.DB) error {
 	d.UpdateTime = str.DateTime(time.Now())
 	return nil
 }

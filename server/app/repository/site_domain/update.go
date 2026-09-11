@@ -1,4 +1,4 @@
-package domain
+package site_domain
 
 import (
 	"errors"
@@ -14,7 +14,7 @@ func (r *Repository) UpdateCertId(id, certId int64, tx ...*gorm.DB) error {
 	if certId < 0 {
 		return errors.New("证书 ID 不能小于 0")
 	}
-	result := r.db(tx...).Model(&model.Domain{}).Where("id = ?", id).Updates(map[string]interface{}{
+	result := r.db(tx...).Model(&model.SiteDomain{}).Where("id = ?", id).Updates(map[string]interface{}{
 		"cert_id":     certId,
 		"update_time": str.DateTime(time.Now()),
 	})

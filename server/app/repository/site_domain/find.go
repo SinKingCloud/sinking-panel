@@ -1,4 +1,4 @@
-package domain
+package site_domain
 
 import (
 	"server/app/model"
@@ -7,14 +7,14 @@ import (
 )
 
 // FindById 通过 ID 查询网站域名。
-func (r *Repository) FindById(id int64, tx ...*gorm.DB) (data *model.Domain, err error) {
+func (r *Repository) FindById(id int64, tx ...*gorm.DB) (data *model.SiteDomain, err error) {
 	err = r.db(tx...).Where("id = ?", id).First(&data).Error
 	return
 }
 
 // Exists 查询域名是否已被其他网站使用。
 func (r *Repository) Exists(domain string, excludeSiteId int64, tx ...*gorm.DB) (bool, error) {
-	query := r.db(tx...).Model(&model.Domain{}).Where("LOWER(domain) = LOWER(?)", domain)
+	query := r.db(tx...).Model(&model.SiteDomain{}).Where("LOWER(domain) = LOWER(?)", domain)
 	if excludeSiteId > 0 {
 		query = query.Where("site_id <> ?", excludeSiteId)
 	}

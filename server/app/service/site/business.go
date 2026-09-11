@@ -28,7 +28,7 @@ type siteMutation struct {
 	Root    *string
 	RunPath *string
 	Config  *string
-	Domains *[]Domain
+	Domains *[]SiteDomain
 }
 
 // Create 创建网站及其域名，并同步运行时配置。
@@ -146,9 +146,9 @@ func (s *service) Create(data *CreateSite) (*Site, error) {
 		createdRoot = false
 		return nil
 	}
-	domainInput := make([]Domain, 0, len(data.Domains))
+	domainInput := make([]SiteDomain, 0, len(data.Domains))
 	for _, domain := range data.Domains {
-		domainInput = append(domainInput, Domain{Domain: domain})
+		domainInput = append(domainInput, SiteDomain{Domain: domain})
 	}
 
 	record := &model.Site{
@@ -161,7 +161,7 @@ func (s *service) Create(data *CreateSite) (*Site, error) {
 		RunPath: data.RunPath,
 		Config:  config,
 	}
-	var domains []*model.Domain
+	var domains []*model.SiteDomain
 	err = s.database.Transaction(func(tx *gorm.DB) error {
 		var prepareErr error
 		_, domains, prepareErr = s.prepareSite(record, domainInput, nil, false, tx)
@@ -171,7 +171,7 @@ func (s *service) Create(data *CreateSite) (*Site, error) {
 		if createErr := s.repositorySite.Create(record, tx); createErr != nil {
 			return fmt.Errorf("创建网站失败: %w", createErr)
 		}
-		if createErr := s.repositoryDomain.CreateBatch(domains, tx); createErr != nil {
+		if createErr := s.repositorySiteDomain.CreateBatch(domains, tx); createErr != nil {
 			return fmt.Errorf("创建网站域名失败: %w", createErr)
 		}
 		return nil
@@ -223,11 +223,11 @@ func (s *service) updateLocked(id int64, data *siteMutation) error {
 		data.RunPath == nil && data.Config == nil && data.Domains == nil {
 		return nil
 	}
-	previousDomains, err := s.repositoryDomain.SelectBySiteId(id)
+	previousDomains, err := s.repositorySiteDomain.SelectBySiteId(id)
 	if err != nil {
 		return fmt.Errorf("查询网站域名失败: %w", err)
 	}
-	previousDomains = s.cloneDomainRecords(previousDomains)
+	previousDomains = s.cloneSiteDomainRecords(previousDomains)
 
 	candidate := *previous
 	if data.Name != nil {
@@ -255,14 +255,14 @@ func (s *service) updateLocked(id int64, data *siteMutation) error {
 		return err
 	}
 	domainsChanged := data.Domains != nil
-	domainInput := s.domainValues(previousDomains)
+	domainInput := s.siteDomainValues(previousDomains)
 	if domainsChanged {
-		domainInput = append([]Domain(nil), (*data.Domains)...)
+		domainInput = append([]SiteDomain(nil), (*data.Domains)...)
 	}
 	previousDefault := s.http.Options().DefaultSite
 	clearDefault := domainsChanged && len(domainInput) == 0 && previousDefault == strconv.FormatInt(id, 10)
 
-	var domains []*model.Domain
+	var domains []*model.SiteDomain
 	err = s.database.Transaction(func(tx *gorm.DB) error {
 		var prepareErr error
 		validateCertificates := data.Status != nil && previous.Status != candidate.Status && candidate.Status == site_status.Enabled
@@ -274,10 +274,10 @@ func (s *service) updateLocked(id int64, data *siteMutation) error {
 			return fmt.Errorf("更新网站失败: %w", updateErr)
 		}
 		if domainsChanged {
-			if deleteErr := s.repositoryDomain.DeleteBySiteId(id, tx); deleteErr != nil {
+			if deleteErr := s.repositorySiteDomain.DeleteBySiteId(id, tx); deleteErr != nil {
 				return fmt.Errorf("更新网站域名前清理旧数据失败: %w", deleteErr)
 			}
-			if createErr := s.repositoryDomain.CreateBatch(domains, tx); createErr != nil {
+			if createErr := s.repositorySiteDomain.CreateBatch(domains, tx); createErr != nil {
 				return fmt.Errorf("更新网站域名失败: %w", createErr)
 			}
 		}
@@ -466,11 +466,11 @@ func (s *service) Delete(id int64, deleteRoot bool) error {
 		return s.updateHTTPLocked(&HTTPUpdate{DefaultSite: &previousHTTP.DefaultSite})
 	}
 	previous = s.cloneSiteRecord(previous)
-	previousDomains, err := s.repositoryDomain.SelectBySiteId(id)
+	previousDomains, err := s.repositorySiteDomain.SelectBySiteId(id)
 	if err != nil {
 		return fmt.Errorf("查询网站域名失败: %w", err)
 	}
-	previousDomains = s.cloneDomainRecords(previousDomains)
+	previousDomains = s.cloneSiteDomainRecords(previousDomains)
 	logPaths := make([]string, 0, 3)
 	for _, logType := range []webServer.LogType{webServer.LogAccess, webServer.LogWAF, webServer.LogProcess} {
 		path, pathErr := s.http.LogPath(strconv.FormatInt(id, 10), logType)
@@ -487,7 +487,7 @@ func (s *service) Delete(id int64, deleteRoot bool) error {
 	}
 
 	err = s.database.Transaction(func(tx *gorm.DB) error {
-		if deleteErr := s.repositoryDomain.DeleteBySiteId(id, tx); deleteErr != nil {
+		if deleteErr := s.repositorySiteDomain.DeleteBySiteId(id, tx); deleteErr != nil {
 			return fmt.Errorf("删除网站域名失败: %w", deleteErr)
 		}
 		if deleteErr := s.repositorySite.DeleteById(id, tx); deleteErr != nil {
@@ -669,7 +669,7 @@ func (s *service) ClearCache(id int64) error {
 
 func (s *service) removeSiteRecords(id int64) error {
 	return s.database.Transaction(func(tx *gorm.DB) error {
-		if err := s.repositoryDomain.DeleteBySiteId(id, tx); err != nil {
+		if err := s.repositorySiteDomain.DeleteBySiteId(id, tx); err != nil {
 			return fmt.Errorf("补偿删除网站域名失败: %w", err)
 		}
 		if err := s.repositorySite.DeleteById(id, tx); err != nil {
@@ -679,9 +679,9 @@ func (s *service) removeSiteRecords(id int64) error {
 	})
 }
 
-func (s *service) restoreSiteRecords(record *model.Site, domains []*model.Domain) error {
+func (s *service) restoreSiteRecords(record *model.Site, domains []*model.SiteDomain) error {
 	return s.database.Transaction(func(tx *gorm.DB) error {
-		if err := s.repositoryDomain.DeleteBySiteId(record.Id, tx); err != nil {
+		if err := s.repositorySiteDomain.DeleteBySiteId(record.Id, tx); err != nil {
 			return fmt.Errorf("补偿清理网站域名失败: %w", err)
 		}
 		if err := s.repositorySite.DeleteById(record.Id, tx); err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
@@ -692,7 +692,7 @@ func (s *service) restoreSiteRecords(record *model.Site, domains []*model.Domain
 		if err := s.repositorySite.Create(&restoredSite, withoutHooks); err != nil {
 			return fmt.Errorf("补偿恢复网站失败: %w", err)
 		}
-		if err := s.repositoryDomain.CreateBatch(s.cloneDomainRecords(domains), withoutHooks); err != nil {
+		if err := s.repositorySiteDomain.CreateBatch(s.cloneSiteDomainRecords(domains), withoutHooks); err != nil {
 			return fmt.Errorf("补偿恢复网站域名失败: %w", err)
 		}
 		return nil
@@ -710,11 +710,11 @@ func (s *service) completeSiteUpdate(record *model.Site) *siteRepository.UpdateS
 	}
 }
 
-func (s *service) domainValues(records []*model.Domain) []Domain {
-	result := make([]Domain, 0, len(records))
+func (s *service) siteDomainValues(records []*model.SiteDomain) []SiteDomain {
+	result := make([]SiteDomain, 0, len(records))
 	for _, record := range records {
 		if record != nil {
-			result = append(result, Domain{Domain: record.Domain, CertId: record.CertId})
+			result = append(result, SiteDomain{Domain: record.Domain, CertId: record.CertId})
 		}
 	}
 	return result
@@ -728,8 +728,8 @@ func (s *service) cloneSiteRecord(record *model.Site) *model.Site {
 	return &clone
 }
 
-func (s *service) cloneDomainRecords(records []*model.Domain) []*model.Domain {
-	result := make([]*model.Domain, 0, len(records))
+func (s *service) cloneSiteDomainRecords(records []*model.SiteDomain) []*model.SiteDomain {
+	result := make([]*model.SiteDomain, 0, len(records))
 	for _, record := range records {
 		if record == nil {
 			continue

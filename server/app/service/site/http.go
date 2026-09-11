@@ -59,7 +59,7 @@ func (s *service) updateHTTPLocked(config *HTTPUpdate) error {
 			if record.Status != site_status.Enabled {
 				return errors.New("默认站点必须处于启用状态")
 			}
-			domains, queryErr := s.repositoryDomain.SelectBySiteId(id)
+			domains, queryErr := s.repositorySiteDomain.SelectBySiteId(id)
 			if queryErr != nil {
 				return fmt.Errorf("查询默认站点域名失败: %w", queryErr)
 			}

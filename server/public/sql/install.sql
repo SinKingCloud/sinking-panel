@@ -203,10 +203,10 @@ create index if not exists cloud_certs_type_index
 create index if not exists cloud_certs_updateTime_index
     on cloud_certs (update_time);
 
-create table if not exists cloud_domains
+create table if not exists cloud_site_domains
 (
     id          bigint            not null
-        constraint cloud_domains_pk_id
+        constraint cloud_site_domains_pk_id
             primary key,
     site_id     bigint            not null,
     cert_id     bigint  default 0 not null,
@@ -215,17 +215,17 @@ create table if not exists cloud_domains
     create_time text
 );
 
-create index if not exists cloud_domains_createTime_index
-    on cloud_domains (create_time);
+create index if not exists cloud_site_domains_createTime_index
+    on cloud_site_domains (create_time);
 
-create index if not exists cloud_domains_domain_index
-    on cloud_domains (domain);
+create index if not exists cloud_site_domains_domain_index
+    on cloud_site_domains (domain);
 
-create index if not exists cloud_domains_siteId_index
-    on cloud_domains (site_id);
+create index if not exists cloud_site_domains_siteId_index
+    on cloud_site_domains (site_id);
 
-create index if not exists cloud_domains_certId_index
-    on cloud_domains (cert_id);
+create index if not exists cloud_site_domains_certId_index
+    on cloud_site_domains (cert_id);
 
-create index if not exists cloud_domains_updateTime_index
-    on cloud_domains (update_time);
+create index if not exists cloud_site_domains_updateTime_index
+    on cloud_site_domains (update_time);

@@ -11,8 +11,8 @@ import (
 	"server/app/enum/site_type"
 	"server/app/model"
 	certRepository "server/app/repository/cert"
-	domainRepository "server/app/repository/domain"
 	siteRepository "server/app/repository/site"
+	siteDomainRepository "server/app/repository/site_domain"
 	configService "server/app/service/config"
 	typeService "server/app/service/types"
 	"server/app/util/cache"
@@ -48,8 +48,8 @@ func (s *service) Boot() func() {
 	}
 }
 
-func newService(repositorySite siteRepository.Interface, repositoryDomain domainRepository.Interface, repositoryCert certRepository.Interface, typeService typeService.Service, configService configService.Service, database *database.Database, cache cache.Interface, options ...Options) (*service, error) {
-	if repositorySite == nil || repositoryDomain == nil || repositoryCert == nil || typeService == nil || configService == nil || database == nil || database.Db == nil || cache == nil {
+func newService(repositorySite siteRepository.Interface, repositorySiteDomain siteDomainRepository.Interface, repositoryCert certRepository.Interface, typeService typeService.Service, configService configService.Service, database *database.Database, cache cache.Interface, options ...Options) (*service, error) {
+	if repositorySite == nil || repositorySiteDomain == nil || repositoryCert == nil || typeService == nil || configService == nil || database == nil || database.Db == nil || cache == nil {
 		return nil, errors.New("网站服务依赖不能为空")
 	}
 	if len(options) > 1 {
@@ -92,15 +92,15 @@ func newService(repositorySite siteRepository.Interface, repositoryDomain domain
 		*item.target = filepath.Clean(*item.target)
 	}
 	result := &service{
-		repositorySite:   repositorySite,
-		repositoryDomain: repositoryDomain,
-		repositoryCert:   repositoryCert,
-		typeService:      typeService,
-		config:           configService,
-		cache:            cache,
-		database:         database,
-		root:             filepath.Clean(root),
-		active:           true,
+		repositorySite:       repositorySite,
+		repositorySiteDomain: repositorySiteDomain,
+		repositoryCert:       repositoryCert,
+		typeService:          typeService,
+		config:               configService,
+		cache:                cache,
+		database:             database,
+		root:                 filepath.Clean(root),
+		active:               true,
 	}
 	result.process = processManager.NewManager()
 	if len(options) == 0 {
@@ -328,7 +328,7 @@ func (s *service) cloneProcessConfigs(configs []processManager.Config) []process
 
 func (s *service) runtime() ([]webServer.Site, []processManager.Config, error) {
 	var records []*model.Site
-	var domains []*model.Domain
+	var domains []*model.SiteDomain
 	var certificates []*model.Cert
 	err := s.database.Transaction(func(tx *gorm.DB) error {
 		var queryErr error
@@ -340,7 +340,7 @@ func (s *service) runtime() ([]webServer.Site, []processManager.Config, error) {
 		for _, record := range records {
 			siteIds = append(siteIds, record.Id)
 		}
-		domains, queryErr = s.repositoryDomain.SelectBySiteIds(siteIds, tx)
+		domains, queryErr = s.repositorySiteDomain.SelectBySiteIds(siteIds, tx)
 		if queryErr != nil {
 			return fmt.Errorf("查询网站域名失败: %w", queryErr)
 		}
@@ -363,7 +363,7 @@ func (s *service) runtime() ([]webServer.Site, []processManager.Config, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	domainsBySite := make(map[int64][]*model.Domain, len(records))
+	domainsBySite := make(map[int64][]*model.SiteDomain, len(records))
 	for _, domain := range domains {
 		domainsBySite[domain.SiteId] = append(domainsBySite[domain.SiteId], domain)
 	}
@@ -396,7 +396,7 @@ func (s *service) runtime() ([]webServer.Site, []processManager.Config, error) {
 	return result, processes, nil
 }
 
-func (s *service) runtimeSite(record *model.Site, domains []*model.Domain, certificates map[int64]*model.Cert, config interface{}) (webServer.Site, *processManager.Config, error) {
+func (s *service) runtimeSite(record *model.Site, domains []*model.SiteDomain, certificates map[int64]*model.Cert, config interface{}) (webServer.Site, *processManager.Config, error) {
 	if len(domains) == 0 && record.Type != site_type.General {
 		return webServer.Site{}, nil, fmt.Errorf("网站 %s 没有绑定域名", record.Name)
 	}

@@ -1,28 +1,29 @@
 package bootstrap
 
 import (
-	"github.com/spf13/viper"
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
 	"server/app/constant"
-	"server/app/util/file"
 	"server/global"
+
+	"github.com/spf13/viper"
 )
 
-// LoadConf 加载本地配置
+// LoadConf 加载可选本地配置，缺失时使用默认值，不创建目录或文件。
 func LoadConf() {
 	if global.App.Config != nil {
 		return
 	}
-	path := constant.ConfPath
-	fileName := constant.ConfFile
-	disk := file.NewDisk(path)
-	_ = disk.AutoCreate(fileName)
 	config := viper.New()
-	config.AutomaticEnv() //读取环境变量
-	config.AddConfigPath(path)
-	config.SetConfigName(fileName)
+	config.SetDefault(constant.ServerMode, "release")
+	config.SetDefault(constant.ServerHost, "0.0.0.0")
+	config.SetDefault(constant.ServerPort, 5678)
+	config.SetConfigFile(filepath.Join(constant.ConfPath, constant.ConfFile))
 	config.SetConfigType("yaml")
-	if err := config.ReadInConfig(); err != nil {
-		panic(err)
+	if err := config.ReadInConfig(); err != nil && !errors.Is(err, os.ErrNotExist) {
+		panic(fmt.Errorf("读取配置文件失败: %w", err))
 	}
 	global.App.SetConfig(config)
 }

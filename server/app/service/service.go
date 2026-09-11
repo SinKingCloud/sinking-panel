@@ -3,11 +3,11 @@ package service
 import (
 	certRepository "server/app/repository/cert"
 	configRepository "server/app/repository/config"
-	domainRepository "server/app/repository/domain"
 	logRepository "server/app/repository/log"
 	scriptRepository "server/app/repository/script"
 	serverRepository "server/app/repository/server"
 	siteRepository "server/app/repository/site"
+	siteDomainRepository "server/app/repository/site_domain"
 	taskRepository "server/app/repository/task"
 	typeRepository "server/app/repository/types"
 	"server/app/service/auth"
@@ -48,7 +48,7 @@ func Init() {
 	typeRepo := typeRepository.NewRepository(global.App.Database)
 	scriptRepo := scriptRepository.NewRepository(global.App.Database)
 	siteRepo := siteRepository.NewRepository(global.App.Database)
-	domainRepo := domainRepository.NewRepository(global.App.Database)
+	siteDomainRepo := siteDomainRepository.NewRepository(global.App.Database)
 	certRepo := certRepository.NewRepository(global.App.Database)
 
 	Config = config.NewService(configRepo, global.App.Cache)
@@ -62,7 +62,7 @@ func Init() {
 	Recycle = recycle.NewService()
 	System = system.NewService(File)
 	var err error
-	Site, err = siteService.NewService(siteRepo, domainRepo, certRepo, Type, Config, global.App.Database, global.App.Cache)
+	Site, err = siteService.NewService(siteRepo, siteDomainRepo, certRepo, Type, Config, global.App.Database, global.App.Cache)
 	if err != nil {
 		panic(err)
 	}

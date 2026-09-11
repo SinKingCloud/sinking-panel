@@ -1,4 +1,4 @@
-package domain
+package site_domain
 
 import (
 	"server/app/model"
@@ -7,7 +7,7 @@ import (
 )
 
 // CreateBatch 批量创建网站域名。
-func (r *Repository) CreateBatch(data []*model.Domain, tx ...*gorm.DB) error {
+func (r *Repository) CreateBatch(data []*model.SiteDomain, tx ...*gorm.DB) error {
 	if len(data) == 0 {
 		return nil
 	}
