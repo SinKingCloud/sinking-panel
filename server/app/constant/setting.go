@@ -1,11 +1,14 @@
 package constant
 
-// SensitiveGroups 保存不允许通用配置接口直接读取或修改的配置组。
-// 配置组下的所有配置项都会被视为敏感配置，新增受保护配置组时只需在这里补充。
-var SensitiveGroups = []string{
-	LoginGroup,
-	SshGroup,
-	SiteGroup,
+// SensitiveGroups 按配置组定义读取和修改策略。
+// Read 表示读取时脱敏，Write 表示禁止通过通用接口修改。
+var SensitiveGroups = map[string]struct {
+	Read  bool
+	Write bool
+}{
+	LoginGroup: {Read: true, Write: true},
+	SshGroup:   {Read: true, Write: true},
+	SiteGroup:  {Read: false, Write: true},
 }
 
 const (

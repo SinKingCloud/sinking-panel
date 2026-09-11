@@ -21,20 +21,20 @@ func Get(c *context.Context) {
 		c.Error(msg)
 		return
 	}
-	configKey := form.Group
-	if form.Key != "" {
-		configKey += "." + form.Key
-	}
-	isSensitive := false
-	for _, group := range constant.SensitiveGroups {
-		if configKey == group || strings.HasPrefix(configKey, group+".") {
-			isSensitive = true
-			break
+	policy := constant.SensitiveGroups[form.Group]
+	mask := func(value string) string {
+		characters := []rune(value)
+		if len(characters) == 0 {
+			return value
 		}
-	}
-	if isSensitive {
-		c.Error("配置不存在")
-		return
+		if len(characters) == 1 {
+			return string(characters[0]) + strings.Repeat("*", 4) + string(characters[0])
+		}
+		stars := len(characters) - 2
+		if stars < 4 {
+			stars = 4
+		}
+		return string(characters[0]) + strings.Repeat("*", stars) + string(characters[len(characters)-1])
 	}
 	content := "查看系统配置[" + form.Group + "]数据"
 	if form.Key != "" {
@@ -42,10 +42,22 @@ func Get(c *context.Context) {
 	}
 	service.Log.Create(c.GetRequestIp(), log_type.EventShow, "查看系统配置", content)
 	if form.Key != "" {
+		value := service.Config.Get(form.Group, form.Key)
+		if policy.Read {
+			value = mask(value)
+		}
 		c.SuccessWithData("获取数据成功", sinking_web.H{
-			form.Key: service.Config.Get(form.Group, form.Key),
+			form.Key: value,
 		})
 	} else {
-		c.SuccessWithData("获取数据成功", service.Config.Group(form.Group))
+		values := service.Config.Group(form.Group)
+		if policy.Read {
+			masked := make(map[string]string, len(values))
+			for key, value := range values {
+				masked[key] = mask(value)
+			}
+			values = masked
+		}
+		c.SuccessWithData("获取数据成功", values)
 	}
 }

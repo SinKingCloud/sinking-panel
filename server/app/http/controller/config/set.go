@@ -27,14 +27,11 @@ func Set(c *context.Context) {
 		if v == nil {
 			continue
 		}
-		isSensitive := false
-		for _, group := range constant.SensitiveGroups {
-			if v.Key == group || strings.HasPrefix(v.Key, group+".") {
-				isSensitive = true
-				break
-			}
+		group := v.Key
+		if index := strings.IndexByte(group, '.'); index > 0 {
+			group = group[:index]
 		}
-		if isSensitive {
+		if policy, ok := constant.SensitiveGroups[group]; ok && policy.Write {
 			continue
 		}
 		configs[v.Key] = v.Value
