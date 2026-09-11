@@ -774,6 +774,12 @@ const useStyles = createStyles<{compact?: boolean; dark?: boolean}>(({css, token
                 width: 100%;
                 height: 100%;
                 overflow: hidden;
+
+                /* 只恢复容器内的纵向滚动条，横向仍可滚动但不显示滚动条。 */
+                & ::-webkit-scrollbar {
+                    width: 8px !important;
+                    height: 0 !important;
+                }
             }
 
             .file-editor-loading,

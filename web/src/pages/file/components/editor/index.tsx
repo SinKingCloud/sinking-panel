@@ -629,6 +629,16 @@ const FileEditor = forwardRef(function FileEditor(
         aceRef.current = instance;
         setAceError(undefined);
         instance.textInput?.getElement?.()?.setAttribute("aria-label", "文件内容");
+        // Ace 在容器外测量时会受到全局隐藏规则影响，首次可见渲染后校正原生尺寸。
+        instance.renderer.once("afterRender", () => {
+            const probe = document.createElement("div");
+            probe.style.cssText = "position:absolute;width:100px;height:100px;overflow:scroll;visibility:hidden;pointer-events:none";
+            instance.container.appendChild(probe);
+            instance.renderer.scrollBarV.width = probe.offsetWidth - probe.clientWidth;
+            instance.renderer.scrollBarH.height = probe.offsetHeight - probe.clientHeight;
+            probe.remove();
+            instance.resize(true);
+        });
         const viewState = key ? viewStateRef.current.get(key) : undefined;
         if (viewState?.cursor) {
             instance.moveCursorToPosition?.(viewState.cursor);
