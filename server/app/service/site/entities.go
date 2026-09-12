@@ -8,11 +8,14 @@ import (
 	"server/app/util/str"
 )
 
-// CertificateRequest 在 ACME 请求上增加持久化设置，续签时未传入的字段沿用原值。
+// CertificateRequest 证书申请设置，DNS 验证使用已保存的密钥，续签时未传入的设置沿用原值。
 type CertificateRequest struct {
-	webServer.CertificateRequest
-	SecretId  *int64 `json:"secret_id"`  // DNS 凭据 ID，0 表示使用本次传入的凭据
-	AutoRenew *int   `json:"auto_renew"` // 是否自动续签：0 关闭，1 开启
+	Domain    string                         `json:"domain"`     // 申请证书的域名或公网 IP 地址
+	Email     string                         `json:"email"`      // ACME 账户邮箱
+	CA        webServer.CertificateCA        `json:"ca"`         // 证书签发环境
+	Challenge webServer.CertificateChallenge `json:"challenge"`  // 所有权验证方式
+	SecretId  *int64                         `json:"secret_id"`  // DNS 密钥 ID，DNS 申请和续签必须关联密钥
+	AutoRenew *int                           `json:"auto_renew"` // 是否自动续签：0 关闭，1 开启
 }
 
 // HTTPConfig 是四类网站共享的 HTTP 配置。

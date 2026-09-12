@@ -41,8 +41,3 @@ type BaiduCloud struct {
 	AccessKeyId     string `json:"baidu_access_key_id"`
 	SecretAccessKey string `json:"baidu_secret_access_key"`
 }
-
-// DNSPod 证书申请时手动填写的 DNSPod 密钥。
-type DNSPod struct {
-	APIToken string `json:"dnspod_api_token"`
-}

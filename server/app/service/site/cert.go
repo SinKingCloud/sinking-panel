@@ -96,7 +96,7 @@ func (s *service) UpdateCert(id int64, data *repositoryCert.UpdateCert) error {
 			if data.Challenge != nil {
 				request.Challenge = webServer.CertificateChallenge(*data.Challenge)
 			}
-			if err = s.prepareCertificateRequest(&candidate, &request, tx); err != nil {
+			if _, err = s.prepareCertificateRequest(&candidate, &request, tx); err != nil {
 				return err
 			}
 		}
@@ -236,10 +236,11 @@ func (s *service) ObtainCert(ctx context.Context, name string, request Certifica
 		Name: name,
 		Type: cert_type.ACME,
 	}
-	if err = s.prepareCertificateRequest(candidate, &request); err != nil {
+	acme, err := s.prepareCertificateRequest(candidate, &request)
+	if err != nil {
 		return nil, err
 	}
-	issued, err := s.http.ObtainCertificate(ctx, request.CertificateRequest)
+	issued, err := s.http.ObtainCertificate(ctx, acme)
 	if err != nil {
 		return nil, err
 	}
@@ -249,7 +250,7 @@ func (s *service) ObtainCert(ctx context.Context, name string, request Certifica
 		return nil, fmt.Errorf("申请得到的证书无效: %w", err)
 	}
 	if err = s.database.Transaction(func(tx *gorm.DB) error {
-		if err := s.checkCertificateSecret(candidate, request, tx); err != nil {
+		if err := s.checkCertificateSecret(candidate, acme, tx); err != nil {
 			return err
 		}
 		return s.repositoryCert.Create(candidate, tx)
@@ -312,10 +313,11 @@ func (s *service) RenewCert(ctx context.Context, id int64, request CertificateRe
 
 	var previous model.Cert
 	candidate := *current
-	if err = s.prepareCertificateRequest(&candidate, &request); err != nil {
+	acme, err := s.prepareCertificateRequest(&candidate, &request)
+	if err != nil {
 		return nil, err
 	}
-	issued, err := s.http.RenewCertificate(ctx, request.CertificateRequest)
+	issued, err := s.http.RenewCertificate(ctx, acme)
 	if err != nil {
 		return nil, err
 	}
@@ -337,7 +339,7 @@ func (s *service) RenewCert(ctx context.Context, id int64, request CertificateRe
 			candidate.SecretId = latest.SecretId
 			candidate.AutoRenew = latest.AutoRenew
 		}
-		if err := s.checkCertificateSecret(&candidate, request, tx); err != nil {
+		if err := s.checkCertificateSecret(&candidate, acme, tx); err != nil {
 			return err
 		}
 		return s.repositoryCert.UpdateById(id, &repositoryCert.UpdateCert{
@@ -368,7 +370,12 @@ func (s *service) RenewCert(ctx context.Context, id int64, request CertificateRe
 }
 
 // prepareCertificateRequest 合并证书申请设置，并从关联密钥读取 DNS 凭据。
-func (s *service) prepareCertificateRequest(data *model.Cert, request *CertificateRequest, tx ...*gorm.DB) error {
+func (s *service) prepareCertificateRequest(data *model.Cert, request *CertificateRequest, tx ...*gorm.DB) (webServer.CertificateRequest, error) {
+	acme := webServer.CertificateRequest{
+		Domain: request.Domain,
+		Email:  request.Email,
+		CA:     request.CA,
+	}
 	if challenge := strings.ToLower(strings.TrimSpace(string(request.Challenge))); challenge != "" {
 		data.Challenge = challenge
 	}
@@ -379,60 +386,62 @@ func (s *service) prepareCertificateRequest(data *model.Cert, request *Certifica
 		data.AutoRenew = *request.AutoRenew
 	}
 	if data.AutoRenew != 0 && data.AutoRenew != 1 {
-		return errors.New("自动续签只能设置为 0 或 1")
+		return acme, errors.New("自动续签只能设置为 0 或 1")
 	}
 	if data.SecretId < 0 {
-		return errors.New("密钥 ID 不合法")
+		return acme, errors.New("密钥 ID 不合法")
 	}
 	if data.Type == cert_type.Manual {
 		if data.Challenge != "" || data.SecretId != 0 || data.AutoRenew != 0 {
-			return errors.New("导入的证书不能设置 ACME 申请方式、密钥或自动续签")
+			return acme, errors.New("导入的证书不能设置 ACME 申请方式、密钥或自动续签")
 		}
-		return nil
+		return acme, nil
 	}
 	if data.Challenge == "" {
 		data.Challenge = string(webServer.CertificateChallengeHTTP)
 	}
-	request.Challenge = webServer.CertificateChallenge(data.Challenge)
+	acme.Challenge = webServer.CertificateChallenge(data.Challenge)
 	domains := []string{request.Domain}
 	if request.Domain == "" && data.Domains != "" {
 		if err := json.Unmarshal([]byte(data.Domains), &domains); err != nil {
-			return errors.New("证书域名数据不合法")
+			return acme, errors.New("证书域名数据不合法")
 		}
 	}
 	for _, domain := range domains {
-		if net.ParseIP(domain) != nil && request.Challenge != webServer.CertificateChallengeHTTP {
-			return errors.New("IP 地址证书必须使用 HTTP 验证")
+		if net.ParseIP(domain) != nil && acme.Challenge != webServer.CertificateChallengeHTTP {
+			return acme, errors.New("IP 地址证书必须使用 HTTP 验证")
 		}
-		if strings.HasPrefix(domain, "*.") && request.Challenge != webServer.CertificateChallengeDNS {
-			return errors.New("通配符证书必须使用 DNS 验证")
+		if strings.HasPrefix(domain, "*.") && acme.Challenge != webServer.CertificateChallengeDNS {
+			return acme, errors.New("通配符证书必须使用 DNS 验证")
 		}
 	}
-	switch request.Challenge {
+	switch acme.Challenge {
 	case webServer.CertificateChallengeHTTP:
 		if request.SecretId != nil && *request.SecretId != 0 {
-			return errors.New("HTTP 验证不需要关联 DNS 密钥")
+			return acme, errors.New("HTTP 验证不需要关联 DNS 密钥")
 		}
 		data.SecretId = 0
-		request.DNSProvider = ""
-		request.DNSCredentials = webServer.DNSCredentials{}
 	case webServer.CertificateChallengeDNS:
 		if data.SecretId == 0 {
-			if data.AutoRenew != 0 {
-				return errors.New("DNS 自动续签需要关联已保存的密钥")
+			// 申请和续签必须关联密钥，编辑证书设置时仍可解除关联。
+			if request.Domain != "" {
+				return acme, errors.New("请先添加并选择 DNS 验证密钥")
 			}
-			return nil
+			if data.AutoRenew != 0 {
+				return acme, errors.New("DNS 自动续签需要关联已保存的密钥")
+			}
+			return acme, nil
 		}
 		secret, err := s.repositorySecret.FindById(data.SecretId, tx...)
 		if err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return errors.New("关联的密钥不存在")
+				return acme, errors.New("关联的密钥不存在")
 			}
-			return fmt.Errorf("读取 DNS 密钥失败: %w", err)
+			return acme, fmt.Errorf("读取 DNS 密钥失败: %w", err)
 		}
 		var credentials webServer.DNSCredentials
 		if err = json.Unmarshal([]byte(secret.Data), &credentials); err != nil {
-			return errors.New("关联密钥的 DNS 凭据格式不正确")
+			return acme, errors.New("关联密钥的 DNS 凭据格式不正确")
 		}
 		var provider webServer.DNSProvider
 		switch secret.Provider {
@@ -447,30 +456,30 @@ func (s *service) prepareCertificateRequest(data *model.Cert, request *Certifica
 		case secret_provider.BaiduCloud:
 			provider = webServer.DNSProviderBaiduCloud
 		default:
-			return errors.New("关联密钥的服务商不合法")
+			return acme, errors.New("关联密钥的服务商不合法")
 		}
 		if err = credentials.Validate(provider); err != nil {
-			return fmt.Errorf("关联密钥不可用: %w", err)
+			return acme, fmt.Errorf("关联密钥不可用: %w", err)
 		}
 		// 使用已保存的密钥时，服务商和凭据必须同时来自该记录。
-		request.DNSProvider = provider
-		request.DNSCredentials = credentials
+		acme.DNSProvider = provider
+		acme.DNSCredentials = credentials
 	default:
-		return errors.New("证书申请方式只支持 http 或 dns")
+		return acme, errors.New("证书申请方式只支持 http 或 dns")
 	}
-	return nil
+	return acme, nil
 }
 
 // checkCertificateSecret 在保存签发结果的事务内重查关联，避免签发期间密钥被删除或换厂商。
-func (s *service) checkCertificateSecret(data *model.Cert, request CertificateRequest, tx *gorm.DB) error {
+func (s *service) checkCertificateSecret(data *model.Cert, request webServer.CertificateRequest, tx *gorm.DB) error {
 	if data.SecretId == 0 {
 		return nil
 	}
-	provider := request.DNSProvider
-	if err := s.prepareCertificateRequest(data, &request, tx); err != nil {
+	acme, err := s.prepareCertificateRequest(data, &CertificateRequest{Domain: request.Domain}, tx)
+	if err != nil {
 		return err
 	}
-	if request.DNSProvider != provider {
+	if acme.DNSProvider != request.DNSProvider {
 		return errors.New("关联密钥的服务商已改变，请重新申请或续签")
 	}
 	return nil
