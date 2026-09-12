@@ -278,7 +278,7 @@ type TrafficLimitOptions struct {
 	RatePerRequest      int64 `json:"rate_per_request"`       // 单个请求响应速度，单位为字节/秒
 }
 
-// DNSCredentials 定义 ACME DNS-01 验证凭据，未使用的字段保持为空。
+// DNSCredentials 定义 ACME DNS-01 验证凭据，未使用的厂商字段保持为空。
 type DNSCredentials struct {
 	AliyunAccessKeyID         string `json:"aliyun_access_key_id"`         // 阿里云 AccessKey ID
 	AliyunAccessKeySecret     string `json:"aliyun_access_key_secret"`     // 阿里云 AccessKey Secret

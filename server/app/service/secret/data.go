@@ -15,6 +15,7 @@ func (s *service) GetData() map[int]interface{} {
 		secret_provider.HuaweiCloud:  &HuaweiCloud{},
 		secret_provider.Volcengine:   &Volcengine{},
 		secret_provider.BaiduCloud:   &BaiduCloud{},
+		secret_provider.DNSPod:       &DNSPod{},
 	}
 }
 

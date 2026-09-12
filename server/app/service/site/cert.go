@@ -14,6 +14,7 @@ import (
 	"server/app/enum/secret_provider"
 	"server/app/model"
 	repositoryCert "server/app/repository/cert"
+	serviceSecret "server/app/service/secret"
 	"server/app/util/page"
 	webServer "server/app/util/server"
 	"server/app/util/str"
@@ -440,23 +441,48 @@ func (s *service) prepareCertificateRequest(data *model.Cert, request *Certifica
 			return acme, fmt.Errorf("读取 DNS 密钥失败: %w", err)
 		}
 		var credentials webServer.DNSCredentials
-		if err = json.Unmarshal([]byte(secret.Data), &credentials); err != nil {
-			return acme, errors.New("关联密钥的 DNS 凭据格式不正确")
-		}
 		var provider webServer.DNSProvider
 		switch secret.Provider {
 		case secret_provider.TencentCloud:
 			provider = webServer.DNSProviderTencentCloud
+			var values serviceSecret.TencentCloud
+			err = json.Unmarshal([]byte(secret.Data), &values)
+			credentials.TencentSecretID = values.SecretId
+			credentials.TencentSecretKey = values.SecretKey
 		case secret_provider.Aliyun:
 			provider = webServer.DNSProviderAliDNS
+			var values serviceSecret.Aliyun
+			err = json.Unmarshal([]byte(secret.Data), &values)
+			credentials.AliyunAccessKeyID = values.AccessKeyId
+			credentials.AliyunAccessKeySecret = values.AccessKeySecret
 		case secret_provider.HuaweiCloud:
 			provider = webServer.DNSProviderHuaweiCloud
+			var values serviceSecret.HuaweiCloud
+			err = json.Unmarshal([]byte(secret.Data), &values)
+			credentials.HuaweiAccessKeyID = values.AccessKeyId
+			credentials.HuaweiSecretAccessKey = values.SecretAccessKey
 		case secret_provider.Volcengine:
 			provider = webServer.DNSProviderVolcengine
+			var values serviceSecret.Volcengine
+			err = json.Unmarshal([]byte(secret.Data), &values)
+			credentials.VolcengineAccessKeyID = values.AccessKeyId
+			credentials.VolcengineAccessKeySecret = values.AccessKeySecret
 		case secret_provider.BaiduCloud:
 			provider = webServer.DNSProviderBaiduCloud
+			var values serviceSecret.BaiduCloud
+			err = json.Unmarshal([]byte(secret.Data), &values)
+			credentials.BaiduAccessKeyID = values.AccessKeyId
+			credentials.BaiduSecretAccessKey = values.SecretAccessKey
+		case secret_provider.DNSPod:
+			provider = webServer.DNSProviderDNSPod
+			var values serviceSecret.DNSPod
+			err = json.Unmarshal([]byte(secret.Data), &values)
+			credentials.DNSPodAPIToken = values.APIToken
 		default:
 			return acme, errors.New("关联密钥的服务商不合法")
+		}
+		if err != nil {
+			return acme, errors.New("关联密钥的 DNS 凭据格式不正确")
 		}
 		if err = credentials.Validate(provider); err != nil {
 			return acme, fmt.Errorf("关联密钥不可用: %w", err)

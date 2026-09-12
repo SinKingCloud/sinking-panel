@@ -14,30 +14,35 @@ type Secret struct {
 
 // TencentCloud 腾讯云密钥。
 type TencentCloud struct {
-	SecretId  string `json:"tencent_secret_id"`
-	SecretKey string `json:"tencent_secret_key"`
+	SecretId  string `json:"secret_id"`
+	SecretKey string `json:"secret_key"`
 }
 
 // Aliyun 阿里云密钥。
 type Aliyun struct {
-	AccessKeyId     string `json:"aliyun_access_key_id"`
-	AccessKeySecret string `json:"aliyun_access_key_secret"`
+	AccessKeyId     string `json:"access_key_id"`
+	AccessKeySecret string `json:"access_key_secret"`
 }
 
 // HuaweiCloud 华为云密钥。
 type HuaweiCloud struct {
-	AccessKeyId     string `json:"huawei_access_key_id"`
-	SecretAccessKey string `json:"huawei_secret_access_key"`
+	AccessKeyId     string `json:"access_key_id"`
+	SecretAccessKey string `json:"secret_access_key"`
 }
 
 // Volcengine 火山云密钥。
 type Volcengine struct {
-	AccessKeyId     string `json:"volcengine_access_key_id"`
-	AccessKeySecret string `json:"volcengine_access_key_secret"`
+	AccessKeyId     string `json:"access_key_id"`
+	AccessKeySecret string `json:"access_key_secret"`
 }
 
 // BaiduCloud 百度云密钥。
 type BaiduCloud struct {
-	AccessKeyId     string `json:"baidu_access_key_id"`
-	SecretAccessKey string `json:"baidu_secret_access_key"`
+	AccessKeyId     string `json:"access_key_id"`
+	SecretAccessKey string `json:"secret_access_key"`
+}
+
+// DNSPod 密钥，API Token 格式为 ID,TOKEN。
+type DNSPod struct {
+	APIToken string `json:"api_token"`
 }
