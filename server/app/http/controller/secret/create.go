@@ -13,7 +13,7 @@ func Create(c *context.Context) {
 	var form struct {
 		Name     string `json:"name" default:"" validate:"required,max=100" label:"密钥名称"`
 		Provider int    `json:"provider" default:"0" validate:"min=0" label:"服务商"`
-		Data     string `json:"data" default:"" validate:"required,max=1048576" label:"密钥内容"`
+		Data     string `json:"data" default:"" validate:"omitempty,max=1048576" label:"密钥内容"`
 	}
 	if ok, msg := c.ValidatorAll(&form); !ok {
 		c.Error(msg)

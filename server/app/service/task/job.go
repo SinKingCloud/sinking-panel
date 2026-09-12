@@ -35,7 +35,7 @@ func newJob(task *model.Task, service *service) *job {
 
 func (j *job) Run() {
 	defer func() {
-		_ = j.service.updateRuntimeById(j.Id, time.Now())
+		_ = j.service.repositoryTask.UpdateRuntimeById(j.Id, time.Now())
 	}()
 	switch j.ExecType {
 	case task_exec_type.Script:

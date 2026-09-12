@@ -68,26 +68,30 @@ func (s *service) updateHTTPLocked(config *HTTPUpdate) error {
 			}
 		}
 	}
-	mergePage := func(target *webServer.ResponseOptions, update *HTTPPageUpdate) {
-		if update == nil {
-			return
+	for _, page := range []struct {
+		target *webServer.ResponseOptions
+		update *HTTPPageUpdate
+	}{
+		{&candidate.NotFoundPage, config.NotFoundPage},
+		{&candidate.SiteNotFoundPage, config.SiteNotFoundPage},
+		{&candidate.SiteDisabledPage, config.SiteDisabledPage},
+	} {
+		if page.update == nil {
+			continue
 		}
-		if update.Status != nil {
-			target.Status = *update.Status
+		if page.update.Status != nil {
+			page.target.Status = *page.update.Status
 		}
-		if update.Body != nil {
-			target.Body = *update.Body
+		if page.update.Body != nil {
+			page.target.Body = *page.update.Body
 		}
-		if update.Headers != nil {
-			target.Headers = make(map[string][]string, len(*update.Headers))
-			for name, values := range *update.Headers {
-				target.Headers[name] = slices.Clone(values)
+		if page.update.Headers != nil {
+			page.target.Headers = make(map[string][]string, len(*page.update.Headers))
+			for name, values := range *page.update.Headers {
+				page.target.Headers[name] = slices.Clone(values)
 			}
 		}
 	}
-	mergePage(&candidate.NotFoundPage, config.NotFoundPage)
-	mergePage(&candidate.SiteNotFoundPage, config.SiteNotFoundPage)
-	mergePage(&candidate.SiteDisabledPage, config.SiteDisabledPage)
 	if config.DataPath != nil {
 		candidate.DataPath = strings.TrimSpace(*config.DataPath)
 	}
@@ -142,9 +146,46 @@ func (s *service) updateHTTPLocked(config *HTTPUpdate) error {
 	if config.ACMEEmail != nil {
 		candidate.ACMEEmail = *config.ACMEEmail
 	}
-	configs, err := s.httpConfigs(candidate, config)
-	if err != nil {
-		return err
+	configs := make(map[string]string)
+	for _, item := range []struct {
+		key     string
+		changed bool
+		value   interface{}
+	}{
+		{constant.SiteHTTPListen, config.HTTPListen != nil, candidate.HTTPListen},
+		{constant.SiteHTTPSListen, config.HTTPSListen != nil, candidate.HTTPSListen},
+		{constant.SiteHTTPProtocols, config.Protocols != nil, candidate.Protocols},
+		{constant.SiteHTTPDefaultSite, config.DefaultSite != nil, candidate.DefaultSite},
+		{constant.SiteHTTPNotFoundPage, config.NotFoundPage != nil, candidate.NotFoundPage},
+		{constant.SiteHTTPSiteNotFoundPage, config.SiteNotFoundPage != nil, candidate.SiteNotFoundPage},
+		{constant.SiteHTTPSiteDisabledPage, config.SiteDisabledPage != nil, candidate.SiteDisabledPage},
+		{constant.SiteHTTPDataPath, config.DataPath != nil, candidate.DataPath},
+		{constant.SiteHTTPCachePath, config.CachePath != nil, candidate.CachePath},
+		{constant.SiteHTTPLogPath, config.LogPath != nil, candidate.LogPath},
+		{constant.SiteHTTPWAFLogPath, config.WAFLogPath != nil, candidate.WAFLogPath},
+		{constant.SiteHTTPConfigPath, config.ConfigPath != nil, candidate.ConfigPath},
+		{constant.SiteHTTPLogLevel, config.LogLevel != nil, candidate.LogLevel},
+		{constant.SiteHTTPTrustedProxies, config.TrustedProxies != nil, candidate.TrustedProxies},
+		{constant.SiteHTTPClientIPHeaders, config.ClientIPHeaders != nil, candidate.ClientIPHeaders},
+		{constant.SiteHTTPTrustedProxiesStrict, config.TrustedProxiesStrict != nil, candidate.TrustedProxiesStrict},
+		{constant.SiteHTTPReadTimeout, config.ReadTimeout != nil, candidate.ReadTimeout},
+		{constant.SiteHTTPReadHeaderTimeout, config.ReadHeaderTimeout != nil, candidate.ReadHeaderTimeout},
+		{constant.SiteHTTPWriteTimeout, config.WriteTimeout != nil, candidate.WriteTimeout},
+		{constant.SiteHTTPIdleTimeout, config.IdleTimeout != nil, candidate.IdleTimeout},
+		{constant.SiteHTTPGracePeriod, config.GracePeriod != nil, candidate.GracePeriod},
+		{constant.SiteHTTPMaxHeaderBytes, config.MaxHeaderBytes != nil, candidate.MaxHeaderBytes},
+		{constant.SiteHTTPChallengeHost, config.HTTPChallengeHost != nil, candidate.HTTPChallengeHost},
+		{constant.SiteHTTPChallengePort, config.HTTPChallengePort != nil, candidate.HTTPChallengePort},
+		{constant.SiteHTTPACMEEmail, config.ACMEEmail != nil, candidate.ACMEEmail},
+	} {
+		if !item.changed {
+			continue
+		}
+		content, err := json.Marshal(item.value)
+		if err != nil {
+			return fmt.Errorf("序列化 HTTP 配置 %s 失败: %w", item.key, err)
+		}
+		configs[item.key] = string(content)
 	}
 	if len(configs) == 0 {
 		return nil
@@ -200,75 +241,11 @@ func (s *service) updateHTTPLocked(config *HTTPUpdate) error {
 	return rollback(fmt.Errorf("保存 HTTP 配置失败: %w", err))
 }
 
-func (s *service) httpConfigs(config webServer.Options, update *HTTPUpdate) (map[string]string, error) {
-	configs := make(map[string]string)
-	for _, item := range []struct {
-		key     string
-		changed bool
-		value   interface{}
-	}{
-		{constant.SiteHTTPListen, update.HTTPListen != nil, config.HTTPListen},
-		{constant.SiteHTTPSListen, update.HTTPSListen != nil, config.HTTPSListen},
-		{constant.SiteHTTPProtocols, update.Protocols != nil, config.Protocols},
-		{constant.SiteHTTPDefaultSite, update.DefaultSite != nil, config.DefaultSite},
-		{constant.SiteHTTPNotFoundPage, update.NotFoundPage != nil, config.NotFoundPage},
-		{constant.SiteHTTPSiteNotFoundPage, update.SiteNotFoundPage != nil, config.SiteNotFoundPage},
-		{constant.SiteHTTPSiteDisabledPage, update.SiteDisabledPage != nil, config.SiteDisabledPage},
-		{constant.SiteHTTPDataPath, update.DataPath != nil, config.DataPath},
-		{constant.SiteHTTPCachePath, update.CachePath != nil, config.CachePath},
-		{constant.SiteHTTPLogPath, update.LogPath != nil, config.LogPath},
-		{constant.SiteHTTPWAFLogPath, update.WAFLogPath != nil, config.WAFLogPath},
-		{constant.SiteHTTPConfigPath, update.ConfigPath != nil, config.ConfigPath},
-		{constant.SiteHTTPLogLevel, update.LogLevel != nil, config.LogLevel},
-		{constant.SiteHTTPTrustedProxies, update.TrustedProxies != nil, config.TrustedProxies},
-		{constant.SiteHTTPClientIPHeaders, update.ClientIPHeaders != nil, config.ClientIPHeaders},
-		{constant.SiteHTTPTrustedProxiesStrict, update.TrustedProxiesStrict != nil, config.TrustedProxiesStrict},
-		{constant.SiteHTTPReadTimeout, update.ReadTimeout != nil, config.ReadTimeout},
-		{constant.SiteHTTPReadHeaderTimeout, update.ReadHeaderTimeout != nil, config.ReadHeaderTimeout},
-		{constant.SiteHTTPWriteTimeout, update.WriteTimeout != nil, config.WriteTimeout},
-		{constant.SiteHTTPIdleTimeout, update.IdleTimeout != nil, config.IdleTimeout},
-		{constant.SiteHTTPGracePeriod, update.GracePeriod != nil, config.GracePeriod},
-		{constant.SiteHTTPMaxHeaderBytes, update.MaxHeaderBytes != nil, config.MaxHeaderBytes},
-		{constant.SiteHTTPChallengeHost, update.HTTPChallengeHost != nil, config.HTTPChallengeHost},
-		{constant.SiteHTTPChallengePort, update.HTTPChallengePort != nil, config.HTTPChallengePort},
-		{constant.SiteHTTPACMEEmail, update.ACMEEmail != nil, config.ACMEEmail},
-	} {
-		if !item.changed {
-			continue
-		}
-		content, err := json.Marshal(item.value)
-		if err != nil {
-			return nil, fmt.Errorf("序列化 HTTP 配置 %s 失败: %w", item.key, err)
-		}
-		configs[item.key] = string(content)
-	}
-	return configs, nil
-}
-
 // loadHTTP 读取并合并已保存的 HTTP 服务全局参数。
 func (s *service) loadHTTP() (webServer.Options, bool, error) {
 	values := s.configService.Group(constant.SiteGroup)
 	config := webServer.Options{}
 	exists := false
-	decode := func(key string, target interface{}) error {
-		raw, ok := values[key]
-		if !ok {
-			return nil
-		}
-		decoder := json.NewDecoder(strings.NewReader(raw))
-		decoder.DisallowUnknownFields()
-		if err := decoder.Decode(target); err != nil {
-			return fmt.Errorf("HTTP 配置 %s 格式错误: %w", key, err)
-		}
-		if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
-			if err == nil {
-				return fmt.Errorf("HTTP 配置 %s 只能包含一个 JSON 值", key)
-			}
-			return fmt.Errorf("HTTP 配置 %s 包含多余内容: %w", key, err)
-		}
-		exists = true
-		return nil
-	}
 	fields := []struct {
 		key    string
 		target interface{}
@@ -300,9 +277,22 @@ func (s *service) loadHTTP() (webServer.Options, bool, error) {
 		{constant.SiteHTTPACMEEmail, &config.ACMEEmail},
 	}
 	for _, item := range fields {
-		if err := decode(item.key, item.target); err != nil {
-			return webServer.Options{}, false, err
+		raw, ok := values[item.key]
+		if !ok {
+			continue
 		}
+		decoder := json.NewDecoder(strings.NewReader(raw))
+		decoder.DisallowUnknownFields()
+		if err := decoder.Decode(item.target); err != nil {
+			return webServer.Options{}, false, fmt.Errorf("HTTP 配置 %s 格式错误: %w", item.key, err)
+		}
+		if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+			if err == nil {
+				return webServer.Options{}, false, fmt.Errorf("HTTP 配置 %s 只能包含一个 JSON 值", item.key)
+			}
+			return webServer.Options{}, false, fmt.Errorf("HTTP 配置 %s 包含多余内容: %w", item.key, err)
+		}
+		exists = true
 	}
 	return config, exists, nil
 }

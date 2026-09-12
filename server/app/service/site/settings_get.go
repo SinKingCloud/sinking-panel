@@ -7,6 +7,8 @@ import (
 
 	"server/app/model"
 	webServer "server/app/util/server"
+
+	"gorm.io/gorm"
 )
 
 // GetDomains 读取网站当前域名和证书绑定。
@@ -17,13 +19,24 @@ func (s *service) GetDomains(id int64) ([]*model.SiteDomain, error) {
 		return nil, errors.New("网站 ID 不合法")
 	}
 	if _, err := s.repositorySite.FindById(id); err != nil {
-		return nil, s.nilIfNotFound("查询网站失败", err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errors.New("网站不存在")
+		}
+		return nil, fmt.Errorf("查询网站失败: %w", err)
 	}
 	domains, err := s.repositorySiteDomain.SelectBySiteId(id)
 	if err != nil {
 		return nil, fmt.Errorf("查询网站域名失败: %w", err)
 	}
-	return s.cloneSiteDomainRecords(domains), nil
+	result := make([]*model.SiteDomain, 0, len(domains))
+	for _, domain := range domains {
+		if domain == nil {
+			continue
+		}
+		copy := *domain
+		result = append(result, &copy)
+	}
+	return result, nil
 }
 
 // GetSSL 读取网站 TLS 策略和域名证书绑定。
@@ -38,7 +51,15 @@ func (s *service) GetSSL(id int64) (*SSLSettings, error) {
 	if err != nil {
 		return nil, fmt.Errorf("查询网站域名失败: %w", err)
 	}
-	return &SSLSettings{Config: config.TLS, Domains: s.cloneSiteDomainRecords(domains)}, nil
+	result := make([]*model.SiteDomain, 0, len(domains))
+	for _, domain := range domains {
+		if domain == nil {
+			continue
+		}
+		copy := *domain
+		result = append(result, &copy)
+	}
+	return &SSLSettings{Config: config.TLS, Domains: result}, nil
 }
 
 // GetWAF 读取网站 WAF 设置。

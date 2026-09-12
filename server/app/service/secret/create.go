@@ -25,9 +25,25 @@ func (s *service) Create(data *model.Secret) error {
 	if len(data.Data) > 1<<20 {
 		return errors.New("密钥内容不能超过 1 MB")
 	}
-	var fields map[string]json.RawMessage
-	if json.Unmarshal([]byte(data.Data), &fields) != nil || fields == nil {
-		return errors.New("密钥内容必须是 JSON 对象")
+	if strings.TrimSpace(data.Data) == "" {
+		data.Data = "{}"
+	} else {
+		fields, err := s.formatData(data.Data, data.Provider)
+		if err != nil {
+			return err
+		}
+		for key, value := range fields {
+			value = strings.TrimSpace(value)
+			if value == "" {
+				return errors.New(key + "不能为空")
+			}
+			if strings.Contains(value, "****") {
+				return errors.New(key + "请填写完整密钥")
+			}
+			fields[key] = value
+		}
+		content, _ := json.Marshal(fields)
+		data.Data = string(content)
 	}
 	data.Id = str.GetSnowWorkIns().GetId()
 	s.enumMu.Lock()

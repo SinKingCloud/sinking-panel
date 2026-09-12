@@ -25,27 +25,27 @@ func (r *Repository) SelectByIds(ids []int64, tx ...*gorm.DB) ([]*model.Cert, er
 func (r *Repository) Select(where *SelectCert, queryPage *page.Query) (*page.Result[*Cert], error) {
 	query := r.Database.Db.Model(&model.Cert{})
 	if where != nil {
-		if where.Keyword != "" {
-			keyword := "%" + where.Keyword + "%"
+		if where.Keyword != nil {
+			keyword := "%" + *where.Keyword + "%"
 			query = query.Where("name LIKE ? OR domains LIKE ?", keyword, keyword)
 		}
-		if where.Name != "" {
-			query = query.Where("name LIKE ?", "%"+where.Name+"%")
+		if where.Name != nil {
+			query = query.Where("name LIKE ?", "%"+*where.Name+"%")
 		}
-		if where.Type != "" {
-			query = query.Where("type = ?", where.Type)
+		if where.Type != nil {
+			query = query.Where("type = ?", *where.Type)
 		}
-		if where.ExpireTimeStart != "" {
-			query = query.Where("expire_time >= ?", where.ExpireTimeStart)
+		if where.ExpireTimeStart != nil {
+			query = query.Where("expire_time >= ?", *where.ExpireTimeStart)
 		}
-		if where.ExpireTimeEnd != "" {
-			query = query.Where("expire_time <= ?", where.ExpireTimeEnd)
+		if where.ExpireTimeEnd != nil {
+			query = query.Where("expire_time <= ?", *where.ExpireTimeEnd)
 		}
-		if where.CreateTimeStart != "" {
-			query = query.Where("create_time >= ?", where.CreateTimeStart)
+		if where.CreateTimeStart != nil {
+			query = query.Where("create_time >= ?", *where.CreateTimeStart)
 		}
-		if where.CreateTimeEnd != "" {
-			query = query.Where("create_time <= ?", where.CreateTimeEnd)
+		if where.CreateTimeEnd != nil {
+			query = query.Where("create_time <= ?", *where.CreateTimeEnd)
 		}
 	}
 	return r.Repository.SelectPage(query, queryPage)

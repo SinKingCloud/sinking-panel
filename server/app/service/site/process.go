@@ -2,11 +2,14 @@ package site
 
 import (
 	"errors"
+	"fmt"
 	"strconv"
 
 	"server/app/enum/site_status"
 	"server/app/enum/site_type"
 	processManager "server/app/util/process"
+
+	"gorm.io/gorm"
 )
 
 // Process 查询或控制项目进程，不改变网站状态和反向代理配置。
@@ -23,7 +26,10 @@ func (s *service) Process(id int64, action string) (*processManager.Status, erro
 	}
 	record, err := s.repositorySite.FindById(id)
 	if err != nil {
-		return nil, s.nilIfNotFound("查询网站失败", err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errors.New("网站不存在")
+		}
+		return nil, fmt.Errorf("查询网站失败: %w", err)
 	}
 	if record.Type != site_type.General {
 		return nil, errors.New("当前网站不是通用网站")

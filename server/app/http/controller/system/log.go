@@ -52,34 +52,39 @@ func Log(c *context.Context) {
 	}
 	where := &repositoryLog.SelectLog{}
 	if form.Keyword != "" {
-		where.Keyword = form.Keyword
+		where.Keyword = &form.Keyword
 	}
 	if form.Ip != "" {
-		where.Ip = form.Ip
+		where.Ip = &form.Ip
 	}
 	if form.Location != "" {
-		where.Location = form.Location
+		where.Location = &form.Location
 	}
 	if form.Type != "" {
-		where.Type = form.Type
+		logType, err := strconv.Atoi(form.Type)
+		if err != nil {
+			c.Error("日志类型参数错误")
+			return
+		}
+		where.Type = &logType
 	}
 	if form.Title != "" {
-		where.Title = form.Title
+		where.Title = &form.Title
 	}
 	if form.Content != "" {
-		where.Content = form.Content
+		where.Content = &form.Content
 	}
 	if form.CreateTimeStart != "" {
-		where.CreateTimeStart = form.CreateTimeStart
+		where.CreateTimeStart = &form.CreateTimeStart
 	}
 	if form.CreateTimeEnd != "" {
-		where.CreateTimeEnd = form.CreateTimeEnd
+		where.CreateTimeEnd = &form.CreateTimeEnd
 	}
 	if form.UpdateTimeStart != "" {
-		where.UpdateTimeStart = form.UpdateTimeStart
+		where.UpdateTimeStart = &form.UpdateTimeStart
 	}
 	if form.UpdateTimeEnd != "" {
-		where.UpdateTimeEnd = form.UpdateTimeEnd
+		where.UpdateTimeEnd = &form.UpdateTimeEnd
 	}
 	data, err := service.Log.Select(where, query)
 	if err != nil {

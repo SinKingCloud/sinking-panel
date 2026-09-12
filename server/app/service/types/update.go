@@ -15,14 +15,10 @@ func (s *service) UpdateByIds(ids []int64, data *repositoryTypes.UpdateType) err
 	}
 	var module string
 	if data.Module != nil {
-		value, ok := data.Module.(string)
-		if !ok {
+		if _, ok := type_module.Map()[*data.Module]; !ok {
 			return errors.New("所属模块不合法")
 		}
-		if _, ok = type_module.Map()[value]; !ok {
-			return errors.New("所属模块不合法")
-		}
-		module = value
+		module = *data.Module
 	}
 	modules := make([]string, 0)
 	err := s.database.Transaction(func(tx *gorm.DB) error {

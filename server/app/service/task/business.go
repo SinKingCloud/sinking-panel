@@ -152,11 +152,11 @@ func (s *service) Stop(id int64) error {
 	s.taskLock.Lock()
 	defer s.taskLock.Unlock()
 
-	task, err := s.findById(id)
+	task, err := s.repositoryTask.FindById(id)
 	if err != nil {
 		return err
 	}
-	if err = s.updateStateById(id, 0, task_status.Stop); err != nil {
+	if err = s.repositoryTask.UpdateStateById(id, 0, task_status.Stop); err != nil {
 		return err
 	}
 	if task.EntryID > 0 {
@@ -173,7 +173,7 @@ func (s *service) Restore(id int64) error {
 		return errors.New("计划任务服务已关闭")
 	}
 
-	task, err := s.findById(id)
+	task, err := s.repositoryTask.FindById(id)
 	if err != nil {
 		return err
 	}
@@ -188,7 +188,7 @@ func (s *service) Restore(id int64) error {
 	if entryID <= 0 {
 		return errors.New("任务实例化失败")
 	}
-	if err = s.updateStateById(id, int(entryID), task_status.Running); err != nil {
+	if err = s.repositoryTask.UpdateStateById(id, int(entryID), task_status.Running); err != nil {
 		s.instance.Remove(entryID)
 		return err
 	}
@@ -205,7 +205,7 @@ func (s *service) Run(id int64) error {
 		s.taskLock.Unlock()
 		return errors.New("计划任务服务已关闭")
 	}
-	task, err := s.findById(id)
+	task, err := s.repositoryTask.FindById(id)
 	if err != nil {
 		s.taskLock.Unlock()
 		return err
@@ -234,7 +234,7 @@ func (s *service) Remove(ids []int64) error {
 	}
 	tasks := make([]*model.Task, 0, len(ids))
 	for _, id := range ids {
-		task, err := s.findById(id)
+		task, err := s.repositoryTask.FindById(id)
 		if err != nil {
 			return err
 		}
@@ -261,14 +261,14 @@ func (s *service) refresh(id int64) error {
 	if s.closed {
 		return errors.New("计划任务服务已关闭")
 	}
-	task, err := s.findById(id)
+	task, err := s.repositoryTask.FindById(id)
 	if err != nil {
 		return err
 	}
 	oldEntryID := cron.EntryID(task.EntryID)
 	if task.Status != task_status.Running {
 		if oldEntryID > 0 {
-			if err = s.updateEntryIDById(id, 0); err != nil {
+			if err = s.repositoryTask.UpdateEntryIDById(id, 0); err != nil {
 				return err
 			}
 			s.instance.Remove(oldEntryID)
@@ -286,7 +286,7 @@ func (s *service) refresh(id int64) error {
 	if entryID <= 0 {
 		return errors.New("任务实例化失败")
 	}
-	if err = s.updateEntryIDById(id, int(entryID)); err != nil {
+	if err = s.repositoryTask.UpdateEntryIDById(id, int(entryID)); err != nil {
 		s.instance.Remove(entryID)
 		return err
 	}
@@ -337,7 +337,7 @@ func (s *service) Add(data *model.Task) error {
 	data.Id = str.GetSnowWorkIns().GetId()
 	if data.Status == task_status.Stop {
 		data.EntryID = 0
-		return s.create(data)
+		return s.repositoryTask.Create(data)
 	}
 	j := newJob(data, s)
 	if j == nil {
@@ -348,7 +348,7 @@ func (s *service) Add(data *model.Task) error {
 		return err
 	}
 	data.EntryID = int(id)
-	err = s.create(data)
+	err = s.repositoryTask.Create(data)
 	if err != nil {
 		s.instance.Remove(id)
 	}
@@ -364,7 +364,7 @@ func (s *service) Start() {
 			return
 		}
 
-		tasks, err := s.selectAll()
+		tasks, err := s.repositoryTask.SelectAll()
 		if err == nil && tasks != nil {
 			for _, task := range tasks {
 				if task.Status != task_status.Running {
@@ -374,7 +374,7 @@ func (s *service) Start() {
 				if job2 != nil {
 					entryID, err2 := s.instance.AddJob(task.Spec, job2)
 					if err2 == nil && entryID > 0 {
-						if err2 = s.updateEntryIDById(task.Id, int(entryID)); err2 != nil {
+						if err2 = s.repositoryTask.UpdateEntryIDById(task.Id, int(entryID)); err2 != nil {
 							s.instance.Remove(entryID)
 						}
 					}

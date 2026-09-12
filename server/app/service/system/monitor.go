@@ -3,7 +3,6 @@ package system
 import (
 	"runtime"
 	"server/app/constant"
-	serviceFile "server/app/service/file"
 	"time"
 
 	"github.com/shirou/gopsutil/v4/cpu"
@@ -65,7 +64,10 @@ func (s *service) updateMonitor() {
 
 	memoryInfo := s.getMemoryInfo()
 	loadInfo := s.getLoadInfo(cpuUsage)
-	runtimeInfo := s.getRuntimeInfo()
+	runtimeInfo := map[string]interface{}{
+		"go_version":    runtime.Version(),      // Go语言版本
+		"num_goroutine": runtime.NumGoroutine(), // 当前Goroutine数量
+	}
 	networkInfo := s.getNetworkInfo(netCounters)
 
 	s.statusCacheLock.Lock()
@@ -145,7 +147,7 @@ func (s *service) updateMonitor() {
 // updateStaticMonitor 更新低频系统信息
 func (s *service) updateStaticMonitor() {
 	systemBase := s.getSystemBaseInfo()
-	disksInfo := s.getDisksInfo()
+	disksInfo, _ := s.fileService.GetDisks()
 
 	s.systemBaseCacheLock.Lock()
 	s.systemBaseCache = systemBase
@@ -321,13 +323,6 @@ func (s *service) getMemoryInfo() map[string]interface{} {
 	return data
 }
 
-// getDisksInfo 获取磁盘信息
-func (s *service) getDisksInfo() []serviceFile.Disk {
-	// 磁盘信息
-	disks, _ := s.fileService.GetDisks()
-	return disks
-}
-
 // getLoadInfo 获取系统负载信息
 func (s *service) getLoadInfo(cpuUsage float64) map[string]interface{} {
 	// 负载信息默认值
@@ -358,14 +353,6 @@ func (s *service) getLoadInfo(cpuUsage float64) map[string]interface{} {
 	}
 
 	return data
-}
-
-// getRuntimeInfo 获取运行时信息
-func (s *service) getRuntimeInfo() map[string]interface{} {
-	return map[string]interface{}{
-		"go_version":    runtime.Version(),      // Go语言版本
-		"num_goroutine": runtime.NumGoroutine(), // 当前Goroutine数量
-	}
 }
 
 // getNetworkInfo 获取网卡信息

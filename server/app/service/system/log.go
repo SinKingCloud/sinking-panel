@@ -17,13 +17,6 @@ func (s *service) taskLogPath(id string) string {
 	return filepath.Join(s.systemTaskLogDirectory, id+".log")
 }
 
-// resetTaskLogs removes logs left by a previous process. System tasks are
-// intentionally in-memory, so a stale log must not be presented as a live task.
-func (s *service) resetTaskLogs() {
-	_ = os.RemoveAll(s.systemTaskLogDirectory)
-	_ = os.MkdirAll(s.systemTaskLogDirectory, 0755)
-}
-
 func (s *service) appendTaskLog(id string, status int, progress float64, message string) {
 	fileName := s.taskLogPath(id)
 	if fileName == "" {

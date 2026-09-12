@@ -5,6 +5,7 @@ import (
 	repositoryServer "server/app/repository/server"
 	"server/app/service"
 	"server/app/util/context"
+	"strconv"
 )
 
 // List 获取服务器列表
@@ -28,34 +29,44 @@ func List(c *context.Context) {
 	}
 	where := &repositoryServer.SelectServer{}
 	if form.Keyword != "" {
-		where.Keyword = form.Keyword
+		where.Keyword = &form.Keyword
 	}
 	if form.Ip != "" {
-		where.Ip = form.Ip
+		where.Ip = &form.Ip
 	}
 	if form.Port != "" {
-		where.Port = form.Port
+		port, err := strconv.Atoi(form.Port)
+		if err != nil {
+			c.Error("端口参数错误")
+			return
+		}
+		where.Port = &port
 	}
 	if form.User != "" {
-		where.User = form.User
+		where.User = &form.User
 	}
 	if form.Name != "" {
-		where.Name = form.Name
+		where.Name = &form.Name
 	}
 	if form.AuthType != "" {
-		where.AuthType = form.AuthType
+		authType, err := strconv.Atoi(form.AuthType)
+		if err != nil {
+			c.Error("验证方式参数错误")
+			return
+		}
+		where.AuthType = &authType
 	}
 	if form.CreateTimeStart != "" {
-		where.CreateTimeStart = form.CreateTimeStart
+		where.CreateTimeStart = &form.CreateTimeStart
 	}
 	if form.CreateTimeEnd != "" {
-		where.CreateTimeEnd = form.CreateTimeEnd
+		where.CreateTimeEnd = &form.CreateTimeEnd
 	}
 	if form.UpdateTimeStart != "" {
-		where.UpdateTimeStart = form.UpdateTimeStart
+		where.UpdateTimeStart = &form.UpdateTimeStart
 	}
 	if form.UpdateTimeEnd != "" {
-		where.UpdateTimeEnd = form.UpdateTimeEnd
+		where.UpdateTimeEnd = &form.UpdateTimeEnd
 	}
 	data, err := service.Server.Select(where, query)
 	if err != nil {

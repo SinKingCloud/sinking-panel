@@ -4,20 +4,11 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"os"
 	"path/filepath"
 	"server/app/constant"
 	"server/app/enum/site_status"
 	"server/app/enum/site_type"
 	"server/app/model"
-	repositoryCert "server/app/repository/cert"
-	repositorySecret "server/app/repository/secret"
-	repositorySite "server/app/repository/site"
-	repositorySiteDomain "server/app/repository/site_domain"
-	serviceConfig "server/app/service/config"
-	serviceTypes "server/app/service/types"
-	"server/app/util/cache"
-	"server/app/util/database"
 	processManager "server/app/util/process"
 	webServer "server/app/util/server"
 	"sort"
@@ -47,106 +38,6 @@ func (s *service) Boot() func() {
 			log.Printf("停止网站服务失败: %v", err)
 		}
 	}
-}
-
-func newService(repositorySite repositorySite.Interface, repositorySiteDomain repositorySiteDomain.Interface, repositoryCert repositoryCert.Interface, repositorySecret repositorySecret.Interface, typeService serviceTypes.Service, configService serviceConfig.Service, database *database.Database, cache cache.Interface, options ...Options) (*service, error) {
-	if repositorySite == nil || repositorySiteDomain == nil || repositoryCert == nil || repositorySecret == nil || typeService == nil || configService == nil || database == nil || database.Db == nil || cache == nil {
-		return nil, errors.New("网站服务依赖不能为空")
-	}
-	if len(options) > 1 {
-		return nil, errors.New("网站服务参数最多只能传入一组")
-	}
-	config := Options{Root: constant.SitePath}
-	if len(options) > 0 {
-		config = options[0]
-		if strings.TrimSpace(config.Root) == "" {
-			config.Root = constant.SitePath
-		}
-	}
-	root, err := filepath.Abs(config.Root)
-	if err != nil {
-		return nil, fmt.Errorf("解析网站服务目录失败: %w", err)
-	}
-	if err = os.MkdirAll(root, 0700); err != nil {
-		return nil, fmt.Errorf("创建网站服务目录失败: %w", err)
-	}
-	root, err = filepath.EvalSymlinks(root)
-	if err != nil {
-		return nil, fmt.Errorf("解析网站服务目录失败: %w", err)
-	}
-	defaultHTTP := webServer.Options{}
-	for _, item := range []struct {
-		target *string
-		path   string
-	}{
-		{&defaultHTTP.DataPath, constant.ServerDataPath},
-		{&defaultHTTP.ACMEPath, constant.AcmePath},
-		{&defaultHTTP.CachePath, constant.ServerCachePath},
-		{&defaultHTTP.LogPath, constant.ServerLogPath},
-		{&defaultHTTP.WAFLogPath, constant.ServerWAFLogPath},
-		{&defaultHTTP.ConfigPath, constant.ServerConfigPath},
-	} {
-		*item.target, err = filepath.Abs(item.path)
-		if err != nil {
-			return nil, fmt.Errorf("解析 HTTP 服务默认路径失败: %w", err)
-		}
-		*item.target = filepath.Clean(*item.target)
-	}
-	result := &service{
-		repositorySite:       repositorySite,
-		repositorySiteDomain: repositorySiteDomain,
-		repositoryCert:       repositoryCert,
-		repositorySecret:     repositorySecret,
-		typeService:          typeService,
-		configService:        configService,
-		cache:                cache,
-		database:             database,
-		root:                 filepath.Clean(root),
-		active:               true,
-	}
-	result.process = processManager.NewManager()
-	if len(options) == 0 {
-		stored, exists, loadErr := result.loadHTTP()
-		if loadErr != nil {
-			log.Printf("网站 HTTP 配置损坏，已使用默认配置启动: %v", loadErr)
-		} else if exists {
-			config.HTTP = stored
-		}
-	}
-	storedConfigs := configService.Group(constant.SiteGroup)
-	if raw, exists := storedConfigs[constant.SiteHTTPEnabled]; exists {
-		enabled, parseErr := strconv.ParseBool(strings.TrimSpace(raw))
-		if parseErr != nil {
-			log.Printf("网站 HTTP 服务状态配置损坏，已按启用状态处理: %v", parseErr)
-		} else {
-			result.active = enabled
-		}
-	}
-	effectiveHTTP := config.HTTP
-	effectiveHTTP.ACMEPath = defaultHTTP.ACMEPath
-	for target, value := range map[*string]string{
-		&effectiveHTTP.DataPath:   defaultHTTP.DataPath,
-		&effectiveHTTP.CachePath:  defaultHTTP.CachePath,
-		&effectiveHTTP.LogPath:    defaultHTTP.LogPath,
-		&effectiveHTTP.WAFLogPath: defaultHTTP.WAFLogPath,
-		&effectiveHTTP.ConfigPath: defaultHTTP.ConfigPath,
-	} {
-		if strings.TrimSpace(*target) == "" {
-			*target = value
-		}
-	}
-	httpManager, err := webServer.NewManager(root, effectiveHTTP)
-	if err != nil {
-		log.Printf("网站 HTTP 配置无法加载，已使用默认配置启动: %v", err)
-		fallbackHTTP := defaultHTTP
-		fallbackHTTP.ConfigPath = ""
-		httpManager, err = webServer.NewManager(root, fallbackHTTP)
-	}
-	if err != nil {
-		return nil, err
-	}
-	result.http = httpManager
-	return result, nil
 }
 
 // Start 启动网站 HTTP 服务和通用网站进程。
@@ -204,7 +95,11 @@ func (s *service) Restart() error {
 	}
 	wasActive := s.active
 	wasRunning := s.http.Running()
-	previousProcesses := s.cloneProcessConfigs(s.processes)
+	previousProcesses := make([]processManager.Config, len(s.processes))
+	for index, config := range s.processes {
+		previousProcesses[index] = config
+		previousProcesses[index].Env = append([]string(nil), config.Env...)
+	}
 	loadedSites := s.http.Sites()
 	previousSites := make([]webServer.Site, 0, len(loadedSites))
 	for _, site := range loadedSites {
@@ -231,7 +126,11 @@ func (s *service) Restart() error {
 			processErr = s.process.StopAll()
 		}
 		if httpErr == nil && processErr == nil {
-			s.processes = s.cloneProcessConfigs(previousProcesses)
+			s.processes = make([]processManager.Config, len(previousProcesses))
+			for index, config := range previousProcesses {
+				s.processes[index] = config
+				s.processes[index].Env = append([]string(nil), config.Env...)
+			}
 			return fmt.Errorf("%w，原运行状态已恢复", cause)
 		}
 		if httpErr != nil {
@@ -256,7 +155,11 @@ func (s *service) Restart() error {
 	if err != nil {
 		return restore(fmt.Errorf("重启网站服务失败: %w", err))
 	}
-	s.processes = s.cloneProcessConfigs(processes)
+	s.processes = make([]processManager.Config, len(processes))
+	for index, config := range processes {
+		s.processes[index] = config
+		s.processes[index].Env = append([]string(nil), config.Env...)
+	}
 	if err = s.configService.Set(constant.SiteHTTPEnabled, strconv.FormatBool(true)); err != nil {
 		return restore(fmt.Errorf("保存 HTTP 服务状态失败: %w", err))
 	}
@@ -315,17 +218,12 @@ func (s *service) syncLocked() error {
 		}
 		return errors.Join(fmt.Errorf("同步网站进程失败: %w", err), rollbackErr)
 	}
-	s.processes = s.cloneProcessConfigs(processes)
-	return nil
-}
-
-func (s *service) cloneProcessConfigs(configs []processManager.Config) []processManager.Config {
-	result := make([]processManager.Config, len(configs))
-	for index := range configs {
-		result[index] = configs[index]
-		result[index].Env = append([]string(nil), configs[index].Env...)
+	s.processes = make([]processManager.Config, len(processes))
+	for index, config := range processes {
+		s.processes[index] = config
+		s.processes[index].Env = append([]string(nil), config.Env...)
 	}
-	return result
+	return nil
 }
 
 func (s *service) runtime() ([]webServer.Site, []processManager.Config, error) {

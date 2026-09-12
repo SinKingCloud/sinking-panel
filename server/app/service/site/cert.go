@@ -18,7 +18,6 @@ import (
 	webServer "server/app/util/server"
 	"server/app/util/str"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -31,12 +30,12 @@ func (s *service) CreateCert(data *model.Cert) error {
 	if data == nil {
 		return errors.New("证书数据不能为空")
 	}
-	candidate := s.cloneCertificate(data)
+	candidate := *data
 	candidate.Type = cert_type.Manual
 	candidate.Challenge = ""
 	candidate.SecretId = 0
 	candidate.AutoRenew = 0
-	if err := s.prepareCertificate(candidate, true); err != nil {
+	if err := s.prepareCertificate(&candidate, true); err != nil {
 		return err
 	}
 	candidate.Id = str.GetSnowWorkIns().GetId()
@@ -44,11 +43,11 @@ func (s *service) CreateCert(data *model.Cert) error {
 	s.operationMu.Lock()
 	defer s.operationMu.Unlock()
 	if err := s.database.Transaction(func(tx *gorm.DB) error {
-		return s.repositoryCert.Create(candidate, tx)
+		return s.repositoryCert.Create(&candidate, tx)
 	}); err != nil {
 		return fmt.Errorf("创建证书失败: %w", err)
 	}
-	*data = *s.cloneCertificate(candidate)
+	*data = candidate
 	return nil
 }
 
@@ -70,15 +69,15 @@ func (s *service) UpdateCert(id int64, data *repositoryCert.UpdateCert) error {
 
 	s.operationMu.Lock()
 	defer s.operationMu.Unlock()
-	var previous, candidate *model.Cert
+	var previous, candidate model.Cert
 	contentChanged := data.Certificate != nil || data.PrivateKey != nil
 	err := s.database.Transaction(func(tx *gorm.DB) error {
 		current, err := s.repositoryCert.FindById(id, tx)
 		if err != nil {
 			return err
 		}
-		previous = s.cloneCertificate(current)
-		candidate = s.cloneCertificate(current)
+		previous = *current
+		candidate = *current
 		if data.Name != nil {
 			candidate.Name = *data.Name
 		}
@@ -92,17 +91,17 @@ func (s *service) UpdateCert(id int64, data *repositoryCert.UpdateCert) error {
 			candidate.AutoRenew = *data.AutoRenew
 		}
 		// 单独关闭自动续签不依赖原密钥仍然存在或有效。
-		if data.Challenge != nil || data.SecretId != nil || (data.AutoRenew != nil && *data.AutoRenew != 0) {
+		if data.Challenge != nil || data.SecretId != nil || (data.AutoRenew != nil && candidate.AutoRenew != 0) {
 			request := CertificateRequest{SecretId: data.SecretId}
 			if data.Challenge != nil {
 				request.Challenge = webServer.CertificateChallenge(*data.Challenge)
 			}
-			if err = s.prepareCertificateRequest(candidate, &request, tx); err != nil {
+			if err = s.prepareCertificateRequest(&candidate, &request, tx); err != nil {
 				return err
 			}
 		}
 		if contentChanged {
-			if err = s.prepareCertificate(candidate, false); err != nil {
+			if err = s.prepareCertificate(&candidate, false); err != nil {
 				return err
 			}
 		} else {
@@ -111,8 +110,18 @@ func (s *service) UpdateCert(id int64, data *repositoryCert.UpdateCert) error {
 				return err
 			}
 		}
-		updateData := s.certificateUpdate(candidate)
-		return s.repositoryCert.UpdateById(id, updateData, tx)
+		return s.repositoryCert.UpdateById(id, &repositoryCert.UpdateCert{
+			Name:        &candidate.Name,
+			Type:        &candidate.Type,
+			Challenge:   &candidate.Challenge,
+			SecretId:    &candidate.SecretId,
+			AutoRenew:   &candidate.AutoRenew,
+			Domains:     &candidate.Domains,
+			Certificate: &candidate.Certificate,
+			PrivateKey:  &candidate.PrivateKey,
+			StartTime:   &candidate.StartTime,
+			ExpireTime:  &candidate.ExpireTime,
+		}, tx)
 	})
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -124,7 +133,7 @@ func (s *service) UpdateCert(id int64, data *repositoryCert.UpdateCert) error {
 		return nil
 	}
 	return s.syncCertificateLocked(id, "更新证书", func() error {
-		return s.restoreCertificate(previous, candidate)
+		return s.restoreCertificate(&previous, &candidate)
 	})
 }
 
@@ -178,15 +187,22 @@ func (s *service) SelectCert(where *repositoryCert.SelectCert, queryPage *page.Q
 	var filter *repositoryCert.SelectCert
 	if where != nil {
 		value := *where
-		value.Keyword = strings.TrimSpace(value.Keyword)
-		value.Name = strings.TrimSpace(value.Name)
-		value.Type = strings.TrimSpace(value.Type)
-		if value.Type != "" {
-			certificateType, err := strconv.Atoi(value.Type)
-			if err != nil {
-				return nil, errors.New("证书类型参数错误")
+		if value.Keyword != nil {
+			keyword := strings.TrimSpace(*value.Keyword)
+			value.Keyword = nil
+			if keyword != "" {
+				value.Keyword = &keyword
 			}
-			if _, exists := cert_type.Map()[certificateType]; !exists {
+		}
+		if value.Name != nil {
+			name := strings.TrimSpace(*value.Name)
+			value.Name = nil
+			if name != "" {
+				value.Name = &name
+			}
+		}
+		if value.Type != nil {
+			if _, exists := cert_type.Map()[*value.Type]; !exists {
 				return nil, errors.New("证书类型不合法")
 			}
 		}
@@ -247,7 +263,7 @@ func (s *service) ObtainCert(ctx context.Context, name string, request Certifica
 	}); err != nil {
 		return nil, err
 	}
-	return s.cloneCertificate(candidate), nil
+	return candidate, nil
 }
 
 // RenewCert 续签 ACME 证书并更新现有记录。
@@ -294,9 +310,9 @@ func (s *service) RenewCert(ctx context.Context, id int64, request CertificateRe
 		return nil, errors.New("续签域名不属于当前证书")
 	}
 
-	var previous *model.Cert
-	candidate := s.cloneCertificate(current)
-	if err = s.prepareCertificateRequest(candidate, &request); err != nil {
+	var previous model.Cert
+	candidate := *current
+	if err = s.prepareCertificateRequest(&candidate, &request); err != nil {
 		return nil, err
 	}
 	issued, err := s.http.RenewCertificate(ctx, request.CertificateRequest)
@@ -305,7 +321,7 @@ func (s *service) RenewCert(ctx context.Context, id int64, request CertificateRe
 	}
 	candidate.Certificate = string(issued.CertificatePEM)
 	candidate.PrivateKey = string(issued.PrivateKeyPEM)
-	if err = s.prepareCertificate(candidate, false); err != nil {
+	if err = s.prepareCertificate(&candidate, false); err != nil {
 		return nil, fmt.Errorf("续签得到的证书无效: %w", err)
 	}
 	if err = s.database.Transaction(func(tx *gorm.DB) error {
@@ -316,21 +332,31 @@ func (s *service) RenewCert(ctx context.Context, id int64, request CertificateRe
 		if latest.Type != cert_type.ACME {
 			return errors.New("证书类型已发生变化，无法续签")
 		}
-		previous = s.cloneCertificate(latest)
+		previous = *latest
 		if latest.SecretId != current.SecretId || latest.AutoRenew != current.AutoRenew {
 			candidate.SecretId = latest.SecretId
 			candidate.AutoRenew = latest.AutoRenew
 		}
-		if err := s.checkCertificateSecret(candidate, request, tx); err != nil {
+		if err := s.checkCertificateSecret(&candidate, request, tx); err != nil {
 			return err
 		}
-		updateData := s.certificateUpdate(candidate)
-		return s.repositoryCert.UpdateById(id, updateData, tx)
+		return s.repositoryCert.UpdateById(id, &repositoryCert.UpdateCert{
+			Name:        &candidate.Name,
+			Type:        &candidate.Type,
+			Challenge:   &candidate.Challenge,
+			SecretId:    &candidate.SecretId,
+			AutoRenew:   &candidate.AutoRenew,
+			Domains:     &candidate.Domains,
+			Certificate: &candidate.Certificate,
+			PrivateKey:  &candidate.PrivateKey,
+			StartTime:   &candidate.StartTime,
+			ExpireTime:  &candidate.ExpireTime,
+		}, tx)
 	}); err != nil {
 		return nil, fmt.Errorf("保存续签证书失败: %w", err)
 	}
 	if err = s.syncCertificateLocked(id, "部署续签证书", func() error {
-		return s.restoreCertificate(previous, candidate)
+		return s.restoreCertificate(&previous, &candidate)
 	}); err != nil {
 		return nil, err
 	}
@@ -598,39 +624,6 @@ func (s *service) inspectCertificate(certificatePEM, privateKeyPEM string) (*x50
 	return leaf, domains, nil
 }
 
-func (s *service) cloneCertificate(data *model.Cert) *model.Cert {
-	if data == nil {
-		return nil
-	}
-	result := *data
-	return &result
-}
-
-func (s *service) certificateUpdate(data *model.Cert) *repositoryCert.UpdateCert {
-	name := data.Name
-	certificateType := data.Type
-	challenge := data.Challenge
-	secretId := data.SecretId
-	autoRenew := data.AutoRenew
-	domains := data.Domains
-	certificate := data.Certificate
-	privateKey := data.PrivateKey
-	startTime := data.StartTime
-	expireTime := data.ExpireTime
-	return &repositoryCert.UpdateCert{
-		Name:        &name,
-		Type:        &certificateType,
-		Challenge:   &challenge,
-		SecretId:    &secretId,
-		AutoRenew:   &autoRenew,
-		Domains:     &domains,
-		Certificate: &certificate,
-		PrivateKey:  &privateKey,
-		StartTime:   &startTime,
-		ExpireTime:  &expireTime,
-	}
-}
-
 func (s *service) restoreCertificate(data, expected *model.Cert) error {
 	if data == nil || expected == nil {
 		return errors.New("缺少待恢复的证书数据")
@@ -640,7 +633,7 @@ func (s *service) restoreCertificate(data, expected *model.Cert) error {
 		if err != nil {
 			return err
 		}
-		restored := s.cloneCertificate(data)
+		restored := *data
 		if current.SecretId != expected.SecretId || current.AutoRenew != expected.AutoRenew {
 			restored.SecretId = current.SecretId
 			restored.AutoRenew = current.AutoRenew
@@ -654,7 +647,7 @@ func (s *service) restoreCertificate(data, expected *model.Cert) error {
 				restored.AutoRenew = 0
 			}
 		}
-		return s.repositoryCert.Restore(restored, tx)
+		return s.repositoryCert.Restore(&restored, tx)
 	})
 }
 

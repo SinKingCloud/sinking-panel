@@ -5,6 +5,7 @@ import (
 	repositorySite "server/app/repository/site"
 	"server/app/service"
 	"server/app/util/context"
+	"strconv"
 )
 
 // List 获取网站列表。
@@ -27,31 +28,49 @@ func List(c *context.Context) {
 	}
 	where := &repositorySite.SelectSite{}
 	if form.Keyword != "" {
-		where.Keyword = form.Keyword
+		where.Keyword = &form.Keyword
 	}
 	if form.Name != "" {
-		where.Name = form.Name
+		where.Name = &form.Name
 	}
 	if form.TypeId != "" {
-		where.TypeId = form.TypeId
+		typeId, err := strconv.ParseInt(form.TypeId, 10, 64)
+		if err != nil || typeId < 0 {
+			c.Error("网站分类参数错误")
+			return
+		}
+		// 列表的分类 0 表示全部分类。
+		if typeId != 0 {
+			where.TypeId = &typeId
+		}
 	}
 	if form.Type != "" {
-		where.Type = form.Type
+		siteType, err := strconv.Atoi(form.Type)
+		if err != nil {
+			c.Error("网站类型参数错误")
+			return
+		}
+		where.Type = &siteType
 	}
 	if form.Status != "" {
-		where.Status = form.Status
+		status, err := strconv.Atoi(form.Status)
+		if err != nil {
+			c.Error("网站状态参数错误")
+			return
+		}
+		where.Status = &status
 	}
 	if form.CreateTimeStart != "" {
-		where.CreateTimeStart = form.CreateTimeStart
+		where.CreateTimeStart = &form.CreateTimeStart
 	}
 	if form.CreateTimeEnd != "" {
-		where.CreateTimeEnd = form.CreateTimeEnd
+		where.CreateTimeEnd = &form.CreateTimeEnd
 	}
 	if form.UpdateTimeStart != "" {
-		where.UpdateTimeStart = form.UpdateTimeStart
+		where.UpdateTimeStart = &form.UpdateTimeStart
 	}
 	if form.UpdateTimeEnd != "" {
-		where.UpdateTimeEnd = form.UpdateTimeEnd
+		where.UpdateTimeEnd = &form.UpdateTimeEnd
 	}
 	data, err := service.Site.Select(where, query)
 	if err != nil {

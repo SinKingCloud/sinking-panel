@@ -1,6 +1,7 @@
 package secret
 
 import (
+	"encoding/json"
 	"server/app/constant"
 	repositorySecret "server/app/repository/secret"
 )
@@ -13,8 +14,9 @@ func (s *service) GetIdNameMap(where *repositorySecret.SelectSecret) (map[int64]
 	if where != nil {
 		query = *where
 	}
-	cached, _ := s.cache.Get(constant.CacheNameWithSecretNameEnum).(map[repositorySecret.SelectSecret]map[int64]string)
-	if result, ok := cached[query]; ok {
+	key, _ := json.Marshal(query)
+	cached, _ := s.cache.Get(constant.CacheNameWithSecretNameEnum).(map[string]map[int64]string)
+	if result, ok := cached[string(key)]; ok {
 		return result, nil
 	}
 	result, err := s.repositorySecret.SelectIdNameMap(where)
@@ -22,9 +24,9 @@ func (s *service) GetIdNameMap(where *repositorySecret.SelectSecret) (map[int64]
 		return nil, err
 	}
 	if cached == nil {
-		cached = make(map[repositorySecret.SelectSecret]map[int64]string)
+		cached = make(map[string]map[int64]string)
 	}
-	cached[query] = result
+	cached[string(key)] = result
 	s.cache.SetWithExpire(constant.CacheNameWithSecretNameEnum, cached, constant.CacheTimeWithSecretNameEnum)
 	return result, nil
 }

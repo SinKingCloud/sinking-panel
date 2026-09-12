@@ -22,10 +22,10 @@ func (s *service) Upload(ctx context.Context, fileHeader *multipart.FileHeader, 
 	if err := s.validateUploadFileName(fileName); err != nil {
 		return nil, err
 	}
-	if err := os.MkdirAll(s.uploadRootPath(), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Clean(constant.UploadPath), 0755); err != nil {
 		return nil, fmt.Errorf("创建上传缓存失败: %w", err)
 	}
-	sessionPath, err := os.MkdirTemp(s.uploadRootPath(), "direct-*")
+	sessionPath, err := os.MkdirTemp(filepath.Clean(constant.UploadPath), "direct-*")
 	if err != nil {
 		return nil, fmt.Errorf("创建上传缓存失败: %w", err)
 	}
@@ -96,7 +96,11 @@ func (s *service) CheckUpload(meta UploadMeta) ([]int, *UploadedFile, error) {
 		return nil, nil, completedErr
 	}
 	if found {
-		return s.allUploadChunkIndexes(meta.TotalChunks), completed, nil
+		chunks := make([]int, meta.TotalChunks)
+		for index := range chunks {
+			chunks[index] = index
+		}
+		return chunks, completed, nil
 	}
 	uploadedChunks, err := s.uploadedChunkIndexes(meta)
 	if err != nil {
@@ -137,7 +141,7 @@ func (s *service) MergeUpload(ctx context.Context, meta UploadMeta) (*UploadedFi
 	if err = s.writeCompletedUpload(meta.UploadID, completed); err != nil {
 		return nil, false, fmt.Errorf("记录上传结果失败: %w", err)
 	}
-	_ = os.RemoveAll(s.uploadChunksPath(meta.UploadID))
+	_ = os.RemoveAll(filepath.Join(constant.UploadPath, meta.UploadID, "chunks"))
 	_ = os.Remove(mergedPath)
 	return completed, false, nil
 }
@@ -149,7 +153,7 @@ func (s *service) ClearUpload(uploadID string) error {
 	}
 	unlock := s.lockUploadSession(uploadID)
 	defer unlock()
-	if err := os.RemoveAll(s.uploadSessionPath(uploadID)); err != nil {
+	if err := os.RemoveAll(filepath.Join(constant.UploadPath, uploadID)); err != nil {
 		return fmt.Errorf("清理上传缓存失败: %w", err)
 	}
 	return nil
@@ -164,7 +168,7 @@ func (s *service) cleanupExpiredUploadSessions() {
 	s.upload.lastCleanup = time.Now()
 	s.upload.Unlock()
 
-	entries, err := os.ReadDir(s.uploadRootPath())
+	entries, err := os.ReadDir(filepath.Clean(constant.UploadPath))
 	if err != nil {
 		return
 	}
@@ -178,9 +182,9 @@ func (s *service) cleanupExpiredUploadSessions() {
 			continue
 		}
 		unlock := s.lockUploadSession(entry.Name())
-		info, infoErr = os.Stat(s.uploadSessionPath(entry.Name()))
+		info, infoErr = os.Stat(filepath.Join(constant.UploadPath, entry.Name()))
 		if infoErr == nil && info.ModTime().Before(cutoff) {
-			_ = os.RemoveAll(s.uploadSessionPath(entry.Name()))
+			_ = os.RemoveAll(filepath.Join(constant.UploadPath, entry.Name()))
 		}
 		unlock()
 	}
@@ -243,7 +247,7 @@ func (s *service) resolveUploadLockDirectory(path string) string {
 
 func (s *service) touchUploadSession(uploadID string) {
 	now := time.Now()
-	_ = os.Chtimes(s.uploadSessionPath(uploadID), now, now)
+	_ = os.Chtimes(filepath.Join(constant.UploadPath, uploadID), now, now)
 }
 
 func (s *service) validateUploadMeta(meta UploadMeta) error {
@@ -282,16 +286,6 @@ func (s *service) validateUploadMeta(meta UploadMeta) error {
 	return nil
 }
 
-func (s *service) matchesUploadMeta(meta, other UploadMeta) bool {
-	return meta.UploadID == other.UploadID &&
-		meta.Path == other.Path &&
-		meta.FileName == other.FileName &&
-		meta.TotalSize == other.TotalSize &&
-		meta.ChunkSize == other.ChunkSize &&
-		meta.TotalChunks == other.TotalChunks &&
-		meta.FileHash == other.FileHash
-}
-
 func (s *service) validateUploadFileName(fileName string) error {
 	if fileName == "" || fileName == "." || fileName == ".." || strings.ContainsRune(fileName, 0) || strings.ContainsAny(fileName, `/\`) || filepath.Base(fileName) != fileName {
 		return fmt.Errorf("file_name参数不合法")
@@ -299,30 +293,10 @@ func (s *service) validateUploadFileName(fileName string) error {
 	return nil
 }
 
-func (s *service) uploadSessionPath(uploadID string) string {
-	return filepath.Join(s.uploadRootPath(), uploadID)
-}
-
-func (s *service) uploadMetadataPath(uploadID string) string {
-	return filepath.Join(s.uploadSessionPath(uploadID), "meta.json")
-}
-
-func (s *service) completedUploadPath(uploadID string) string {
-	return filepath.Join(s.uploadSessionPath(uploadID), "completed.json")
-}
-
-func (s *service) uploadChunksPath(uploadID string) string {
-	return filepath.Join(s.uploadSessionPath(uploadID), "chunks")
-}
-
-func (s *service) uploadChunkPath(uploadID string, chunkIndex int) string {
-	return filepath.Join(s.uploadChunksPath(uploadID), fmt.Sprintf("%d.part", chunkIndex))
-}
-
 func (s *service) ensureUploadSession(meta UploadMeta) error {
 	stored, err := s.readUploadMeta(meta.UploadID)
 	if err == nil {
-		if !s.matchesUploadMeta(stored, meta) {
+		if stored != meta {
 			return fmt.Errorf("上传任务信息不一致")
 		}
 		return nil
@@ -331,11 +305,11 @@ func (s *service) ensureUploadSession(meta UploadMeta) error {
 		return fmt.Errorf("读取上传任务失败: %w", err)
 	}
 
-	sessionPath := s.uploadSessionPath(meta.UploadID)
+	sessionPath := filepath.Join(constant.UploadPath, meta.UploadID)
 	if err = os.RemoveAll(sessionPath); err != nil {
 		return err
 	}
-	if err = os.MkdirAll(s.uploadChunksPath(meta.UploadID), 0755); err != nil {
+	if err = os.MkdirAll(filepath.Join(constant.UploadPath, meta.UploadID, "chunks"), 0755); err != nil {
 		return err
 	}
 	data, err := json.Marshal(meta)
@@ -357,7 +331,7 @@ func (s *service) ensureUploadSession(meta UploadMeta) error {
 	if err != nil {
 		return err
 	}
-	return os.Rename(tempPath, s.uploadMetadataPath(meta.UploadID))
+	return os.Rename(tempPath, filepath.Join(constant.UploadPath, meta.UploadID, "meta.json"))
 }
 
 func (s *service) verifyUploadSession(meta UploadMeta) error {
@@ -368,14 +342,14 @@ func (s *service) verifyUploadSession(meta UploadMeta) error {
 	if err != nil {
 		return fmt.Errorf("读取上传任务失败: %w", err)
 	}
-	if !s.matchesUploadMeta(stored, meta) {
+	if stored != meta {
 		return fmt.Errorf("上传任务信息不一致")
 	}
 	return nil
 }
 
 func (s *service) readUploadMeta(uploadID string) (UploadMeta, error) {
-	data, err := os.ReadFile(s.uploadMetadataPath(uploadID))
+	data, err := os.ReadFile(filepath.Join(constant.UploadPath, uploadID, "meta.json"))
 	if err != nil {
 		return UploadMeta{}, err
 	}
@@ -399,7 +373,7 @@ func (s *service) expectedUploadChunkSize(meta UploadMeta, chunkIndex int) int64
 func (s *service) uploadedChunkIndexes(meta UploadMeta) ([]int, error) {
 	uploaded := make([]int, 0, meta.TotalChunks)
 	for index := 0; index < meta.TotalChunks; index++ {
-		chunkPath := s.uploadChunkPath(meta.UploadID, index)
+		chunkPath := filepath.Join(constant.UploadPath, meta.UploadID, "chunks", fmt.Sprintf("%d.part", index))
 		info, err := os.Stat(chunkPath)
 		if os.IsNotExist(err) {
 			continue
@@ -416,16 +390,8 @@ func (s *service) uploadedChunkIndexes(meta UploadMeta) ([]int, error) {
 	return uploaded, nil
 }
 
-func (s *service) allUploadChunkIndexes(totalChunks int) []int {
-	chunks := make([]int, totalChunks)
-	for index := range chunks {
-		chunks[index] = index
-	}
-	return chunks
-}
-
 func (s *service) readCompletedUpload(meta UploadMeta) (*UploadedFile, bool, error) {
-	data, err := os.ReadFile(s.completedUploadPath(meta.UploadID))
+	data, err := os.ReadFile(filepath.Join(constant.UploadPath, meta.UploadID, "completed.json"))
 	if os.IsNotExist(err) {
 		return nil, false, nil
 	}
@@ -463,7 +429,7 @@ func (s *service) writeCompletedUpload(uploadID string, completed *UploadedFile)
 	if err != nil {
 		return err
 	}
-	sessionPath := s.uploadSessionPath(uploadID)
+	sessionPath := filepath.Join(constant.UploadPath, uploadID)
 	temp, err := os.CreateTemp(sessionPath, ".completed-*")
 	if err != nil {
 		return err
@@ -479,11 +445,11 @@ func (s *service) writeCompletedUpload(uploadID string, completed *UploadedFile)
 	if err != nil {
 		return err
 	}
-	return os.Rename(tempPath, s.completedUploadPath(uploadID))
+	return os.Rename(tempPath, filepath.Join(constant.UploadPath, uploadID, "completed.json"))
 }
 
 func (s *service) saveUploadChunk(fileHeader *multipart.FileHeader, meta UploadMeta, chunkIndex int) (bool, error) {
-	chunkPath := s.uploadChunkPath(meta.UploadID, chunkIndex)
+	chunkPath := filepath.Join(constant.UploadPath, meta.UploadID, "chunks", fmt.Sprintf("%d.part", chunkIndex))
 	expectedSize := s.expectedUploadChunkSize(meta, chunkIndex)
 	if info, err := os.Stat(chunkPath); err == nil && info.Mode().IsRegular() && info.Size() == expectedSize {
 		return true, nil
@@ -537,7 +503,7 @@ func (s *service) saveMultipartFile(fileHeader *multipart.FileHeader, destPath s
 }
 
 func (s *service) mergeUploadChunks(ctx context.Context, meta UploadMeta) (string, int64, error) {
-	sessionPath := s.uploadSessionPath(meta.UploadID)
+	sessionPath := filepath.Join(constant.UploadPath, meta.UploadID)
 	merged, err := os.CreateTemp(sessionPath, ".merged-*")
 	if err != nil {
 		return "", 0, err
@@ -552,7 +518,7 @@ func (s *service) mergeUploadChunks(ctx context.Context, meta UploadMeta) (strin
 			_ = merged.Close()
 			return "", 0, err
 		}
-		chunkPath := s.uploadChunkPath(meta.UploadID, index)
+		chunkPath := filepath.Join(constant.UploadPath, meta.UploadID, "chunks", fmt.Sprintf("%d.part", index))
 		info, statErr := os.Stat(chunkPath)
 		if statErr != nil {
 			_ = merged.Close()
@@ -720,8 +686,4 @@ func (s *service) copyUploadData(ctx context.Context, dest io.Writer, source io.
 			return written, readErr
 		}
 	}
-}
-
-func (s *service) uploadRootPath() string {
-	return filepath.Clean(constant.UploadPath)
 }

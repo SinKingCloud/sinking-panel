@@ -5,6 +5,7 @@ import (
 	repositoryTask "server/app/repository/task"
 	"server/app/service"
 	"server/app/util/context"
+	"strconv"
 )
 
 // List 获取计划任务列表
@@ -28,34 +29,51 @@ func List(c *context.Context) {
 	}
 	where := &repositoryTask.SelectTask{}
 	if form.TypeId != "" {
-		where.TypeId = form.TypeId
+		typeId, err := strconv.ParseInt(form.TypeId, 10, 64)
+		if err != nil || typeId < 0 {
+			c.Error("任务分类参数错误")
+			return
+		}
+		if typeId != 0 {
+			where.TypeId = &typeId
+		}
 	}
 	if form.ExecType != "" {
-		where.ExecType = form.ExecType
+		execType, err := strconv.Atoi(form.ExecType)
+		if err != nil {
+			c.Error("任务执行类型参数错误")
+			return
+		}
+		where.ExecType = &execType
 	}
 	if form.Name != "" {
-		where.Name = form.Name
+		where.Name = &form.Name
 	}
 	if form.Status != "" {
-		where.Status = form.Status
+		status, err := strconv.Atoi(form.Status)
+		if err != nil {
+			c.Error("任务状态参数错误")
+			return
+		}
+		where.Status = &status
 	}
 	if form.RunTimeStart != "" {
-		where.RunTimeStart = form.RunTimeStart
+		where.RunTimeStart = &form.RunTimeStart
 	}
 	if form.RunTimeEnd != "" {
-		where.RunTimeEnd = form.RunTimeEnd
+		where.RunTimeEnd = &form.RunTimeEnd
 	}
 	if form.CreateTimeStart != "" {
-		where.CreateTimeStart = form.CreateTimeStart
+		where.CreateTimeStart = &form.CreateTimeStart
 	}
 	if form.CreateTimeEnd != "" {
-		where.CreateTimeEnd = form.CreateTimeEnd
+		where.CreateTimeEnd = &form.CreateTimeEnd
 	}
 	if form.UpdateTimeStart != "" {
-		where.UpdateTimeStart = form.UpdateTimeStart
+		where.UpdateTimeStart = &form.UpdateTimeStart
 	}
 	if form.UpdateTimeEnd != "" {
-		where.UpdateTimeEnd = form.UpdateTimeEnd
+		where.UpdateTimeEnd = &form.UpdateTimeEnd
 	}
 	data, err := service.Task.Select(where, query)
 	if err != nil {

@@ -13,8 +13,8 @@ import (
 func Update(c *context.Context) {
 	var form struct {
 		Id      int64   `json:"id" default:"0" validate:"required,min=1" label:"网站ID"`
-		Name    *string `json:"name" validate:"omitempty,max=100" label:"网站名称"`
-		TypeId  *int64  `json:"type_id" validate:"omitempty,min=0" label:"网站分类ID"`
+		Name    string  `json:"name" default:"" validate:"omitempty,max=100" label:"网站名称"`
+		TypeId  string  `json:"type_id" default:"" validate:"omitempty,numeric" label:"网站分类ID"`
 		Root    *string `json:"root" validate:"omitempty,max=4096" label:"网站根目录"`
 		RunPath *string `json:"run_path" validate:"omitempty,max=4096" label:"网站运行目录"`
 	}
@@ -23,11 +23,16 @@ func Update(c *context.Context) {
 		return
 	}
 	data := &serviceSite.UpdateSite{}
-	if form.Name != nil {
-		data.Name = form.Name
+	if form.Name != "" {
+		data.Name = &form.Name
 	}
-	if form.TypeId != nil {
-		data.TypeId = form.TypeId
+	if form.TypeId != "" {
+		typeId, err := strconv.ParseInt(form.TypeId, 10, 64)
+		if err != nil || typeId < 0 {
+			c.Error("网站分类ID参数错误")
+			return
+		}
+		data.TypeId = &typeId
 	}
 	if form.Root != nil {
 		data.Root = form.Root

@@ -2,6 +2,7 @@ package system
 
 import (
 	"context"
+	"os"
 	"server/app/constant"
 	serviceFile "server/app/service/file"
 	"sync"
@@ -114,7 +115,9 @@ func (s *service) Start() {
 	if s.started || s.closed {
 		return
 	}
-	s.resetTaskLogs()
+	// 系统任务仅保存在内存中，启动时清理上一次进程遗留的日志。
+	_ = os.RemoveAll(s.systemTaskLogDirectory)
+	_ = os.MkdirAll(s.systemTaskLogDirectory, 0755)
 	s.started = true
 	s.wait.Add(s.maxTaskWorkers)
 	for i := 0; i < s.maxTaskWorkers; i++ {

@@ -8,27 +8,32 @@ import (
 	"strconv"
 )
 
-// Update 更新密钥凭据，未传入的字段保持原值。
+// Update 修改密钥凭据。
 func Update(c *context.Context) {
 	var form struct {
-		Id       int64   `json:"id" default:"0" validate:"required,min=1" label:"密钥ID"`
-		Name     *string `json:"name" validate:"omitempty,min=1,max=100" label:"密钥名称"`
-		Provider *int    `json:"provider" validate:"omitempty,min=0" label:"服务商"`
-		Data     *string `json:"data" validate:"omitempty,min=1,max=1048576" label:"密钥内容"`
+		Id       int64  `json:"id" default:"0" validate:"required,min=1" label:"密钥ID"`
+		Name     string `json:"name" default:"" validate:"omitempty,max=100" label:"密钥名称"`
+		Provider string `json:"provider" default:"" validate:"omitempty,numeric" label:"服务商"`
+		Data     string `json:"data" default:"" validate:"omitempty,max=1048576" label:"密钥内容"`
 	}
 	if ok, msg := c.ValidatorAll(&form); !ok {
 		c.Error(msg)
 		return
 	}
 	data := &repositorySecret.UpdateSecret{}
-	if form.Name != nil {
-		data.Name = form.Name
+	if form.Name != "" {
+		data.Name = &form.Name
 	}
-	if form.Provider != nil {
-		data.Provider = form.Provider
+	if form.Provider != "" {
+		provider, err := strconv.Atoi(form.Provider)
+		if err != nil || provider < 0 {
+			c.Error("服务商参数错误")
+			return
+		}
+		data.Provider = &provider
 	}
-	if form.Data != nil {
-		data.Data = form.Data
+	if form.Data != "" {
+		data.Data = &form.Data
 	}
 	err := service.Secret.Update(form.Id, data)
 	if err == nil {

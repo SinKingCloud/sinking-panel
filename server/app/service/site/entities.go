@@ -324,9 +324,9 @@ type CreateSite struct {
 // UpdateSite 更新网站参数，nil 字段保持原值。
 type UpdateSite struct {
 	Name    *string `json:"name"`     // 网站名称
-	TypeId  *int64  `json:"type_id"`  // 网站分类 ID
-	Root    *string `json:"root"`     // 网站根目录
-	RunPath *string `json:"run_path"` // 相对网站根目录的运行目录
+	TypeId  *int64  `json:"type_id"`  // 网站分类 ID，0 表示取消分类
+	Root    *string `json:"root"`     // 网站根目录，代理网站可清空
+	RunPath *string `json:"run_path"` // 相对运行目录，空字符串表示使用根目录
 }
 
 // Site 网站基础详情，独立设置通过对应 Get 方法读取。

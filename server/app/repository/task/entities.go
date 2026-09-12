@@ -4,26 +4,26 @@ import "server/app/util/str"
 
 // SelectTask 任务查询条件
 type SelectTask struct {
-	TypeId          string
-	ExecType        string
-	Name            string
-	Status          string
-	RunTimeStart    string
-	RunTimeEnd      string
-	CreateTimeStart string
-	CreateTimeEnd   string
-	UpdateTimeStart string
-	UpdateTimeEnd   string
+	TypeId          *int64
+	ExecType        *int
+	Name            *string
+	Status          *int
+	RunTimeStart    *string
+	RunTimeEnd      *string
+	CreateTimeStart *string
+	CreateTimeEnd   *string
+	UpdateTimeStart *string
+	UpdateTimeEnd   *string
 }
 
 // UpdateTask 任务更新
 type UpdateTask struct {
-	TypeId   interface{}
-	ExecType interface{}
-	Name     interface{}
-	Spec     interface{}
-	Script   interface{}
-	Status   interface{}
+	TypeId   *int64
+	ExecType *int
+	Name     *string
+	Spec     *string
+	Script   *string
+	Status   *int
 }
 
 // Task 计划任务表

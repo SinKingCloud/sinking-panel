@@ -4,26 +4,26 @@ import "server/app/util/str"
 
 // SelectServer 服务器查询条件
 type SelectServer struct {
-	Keyword         string
-	Ip              string
-	Port            string
-	User            string
-	Name            string
-	AuthType        string
-	CreateTimeStart string
-	CreateTimeEnd   string
-	UpdateTimeStart string
-	UpdateTimeEnd   string
+	Keyword         *string
+	Ip              *string
+	Port            *int
+	User            *string
+	Name            *string
+	AuthType        *int
+	CreateTimeStart *string
+	CreateTimeEnd   *string
+	UpdateTimeStart *string
+	UpdateTimeEnd   *string
 }
 
 // UpdateServer 服务器更新
 type UpdateServer struct {
-	Ip       interface{}
-	Port     interface{}
-	User     interface{}
-	AuthType interface{}
-	Password interface{}
-	Name     interface{}
+	Ip       *string
+	Port     *int
+	User     *string
+	AuthType *int
+	Password *string
+	Name     *string
 }
 
 // Server 配置表

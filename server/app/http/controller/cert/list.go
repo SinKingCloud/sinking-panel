@@ -5,6 +5,7 @@ import (
 	repositoryCert "server/app/repository/cert"
 	"server/app/service"
 	"server/app/util/context"
+	"strconv"
 )
 
 // List 获取证书列表，列表不返回证书和私钥正文。
@@ -25,25 +26,30 @@ func List(c *context.Context) {
 	}
 	where := &repositoryCert.SelectCert{}
 	if form.Keyword != "" {
-		where.Keyword = form.Keyword
+		where.Keyword = &form.Keyword
 	}
 	if form.Name != "" {
-		where.Name = form.Name
+		where.Name = &form.Name
 	}
 	if form.Type != "" {
-		where.Type = form.Type
+		certificateType, err := strconv.Atoi(form.Type)
+		if err != nil {
+			c.Error("证书类型参数错误")
+			return
+		}
+		where.Type = &certificateType
 	}
 	if form.ExpireTimeStart != "" {
-		where.ExpireTimeStart = form.ExpireTimeStart
+		where.ExpireTimeStart = &form.ExpireTimeStart
 	}
 	if form.ExpireTimeEnd != "" {
-		where.ExpireTimeEnd = form.ExpireTimeEnd
+		where.ExpireTimeEnd = &form.ExpireTimeEnd
 	}
 	if form.CreateTimeStart != "" {
-		where.CreateTimeStart = form.CreateTimeStart
+		where.CreateTimeStart = &form.CreateTimeStart
 	}
 	if form.CreateTimeEnd != "" {
-		where.CreateTimeEnd = form.CreateTimeEnd
+		where.CreateTimeEnd = &form.CreateTimeEnd
 	}
 	data, err := service.Site.SelectCert(where, query)
 	if err != nil {

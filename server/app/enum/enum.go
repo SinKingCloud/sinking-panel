@@ -16,12 +16,26 @@ import (
 	"server/app/enum/task_status"
 	"server/app/enum/task_type"
 	"server/app/enum/type_module"
+	"server/app/service"
+	serviceSecret "server/app/service/secret"
 )
 
 // Data 枚举信息
 var Data = map[string]interface{}{
-	"cert": map[string]interface{}{
-		"type": cert_type.Map(), //证书类型
+	"cert": func() interface{} {
+		data := service.Secret.GetData()
+		providers := secret_provider.Map()
+		return map[string]interface{}{
+			"type": cert_type.Map(), //证书类型
+			"dns": map[string]interface{}{
+				"tencentcloud": map[string]interface{}{"name": providers[secret_provider.TencentCloud], "data": data[secret_provider.TencentCloud]},
+				"alidns":       map[string]interface{}{"name": providers[secret_provider.Aliyun], "data": data[secret_provider.Aliyun]},
+				"huaweicloud":  map[string]interface{}{"name": providers[secret_provider.HuaweiCloud], "data": data[secret_provider.HuaweiCloud]},
+				"volcengine":   map[string]interface{}{"name": providers[secret_provider.Volcengine], "data": data[secret_provider.Volcengine]},
+				"baiducloud":   map[string]interface{}{"name": providers[secret_provider.BaiduCloud], "data": data[secret_provider.BaiduCloud]},
+				"dnspod":       map[string]interface{}{"name": "DNSPod", "data": &serviceSecret.DNSPod{}},
+			},
+		}
 	},
 	"secret": func() interface{} {
 		return map[string]interface{}{

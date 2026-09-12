@@ -4,8 +4,8 @@ import "server/app/util/str"
 
 // SelectSecret 密钥凭据查询条件。
 type SelectSecret struct {
-	Keyword  string
-	Provider string
+	Keyword  *string
+	Provider *int
 }
 
 // UpdateSecret 密钥凭据更新内容。

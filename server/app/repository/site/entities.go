@@ -4,15 +4,15 @@ import "server/app/util/str"
 
 // SelectSite 网站查询条件。
 type SelectSite struct {
-	Keyword         string
-	Name            string
-	TypeId          string
-	Type            string
-	Status          string
-	CreateTimeStart string
-	CreateTimeEnd   string
-	UpdateTimeStart string
-	UpdateTimeEnd   string
+	Keyword         *string
+	Name            *string
+	TypeId          *int64
+	Type            *int
+	Status          *int
+	CreateTimeStart *string
+	CreateTimeEnd   *string
+	UpdateTimeStart *string
+	UpdateTimeEnd   *string
 }
 
 // UpdateSite 网站更新内容。

@@ -57,11 +57,11 @@ func (r *Repository) SelectIdNameMap(module string) (map[int64]string, error) {
 func (r *Repository) Select(where *SelectType, orderByField, orderByType string) ([]*model.Type, error) {
 	query := r.Database.Db.Model(&model.Type{})
 	if where != nil {
-		if where.Module != "" {
-			query = query.Where("module = ?", where.Module)
+		if where.Module != nil {
+			query = query.Where("module = ?", *where.Module)
 		}
-		if where.Name != "" {
-			query = query.Where("name LIKE ?", "%"+where.Name+"%")
+		if where.Name != nil {
+			query = query.Where("name LIKE ?", "%"+*where.Name+"%")
 		}
 	}
 	if orderByField != "id" {

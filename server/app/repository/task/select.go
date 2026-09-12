@@ -15,35 +15,35 @@ func (r *Repository) SelectAll() (list []*model.Task, err error) {
 func (r *Repository) Select(where *SelectTask, queryPage *page.Query) (*page.Result[*Task], error) {
 	query := r.Database.Db.Model(&model.Task{})
 	if where != nil {
-		if where.TypeId != "" {
-			query = query.Where("type_id = ?", where.TypeId)
+		if where.TypeId != nil {
+			query = query.Where("type_id = ?", *where.TypeId)
 		}
-		if where.ExecType != "" {
-			query = query.Where("exec_type = ?", where.ExecType)
+		if where.ExecType != nil {
+			query = query.Where("exec_type = ?", *where.ExecType)
 		}
-		if where.Name != "" {
-			query = query.Where("name LIKE ?", "%"+where.Name+"%")
+		if where.Name != nil {
+			query = query.Where("name LIKE ?", "%"+*where.Name+"%")
 		}
-		if where.Status != "" {
-			query = query.Where("status = ?", where.Status)
+		if where.Status != nil {
+			query = query.Where("status = ?", *where.Status)
 		}
-		if where.RunTimeStart != "" {
-			query = query.Where("run_time >= ?", where.RunTimeStart)
+		if where.RunTimeStart != nil {
+			query = query.Where("run_time >= ?", *where.RunTimeStart)
 		}
-		if where.RunTimeEnd != "" {
-			query = query.Where("run_time <= ?", where.RunTimeEnd)
+		if where.RunTimeEnd != nil {
+			query = query.Where("run_time <= ?", *where.RunTimeEnd)
 		}
-		if where.CreateTimeStart != "" {
-			query = query.Where("create_time >= ?", where.CreateTimeStart)
+		if where.CreateTimeStart != nil {
+			query = query.Where("create_time >= ?", *where.CreateTimeStart)
 		}
-		if where.CreateTimeEnd != "" {
-			query = query.Where("create_time <= ?", where.CreateTimeEnd)
+		if where.CreateTimeEnd != nil {
+			query = query.Where("create_time <= ?", *where.CreateTimeEnd)
 		}
-		if where.UpdateTimeStart != "" {
-			query = query.Where("update_time >= ?", where.UpdateTimeStart)
+		if where.UpdateTimeStart != nil {
+			query = query.Where("update_time >= ?", *where.UpdateTimeStart)
 		}
-		if where.UpdateTimeEnd != "" {
-			query = query.Where("update_time <= ?", where.UpdateTimeEnd)
+		if where.UpdateTimeEnd != nil {
+			query = query.Where("update_time <= ?", *where.UpdateTimeEnd)
 		}
 	}
 	return r.Repository.SelectPage(query, queryPage)

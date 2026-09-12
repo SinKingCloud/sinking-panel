@@ -15,13 +15,13 @@ func (r *Repository) UpdateByIds(ids []int64, data *UpdateType, tx ...*gorm.DB) 
 	}
 	updates := make(map[string]interface{})
 	if data.Module != nil {
-		updates["module"] = data.Module
+		updates["module"] = *data.Module
 	}
 	if data.Name != nil {
-		updates["name"] = data.Name
+		updates["name"] = *data.Name
 	}
 	if data.Sort != nil {
-		updates["sort"] = data.Sort
+		updates["sort"] = *data.Sort
 	}
 	if len(updates) == 0 {
 		return nil

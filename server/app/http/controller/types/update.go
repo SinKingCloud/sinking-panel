@@ -22,10 +22,10 @@ func Update(c *context.Context) {
 	}
 	data := &repositoryTypes.UpdateType{}
 	if form.Module != "" {
-		data.Module = form.Module
+		data.Module = &form.Module
 	}
 	if form.Name != "" {
-		data.Name = form.Name
+		data.Name = &form.Name
 	}
 	if form.Sort != "" {
 		sort, err := strconv.ParseInt(form.Sort, 10, 64)
@@ -33,7 +33,7 @@ func Update(c *context.Context) {
 			c.Error("排序参数错误")
 			return
 		}
-		data.Sort = sort
+		data.Sort = &sort
 	}
 	err := service.Type.UpdateByIds(form.Ids, data)
 	if err == nil {

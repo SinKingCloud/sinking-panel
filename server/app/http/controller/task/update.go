@@ -30,7 +30,7 @@ func Update(c *context.Context) {
 			c.Error("任务分类ID参数错误")
 			return
 		}
-		data.TypeId = typeId
+		data.TypeId = &typeId
 	}
 	if form.ExecType != "" {
 		execType, err := strconv.Atoi(form.ExecType)
@@ -38,16 +38,16 @@ func Update(c *context.Context) {
 			c.Error("任务执行类型参数错误")
 			return
 		}
-		data.ExecType = execType
+		data.ExecType = &execType
 	}
 	if form.Name != "" {
-		data.Name = form.Name
+		data.Name = &form.Name
 	}
 	if form.Spec != "" {
-		data.Spec = form.Spec
+		data.Spec = &form.Spec
 	}
 	if form.Script != "" {
-		data.Script = form.Script
+		data.Script = &form.Script
 	}
 	if form.Status != "" {
 		status, err := strconv.Atoi(form.Status)
@@ -55,7 +55,7 @@ func Update(c *context.Context) {
 			c.Error("任务状态参数错误")
 			return
 		}
-		data.Status = status
+		data.Status = &status
 	}
 	err := service.Task.UpdateByIds(form.Ids, data)
 	if err == nil {

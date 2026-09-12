@@ -15,7 +15,8 @@ type Service interface {
 	Create(data *model.Secret) error
 	Update(id int64, data *repositorySecret.UpdateSecret) error
 	Delete(id int64) error
-	FindById(id int64) (*model.Secret, error)
+	FindById(id int64) (*Secret, error)
+	GetData() map[int]interface{}
 	Select(where *repositorySecret.SelectSecret, queryPage *page.Query) (*page.Result[*repositorySecret.Secret], error)
 	GetIdNameMap(where *repositorySecret.SelectSecret) (map[int64]string, error)
 }

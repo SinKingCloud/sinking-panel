@@ -21,8 +21,8 @@ func (s *service) FindById(id int64) (*model.Type, error) {
 
 // Select 获取数据
 func (s *service) Select(where *repositoryTypes.SelectType, orderByField, orderByType string) ([]*model.Type, error) {
-	if where != nil && where.Module != "" {
-		if _, ok := type_module.Map()[where.Module]; !ok {
+	if where != nil && where.Module != nil {
+		if _, ok := type_module.Map()[*where.Module]; !ok {
 			return nil, errors.New("所属模块不合法")
 		}
 	}

@@ -5,6 +5,7 @@ import (
 	repositorySecret "server/app/repository/secret"
 	"server/app/service"
 	"server/app/util/context"
+	"strconv"
 	"strings"
 )
 
@@ -20,11 +21,16 @@ func List(c *context.Context) {
 		return
 	}
 	where := &repositorySecret.SelectSecret{}
-	if form.Keyword != "" {
-		where.Keyword = strings.TrimSpace(form.Keyword)
+	if keyword := strings.TrimSpace(form.Keyword); keyword != "" {
+		where.Keyword = &keyword
 	}
 	if form.Provider != "" {
-		where.Provider = form.Provider
+		provider, err := strconv.Atoi(form.Provider)
+		if err != nil {
+			c.Error("服务商参数错误")
+			return
+		}
+		where.Provider = &provider
 	}
 	data, err := service.Secret.Select(where, query)
 	if err != nil {

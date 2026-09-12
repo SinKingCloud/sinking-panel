@@ -15,13 +15,13 @@ func (r *Repository) UpdateByIds(ids []int64, data *UpdateScript) error {
 	}
 	updates := make(map[string]interface{})
 	if data.TypeId != nil {
-		updates["type_id"] = data.TypeId
+		updates["type_id"] = *data.TypeId
 	}
 	if data.Name != nil {
-		updates["name"] = data.Name
+		updates["name"] = *data.Name
 	}
 	if data.Script != nil {
-		updates["script"] = data.Script
+		updates["script"] = *data.Script
 	}
 	if len(updates) == 0 {
 		return nil

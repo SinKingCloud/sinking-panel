@@ -15,22 +15,22 @@ func (r *Repository) UpdateByIds(ids []int64, data *UpdateServer) error {
 	}
 	updates := make(map[string]interface{})
 	if data.Ip != nil {
-		updates["ip"] = data.Ip
+		updates["ip"] = *data.Ip
 	}
 	if data.Port != nil {
-		updates["port"] = data.Port
+		updates["port"] = *data.Port
 	}
 	if data.User != nil {
-		updates["user"] = data.User
+		updates["user"] = *data.User
 	}
 	if data.AuthType != nil {
-		updates["auth_type"] = data.AuthType
+		updates["auth_type"] = *data.AuthType
 	}
 	if data.Password != nil {
-		updates["password"] = data.Password
+		updates["password"] = *data.Password
 	}
 	if data.Name != nil {
-		updates["name"] = data.Name
+		updates["name"] = *data.Name
 	}
 	if len(updates) == 0 {
 		return nil

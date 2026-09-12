@@ -21,10 +21,10 @@ func List(c *context.Context) {
 	}
 	where := &repositoryTypes.SelectType{}
 	if form.Module != "" {
-		where.Module = form.Module
+		where.Module = &form.Module
 	}
 	if form.Name != "" {
-		where.Name = form.Name
+		where.Name = &form.Name
 	}
 	data, err := service.Type.Select(where, form.OrderByField, form.OrderByType)
 	if err != nil {

@@ -4,13 +4,13 @@ import "server/app/util/str"
 
 // SelectCert 证书查询条件。
 type SelectCert struct {
-	Keyword         string
-	Name            string
-	Type            string
-	ExpireTimeStart string
-	ExpireTimeEnd   string
-	CreateTimeStart string
-	CreateTimeEnd   string
+	Keyword         *string
+	Name            *string
+	Type            *int
+	ExpireTimeStart *string
+	ExpireTimeEnd   *string
+	CreateTimeStart *string
+	CreateTimeEnd   *string
 }
 
 // UpdateCert 证书更新内容。

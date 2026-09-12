@@ -15,33 +15,29 @@ func (s *service) UpdateByIds(ids []int64, data *repositoryServer.UpdateServer) 
 		return errors.New("更新数据不能为空")
 	}
 	if data.AuthType != nil {
-		value, ok := data.AuthType.(int)
-		if !ok {
-			return errors.New("服务器验证类型不合法")
-		}
-		if _, ok = server_auth_type.Map()[value]; !ok {
+		if _, ok := server_auth_type.Map()[*data.AuthType]; !ok {
 			return errors.New("服务器验证类型不合法")
 		}
 	}
 	if len(ids) == 1 && ids[0] == 0 {
 		configs := make(map[string]string)
 		if data.Ip != nil {
-			configs[constant.SshIP] = data.Ip.(string)
+			configs[constant.SshIP] = *data.Ip
 		}
 		if data.Port != nil {
-			configs[constant.SshPort] = strconv.Itoa(data.Port.(int))
+			configs[constant.SshPort] = strconv.Itoa(*data.Port)
 		}
 		if data.User != nil {
-			configs[constant.SshUser] = data.User.(string)
+			configs[constant.SshUser] = *data.User
 		}
 		if data.AuthType != nil {
-			configs[constant.SshAuthType] = strconv.Itoa(data.AuthType.(int))
+			configs[constant.SshAuthType] = strconv.Itoa(*data.AuthType)
 		}
 		if data.Password != nil {
-			configs[constant.SshPassword] = data.Password.(string)
+			configs[constant.SshPassword] = *data.Password
 		}
 		if data.Name != nil {
-			configs[constant.SshName] = data.Name.(string)
+			configs[constant.SshName] = *data.Name
 		}
 		if len(configs) == 0 {
 			return nil

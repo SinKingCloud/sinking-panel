@@ -27,13 +27,13 @@ func Update(c *context.Context) {
 			c.Error("类型ID参数错误")
 			return
 		}
-		data.TypeId = typeId
+		data.TypeId = &typeId
 	}
 	if form.Name != "" {
-		data.Name = form.Name
+		data.Name = &form.Name
 	}
 	if form.Script != "" {
-		data.Script = form.Script
+		data.Script = &form.Script
 	}
 	err := service.Script.UpdateByIds(form.Ids, data)
 	if err != nil {

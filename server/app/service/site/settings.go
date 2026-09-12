@@ -6,6 +6,8 @@ import (
 	"fmt"
 
 	webServer "server/app/util/server"
+
+	"gorm.io/gorm"
 )
 
 // UpdateDomains 更新网站域名，同名域名保留原证书绑定。
@@ -309,7 +311,24 @@ func (s *service) UpdateHeaders(id int64, config *HeaderUpdate) error {
 		return errors.New("请求头配置不能为空")
 	}
 	return s.updateHTTPConfig(id, func(httpConfig *HTTPConfig) {
-		config.apply(&httpConfig.Headers)
+		if config.RequestAdd != nil {
+			httpConfig.Headers.RequestAdd = *config.RequestAdd
+		}
+		if config.RequestSet != nil {
+			httpConfig.Headers.RequestSet = *config.RequestSet
+		}
+		if config.RequestDelete != nil {
+			httpConfig.Headers.RequestDelete = *config.RequestDelete
+		}
+		if config.ResponseAdd != nil {
+			httpConfig.Headers.ResponseAdd = *config.ResponseAdd
+		}
+		if config.ResponseSet != nil {
+			httpConfig.Headers.ResponseSet = *config.ResponseSet
+		}
+		if config.ResponseDelete != nil {
+			httpConfig.Headers.ResponseDelete = *config.ResponseDelete
+		}
 	})
 }
 
@@ -386,15 +405,96 @@ func (s *service) UpdateProxy(id int64, config *ProxyUpdate) error {
 	if err != nil {
 		return err
 	}
+	var proxy *webServer.ProxyOptions
 	switch current := value.(type) {
 	case ProxyConfig:
-		config.apply(&current.Proxy)
-		value = current
+		proxy = &current.Proxy
+		value = &current
 	case GeneralConfig:
-		config.apply(&current.Proxy)
-		value = current
+		proxy = &current.Proxy
+		value = &current
 	default:
 		return errors.New("当前网站不支持反向代理设置")
+	}
+	if config.Upstreams != nil {
+		proxy.Upstreams = *config.Upstreams
+	}
+	if config.Scheme != nil {
+		proxy.Scheme = *config.Scheme
+	}
+	if config.Policy != nil {
+		proxy.Policy = *config.Policy
+	}
+	if config.Retries != nil {
+		proxy.Retries = *config.Retries
+	}
+	if config.TryDuration != nil {
+		proxy.TryDuration = *config.TryDuration
+	}
+	if config.TryInterval != nil {
+		proxy.TryInterval = *config.TryInterval
+	}
+	if config.DialTimeout != nil {
+		proxy.DialTimeout = *config.DialTimeout
+	}
+	if config.ReadTimeout != nil {
+		proxy.ReadTimeout = *config.ReadTimeout
+	}
+	if config.WriteTimeout != nil {
+		proxy.WriteTimeout = *config.WriteTimeout
+	}
+	if config.ResponseHeaderTimeout != nil {
+		proxy.ResponseHeaderTimeout = *config.ResponseHeaderTimeout
+	}
+	if config.FlushInterval != nil {
+		proxy.FlushInterval = *config.FlushInterval
+	}
+	if config.StreamTimeout != nil {
+		proxy.StreamTimeout = *config.StreamTimeout
+	}
+	if config.StreamCloseDelay != nil {
+		proxy.StreamCloseDelay = *config.StreamCloseDelay
+	}
+	if config.Versions != nil {
+		proxy.Versions = *config.Versions
+	}
+	if config.TLSServerName != nil {
+		proxy.TLSServerName = *config.TLSServerName
+	}
+	if config.TLSInsecureSkipVerify != nil {
+		proxy.TLSInsecureSkipVerify = config.TLSInsecureSkipVerify
+	}
+	if config.HealthURI != nil {
+		proxy.HealthURI = *config.HealthURI
+	}
+	if config.HealthInterval != nil {
+		proxy.HealthInterval = *config.HealthInterval
+	}
+	if config.HealthTimeout != nil {
+		proxy.HealthTimeout = *config.HealthTimeout
+	}
+	if config.HealthStatus != nil {
+		proxy.HealthStatus = *config.HealthStatus
+	}
+	if config.Headers != nil {
+		if config.Headers.RequestAdd != nil {
+			proxy.Headers.RequestAdd = *config.Headers.RequestAdd
+		}
+		if config.Headers.RequestSet != nil {
+			proxy.Headers.RequestSet = *config.Headers.RequestSet
+		}
+		if config.Headers.RequestDelete != nil {
+			proxy.Headers.RequestDelete = *config.Headers.RequestDelete
+		}
+		if config.Headers.ResponseAdd != nil {
+			proxy.Headers.ResponseAdd = *config.Headers.ResponseAdd
+		}
+		if config.Headers.ResponseSet != nil {
+			proxy.Headers.ResponseSet = *config.Headers.ResponseSet
+		}
+		if config.Headers.ResponseDelete != nil {
+			proxy.Headers.ResponseDelete = *config.Headers.ResponseDelete
+		}
 	}
 	return s.saveConfigLocked(id, value, nil)
 }
@@ -414,7 +514,95 @@ func (s *service) UpdateFastCGI(id int64, config *FastCGIUpdate) error {
 	if !ok {
 		return errors.New("当前网站不是 PHP 网站")
 	}
-	config.apply(&php.FastCGI)
+	if config.Upstreams != nil {
+		php.FastCGI.Upstreams = *config.Upstreams
+	}
+	if config.Policy != nil {
+		php.FastCGI.Policy = *config.Policy
+	}
+	if config.Retries != nil {
+		php.FastCGI.Retries = *config.Retries
+	}
+	if config.TryDuration != nil {
+		php.FastCGI.TryDuration = *config.TryDuration
+	}
+	if config.TryInterval != nil {
+		php.FastCGI.TryInterval = *config.TryInterval
+	}
+	if config.DialTimeout != nil {
+		php.FastCGI.DialTimeout = *config.DialTimeout
+	}
+	if config.ReadTimeout != nil {
+		php.FastCGI.ReadTimeout = *config.ReadTimeout
+	}
+	if config.WriteTimeout != nil {
+		php.FastCGI.WriteTimeout = *config.WriteTimeout
+	}
+	if config.FlushInterval != nil {
+		php.FastCGI.FlushInterval = *config.FlushInterval
+	}
+	if config.StreamTimeout != nil {
+		php.FastCGI.StreamTimeout = *config.StreamTimeout
+	}
+	if config.StreamCloseDelay != nil {
+		php.FastCGI.StreamCloseDelay = *config.StreamCloseDelay
+	}
+	if config.HealthURI != nil {
+		php.FastCGI.HealthURI = *config.HealthURI
+	}
+	if config.HealthInterval != nil {
+		php.FastCGI.HealthInterval = *config.HealthInterval
+	}
+	if config.HealthTimeout != nil {
+		php.FastCGI.HealthTimeout = *config.HealthTimeout
+	}
+	if config.HealthStatus != nil {
+		php.FastCGI.HealthStatus = *config.HealthStatus
+	}
+	if config.SplitPath != nil {
+		php.FastCGI.SplitPath = *config.SplitPath
+	}
+	if config.Index != nil {
+		php.FastCGI.Index = *config.Index
+	}
+	if config.TryFiles != nil {
+		php.FastCGI.TryFiles = *config.TryFiles
+	}
+	if config.TryPolicy != nil {
+		php.FastCGI.TryPolicy = *config.TryPolicy
+	}
+	if config.ResolveRootSymlink != nil {
+		php.FastCGI.ResolveRootSymlink = *config.ResolveRootSymlink
+	}
+	if config.Hide != nil {
+		php.FastCGI.Hide = *config.Hide
+	}
+	if config.Env != nil {
+		php.FastCGI.Env = *config.Env
+	}
+	if config.CaptureStderr != nil {
+		php.FastCGI.CaptureStderr = *config.CaptureStderr
+	}
+	if config.Headers != nil {
+		if config.Headers.RequestAdd != nil {
+			php.FastCGI.Headers.RequestAdd = *config.Headers.RequestAdd
+		}
+		if config.Headers.RequestSet != nil {
+			php.FastCGI.Headers.RequestSet = *config.Headers.RequestSet
+		}
+		if config.Headers.RequestDelete != nil {
+			php.FastCGI.Headers.RequestDelete = *config.Headers.RequestDelete
+		}
+		if config.Headers.ResponseAdd != nil {
+			php.FastCGI.Headers.ResponseAdd = *config.Headers.ResponseAdd
+		}
+		if config.Headers.ResponseSet != nil {
+			php.FastCGI.Headers.ResponseSet = *config.Headers.ResponseSet
+		}
+		if config.Headers.ResponseDelete != nil {
+			php.FastCGI.Headers.ResponseDelete = *config.Headers.ResponseDelete
+		}
+	}
 	return s.saveConfigLocked(id, php, nil)
 }
 
@@ -449,168 +637,6 @@ func (s *service) UpdateProcess(id int64, config *ProcessUpdate) error {
 		general.Process.StopTimeout = *config.StopTimeout
 	}
 	return s.saveConfigLocked(id, general, nil)
-}
-
-func (config *HeaderUpdate) apply(current *webServer.HeaderOptions) {
-	if config.RequestAdd != nil {
-		current.RequestAdd = *config.RequestAdd
-	}
-	if config.RequestSet != nil {
-		current.RequestSet = *config.RequestSet
-	}
-	if config.RequestDelete != nil {
-		current.RequestDelete = *config.RequestDelete
-	}
-	if config.ResponseAdd != nil {
-		current.ResponseAdd = *config.ResponseAdd
-	}
-	if config.ResponseSet != nil {
-		current.ResponseSet = *config.ResponseSet
-	}
-	if config.ResponseDelete != nil {
-		current.ResponseDelete = *config.ResponseDelete
-	}
-}
-
-func (config *ProxyUpdate) apply(current *webServer.ProxyOptions) {
-	if config.Upstreams != nil {
-		current.Upstreams = *config.Upstreams
-	}
-	if config.Scheme != nil {
-		current.Scheme = *config.Scheme
-	}
-	if config.Policy != nil {
-		current.Policy = *config.Policy
-	}
-	if config.Retries != nil {
-		current.Retries = *config.Retries
-	}
-	if config.TryDuration != nil {
-		current.TryDuration = *config.TryDuration
-	}
-	if config.TryInterval != nil {
-		current.TryInterval = *config.TryInterval
-	}
-	if config.DialTimeout != nil {
-		current.DialTimeout = *config.DialTimeout
-	}
-	if config.ReadTimeout != nil {
-		current.ReadTimeout = *config.ReadTimeout
-	}
-	if config.WriteTimeout != nil {
-		current.WriteTimeout = *config.WriteTimeout
-	}
-	if config.ResponseHeaderTimeout != nil {
-		current.ResponseHeaderTimeout = *config.ResponseHeaderTimeout
-	}
-	if config.FlushInterval != nil {
-		current.FlushInterval = *config.FlushInterval
-	}
-	if config.StreamTimeout != nil {
-		current.StreamTimeout = *config.StreamTimeout
-	}
-	if config.StreamCloseDelay != nil {
-		current.StreamCloseDelay = *config.StreamCloseDelay
-	}
-	if config.Versions != nil {
-		current.Versions = *config.Versions
-	}
-	if config.TLSServerName != nil {
-		current.TLSServerName = *config.TLSServerName
-	}
-	if config.TLSInsecureSkipVerify != nil {
-		current.TLSInsecureSkipVerify = config.TLSInsecureSkipVerify
-	}
-	if config.HealthURI != nil {
-		current.HealthURI = *config.HealthURI
-	}
-	if config.HealthInterval != nil {
-		current.HealthInterval = *config.HealthInterval
-	}
-	if config.HealthTimeout != nil {
-		current.HealthTimeout = *config.HealthTimeout
-	}
-	if config.HealthStatus != nil {
-		current.HealthStatus = *config.HealthStatus
-	}
-	if config.Headers != nil {
-		config.Headers.apply(&current.Headers)
-	}
-}
-
-func (config *FastCGIUpdate) apply(current *webServer.ProxyOptions) {
-	if config.Upstreams != nil {
-		current.Upstreams = *config.Upstreams
-	}
-	if config.Policy != nil {
-		current.Policy = *config.Policy
-	}
-	if config.Retries != nil {
-		current.Retries = *config.Retries
-	}
-	if config.TryDuration != nil {
-		current.TryDuration = *config.TryDuration
-	}
-	if config.TryInterval != nil {
-		current.TryInterval = *config.TryInterval
-	}
-	if config.DialTimeout != nil {
-		current.DialTimeout = *config.DialTimeout
-	}
-	if config.ReadTimeout != nil {
-		current.ReadTimeout = *config.ReadTimeout
-	}
-	if config.WriteTimeout != nil {
-		current.WriteTimeout = *config.WriteTimeout
-	}
-	if config.FlushInterval != nil {
-		current.FlushInterval = *config.FlushInterval
-	}
-	if config.StreamTimeout != nil {
-		current.StreamTimeout = *config.StreamTimeout
-	}
-	if config.StreamCloseDelay != nil {
-		current.StreamCloseDelay = *config.StreamCloseDelay
-	}
-	if config.HealthURI != nil {
-		current.HealthURI = *config.HealthURI
-	}
-	if config.HealthInterval != nil {
-		current.HealthInterval = *config.HealthInterval
-	}
-	if config.HealthTimeout != nil {
-		current.HealthTimeout = *config.HealthTimeout
-	}
-	if config.HealthStatus != nil {
-		current.HealthStatus = *config.HealthStatus
-	}
-	if config.SplitPath != nil {
-		current.SplitPath = *config.SplitPath
-	}
-	if config.Index != nil {
-		current.Index = *config.Index
-	}
-	if config.TryFiles != nil {
-		current.TryFiles = *config.TryFiles
-	}
-	if config.TryPolicy != nil {
-		current.TryPolicy = *config.TryPolicy
-	}
-	if config.ResolveRootSymlink != nil {
-		current.ResolveRootSymlink = *config.ResolveRootSymlink
-	}
-	if config.Hide != nil {
-		current.Hide = *config.Hide
-	}
-	if config.Env != nil {
-		current.Env = *config.Env
-	}
-	if config.CaptureStderr != nil {
-		current.CaptureStderr = *config.CaptureStderr
-	}
-	if config.Headers != nil {
-		config.Headers.apply(&current.Headers)
-	}
 }
 
 func (s *service) updateHTTPConfig(id int64, update func(*HTTPConfig)) error {
@@ -652,7 +678,10 @@ func (s *service) loadConfigLocked(id int64) (interface{}, error) {
 	}
 	record, err := s.repositorySite.FindById(id)
 	if err != nil {
-		return nil, s.nilIfNotFound("查询网站失败", err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errors.New("网站不存在")
+		}
+		return nil, fmt.Errorf("查询网站失败: %w", err)
 	}
 	_, config, err := s.checkConfig(record.Config, record.Type)
 	if err != nil {

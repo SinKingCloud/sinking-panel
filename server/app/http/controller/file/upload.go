@@ -49,7 +49,15 @@ func handleFileUpload(c *context.Context) {
 		return
 	}
 
-	meta, err := uploadMetaFromForm(c)
+	meta, err := parseUploadMeta(
+		c.DefaultForm("upload_id", ""),
+		c.DefaultForm("path", "/"),
+		c.DefaultForm("file_name", ""),
+		c.DefaultForm("total_size", ""),
+		c.DefaultForm("chunk_size", ""),
+		c.DefaultForm("total_chunks", ""),
+		c.DefaultForm("file_hash", ""),
+	)
 	if err != nil {
 		c.Error(err.Error())
 		return
@@ -77,7 +85,15 @@ func handleFileUpload(c *context.Context) {
 }
 
 func handleCheckChunks(c *context.Context) {
-	meta, err := uploadMetaFromQuery(c)
+	meta, err := parseUploadMeta(
+		c.DefaultQuery("upload_id", ""),
+		c.DefaultQuery("path", "/"),
+		c.DefaultQuery("file_name", ""),
+		c.DefaultQuery("total_size", ""),
+		c.DefaultQuery("chunk_size", ""),
+		c.DefaultQuery("total_chunks", ""),
+		c.DefaultQuery("file_hash", ""),
+	)
 	if err != nil {
 		c.Error(err.Error())
 		return
@@ -105,7 +121,15 @@ func handleCheckChunks(c *context.Context) {
 }
 
 func handleMergeChunks(c *context.Context) {
-	meta, err := uploadMetaFromForm(c)
+	meta, err := parseUploadMeta(
+		c.DefaultForm("upload_id", ""),
+		c.DefaultForm("path", "/"),
+		c.DefaultForm("file_name", ""),
+		c.DefaultForm("total_size", ""),
+		c.DefaultForm("chunk_size", ""),
+		c.DefaultForm("total_chunks", ""),
+		c.DefaultForm("file_hash", ""),
+	)
 	if err != nil {
 		c.Error(err.Error())
 		return
@@ -128,30 +152,6 @@ func handleClearUpload(c *context.Context) {
 	} else {
 		c.Success("清理上传缓存成功")
 	}
-}
-
-func uploadMetaFromQuery(c *context.Context) (serviceFile.UploadMeta, error) {
-	return parseUploadMeta(
-		c.DefaultQuery("upload_id", ""),
-		c.DefaultQuery("path", "/"),
-		c.DefaultQuery("file_name", ""),
-		c.DefaultQuery("total_size", ""),
-		c.DefaultQuery("chunk_size", ""),
-		c.DefaultQuery("total_chunks", ""),
-		c.DefaultQuery("file_hash", ""),
-	)
-}
-
-func uploadMetaFromForm(c *context.Context) (serviceFile.UploadMeta, error) {
-	return parseUploadMeta(
-		c.DefaultForm("upload_id", ""),
-		c.DefaultForm("path", "/"),
-		c.DefaultForm("file_name", ""),
-		c.DefaultForm("total_size", ""),
-		c.DefaultForm("chunk_size", ""),
-		c.DefaultForm("total_chunks", ""),
-		c.DefaultForm("file_hash", ""),
-	)
 }
 
 func parseUploadMeta(uploadID, path, fileName, totalSizeValue, chunkSizeValue, totalChunksValue, fileHash string) (serviceFile.UploadMeta, error) {

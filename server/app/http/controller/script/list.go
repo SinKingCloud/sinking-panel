@@ -5,6 +5,7 @@ import (
 	repositoryScript "server/app/repository/script"
 	"server/app/service"
 	"server/app/util/context"
+	"strconv"
 )
 
 // List 获取常用脚本列表
@@ -22,16 +23,21 @@ func List(c *context.Context) {
 	}
 	where := &repositoryScript.SelectScript{}
 	if form.TypeId != "" {
-		where.TypeId = form.TypeId
+		typeId, err := strconv.ParseInt(form.TypeId, 10, 64)
+		if err != nil {
+			c.Error("类型ID参数错误")
+			return
+		}
+		where.TypeId = &typeId
 	}
 	if form.Keyword != "" {
-		where.Keyword = form.Keyword
+		where.Keyword = &form.Keyword
 	}
 	if form.Name != "" {
-		where.Name = form.Name
+		where.Name = &form.Name
 	}
 	if form.Script != "" {
-		where.Script = form.Script
+		where.Script = &form.Script
 	}
 	data, err := service.Script.Select(where, query)
 	if err != nil {

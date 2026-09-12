@@ -181,13 +181,28 @@ func (s *service) Create(data *CreateSite) (*Site, error) {
 	}
 	s.cache.Delete(constant.CacheNameWithSiteNameEnum)
 	if syncErr := s.syncLocked(); syncErr != nil {
-		compensateErr := s.removeSiteRecords(record.Id)
+		compensateErr := s.database.Transaction(func(tx *gorm.DB) error {
+			if err := s.repositorySiteDomain.DeleteBySiteId(record.Id, tx); err != nil {
+				return fmt.Errorf("补偿删除网站域名失败: %w", err)
+			}
+			if err := s.repositorySite.DeleteById(record.Id, tx); err != nil {
+				return fmt.Errorf("补偿删除网站失败: %w", err)
+			}
+			return nil
+		})
 		restoreRuntimeErr := s.syncLocked()
 		var cleanupErr error
 		if compensateErr == nil && restoreRuntimeErr == nil {
 			cleanupErr = cleanupRoot()
 		}
-		return nil, errors.Join(s.mutationSyncError("创建网站", syncErr, compensateErr, restoreRuntimeErr), cleanupErr)
+		syncErrors := []error{fmt.Errorf("同步网站运行时失败: %w", syncErr)}
+		if compensateErr != nil {
+			syncErrors = append(syncErrors, fmt.Errorf("恢复数据库失败: %w", compensateErr))
+		}
+		if restoreRuntimeErr != nil {
+			syncErrors = append(syncErrors, fmt.Errorf("恢复网站运行时失败: %w", restoreRuntimeErr))
+		}
+		return nil, errors.Join(fmt.Errorf("创建网站失败: %w", errors.Join(syncErrors...)), cleanupErr)
 	}
 	return s.findByIdLocked(record.Id)
 }
@@ -216,9 +231,13 @@ func (s *service) updateLocked(id int64, data *siteMutation) error {
 	}
 	previous, err := s.repositorySite.FindById(id)
 	if err != nil {
-		return s.nilIfNotFound("查询网站失败", err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return errors.New("网站不存在")
+		}
+		return fmt.Errorf("查询网站失败: %w", err)
 	}
-	previous = s.cloneSiteRecord(previous)
+	previousRecord := *previous
+	previous = &previousRecord
 	if data.Name == nil && data.TypeId == nil && data.Status == nil && data.Root == nil &&
 		data.RunPath == nil && data.Config == nil && data.Domains == nil {
 		return nil
@@ -227,7 +246,14 @@ func (s *service) updateLocked(id int64, data *siteMutation) error {
 	if err != nil {
 		return fmt.Errorf("查询网站域名失败: %w", err)
 	}
-	previousDomains = s.cloneSiteDomainRecords(previousDomains)
+	domainRecords := previousDomains
+	previousDomains = make([]*model.SiteDomain, 0, len(domainRecords))
+	for _, record := range domainRecords {
+		if record != nil {
+			domain := *record
+			previousDomains = append(previousDomains, &domain)
+		}
+	}
 
 	candidate := *previous
 	if data.Name != nil {
@@ -255,9 +281,14 @@ func (s *service) updateLocked(id int64, data *siteMutation) error {
 		return err
 	}
 	domainsChanged := data.Domains != nil
-	domainInput := s.siteDomainValues(previousDomains)
+	var domainInput []SiteDomain
 	if domainsChanged {
 		domainInput = append([]SiteDomain(nil), (*data.Domains)...)
+	} else {
+		domainInput = make([]SiteDomain, 0, len(previousDomains))
+		for _, domain := range previousDomains {
+			domainInput = append(domainInput, SiteDomain{Domain: domain.Domain, CertId: domain.CertId})
+		}
 	}
 	previousDefault := s.http.Options().DefaultSite
 	clearDefault := domainsChanged && len(domainInput) == 0 && previousDefault == strconv.FormatInt(id, 10)
@@ -270,8 +301,14 @@ func (s *service) updateLocked(id int64, data *siteMutation) error {
 		if prepareErr != nil {
 			return prepareErr
 		}
-		updateData := s.completeSiteUpdate(&candidate)
-		if updateErr := s.repositorySite.UpdateById(id, updateData, tx); updateErr != nil {
+		if updateErr := s.repositorySite.UpdateById(id, &repositorySite.UpdateSite{
+			Name:    &candidate.Name,
+			TypeId:  &candidate.TypeId,
+			Status:  &candidate.Status,
+			Root:    &candidate.Root,
+			RunPath: &candidate.RunPath,
+			Config:  &candidate.Config,
+		}, tx); updateErr != nil {
 			return fmt.Errorf("更新网站失败: %w", updateErr)
 		}
 		if domainsChanged {
@@ -301,7 +338,14 @@ func (s *service) updateLocked(id int64, data *siteMutation) error {
 		if clearDefault && compensateErr == nil && restoreRuntimeErr == nil {
 			restoreRuntimeErr = s.updateHTTPLocked(&HTTPUpdate{DefaultSite: &previousDefault})
 		}
-		return s.mutationSyncError("更新网站", syncErr, compensateErr, restoreRuntimeErr)
+		syncErrors := []error{fmt.Errorf("同步网站运行时失败: %w", syncErr)}
+		if compensateErr != nil {
+			syncErrors = append(syncErrors, fmt.Errorf("恢复数据库失败: %w", compensateErr))
+		}
+		if restoreRuntimeErr != nil {
+			syncErrors = append(syncErrors, fmt.Errorf("恢复网站运行时失败: %w", restoreRuntimeErr))
+		}
+		return fmt.Errorf("更新网站失败: %w", errors.Join(syncErrors...))
 	}
 	return nil
 }
@@ -315,7 +359,10 @@ func (s *service) Delete(id int64, deleteRoot bool) error {
 	}
 	previous, err := s.repositorySite.FindById(id)
 	if err != nil {
-		return s.nilIfNotFound("查询网站失败", err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return errors.New("网站不存在")
+		}
+		return fmt.Errorf("查询网站失败: %w", err)
 	}
 	rootToDelete := ""
 	if deleteRoot {
@@ -466,12 +513,20 @@ func (s *service) Delete(id int64, deleteRoot bool) error {
 		}
 		return s.updateHTTPLocked(&HTTPUpdate{DefaultSite: &previousHTTP.DefaultSite})
 	}
-	previous = s.cloneSiteRecord(previous)
+	previousRecord := *previous
+	previous = &previousRecord
 	previousDomains, err := s.repositorySiteDomain.SelectBySiteId(id)
 	if err != nil {
 		return fmt.Errorf("查询网站域名失败: %w", err)
 	}
-	previousDomains = s.cloneSiteDomainRecords(previousDomains)
+	domainRecords := previousDomains
+	previousDomains = make([]*model.SiteDomain, 0, len(domainRecords))
+	for _, record := range domainRecords {
+		if record != nil {
+			domain := *record
+			previousDomains = append(previousDomains, &domain)
+		}
+	}
 	logPaths := make([]string, 0, 3)
 	for _, logType := range []webServer.LogType{webServer.LogAccess, webServer.LogWAF, webServer.LogProcess} {
 		path, pathErr := s.http.LogPath(strconv.FormatInt(id, 10), logType)
@@ -513,7 +568,14 @@ func (s *service) Delete(id int64, deleteRoot bool) error {
 		} else {
 			restoreRuntimeErr = s.syncLocked()
 		}
-		return s.mutationSyncError("删除网站", syncErr, compensateErr, restoreRuntimeErr)
+		syncErrors := []error{fmt.Errorf("同步网站运行时失败: %w", syncErr)}
+		if compensateErr != nil {
+			syncErrors = append(syncErrors, fmt.Errorf("恢复数据库失败: %w", compensateErr))
+		}
+		if restoreRuntimeErr != nil {
+			syncErrors = append(syncErrors, fmt.Errorf("恢复网站运行时失败: %w", restoreRuntimeErr))
+		}
+		return fmt.Errorf("删除网站失败: %w", errors.Join(syncErrors...))
 	}
 	cacheErr := s.http.DeleteSiteCache(strconv.FormatInt(id, 10))
 	var rootErr error
@@ -588,7 +650,10 @@ func (s *service) findByIdLocked(id int64) (*Site, error) {
 	}
 	record, err := s.repositorySite.FindById(id)
 	if err != nil {
-		return nil, s.nilIfNotFound("查询网站失败", err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errors.New("网站不存在")
+		}
+		return nil, fmt.Errorf("查询网站失败: %w", err)
 	}
 	return &Site{
 		Id:         record.Id,
@@ -607,43 +672,22 @@ func (s *service) findByIdLocked(id int64) (*Site, error) {
 func (s *service) Select(where *repositorySite.SelectSite, queryPage *page.Query) (*page.Result[*repositorySite.Site], error) {
 	s.operationMu.Lock()
 	defer s.operationMu.Unlock()
-	condition := where
 	if where != nil {
-		copyWhere := *where
-		condition = &copyWhere
-		if copyWhere.TypeId != "" {
-			value, err := strconv.ParseInt(copyWhere.TypeId, 10, 64)
-			if err != nil || value < 0 {
-				return nil, errors.New("网站分类参数错误")
-			}
-			if value == 0 {
-				copyWhere.TypeId = ""
-			} else {
-				copyWhere.TypeId = strconv.FormatInt(value, 10)
-			}
+		if where.TypeId != nil && *where.TypeId < 0 {
+			return nil, errors.New("网站分类参数错误")
 		}
-		if copyWhere.Type != "" {
-			value, err := strconv.Atoi(copyWhere.Type)
-			if err != nil {
-				return nil, errors.New("网站类型参数错误")
-			}
-			if _, ok := site_type.Map()[value]; !ok {
+		if where.Type != nil {
+			if _, ok := site_type.Map()[*where.Type]; !ok {
 				return nil, errors.New("网站类型参数不合法")
 			}
-			copyWhere.Type = strconv.Itoa(value)
 		}
-		if copyWhere.Status != "" {
-			value, err := strconv.Atoi(copyWhere.Status)
-			if err != nil {
-				return nil, errors.New("网站状态参数错误")
-			}
-			if _, ok := site_status.Map()[value]; !ok {
+		if where.Status != nil {
+			if _, ok := site_status.Map()[*where.Status]; !ok {
 				return nil, errors.New("网站状态参数不合法")
 			}
-			copyWhere.Status = strconv.Itoa(value)
 		}
 	}
-	return s.repositorySite.Select(condition, queryPage)
+	return s.repositorySite.Select(where, queryPage)
 }
 
 // ClearCache 清理网站 HTTP 和 HTTPS 响应缓存。
@@ -654,7 +698,10 @@ func (s *service) ClearCache(id int64) error {
 		return errors.New("网站 ID 不合法")
 	}
 	if _, err := s.repositorySite.FindById(id); err != nil {
-		return s.nilIfNotFound("查询网站失败", err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return errors.New("网站不存在")
+		}
+		return fmt.Errorf("查询网站失败: %w", err)
 	}
 	identifier := strconv.FormatInt(id, 10)
 	if _, err := s.http.Site(identifier); err != nil {
@@ -666,18 +713,6 @@ func (s *service) ClearCache(id int64) error {
 		return fmt.Errorf("清理网站缓存失败: %w", err)
 	}
 	return nil
-}
-
-func (s *service) removeSiteRecords(id int64) error {
-	return s.database.Transaction(func(tx *gorm.DB) error {
-		if err := s.repositorySiteDomain.DeleteBySiteId(id, tx); err != nil {
-			return fmt.Errorf("补偿删除网站域名失败: %w", err)
-		}
-		if err := s.repositorySite.DeleteById(id, tx); err != nil {
-			return fmt.Errorf("补偿删除网站失败: %w", err)
-		}
-		return nil
-	})
 }
 
 func (s *service) restoreSiteRecords(record *model.Site, domains []*model.SiteDomain) error {
@@ -693,68 +728,16 @@ func (s *service) restoreSiteRecords(record *model.Site, domains []*model.SiteDo
 		if err := s.repositorySite.Create(&restoredSite, withoutHooks); err != nil {
 			return fmt.Errorf("补偿恢复网站失败: %w", err)
 		}
-		if err := s.repositorySiteDomain.CreateBatch(s.cloneSiteDomainRecords(domains), withoutHooks); err != nil {
+		restoredDomains := make([]*model.SiteDomain, 0, len(domains))
+		for _, record := range domains {
+			if record != nil {
+				domain := *record
+				restoredDomains = append(restoredDomains, &domain)
+			}
+		}
+		if err := s.repositorySiteDomain.CreateBatch(restoredDomains, withoutHooks); err != nil {
 			return fmt.Errorf("补偿恢复网站域名失败: %w", err)
 		}
 		return nil
 	})
-}
-
-func (s *service) completeSiteUpdate(record *model.Site) *repositorySite.UpdateSite {
-	return &repositorySite.UpdateSite{
-		Name:    &record.Name,
-		TypeId:  &record.TypeId,
-		Status:  &record.Status,
-		Root:    &record.Root,
-		RunPath: &record.RunPath,
-		Config:  &record.Config,
-	}
-}
-
-func (s *service) siteDomainValues(records []*model.SiteDomain) []SiteDomain {
-	result := make([]SiteDomain, 0, len(records))
-	for _, record := range records {
-		if record != nil {
-			result = append(result, SiteDomain{Domain: record.Domain, CertId: record.CertId})
-		}
-	}
-	return result
-}
-
-func (s *service) cloneSiteRecord(record *model.Site) *model.Site {
-	if record == nil {
-		return nil
-	}
-	clone := *record
-	return &clone
-}
-
-func (s *service) cloneSiteDomainRecords(records []*model.SiteDomain) []*model.SiteDomain {
-	result := make([]*model.SiteDomain, 0, len(records))
-	for _, record := range records {
-		if record == nil {
-			continue
-		}
-		clone := *record
-		result = append(result, &clone)
-	}
-	return result
-}
-
-func (s *service) mutationSyncError(action string, syncErr, compensateErr, restoreRuntimeErr error) error {
-	joined := []error{fmt.Errorf("同步网站运行时失败: %w", syncErr)}
-	if compensateErr != nil {
-		joined = append(joined, fmt.Errorf("恢复数据库失败: %w", compensateErr))
-	}
-	if restoreRuntimeErr != nil {
-		joined = append(joined, fmt.Errorf("恢复网站运行时失败: %w", restoreRuntimeErr))
-	}
-	return fmt.Errorf("%s失败: %w", action, errors.Join(joined...))
-}
-
-func (s *service) nilIfNotFound(message string, err error) error {
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return errors.New("网站不存在")
-	}
-	return fmt.Errorf("%s: %w", message, err)
 }

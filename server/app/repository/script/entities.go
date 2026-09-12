@@ -4,17 +4,17 @@ import "server/app/util/str"
 
 // SelectScript 常用脚本查询条件
 type SelectScript struct {
-	TypeId  string
-	Keyword string
-	Name    string
-	Script  string
+	TypeId  *int64
+	Keyword *string
+	Name    *string
+	Script  *string
 }
 
 // UpdateScript 常用脚本更新
 type UpdateScript struct {
-	TypeId interface{}
-	Name   interface{}
-	Script interface{}
+	TypeId *int64
+	Name   *string
+	Script *string
 }
 
 // Script 常用脚本列表数据

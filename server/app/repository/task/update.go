@@ -46,22 +46,22 @@ func (r *Repository) UpdateByIds(ids []int64, data *UpdateTask) error {
 	}
 	updates := make(map[string]interface{})
 	if data.TypeId != nil {
-		updates["type_id"] = data.TypeId
+		updates["type_id"] = *data.TypeId
 	}
 	if data.ExecType != nil {
-		updates["exec_type"] = data.ExecType
+		updates["exec_type"] = *data.ExecType
 	}
 	if data.Name != nil {
-		updates["name"] = data.Name
+		updates["name"] = *data.Name
 	}
 	if data.Spec != nil {
-		updates["spec"] = data.Spec
+		updates["spec"] = *data.Spec
 	}
 	if data.Script != nil {
-		updates["script"] = data.Script
+		updates["script"] = *data.Script
 	}
 	if data.Status != nil {
-		updates["status"] = data.Status
+		updates["status"] = *data.Status
 	}
 	if len(updates) == 0 {
 		return nil

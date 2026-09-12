@@ -25,7 +25,7 @@ func Update(c *context.Context) {
 	}
 	data := &repositoryServer.UpdateServer{}
 	if form.Ip != "" {
-		data.Ip = form.Ip
+		data.Ip = &form.Ip
 	}
 	if form.Port != "" {
 		port, err := strconv.Atoi(form.Port)
@@ -33,10 +33,10 @@ func Update(c *context.Context) {
 			c.Error("端口参数错误")
 			return
 		}
-		data.Port = port
+		data.Port = &port
 	}
 	if form.User != "" {
-		data.User = form.User
+		data.User = &form.User
 	}
 	if form.AuthType != "" {
 		authType, err := strconv.Atoi(form.AuthType)
@@ -44,13 +44,13 @@ func Update(c *context.Context) {
 			c.Error("验证方式参数错误")
 			return
 		}
-		data.AuthType = authType
+		data.AuthType = &authType
 	}
 	if form.Password != "" {
-		data.Password = form.Password
+		data.Password = &form.Password
 	}
 	if form.Name != "" {
-		data.Name = form.Name
+		data.Name = &form.Name
 	}
 	err := service.Server.UpdateByIds(form.Ids, data)
 	if err == nil {
