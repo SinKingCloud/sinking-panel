@@ -14,12 +14,13 @@ func (r *Repository) SelectIdNameMap() (map[int64]string, error) {
 		Id   int64
 		Name string
 	}
-	if err := r.Database.Db.Model(&model.Site{}).
+	err := r.Database.Db.Model(&model.Site{}).
 		Select("id", "name").
 		Where("status = ?", site_status.Enabled).
 		Where("id IN (?)", r.Database.Db.Model(&model.SiteDomain{}).Select("site_id")).
 		Order("id ASC").
-		Find(&data).Error; err != nil {
+		Find(&data).Error
+	if err != nil {
 		return nil, err
 	}
 	result := make(map[int64]string, len(data))

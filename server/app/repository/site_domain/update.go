@@ -14,15 +14,21 @@ func (r *Repository) UpdateCertId(id, certId int64, tx ...*gorm.DB) error {
 	if certId < 0 {
 		return errors.New("证书 ID 不能小于 0")
 	}
-	result := r.db(tx...).Model(&model.SiteDomain{}).Where("id = ?", id).Updates(map[string]interface{}{
-		"cert_id":     certId,
-		"update_time": str.DateTime(time.Now()),
-	})
-	if result.Error != nil {
-		return result.Error
+	execute := func(db *gorm.DB) error {
+		result := db.Model(&model.SiteDomain{}).Where("id = ?", id).Updates(map[string]interface{}{
+			"cert_id":     certId,
+			"update_time": str.DateTime(time.Now()),
+		})
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return gorm.ErrRecordNotFound
+		}
+		return nil
 	}
-	if result.RowsAffected == 0 {
-		return gorm.ErrRecordNotFound
+	if len(tx) > 0 && tx[0] != nil {
+		return execute(tx[0])
 	}
-	return nil
+	return execute(r.Database.Db)
 }

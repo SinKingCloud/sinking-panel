@@ -29,10 +29,10 @@ func Login(c *context.Context) {
 	token, err := service.Auth.Login(form.Account, form.Password, form.Device, c.GetRequestIp())
 	if err != nil {
 		c.Error(err.Error())
-		return
+	} else {
+		service.Log.Create(c.GetRequestIp(), log_type.EventLogin, "系统账户登录", "系统登录成功")
+		c.SuccessWithData("登录成功", token)
 	}
-	service.Log.Create(c.GetRequestIp(), log_type.EventLogin, "系统账户登录", "系统登录成功")
-	c.SuccessWithData("登录成功", token)
 }
 
 // Logout 退出登录
@@ -41,10 +41,11 @@ func Logout(c *context.Context) {
 	if c.IsAborted() {
 		return
 	}
-	if err := service.Auth.Logout(c.GetString(constant.JwtDeviceName)); err != nil {
+	err := service.Auth.Logout(c.GetString(constant.JwtDeviceName))
+	if err != nil {
 		c.Error(err.Error())
-		return
+	} else {
+		service.Log.Create(c.GetRequestIp(), log_type.EventLogin, "注销账户登录", "注销登录成功")
+		c.Success("注销成功")
 	}
-	service.Log.Create(c.GetRequestIp(), log_type.EventLogin, "注销账户登录", "注销登录成功")
-	c.Success("注销成功")
 }

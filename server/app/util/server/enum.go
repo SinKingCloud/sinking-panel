@@ -82,6 +82,8 @@ const (
 	DNSProviderDNSPod       DNSProvider = "dnspod"       // DNSPod
 	DNSProviderTencentCloud DNSProvider = "tencentcloud" // 腾讯云 DNS
 	DNSProviderHuaweiCloud  DNSProvider = "huaweicloud"  // 华为云 DNS
+	DNSProviderVolcengine   DNSProvider = "volcengine"   // 火山引擎 DNS
+	DNSProviderBaiduCloud   DNSProvider = "baiducloud"   // 百度智能云 DNS
 
 	LogAccess  LogType = "access"  // 访问日志
 	LogWAF     LogType = "waf"     // WAF 审计日志

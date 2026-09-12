@@ -22,8 +22,8 @@ func changeStatus(c *context.Context, enabled bool) {
 	var form struct {
 		Id int64 `json:"id" default:"0" validate:"required,min=1" label:"网站ID"`
 	}
-	if ok, message := c.ValidatorAll(&form); !ok {
-		c.Error(message)
+	if ok, msg := c.ValidatorAll(&form); !ok {
+		c.Error(msg)
 		return
 	}
 	action := "停用"
@@ -34,8 +34,8 @@ func changeStatus(c *context.Context, enabled bool) {
 	}
 	if err != nil {
 		c.Error(err.Error())
-		return
+	} else {
+		service.Log.Create(c.GetRequestIp(), log_type.EventUpdate, action+"网站", action+"网站["+strconv.FormatInt(form.Id, 10)+"]")
+		c.Success(action + "成功")
 	}
-	service.Log.Create(c.GetRequestIp(), log_type.EventUpdate, action+"网站", action+"网站["+strconv.FormatInt(form.Id, 10)+"]")
-	c.Success(action + "成功")
 }

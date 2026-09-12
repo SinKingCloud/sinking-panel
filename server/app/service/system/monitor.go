@@ -3,7 +3,7 @@ package system
 import (
 	"runtime"
 	"server/app/constant"
-	"server/app/service/file"
+	serviceFile "server/app/service/file"
 	"time"
 
 	"github.com/shirou/gopsutil/v4/cpu"
@@ -322,7 +322,7 @@ func (s *service) getMemoryInfo() map[string]interface{} {
 }
 
 // getDisksInfo 获取磁盘信息
-func (s *service) getDisksInfo() []file.Disk {
+func (s *service) getDisksInfo() []serviceFile.Disk {
 	// 磁盘信息
 	disks, _ := s.fileService.GetDisks()
 	return disks

@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"server/app/enum/log_type"
 	"server/app/service"
-	fileService "server/app/service/file"
+	serviceFile "server/app/service/file"
 	"server/app/util/context"
 	"strconv"
 	"strings"
@@ -35,16 +35,16 @@ func handleFileUpload(c *context.Context) {
 	}
 
 	if c.DefaultForm("upload_id", "") == "" {
-		result, uploadErr := service.File.Upload(c.Request.Context(), fileHeader, c.DefaultForm("path", "/"))
+		data, uploadErr := service.File.Upload(c.Request.Context(), fileHeader, c.DefaultForm("path", "/"))
 		if uploadErr != nil {
 			c.Error(uploadErr.Error())
 			return
 		}
-		service.Log.Create(c.GetRequestIp(), log_type.EventCreate, "上传文件", "上传文件["+result.Path+"]")
+		service.Log.Create(c.GetRequestIp(), log_type.EventCreate, "上传文件", "上传文件["+data.Path+"]")
 		c.SuccessWithData("文件上传成功", map[string]interface{}{
-			"name": result.Name,
-			"path": result.Path,
-			"size": result.Size,
+			"name": data.Name,
+			"path": data.Path,
+			"size": data.Size,
 		})
 		return
 	}
@@ -113,23 +113,24 @@ func handleMergeChunks(c *context.Context) {
 	completed, existed, err := service.File.MergeUpload(c.Request.Context(), meta)
 	if err != nil {
 		c.Error(err.Error())
-		return
+	} else {
+		if !existed {
+			service.Log.Create(c.GetRequestIp(), log_type.EventCreate, "合并上传文件", "上传文件["+completed.Path+"]")
+		}
+		c.SuccessWithData("文件合并成功", completed)
 	}
-	if !existed {
-		service.Log.Create(c.GetRequestIp(), log_type.EventCreate, "合并上传文件", "上传文件["+completed.Path+"]")
-	}
-	c.SuccessWithData("文件合并成功", completed)
 }
 
 func handleClearUpload(c *context.Context) {
-	if err := service.File.ClearUpload(c.DefaultForm("upload_id", "")); err != nil {
+	err := service.File.ClearUpload(c.DefaultForm("upload_id", ""))
+	if err != nil {
 		c.Error(err.Error())
-		return
+	} else {
+		c.Success("清理上传缓存成功")
 	}
-	c.Success("清理上传缓存成功")
 }
 
-func uploadMetaFromQuery(c *context.Context) (fileService.UploadMeta, error) {
+func uploadMetaFromQuery(c *context.Context) (serviceFile.UploadMeta, error) {
 	return parseUploadMeta(
 		c.DefaultQuery("upload_id", ""),
 		c.DefaultQuery("path", "/"),
@@ -141,7 +142,7 @@ func uploadMetaFromQuery(c *context.Context) (fileService.UploadMeta, error) {
 	)
 }
 
-func uploadMetaFromForm(c *context.Context) (fileService.UploadMeta, error) {
+func uploadMetaFromForm(c *context.Context) (serviceFile.UploadMeta, error) {
 	return parseUploadMeta(
 		c.DefaultForm("upload_id", ""),
 		c.DefaultForm("path", "/"),
@@ -153,20 +154,20 @@ func uploadMetaFromForm(c *context.Context) (fileService.UploadMeta, error) {
 	)
 }
 
-func parseUploadMeta(uploadID, path, fileName, totalSizeValue, chunkSizeValue, totalChunksValue, fileHash string) (fileService.UploadMeta, error) {
+func parseUploadMeta(uploadID, path, fileName, totalSizeValue, chunkSizeValue, totalChunksValue, fileHash string) (serviceFile.UploadMeta, error) {
 	totalSize, err := strconv.ParseInt(totalSizeValue, 10, 64)
 	if err != nil {
-		return fileService.UploadMeta{}, fmt.Errorf("total_size参数不合法")
+		return serviceFile.UploadMeta{}, fmt.Errorf("total_size参数不合法")
 	}
 	chunkSize, err := strconv.ParseInt(chunkSizeValue, 10, 64)
 	if err != nil {
-		return fileService.UploadMeta{}, fmt.Errorf("chunk_size参数不合法")
+		return serviceFile.UploadMeta{}, fmt.Errorf("chunk_size参数不合法")
 	}
 	totalChunks, err := strconv.Atoi(totalChunksValue)
 	if err != nil {
-		return fileService.UploadMeta{}, fmt.Errorf("total_chunks参数不合法")
+		return serviceFile.UploadMeta{}, fmt.Errorf("total_chunks参数不合法")
 	}
-	return fileService.UploadMeta{
+	return serviceFile.UploadMeta{
 		UploadID:    uploadID,
 		Path:        filepath.Clean(path),
 		FileName:    fileName,

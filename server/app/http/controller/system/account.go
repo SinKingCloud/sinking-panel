@@ -42,11 +42,12 @@ func Account(c *context.Context) {
 			c.Error("登录账号和密码不能同时为空")
 			return
 		}
-		if err := service.Auth.UpdateAccount(form.Account, form.Password); err != nil {
+		err := service.Auth.UpdateAccount(form.Account, form.Password)
+		if err != nil {
 			c.Error(err.Error())
-			return
+		} else {
+			service.Log.Create(c.GetRequestIp(), log_type.EventUpdate, "修改登录信息", "修改登录账号或密码")
+			c.Success("修改成功")
 		}
-		service.Log.Create(c.GetRequestIp(), log_type.EventUpdate, "修改登录信息", "修改登录账号或密码")
-		c.Success("修改成功")
 	}
 }

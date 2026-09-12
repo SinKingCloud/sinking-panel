@@ -36,8 +36,8 @@ func List(c *context.Context) {
 	data, err := service.Script.Select(where, query)
 	if err != nil {
 		c.Error("获取失败")
-		return
+	} else {
+		service.Log.Create(c.GetRequestIp(), log_type.EventShow, "查看常用脚本", "查看常用脚本列表")
+		c.SuccessWithData("获取成功", data)
 	}
-	service.Log.Create(c.GetRequestIp(), log_type.EventShow, "查看常用脚本", "查看常用脚本列表")
-	c.SuccessWithData("获取成功", data)
 }

@@ -5,11 +5,12 @@ import (
 	"sync"
 
 	"server/app/model"
-	certRepository "server/app/repository/cert"
-	siteRepository "server/app/repository/site"
-	siteDomainRepository "server/app/repository/site_domain"
-	configService "server/app/service/config"
-	typeService "server/app/service/types"
+	repositoryCert "server/app/repository/cert"
+	repositorySecret "server/app/repository/secret"
+	repositorySite "server/app/repository/site"
+	repositorySiteDomain "server/app/repository/site_domain"
+	serviceConfig "server/app/service/config"
+	serviceTypes "server/app/service/types"
 	"server/app/util/cache"
 	"server/app/util/database"
 	"server/app/util/page"
@@ -67,24 +68,25 @@ type Service interface {
 	Disable(id int64) error
 	FindById(id int64) (*Site, error)
 	GetIdNameMap(refresh bool) (map[int64]string, error)
-	Select(where *siteRepository.SelectSite, queryPage *page.Query) (*page.Result[*siteRepository.Site], error)
+	Select(where *repositorySite.SelectSite, queryPage *page.Query) (*page.Result[*repositorySite.Site], error)
 	ClearCache(id int64) error
 	CreateCert(data *model.Cert) error
-	UpdateCert(id int64, data *certRepository.UpdateCert) error
+	UpdateCert(id int64, data *repositoryCert.UpdateCert) error
 	DeleteCert(id int64) error
 	FindCert(id int64) (*model.Cert, error)
-	SelectCert(where *certRepository.SelectCert, queryPage *page.Query) (*page.Result[*certRepository.Cert], error)
-	ObtainCert(ctx context.Context, name string, request webServer.CertificateRequest) (*model.Cert, error)
-	RenewCert(ctx context.Context, id int64, request webServer.CertificateRequest) (*model.Cert, error)
+	SelectCert(where *repositoryCert.SelectCert, queryPage *page.Query) (*page.Result[*repositoryCert.Cert], error)
+	ObtainCert(ctx context.Context, name string, request CertificateRequest) (*model.Cert, error)
+	RenewCert(ctx context.Context, id int64, request CertificateRequest) (*model.Cert, error)
 }
 
 // service 注入网站、域名、证书仓储和运行时管理器。
 type service struct {
-	repositorySite       siteRepository.Interface
-	repositorySiteDomain siteDomainRepository.Interface
-	repositoryCert       certRepository.Interface
-	typeService          typeService.Service
-	config               configService.Service
+	repositorySite       repositorySite.Interface
+	repositorySiteDomain repositorySiteDomain.Interface
+	repositoryCert       repositoryCert.Interface
+	repositorySecret     repositorySecret.Interface
+	typeService          serviceTypes.Service
+	configService        serviceConfig.Service
 	cache                cache.Interface
 	database             *database.Database
 	http                 *webServer.Manager
@@ -97,6 +99,6 @@ type service struct {
 }
 
 // NewService 创建网站管理服务。
-func NewService(repositorySite siteRepository.Interface, repositorySiteDomain siteDomainRepository.Interface, repositoryCert certRepository.Interface, typeService typeService.Service, config configService.Service, database *database.Database, cache cache.Interface, options ...Options) (*service, error) {
-	return newService(repositorySite, repositorySiteDomain, repositoryCert, typeService, config, database, cache, options...)
+func NewService(repositorySite repositorySite.Interface, repositorySiteDomain repositorySiteDomain.Interface, repositoryCert repositoryCert.Interface, repositorySecret repositorySecret.Interface, typeService serviceTypes.Service, configService serviceConfig.Service, database *database.Database, cache cache.Interface, options ...Options) (*service, error) {
+	return newService(repositorySite, repositorySiteDomain, repositoryCert, repositorySecret, typeService, configService, database, cache, options...)
 }

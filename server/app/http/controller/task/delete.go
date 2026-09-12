@@ -15,10 +15,11 @@ func Delete(c *context.Context) {
 		c.Error(msg)
 		return
 	}
-	if err := service.Task.Remove(form.Ids); err != nil {
+	err := service.Task.Remove(form.Ids)
+	if err != nil {
 		c.Error("删除失败")
-		return
+	} else {
+		service.Log.Create(c.GetRequestIp(), log_type.EventDelete, "删除计划任务", "删除计划任务数据")
+		c.Success("删除成功")
 	}
-	service.Log.Create(c.GetRequestIp(), log_type.EventDelete, "删除计划任务", "删除计划任务数据")
-	c.Success("删除成功")
 }

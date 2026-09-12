@@ -16,7 +16,7 @@ func Captcha(c *context.Context) {
 	captcha, err := service.Auth.GetCaptcha(form.Token)
 	if err != nil {
 		c.Error(err.Error())
-		return
+	} else {
+		c.SuccessWithData("获取验证码成功", captcha)
 	}
-	c.SuccessWithData("获取验证码成功", captcha)
 }

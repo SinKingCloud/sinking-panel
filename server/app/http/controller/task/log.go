@@ -21,25 +21,24 @@ func Log(c *context.Context) {
 	data, err := service.Task.FindById(form.Id)
 	if err != nil || data == nil {
 		c.Error("获取失败")
-		return
-	}
-	if form.Action == "clear" {
-		if err = service.Task.ClearLog(data.Id); err != nil {
+	} else if form.Action == "clear" {
+		err = service.Task.ClearLog(data.Id)
+		if err != nil {
 			c.Error("清理日志失败")
-			return
+		} else {
+			service.Log.Create(c.GetRequestIp(), log_type.EventDelete, "清理任务日志", "清理任务日志")
+			c.Success("清理成功")
 		}
-		service.Log.Create(c.GetRequestIp(), log_type.EventDelete, "清理任务日志", "清理任务日志")
-		c.Success("清理成功")
-		return
+	} else {
+		logs, err := service.Task.ReadLog(data.Id, form.After, form.Before, form.PageSize)
+		if err != nil {
+			c.Error(err.Error())
+		} else {
+			query := c.Request.URL.Query()
+			if !query.Has("after") && !query.Has("before") {
+				service.Log.Create(c.GetRequestIp(), log_type.EventShow, "查看任务日志", "查看计划任务["+data.Name+"]日志")
+			}
+			c.SuccessWithData("获取成功", logs)
+		}
 	}
-	logs, err := service.Task.ReadLog(data.Id, form.After, form.Before, form.PageSize)
-	if err != nil {
-		c.Error(err.Error())
-		return
-	}
-	query := c.Request.URL.Query()
-	if !query.Has("after") && !query.Has("before") {
-		service.Log.Create(c.GetRequestIp(), log_type.EventShow, "查看任务日志", "查看计划任务["+data.Name+"]日志")
-	}
-	c.SuccessWithData("获取成功", logs)
 }

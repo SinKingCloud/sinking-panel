@@ -8,13 +8,16 @@ import (
 	"fmt"
 	"net"
 	"net/mail"
+	baiduDNS "server/app/util/server/dns/baidu"
 	"strings"
+	"time"
 
 	caddyDNSPod "github.com/caddy-dns/dnspod"
 	"github.com/caddyserver/certmagic"
 	libdnsAliDNS "github.com/libdns/alidns"
 	libdnsHuaweiCloud "github.com/libdns/huaweicloud"
 	libdnsTencentCloud "github.com/libdns/tencentcloud"
+	libdnsVolcengine "github.com/libdns/volcengine"
 	"go.uber.org/zap"
 )
 
@@ -116,41 +119,47 @@ func (m *Manager) obtainCertificate(ctx context.Context, request CertificateRequ
 		credentials.TencentSecretKey = strings.TrimSpace(credentials.TencentSecretKey)
 		credentials.HuaweiAccessKeyID = strings.TrimSpace(credentials.HuaweiAccessKeyID)
 		credentials.HuaweiSecretAccessKey = strings.TrimSpace(credentials.HuaweiSecretAccessKey)
+		credentials.VolcengineAccessKeyID = strings.TrimSpace(credentials.VolcengineAccessKeyID)
+		credentials.VolcengineAccessKeySecret = strings.TrimSpace(credentials.VolcengineAccessKeySecret)
+		credentials.BaiduAccessKeyID = strings.TrimSpace(credentials.BaiduAccessKeyID)
+		credentials.BaiduSecretAccessKey = strings.TrimSpace(credentials.BaiduSecretAccessKey)
 
 		providerName := DNSProvider(strings.ToLower(strings.TrimSpace(string(request.DNSProvider))))
+		if err := credentials.Validate(providerName); err != nil {
+			return nil, err
+		}
 		var provider certmagic.DNSProvider
 		manager := certmagic.DNSManager{Logger: logger}
 		switch providerName {
 		case DNSProviderAliDNS:
-			if credentials.AliyunAccessKeyID == "" || credentials.AliyunAccessKeySecret == "" {
-				return nil, errors.New("阿里云 DNS 验证需要 AccessKey ID 和 AccessKey Secret")
-			}
 			provider = &libdnsAliDNS.Provider{CredentialInfo: libdnsAliDNS.CredentialInfo{
 				AccessKeyID:     credentials.AliyunAccessKeyID,
 				AccessKeySecret: credentials.AliyunAccessKeySecret,
 			}}
 		case DNSProviderDNSPod:
 			parts := strings.Split(credentials.DNSPodAPIToken, ",")
-			if len(parts) != 2 || strings.TrimSpace(parts[0]) == "" || strings.TrimSpace(parts[1]) == "" {
-				return nil, errors.New("DNSPod API Token 格式必须为 ID,TOKEN")
-			}
 			credentials.DNSPodAPIToken = strings.TrimSpace(parts[0]) + "," + strings.TrimSpace(parts[1])
 			provider = &caddyDNSPod.Provider{APIToken: credentials.DNSPodAPIToken}
 		case DNSProviderTencentCloud:
-			if credentials.TencentSecretID == "" || credentials.TencentSecretKey == "" {
-				return nil, errors.New("腾讯云 DNS 验证需要 Secret ID 和 Secret Key")
-			}
 			provider = &libdnsTencentCloud.Provider{SecretId: credentials.TencentSecretID, SecretKey: credentials.TencentSecretKey}
 		case DNSProviderHuaweiCloud:
-			if credentials.HuaweiAccessKeyID == "" || credentials.HuaweiSecretAccessKey == "" {
-				return nil, errors.New("华为云 DNS 验证需要 AccessKey ID 和 Secret Access Key")
-			}
 			provider = &libdnsHuaweiCloud.Provider{
 				AccessKeyId:     credentials.HuaweiAccessKeyID,
 				SecretAccessKey: credentials.HuaweiSecretAccessKey,
 			}
-		default:
-			return nil, errors.New("DNS 服务商只支持 alidns、dnspod、tencentcloud 或 huaweicloud")
+		case DNSProviderVolcengine:
+			provider = &libdnsVolcengine.Provider{CredentialInfo: libdnsVolcengine.CredentialInfo{
+				AccessKeyID:     credentials.VolcengineAccessKeyID,
+				AccessKeySecret: credentials.VolcengineAccessKeySecret,
+			}}
+			// 火山引擎记录生效较慢，延长传播检测时间。
+			manager.TTL = 600 * time.Second
+			manager.PropagationTimeout = 15 * time.Minute
+		case DNSProviderBaiduCloud:
+			provider = &baiduDNS.Provider{
+				AccessKeyID:     credentials.BaiduAccessKeyID,
+				SecretAccessKey: credentials.BaiduSecretAccessKey,
+			}
 		}
 		manager.DNSProvider = provider
 		issuerOptions.DisableHTTPChallenge = true
@@ -210,4 +219,38 @@ func (m *Manager) obtainCertificate(ctx context.Context, request CertificateRequ
 		CertificatePEM:  append([]byte(nil), certificatePEM...),
 		PrivateKeyPEM:   append([]byte(nil), privateKeyPEM...),
 	}, nil
+}
+
+// Validate 校验 DNS 服务商所需的凭据，供证书申请和密钥绑定共用。
+func (credentials DNSCredentials) Validate(provider DNSProvider) error {
+	switch provider {
+	case DNSProviderAliDNS:
+		if strings.TrimSpace(credentials.AliyunAccessKeyID) == "" || strings.TrimSpace(credentials.AliyunAccessKeySecret) == "" {
+			return errors.New("阿里云 DNS 验证需要 AccessKey ID 和 AccessKey Secret")
+		}
+	case DNSProviderDNSPod:
+		parts := strings.Split(credentials.DNSPodAPIToken, ",")
+		if len(parts) != 2 || strings.TrimSpace(parts[0]) == "" || strings.TrimSpace(parts[1]) == "" {
+			return errors.New("DNSPod API Token 格式必须为 ID,TOKEN")
+		}
+	case DNSProviderTencentCloud:
+		if strings.TrimSpace(credentials.TencentSecretID) == "" || strings.TrimSpace(credentials.TencentSecretKey) == "" {
+			return errors.New("腾讯云 DNS 验证需要 Secret ID 和 Secret Key")
+		}
+	case DNSProviderHuaweiCloud:
+		if strings.TrimSpace(credentials.HuaweiAccessKeyID) == "" || strings.TrimSpace(credentials.HuaweiSecretAccessKey) == "" {
+			return errors.New("华为云 DNS 验证需要 AccessKey ID 和 Secret Access Key")
+		}
+	case DNSProviderVolcengine:
+		if strings.TrimSpace(credentials.VolcengineAccessKeyID) == "" || strings.TrimSpace(credentials.VolcengineAccessKeySecret) == "" {
+			return errors.New("火山引擎 DNS 验证需要 AccessKey ID 和 AccessKey Secret")
+		}
+	case DNSProviderBaiduCloud:
+		if strings.TrimSpace(credentials.BaiduAccessKeyID) == "" || strings.TrimSpace(credentials.BaiduSecretAccessKey) == "" {
+			return errors.New("百度云 DNS 验证需要 AccessKey ID 和 Secret Access Key")
+		}
+	default:
+		return errors.New("不支持的 DNS 服务商")
+	}
+	return nil
 }

@@ -121,7 +121,7 @@ func (d *Database) SyncSqlite(schemaSql string) error {
 	}
 	sqlDb.SetMaxOpenConns(1)
 	defer sqlDb.Close()
-	if err = expectedDb.Db.Transaction(func(tx *gorm.DB) error {
+	if err = expectedDb.Transaction(func(tx *gorm.DB) error {
 		if executeErr := tx.Exec(schemaSql).Error; executeErr != nil {
 			return fmt.Errorf("执行数据库结构SQL失败: %w", executeErr)
 		}

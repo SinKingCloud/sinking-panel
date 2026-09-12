@@ -31,10 +31,10 @@ func Task(c *context.Context) {
 		}
 		if !service.System.TaskCancel(form.ID) {
 			c.Error("取消任务失败，任务可能不存在或已结束")
-			return
+		} else {
+			service.Log.Create(c.GetRequestIp(), log_type.EventUpdate, "取消系统任务", "取消系统任务["+form.ID+"]")
+			c.Success("任务已取消")
 		}
-		service.Log.Create(c.GetRequestIp(), log_type.EventUpdate, "取消系统任务", "取消系统任务["+form.ID+"]")
-		c.Success("任务已取消")
 	case "delete":
 		if form.ID == "" {
 			c.Error("任务ID不能为空")
@@ -42,21 +42,21 @@ func Task(c *context.Context) {
 		}
 		if !service.System.TaskDelete(form.ID) {
 			c.Error("删除任务失败，任务可能不存在")
-			return
+		} else {
+			service.Log.Create(c.GetRequestIp(), log_type.EventDelete, "删除系统任务", "删除系统任务["+form.ID+"]")
+			c.Success("任务已删除")
 		}
-		service.Log.Create(c.GetRequestIp(), log_type.EventDelete, "删除系统任务", "删除系统任务["+form.ID+"]")
-		c.Success("任务已删除")
 	case "log":
 		if form.ID == "" || service.System.GetTask(form.ID) == nil {
 			c.Error("任务不存在")
 			return
 		}
-		result, err := service.System.TaskLog(form.ID, form.After, form.Before, form.PageSize)
+		data, err := service.System.TaskLog(form.ID, form.After, form.Before, form.PageSize)
 		if err != nil {
 			c.Error(err.Error())
-			return
+		} else {
+			c.SuccessWithData("获取成功", data)
 		}
-		c.SuccessWithData("获取成功", result)
 	case "info":
 		if form.ID == "" {
 			c.Error("任务ID不能为空")
@@ -65,17 +65,17 @@ func Task(c *context.Context) {
 		task := service.System.GetTask(form.ID)
 		if task == nil {
 			c.Error("任务不存在")
-			return
+		} else {
+			c.SuccessWithData("获取成功", task)
 		}
-		c.SuccessWithData("获取成功", task)
 	case "", "list":
 		if action == "" && form.ID != "" {
 			task := service.System.GetTask(form.ID)
 			if task == nil {
 				c.Error("任务不存在")
-				return
+			} else {
+				c.SuccessWithData("获取成功", task)
 			}
-			c.SuccessWithData("获取成功", task)
 			return
 		}
 		tasks := service.System.TaskList()
@@ -89,11 +89,11 @@ func Task(c *context.Context) {
 			c.SuccessWithData("获取成功", filteredTasks)
 			return
 		}
-		result := make([]interface{}, len(tasks))
+		data := make([]interface{}, len(tasks))
 		for i, task := range tasks {
-			result[i] = task
+			data[i] = task
 		}
-		c.SuccessWithData("获取成功", result)
+		c.SuccessWithData("获取成功", data)
 	default:
 		c.Error("任务操作不支持")
 	}

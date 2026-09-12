@@ -10,11 +10,12 @@ import (
 	"server/app/enum/site_status"
 	"server/app/enum/site_type"
 	"server/app/model"
-	certRepository "server/app/repository/cert"
-	siteRepository "server/app/repository/site"
-	siteDomainRepository "server/app/repository/site_domain"
-	configService "server/app/service/config"
-	typeService "server/app/service/types"
+	repositoryCert "server/app/repository/cert"
+	repositorySecret "server/app/repository/secret"
+	repositorySite "server/app/repository/site"
+	repositorySiteDomain "server/app/repository/site_domain"
+	serviceConfig "server/app/service/config"
+	serviceTypes "server/app/service/types"
 	"server/app/util/cache"
 	"server/app/util/database"
 	processManager "server/app/util/process"
@@ -48,8 +49,8 @@ func (s *service) Boot() func() {
 	}
 }
 
-func newService(repositorySite siteRepository.Interface, repositorySiteDomain siteDomainRepository.Interface, repositoryCert certRepository.Interface, typeService typeService.Service, configService configService.Service, database *database.Database, cache cache.Interface, options ...Options) (*service, error) {
-	if repositorySite == nil || repositorySiteDomain == nil || repositoryCert == nil || typeService == nil || configService == nil || database == nil || database.Db == nil || cache == nil {
+func newService(repositorySite repositorySite.Interface, repositorySiteDomain repositorySiteDomain.Interface, repositoryCert repositoryCert.Interface, repositorySecret repositorySecret.Interface, typeService serviceTypes.Service, configService serviceConfig.Service, database *database.Database, cache cache.Interface, options ...Options) (*service, error) {
+	if repositorySite == nil || repositorySiteDomain == nil || repositoryCert == nil || repositorySecret == nil || typeService == nil || configService == nil || database == nil || database.Db == nil || cache == nil {
 		return nil, errors.New("网站服务依赖不能为空")
 	}
 	if len(options) > 1 {
@@ -95,8 +96,9 @@ func newService(repositorySite siteRepository.Interface, repositorySiteDomain si
 		repositorySite:       repositorySite,
 		repositorySiteDomain: repositorySiteDomain,
 		repositoryCert:       repositoryCert,
+		repositorySecret:     repositorySecret,
 		typeService:          typeService,
-		config:               configService,
+		configService:        configService,
 		cache:                cache,
 		database:             database,
 		root:                 filepath.Clean(root),
@@ -172,7 +174,7 @@ func (s *service) setActiveLocked(active bool) error {
 		s.processes = nil
 	}
 	if err == nil {
-		if err = s.config.Set(constant.SiteHTTPEnabled, strconv.FormatBool(active)); err != nil {
+		if err = s.configService.Set(constant.SiteHTTPEnabled, strconv.FormatBool(active)); err != nil {
 			err = fmt.Errorf("保存 HTTP 服务状态失败: %w", err)
 		}
 	}
@@ -255,7 +257,7 @@ func (s *service) Restart() error {
 		return restore(fmt.Errorf("重启网站服务失败: %w", err))
 	}
 	s.processes = s.cloneProcessConfigs(processes)
-	if err = s.config.Set(constant.SiteHTTPEnabled, strconv.FormatBool(true)); err != nil {
+	if err = s.configService.Set(constant.SiteHTTPEnabled, strconv.FormatBool(true)); err != nil {
 		return restore(fmt.Errorf("保存 HTTP 服务状态失败: %w", err))
 	}
 	return nil

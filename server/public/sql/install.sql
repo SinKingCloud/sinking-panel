@@ -175,20 +175,47 @@ create index if not exists cloud_sites_type_index
 create index if not exists cloud_sites_updateTime_index
     on cloud_sites (update_time);
 
-create table if not exists cloud_certs
+create table if not exists cloud_secrets
 (
-    id          bigint            not null
-        constraint cloud_certs_pk_id
+    id          bigint       not null
+        constraint cloud_secrets_pk_id
             primary key,
-    name        varchar(100)      not null,
-    type        integer default 0 not null,
-    domains     text    default '' not null,
-    certificate text              not null,
-    private_key text              not null,
-    start_time  text,
-    expire_time text,
+    name        varchar(100) not null,
+    provider    integer default 0 not null,
+    data        text         not null,
     update_time text,
     create_time text
+);
+
+create index if not exists cloud_secrets_name_index
+    on cloud_secrets (name);
+
+create index if not exists cloud_secrets_provider_index
+    on cloud_secrets (provider);
+
+create index if not exists cloud_secrets_createTime_index
+    on cloud_secrets (create_time);
+
+create index if not exists cloud_secrets_updateTime_index
+    on cloud_secrets (update_time);
+
+create table if not exists cloud_certs
+(
+    id            bigint                 not null
+        constraint cloud_certs_pk_id
+            primary key,
+    name          varchar(100)           not null,
+    type          integer default 0      not null,
+    challenge     varchar(20) default '' not null,
+    secret_id     bigint default 0       not null,
+    auto_renew    integer default 0      not null,
+    domains       text    default ''     not null,
+    certificate   text                   not null,
+    private_key   text                   not null,
+    start_time    text,
+    expire_time   text,
+    update_time   text,
+    create_time   text
 );
 
 create index if not exists cloud_certs_createTime_index
@@ -199,6 +226,12 @@ create index if not exists cloud_certs_expireTime_index
 
 create index if not exists cloud_certs_type_index
     on cloud_certs (type);
+
+create index if not exists cloud_certs_secretId_index
+    on cloud_certs (secret_id);
+
+create index if not exists cloud_certs_autoRenew_expireTime_index
+    on cloud_certs (auto_renew, expire_time);
 
 create index if not exists cloud_certs_updateTime_index
     on cloud_certs (update_time);

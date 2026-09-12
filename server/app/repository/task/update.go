@@ -10,27 +10,33 @@ import (
 
 // UpdateEntryIDById 更新任务实例ID
 func (r *Repository) UpdateEntryIDById(id int64, entryID int) error {
-	return r.Database.Db.Model(&model.Task{}).Where("`id` = ? ", id).Updates(map[string]interface{}{
-		"update_time": str.DateTime(time.Now()),
-		"entry_id":    entryID,
-	}).Error
+	return r.Database.Db.Model(&model.Task{}).
+		Where("`id` = ? ", id).
+		Updates(map[string]interface{}{
+			"update_time": str.DateTime(time.Now()),
+			"entry_id":    entryID,
+		}).Error
 }
 
 // UpdateStateById 更新任务实例和状态
 func (r *Repository) UpdateStateById(id int64, entryID int, status int) error {
-	return r.Database.Db.Model(&model.Task{}).Where("`id` = ? ", id).Updates(map[string]interface{}{
-		"update_time": str.DateTime(time.Now()),
-		"entry_id":    entryID,
-		"status":      status,
-	}).Error
+	return r.Database.Db.Model(&model.Task{}).
+		Where("`id` = ? ", id).
+		Updates(map[string]interface{}{
+			"update_time": str.DateTime(time.Now()),
+			"entry_id":    entryID,
+			"status":      status,
+		}).Error
 }
 
 // UpdateRuntimeById 更新任务运行时间
 func (r *Repository) UpdateRuntimeById(id int64, runTime time.Time) error {
-	return r.Database.Db.Model(&model.Task{}).Where("`id` = ? ", id).Updates(map[string]interface{}{
-		"update_time": str.DateTime(time.Now()),
-		"run_time":    str.DateTime(runTime),
-	}).Error
+	return r.Database.Db.Model(&model.Task{}).
+		Where("`id` = ? ", id).
+		Updates(map[string]interface{}{
+			"update_time": str.DateTime(time.Now()),
+			"run_time":    str.DateTime(runTime),
+		}).Error
 }
 
 // UpdateByIds 通过ID列表更新任务

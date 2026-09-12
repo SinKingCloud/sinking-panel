@@ -21,13 +21,13 @@ func List(c *context.Context) {
 	list, total, err := service.Recycle.Select(form.Page, form.PageSize, form.OrderByField, form.OrderByType)
 	if err != nil {
 		c.Error("获取失败")
-		return
+	} else {
+		service.Log.Create(c.GetRequestIp(), log_type.EventShow, "查看回收站", "查看回收站文件列表")
+		c.SuccessWithData("获取成功", page.New(&page.Query{
+			Page:         form.Page,
+			PageSize:     form.PageSize,
+			OrderByField: form.OrderByField,
+			OrderByType:  form.OrderByType,
+		}, total, list))
 	}
-	service.Log.Create(c.GetRequestIp(), log_type.EventShow, "查看回收站", "查看回收站文件列表")
-	c.SuccessWithData("获取成功", page.New(&page.Query{
-		Page:         form.Page,
-		PageSize:     form.PageSize,
-		OrderByField: form.OrderByField,
-		OrderByType:  form.OrderByType,
-	}, total, list))
 }

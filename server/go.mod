@@ -1,16 +1,18 @@
 module server
 
-go 1.25.1
+go 1.25.5
 
 require (
 	github.com/DeRuina/timberjack v1.4.2
 	github.com/SinKingCloud/sinking-go/sinking-web v0.0.0-20260721071049-38c96ad3bbb0
 	github.com/afocus/captcha v0.0.0-20191010092841-4bd1f21c8868
 	github.com/axgle/mahonia v0.0.0-20180208002826-3358181d7394
+	github.com/baidubce/bce-sdk-go v0.9.223
 	github.com/caddy-dns/alidns v1.0.29
 	github.com/caddy-dns/dnspod v0.0.5-0.20260325061251-fb7cc31cc04c
 	github.com/caddy-dns/huaweicloud v1.0.1
 	github.com/caddy-dns/tencentcloud v0.4.3
+	github.com/caddy-dns/volcengine v0.0.1
 	github.com/caddyserver/cache-handler v0.16.0
 	github.com/caddyserver/caddy/v2 v2.11.4
 	github.com/caddyserver/certmagic v0.25.3
@@ -28,7 +30,9 @@ require (
 	github.com/gorilla/websocket v1.5.3
 	github.com/libdns/alidns v1.0.7
 	github.com/libdns/huaweicloud v1.0.1
+	github.com/libdns/libdns v1.1.1
 	github.com/libdns/tencentcloud v1.4.3
+	github.com/libdns/volcengine v0.0.1
 	github.com/mholt/caddy-ratelimit v0.1.1-0.20260612195517-5625512f24f6
 	github.com/moby/profiles/seccomp v0.2.3
 	github.com/moby/sys/mountinfo v0.7.2
@@ -143,7 +147,6 @@ require (
 	github.com/klauspost/compress v1.18.6 // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
 	github.com/leodido/go-urn v1.5.0 // indirect
-	github.com/libdns/libdns v1.1.1 // indirect
 	github.com/lufia/plan9stats v0.0.0-20260627054121-477a66015f15 // indirect
 	github.com/magefile/mage v1.17.1 // indirect
 	github.com/manifoldco/promptui v0.9.0 // indirect

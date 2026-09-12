@@ -280,13 +280,17 @@ type TrafficLimitOptions struct {
 
 // DNSCredentials 定义 ACME DNS-01 验证凭据，未使用的字段保持为空。
 type DNSCredentials struct {
-	AliyunAccessKeyID     string `json:"aliyun_access_key_id"`     // 阿里云 AccessKey ID
-	AliyunAccessKeySecret string `json:"aliyun_access_key_secret"` // 阿里云 AccessKey Secret
-	DNSPodAPIToken        string `json:"dnspod_api_token"`         // DNSPod API Token，格式为 ID,TOKEN
-	TencentSecretID       string `json:"tencent_secret_id"`        // 腾讯云 Secret ID
-	TencentSecretKey      string `json:"tencent_secret_key"`       // 腾讯云 Secret Key
-	HuaweiAccessKeyID     string `json:"huawei_access_key_id"`     // 华为云 AccessKey ID
-	HuaweiSecretAccessKey string `json:"huawei_secret_access_key"` // 华为云 Secret Access Key
+	AliyunAccessKeyID         string `json:"aliyun_access_key_id"`         // 阿里云 AccessKey ID
+	AliyunAccessKeySecret     string `json:"aliyun_access_key_secret"`     // 阿里云 AccessKey Secret
+	DNSPodAPIToken            string `json:"dnspod_api_token"`             // DNSPod API Token，格式为 ID,TOKEN
+	TencentSecretID           string `json:"tencent_secret_id"`            // 腾讯云 Secret ID
+	TencentSecretKey          string `json:"tencent_secret_key"`           // 腾讯云 Secret Key
+	HuaweiAccessKeyID         string `json:"huawei_access_key_id"`         // 华为云 AccessKey ID
+	HuaweiSecretAccessKey     string `json:"huawei_secret_access_key"`     // 华为云 Secret Access Key
+	VolcengineAccessKeyID     string `json:"volcengine_access_key_id"`     // 火山引擎 AccessKey ID
+	VolcengineAccessKeySecret string `json:"volcengine_access_key_secret"` // 火山引擎 AccessKey Secret
+	BaiduAccessKeyID          string `json:"baidu_access_key_id"`          // 百度智能云 AccessKey ID
+	BaiduSecretAccessKey      string `json:"baidu_secret_access_key"`      // 百度智能云 Secret Access Key
 }
 
 // CertificateRequest 定义一次显式 ACME 申请。

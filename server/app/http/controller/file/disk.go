@@ -9,7 +9,7 @@ func Disk(c *context.Context) {
 	paths, err := service.File.GetDiskPaths()
 	if err != nil {
 		c.Error("获取失败")
-		return
+	} else {
+		c.SuccessWithData("获取成功", paths)
 	}
-	c.SuccessWithData("获取成功", paths)
 }

@@ -5,7 +5,7 @@ import (
 
 	"server/app/enum/log_type"
 	"server/app/service"
-	siteService "server/app/service/site"
+	serviceSite "server/app/service/site"
 	"server/app/util/context"
 
 	"github.com/SinKingCloud/sinking-go/sinking-web"
@@ -19,10 +19,10 @@ func HTTP(c *context.Context) {
 		After     int64                   `json:"after" default:"0" validate:"numeric,min=0" label:"增量游标"`
 		Before    int64                   `json:"before" default:"0" validate:"numeric,min=0" label:"历史游标"`
 		PageSize  int                     `json:"page_size" default:"300" validate:"numeric,min=1,max=10000" label:"读取行数"`
-		Config    *siteService.HTTPUpdate `json:"config" validate:"omitempty" label:"HTTP配置"`
+		Config    *serviceSite.HTTPUpdate `json:"config" validate:"omitempty" label:"HTTP配置"`
 	}
-	if ok, message := c.ValidatorAll(&form); !ok {
-		c.Error(message)
+	if ok, msg := c.ValidatorAll(&form); !ok {
+		c.Error(msg)
 		return
 	}
 	var err error
@@ -37,24 +37,25 @@ func HTTP(c *context.Context) {
 				c.Error("清理日志仅支持 POST 请求")
 				return
 			}
-			if err = service.Site.ClearServerLog(); err != nil {
+			err = service.Site.ClearServerLog()
+			if err != nil {
 				c.Error(err.Error())
-				return
+			} else {
+				service.Log.Create(c.GetRequestIp(), log_type.EventDelete, "清理服务日志", "清理网站 HTTP 服务运行日志")
+				c.Success("清理成功")
 			}
-			service.Log.Create(c.GetRequestIp(), log_type.EventDelete, "清理服务日志", "清理网站 HTTP 服务运行日志")
-			c.Success("清理成功")
 			return
 		}
-		result, readErr := service.Site.ReadServerLog(form.After, form.Before, form.PageSize)
-		if readErr != nil {
-			c.Error(readErr.Error())
-			return
+		data, err := service.Site.ReadServerLog(form.After, form.Before, form.PageSize)
+		if err != nil {
+			c.Error(err.Error())
+		} else {
+			query := c.Request.URL.Query()
+			if !query.Has("after") && !query.Has("before") {
+				service.Log.Create(c.GetRequestIp(), log_type.EventShow, "查看服务日志", "查看网站 HTTP 服务运行日志")
+			}
+			c.SuccessWithData("获取成功", data)
 		}
-		query := c.Request.URL.Query()
-		if !query.Has("after") && !query.Has("before") {
-			service.Log.Create(c.GetRequestIp(), log_type.EventShow, "查看服务日志", "查看网站 HTTP 服务运行日志")
-		}
-		c.SuccessWithData("获取成功", result)
 		return
 	case "set":
 		if form.Config == nil {
@@ -77,13 +78,13 @@ func HTTP(c *context.Context) {
 	}
 	if err != nil {
 		c.Error(err.Error())
-		return
+	} else {
+		name := map[string]string{"set": "修改", "start": "启动", "stop": "停止", "restart": "重启", "sync": "同步"}[form.Action]
+		detail := name + "网站 HTTP 服务"
+		if form.Action == "set" {
+			detail = "修改网站 HTTP 配置"
+		}
+		service.Log.Create(c.GetRequestIp(), log_type.EventUpdate, name+"网站服务", detail)
+		c.SuccessWithData(name+"成功", sinking_web.H{"running": service.Site.Running()})
 	}
-	name := map[string]string{"set": "修改", "start": "启动", "stop": "停止", "restart": "重启", "sync": "同步"}[form.Action]
-	detail := name + "网站 HTTP 服务"
-	if form.Action == "set" {
-		detail = "修改网站 HTTP 配置"
-	}
-	service.Log.Create(c.GetRequestIp(), log_type.EventUpdate, name+"网站服务", detail)
-	c.SuccessWithData(name+"成功", sinking_web.H{"running": service.Site.Running()})
 }

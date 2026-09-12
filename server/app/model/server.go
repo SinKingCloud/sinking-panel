@@ -7,7 +7,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// Server 配置表
+// Server 服务器表
 type Server struct {
 	Id         int64        `gorm:"column:id;PRIMARY_KEY" json:"id"`       // 服务器ID
 	Ip         string       `gorm:"column:ip" json:"ip"`                   // 服务器IP

@@ -12,6 +12,9 @@ type Cert struct {
 	Id          int64        `gorm:"column:id;PRIMARY_KEY" json:"id"`       // 证书ID
 	Name        string       `gorm:"column:name" json:"name"`               // 证书名称
 	Type        int          `gorm:"column:type" json:"type"`               // 证书类型
+	Challenge   string       `gorm:"column:challenge" json:"challenge"`     // 申请验证方式：http、dns，手动导入为空
+	SecretId    int64        `gorm:"column:secret_id" json:"secret_id"`     // DNS 验证凭据ID，0表示未关联
+	AutoRenew   int          `gorm:"column:auto_renew" json:"auto_renew"`   // 是否自动续签：0 关闭，1 开启
 	Domains     string       `gorm:"column:domains" json:"domains"`         // 证书域名列表的 JSON 字符串
 	Certificate string       `gorm:"column:certificate" json:"certificate"` // 证书内容
 	PrivateKey  string       `gorm:"column:private_key" json:"private_key"` // 私钥内容

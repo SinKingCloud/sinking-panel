@@ -8,6 +8,13 @@ import (
 	"server/app/util/str"
 )
 
+// CertificateRequest 在 ACME 请求上增加持久化设置，续签时未传入的字段沿用原值。
+type CertificateRequest struct {
+	webServer.CertificateRequest
+	SecretId  *int64 `json:"secret_id"`  // DNS 凭据 ID，0 表示使用本次传入的凭据
+	AutoRenew *int   `json:"auto_renew"` // 是否自动续签：0 关闭，1 开启
+}
+
 // HTTPConfig 是四类网站共享的 HTTP 配置。
 type HTTPConfig struct {
 	Redirects    []RedirectConfig              `json:"redirects"`     // 重定向规则

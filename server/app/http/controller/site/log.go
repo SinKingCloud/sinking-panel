@@ -19,8 +19,8 @@ func Log(c *context.Context) {
 		Before   int64  `json:"before" default:"0" validate:"numeric,min=0" label:"历史游标"`
 		PageSize int    `json:"page_size" default:"300" validate:"numeric,min=1,max=10000" label:"读取行数"`
 	}
-	if ok, message := c.ValidatorAll(&form); !ok {
-		c.Error(message)
+	if ok, msg := c.ValidatorAll(&form); !ok {
+		c.Error(msg)
 		return
 	}
 	logType := webServer.LogType(form.Type)
@@ -30,22 +30,23 @@ func Log(c *context.Context) {
 		webServer.LogProcess: "进程",
 	}[logType]
 	if form.Action == "clear" {
-		if err := service.Site.ClearLog(form.Id, logType); err != nil {
+		err := service.Site.ClearLog(form.Id, logType)
+		if err != nil {
 			c.Error(err.Error())
-			return
+		} else {
+			service.Log.Create(c.GetRequestIp(), log_type.EventDelete, "清理网站日志", "清理网站["+strconv.FormatInt(form.Id, 10)+"]"+typeName+"日志")
+			c.Success("清理成功")
 		}
-		service.Log.Create(c.GetRequestIp(), log_type.EventDelete, "清理网站日志", "清理网站["+strconv.FormatInt(form.Id, 10)+"]"+typeName+"日志")
-		c.Success("清理成功")
-		return
+	} else {
+		data, err := service.Site.ReadLog(form.Id, logType, form.After, form.Before, form.PageSize)
+		if err != nil {
+			c.Error(err.Error())
+		} else {
+			query := c.Request.URL.Query()
+			if !query.Has("after") && !query.Has("before") {
+				service.Log.Create(c.GetRequestIp(), log_type.EventShow, "查看网站日志", "查看网站["+strconv.FormatInt(form.Id, 10)+"]"+typeName+"日志")
+			}
+			c.SuccessWithData("获取成功", data)
+		}
 	}
-	result, err := service.Site.ReadLog(form.Id, logType, form.After, form.Before, form.PageSize)
-	if err != nil {
-		c.Error(err.Error())
-		return
-	}
-	query := c.Request.URL.Query()
-	if !query.Has("after") && !query.Has("before") {
-		service.Log.Create(c.GetRequestIp(), log_type.EventShow, "查看网站日志", "查看网站["+strconv.FormatInt(form.Id, 10)+"]"+typeName+"日志")
-	}
-	c.SuccessWithData("获取成功", result)
 }

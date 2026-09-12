@@ -5,7 +5,7 @@ import (
 
 	"server/app/enum/log_type"
 	"server/app/service"
-	siteService "server/app/service/site"
+	serviceSite "server/app/service/site"
 	"server/app/util/context"
 )
 
@@ -18,19 +18,28 @@ func Update(c *context.Context) {
 		Root    *string `json:"root" validate:"omitempty,max=4096" label:"网站根目录"`
 		RunPath *string `json:"run_path" validate:"omitempty,max=4096" label:"网站运行目录"`
 	}
-	if ok, message := c.ValidatorAll(&form); !ok {
-		c.Error(message)
+	if ok, msg := c.ValidatorAll(&form); !ok {
+		c.Error(msg)
 		return
 	}
-	if err := service.Site.Update(form.Id, &siteService.UpdateSite{
-		Name:    form.Name,
-		TypeId:  form.TypeId,
-		Root:    form.Root,
-		RunPath: form.RunPath,
-	}); err != nil {
+	data := &serviceSite.UpdateSite{}
+	if form.Name != nil {
+		data.Name = form.Name
+	}
+	if form.TypeId != nil {
+		data.TypeId = form.TypeId
+	}
+	if form.Root != nil {
+		data.Root = form.Root
+	}
+	if form.RunPath != nil {
+		data.RunPath = form.RunPath
+	}
+	err := service.Site.Update(form.Id, data)
+	if err != nil {
 		c.Error(err.Error())
-		return
+	} else {
+		service.Log.Create(c.GetRequestIp(), log_type.EventUpdate, "修改网站", "修改网站["+strconv.FormatInt(form.Id, 10)+"]")
+		c.Success("修改成功")
 	}
-	service.Log.Create(c.GetRequestIp(), log_type.EventUpdate, "修改网站", "修改网站["+strconv.FormatInt(form.Id, 10)+"]")
-	c.Success("修改成功")
 }

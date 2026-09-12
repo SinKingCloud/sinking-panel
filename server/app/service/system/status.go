@@ -23,7 +23,7 @@ func (s *service) GetStatus(netInterface, diskName string, after int64) map[stri
 				netInterface: netData,
 			}
 		} else {
-			result["network"] = map[string]interface{}{}
+			result["network"] = make(map[string]interface{})
 		}
 	} else {
 		result["network"] = networkData
@@ -36,7 +36,7 @@ func (s *service) GetStatus(netInterface, diskName string, after int64) map[stri
 				diskName: diskInfo,
 			}
 		} else {
-			result["disk"] = map[string]interface{}{}
+			result["disk"] = make(map[string]interface{})
 		}
 	} else {
 		result["disk"] = diskData
@@ -55,7 +55,7 @@ func (s *service) GetStatus(netInterface, diskName string, after int64) map[stri
 					netInterface: netData,
 				}
 			} else {
-				sampleNetwork = map[string]map[string]interface{}{}
+				sampleNetwork = make(map[string]map[string]interface{})
 			}
 		}
 
@@ -66,7 +66,7 @@ func (s *service) GetStatus(netInterface, diskName string, after int64) map[stri
 					diskName: diskInfo,
 				}
 			} else {
-				sampleDisk = map[string]map[string]interface{}{}
+				sampleDisk = make(map[string]map[string]interface{})
 			}
 		}
 

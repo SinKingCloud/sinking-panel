@@ -28,10 +28,3 @@ type Repository struct {
 func NewRepository(db *database.Database) *Repository {
 	return &Repository{Database: db}
 }
-
-func (r *Repository) db(tx ...*gorm.DB) *gorm.DB {
-	if len(tx) > 0 && tx[0] != nil {
-		return tx[0]
-	}
-	return r.Database.Db
-}

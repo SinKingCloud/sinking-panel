@@ -4,7 +4,7 @@ import (
 	"context"
 	"server/app/model"
 	repositoryTask "server/app/repository/task"
-	typeService "server/app/service/types"
+	serviceTypes "server/app/service/types"
 	"server/app/util/page"
 	"sync"
 
@@ -32,7 +32,7 @@ type Service interface {
 // service 注入结构
 type service struct {
 	repositoryTask repositoryTask.Interface
-	typeService    typeService.Service
+	typeService    serviceTypes.Service
 	instance       *cron.Cron
 	ctx            context.Context
 	cancel         context.CancelFunc
@@ -45,10 +45,10 @@ type service struct {
 }
 
 // NewService 实例化service
-func NewService(repository repositoryTask.Interface, typeService typeService.Service) *service {
+func NewService(repositoryTask repositoryTask.Interface, typeService serviceTypes.Service) *service {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &service{
-		repositoryTask: repository,
+		repositoryTask: repositoryTask,
 		typeService:    typeService,
 		ctx:            ctx,
 		cancel:         cancel,

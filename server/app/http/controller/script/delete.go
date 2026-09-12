@@ -15,10 +15,11 @@ func Delete(c *context.Context) {
 		c.Error(msg)
 		return
 	}
-	if err := service.Script.DeleteByIds(form.Ids); err != nil {
+	err := service.Script.DeleteByIds(form.Ids)
+	if err != nil {
 		c.Error("删除失败")
-		return
+	} else {
+		service.Log.Create(c.GetRequestIp(), log_type.EventDelete, "删除常用脚本", "删除常用脚本数据")
+		c.Success("删除成功")
 	}
-	service.Log.Create(c.GetRequestIp(), log_type.EventDelete, "删除常用脚本", "删除常用脚本数据")
-	c.Success("删除成功")
 }

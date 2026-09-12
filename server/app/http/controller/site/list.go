@@ -2,7 +2,7 @@ package site
 
 import (
 	"server/app/enum/log_type"
-	siteRepository "server/app/repository/site"
+	repositorySite "server/app/repository/site"
 	"server/app/service"
 	"server/app/util/context"
 )
@@ -21,25 +21,43 @@ func List(c *context.Context) {
 		UpdateTimeStart string `json:"update_time_start" default:"" validate:"omitempty,datetime=2006-01-02 15:04:05" label:"更新起始时间"`
 		UpdateTimeEnd   string `json:"update_time_end" default:"" validate:"omitempty,datetime=2006-01-02 15:04:05" label:"更新结束时间"`
 	}
-	if ok, message := c.ValidatorAll(&form); !ok {
-		c.Error(message)
+	if ok, msg := c.ValidatorAll(&form); !ok {
+		c.Error(msg)
 		return
 	}
-	result, err := service.Site.Select(&siteRepository.SelectSite{
-		Keyword:         form.Keyword,
-		Name:            form.Name,
-		TypeId:          form.TypeId,
-		Type:            form.Type,
-		Status:          form.Status,
-		CreateTimeStart: form.CreateTimeStart,
-		CreateTimeEnd:   form.CreateTimeEnd,
-		UpdateTimeStart: form.UpdateTimeStart,
-		UpdateTimeEnd:   form.UpdateTimeEnd,
-	}, query)
+	where := &repositorySite.SelectSite{}
+	if form.Keyword != "" {
+		where.Keyword = form.Keyword
+	}
+	if form.Name != "" {
+		where.Name = form.Name
+	}
+	if form.TypeId != "" {
+		where.TypeId = form.TypeId
+	}
+	if form.Type != "" {
+		where.Type = form.Type
+	}
+	if form.Status != "" {
+		where.Status = form.Status
+	}
+	if form.CreateTimeStart != "" {
+		where.CreateTimeStart = form.CreateTimeStart
+	}
+	if form.CreateTimeEnd != "" {
+		where.CreateTimeEnd = form.CreateTimeEnd
+	}
+	if form.UpdateTimeStart != "" {
+		where.UpdateTimeStart = form.UpdateTimeStart
+	}
+	if form.UpdateTimeEnd != "" {
+		where.UpdateTimeEnd = form.UpdateTimeEnd
+	}
+	data, err := service.Site.Select(where, query)
 	if err != nil {
-		c.Error(err.Error())
-		return
+		c.Error("获取失败")
+	} else {
+		service.Log.Create(c.GetRequestIp(), log_type.EventShow, "查看网站列表", "查看网站列表数据")
+		c.SuccessWithData("获取成功", data)
 	}
-	service.Log.Create(c.GetRequestIp(), log_type.EventShow, "查看网站列表", "查看网站列表数据")
-	c.SuccessWithData("获取成功", result)
 }

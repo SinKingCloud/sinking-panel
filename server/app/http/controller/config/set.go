@@ -36,12 +36,16 @@ func Set(c *context.Context) {
 		}
 		configs[v.Key] = v.Value
 	}
+	var err error
 	if len(configs) > 0 {
-		if err := service.Config.Sets(configs); err != nil {
-			c.Error("修改数据失败")
-			return
-		}
-		service.Log.Create(c.GetRequestIp(), log_type.EventUpdate, "修改系统配置", "修改系统配置数据")
+		err = service.Config.Sets(configs)
 	}
-	c.Success("修改数据成功")
+	if err != nil {
+		c.Error("修改数据失败")
+	} else {
+		if len(configs) > 0 {
+			service.Log.Create(c.GetRequestIp(), log_type.EventUpdate, "修改系统配置", "修改系统配置数据")
+		}
+		c.Success("修改数据成功")
+	}
 }

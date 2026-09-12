@@ -3,7 +3,7 @@ package server
 import (
 	"server/app/model"
 	repositoryServer "server/app/repository/server"
-	configService "server/app/service/config"
+	serviceConfig "server/app/service/config"
 	"server/app/util/page"
 )
 
@@ -19,13 +19,13 @@ type Service interface {
 // service 注入结构
 type service struct {
 	repositoryServer repositoryServer.Interface
-	configService    configService.Service
+	configService    serviceConfig.Service
 }
 
 // NewService 实例化service
-func NewService(repositoryServer repositoryServer.Interface, config configService.Service) *service {
+func NewService(repositoryServer repositoryServer.Interface, configService serviceConfig.Service) *service {
 	return &service{
 		repositoryServer: repositoryServer,
-		configService:    config,
+		configService:    configService,
 	}
 }

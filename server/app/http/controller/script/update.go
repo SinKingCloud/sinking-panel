@@ -35,10 +35,11 @@ func Update(c *context.Context) {
 	if form.Script != "" {
 		data.Script = form.Script
 	}
-	if err := service.Script.UpdateByIds(form.Ids, data); err != nil {
+	err := service.Script.UpdateByIds(form.Ids, data)
+	if err != nil {
 		c.Error("修改失败")
-		return
+	} else {
+		service.Log.Create(c.GetRequestIp(), log_type.EventUpdate, "修改常用脚本", "修改常用脚本数据")
+		c.Success("修改成功")
 	}
-	service.Log.Create(c.GetRequestIp(), log_type.EventUpdate, "修改常用脚本", "修改常用脚本数据")
-	c.Success("修改成功")
 }

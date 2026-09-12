@@ -18,14 +18,15 @@ func Create(c *context.Context) {
 		c.Error(msg)
 		return
 	}
-	if err := service.Script.Create(&model.Script{
+	err := service.Script.Create(&model.Script{
 		TypeId: form.TypeId,
 		Name:   form.Name,
 		Script: form.Script,
-	}); err != nil {
+	})
+	if err != nil {
 		c.Error("添加失败")
-		return
+	} else {
+		service.Log.Create(c.GetRequestIp(), log_type.EventCreate, "添加常用脚本", "添加常用脚本["+form.Name+"]")
+		c.Success("添加成功")
 	}
-	service.Log.Create(c.GetRequestIp(), log_type.EventCreate, "添加常用脚本", "添加常用脚本["+form.Name+"]")
-	c.Success("添加成功")
 }

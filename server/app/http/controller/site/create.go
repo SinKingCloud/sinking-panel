@@ -3,7 +3,7 @@ package site
 import (
 	"server/app/enum/log_type"
 	"server/app/service"
-	siteService "server/app/service/site"
+	serviceSite "server/app/service/site"
 	"server/app/util/context"
 	webServer "server/app/util/server"
 )
@@ -18,16 +18,16 @@ func Create(c *context.Context) {
 		Root    string                     `json:"root" default:"" validate:"omitempty,max=4096" label:"网站根目录"`
 		RunPath string                     `json:"run_path" default:"" validate:"omitempty,max=4096" label:"网站运行目录"`
 		Domains []string                   `json:"domains" default:"" validate:"max=1000,unique,dive,required,max=253" label:"网站域名"`
-		Static  *siteService.StaticOptions `json:"static" label:"静态网站配置"`
+		Static  *serviceSite.StaticOptions `json:"static" label:"静态网站配置"`
 		Proxy   *webServer.ProxyOptions    `json:"proxy" label:"反向代理配置"`
 		FastCGI *webServer.ProxyOptions    `json:"fastcgi" label:"FastCGI 配置"`
-		Process *siteService.ProcessConfig `json:"process" label:"进程配置"`
+		Process *serviceSite.ProcessConfig `json:"process" label:"进程配置"`
 	}
-	if ok, message := c.ValidatorAll(&form); !ok {
-		c.Error(message)
+	if ok, msg := c.ValidatorAll(&form); !ok {
+		c.Error(msg)
 		return
 	}
-	result, err := service.Site.Create(&siteService.CreateSite{
+	data, err := service.Site.Create(&serviceSite.CreateSite{
 		Name:    form.Name,
 		TypeId:  form.TypeId,
 		Type:    form.Type,
@@ -42,8 +42,8 @@ func Create(c *context.Context) {
 	})
 	if err != nil {
 		c.Error(err.Error())
-		return
+	} else {
+		service.Log.Create(c.GetRequestIp(), log_type.EventCreate, "创建网站", "创建网站["+data.Name+"]")
+		c.SuccessWithData("创建成功", data)
 	}
-	service.Log.Create(c.GetRequestIp(), log_type.EventCreate, "创建网站", "创建网站["+result.Name+"]")
-	c.SuccessWithData("创建成功", result)
 }

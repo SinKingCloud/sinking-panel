@@ -26,11 +26,11 @@ func Create(c *context.Context) {
 	err := f.AutoCreate(form.Name)
 	if err != nil {
 		c.Error("创建目录或文件失败")
-		return
+	} else {
+		if form.Chmod > 0 {
+			_ = f.SetFileMode(form.Name, form.Chmod)
+		}
+		service.Log.Create(c.GetRequestIp(), log_type.EventCreate, "创建文件", "创建文件或目录["+form.Path+"/"+form.Name+"]")
+		c.Success("创建成功")
 	}
-	if form.Chmod > 0 {
-		_ = f.SetFileMode(form.Name, form.Chmod)
-	}
-	service.Log.Create(c.GetRequestIp(), log_type.EventCreate, "创建文件", "创建文件或目录["+form.Path+"/"+form.Name+"]")
-	c.Success("创建成功")
 }

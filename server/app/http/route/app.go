@@ -9,12 +9,13 @@ import (
 	"server/app/http/controller/config"
 	"server/app/http/controller/file"
 	"server/app/http/controller/recycle"
-	scriptController "server/app/http/controller/script"
+	"server/app/http/controller/script"
+	"server/app/http/controller/secret"
 	"server/app/http/controller/server"
 	"server/app/http/controller/site"
 	"server/app/http/controller/system"
 	"server/app/http/controller/task"
-	typeController "server/app/http/controller/types"
+	"server/app/http/controller/types"
 	"server/app/http/middleware"
 	"server/app/util/context"
 	"server/public"
@@ -35,6 +36,7 @@ func loadApp(s *sinking_web.Engine) {
 	loadTypeRoute(s)
 	loadSiteRoute(s)
 	loadCertRoute(s)
+	loadSecretRoute(s)
 	loadStaticRoute(s)
 }
 
@@ -103,6 +105,17 @@ func loadCertRoute(s *sinking_web.Engine) {
 	g.ANY("/renew", context.HandleFunc(cert.Renew))   // 续签证书
 }
 
+// loadSecretRoute 密钥管理路由。
+func loadSecretRoute(s *sinking_web.Engine) {
+	g := s.Group("/secret")
+	g.Use(context.HandleFunc(middleware.CheckLogin))
+	g.ANY("/list", context.HandleFunc(secret.List))     // 密钥列表
+	g.ANY("/info", context.HandleFunc(secret.Info))     // 密钥详情
+	g.ANY("/create", context.HandleFunc(secret.Create)) // 添加密钥
+	g.ANY("/update", context.HandleFunc(secret.Update)) // 修改密钥
+	g.ANY("/delete", context.HandleFunc(secret.Delete)) // 删除密钥
+}
+
 // loadAuthRoute 授权路由
 func loadAuthRoute(s *sinking_web.Engine) {
 	s.ANY("/info", context.HandleFunc(auth.Info))       //网站信息
@@ -136,21 +149,21 @@ func loadServerRoute(s *sinking_web.Engine) {
 func loadScriptRoute(s *sinking_web.Engine) {
 	g := s.Group("/script")
 	g.Use(context.HandleFunc(middleware.CheckLogin))
-	g.ANY("/list", context.HandleFunc(scriptController.List))     //脚本列表
-	g.ANY("/info", context.HandleFunc(scriptController.Info))     //脚本详情
-	g.ANY("/create", context.HandleFunc(scriptController.Create)) //添加脚本
-	g.ANY("/update", context.HandleFunc(scriptController.Update)) //更新脚本
-	g.ANY("/delete", context.HandleFunc(scriptController.Delete)) //删除脚本
+	g.ANY("/list", context.HandleFunc(script.List))     //脚本列表
+	g.ANY("/info", context.HandleFunc(script.Info))     //脚本详情
+	g.ANY("/create", context.HandleFunc(script.Create)) //添加脚本
+	g.ANY("/update", context.HandleFunc(script.Update)) //更新脚本
+	g.ANY("/delete", context.HandleFunc(script.Delete)) //删除脚本
 }
 
 // loadTypeRoute 类型路由
 func loadTypeRoute(s *sinking_web.Engine) {
 	g := s.Group("/type")
 	g.Use(context.HandleFunc(middleware.CheckLogin))
-	g.ANY("/list", context.HandleFunc(typeController.List))     //类型列表
-	g.ANY("/create", context.HandleFunc(typeController.Create)) //添加类型
-	g.ANY("/update", context.HandleFunc(typeController.Update)) //更新类型
-	g.ANY("/delete", context.HandleFunc(typeController.Delete)) //删除类型
+	g.ANY("/list", context.HandleFunc(types.List))     //类型列表
+	g.ANY("/create", context.HandleFunc(types.Create)) //添加类型
+	g.ANY("/update", context.HandleFunc(types.Update)) //更新类型
+	g.ANY("/delete", context.HandleFunc(types.Delete)) //删除类型
 }
 
 // loadTaskRoute 任务路由

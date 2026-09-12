@@ -14,18 +14,19 @@ func Delete(c *context.Context) {
 		Id         int64 `json:"id" default:"0" validate:"required,min=1" label:"网站ID"`
 		DeleteRoot bool  `json:"delete_root" default:"false" label:"删除网站根目录"`
 	}
-	if ok, message := c.ValidatorAll(&form); !ok {
-		c.Error(message)
+	if ok, msg := c.ValidatorAll(&form); !ok {
+		c.Error(msg)
 		return
 	}
-	if err := service.Site.Delete(form.Id, form.DeleteRoot); err != nil {
+	err := service.Site.Delete(form.Id, form.DeleteRoot)
+	if err != nil {
 		c.Error(err.Error())
-		return
+	} else {
+		detail := "删除网站[" + strconv.FormatInt(form.Id, 10) + "]"
+		if form.DeleteRoot {
+			detail += "，同时删除网站根目录"
+		}
+		service.Log.Create(c.GetRequestIp(), log_type.EventDelete, "删除网站", detail)
+		c.Success("删除成功")
 	}
-	detail := "删除网站[" + strconv.FormatInt(form.Id, 10) + "]"
-	if form.DeleteRoot {
-		detail += "，同时删除网站根目录"
-	}
-	service.Log.Create(c.GetRequestIp(), log_type.EventDelete, "删除网站", detail)
-	c.Success("删除成功")
 }

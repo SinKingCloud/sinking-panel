@@ -24,12 +24,12 @@ func Count(c *context.Context) {
 	totalSize, fileCount, dirCount, err := f.Count(form.Path)
 	if err != nil {
 		c.Error("获取失败:" + err.Error())
-		return
+	} else {
+		service.Log.Create(c.GetRequestIp(), log_type.EventShow, "统计文件数据", "统计文件或目录["+form.Path+"]数据")
+		c.SuccessWithData("获取成功", map[string]int64{
+			"size": totalSize,
+			"file": fileCount,
+			"dir":  dirCount,
+		})
 	}
-	service.Log.Create(c.GetRequestIp(), log_type.EventShow, "统计文件数据", "统计文件或目录["+form.Path+"]数据")
-	c.SuccessWithData("获取成功", map[string]int64{
-		"size": totalSize,
-		"file": fileCount,
-		"dir":  dirCount,
-	})
 }

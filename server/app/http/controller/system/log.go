@@ -39,18 +39,21 @@ func Log(c *context.Context) {
 		total, err := service.Log.Clear(day)
 		if err != nil {
 			c.Error("清理操作日志失败")
-			return
+		} else {
+			service.Log.Create(
+				c.GetRequestIp(),
+				log_type.EventDelete,
+				"清理操作日志",
+				fmt.Sprintf("清理%d天前的操作日志，共%d条", day, total),
+			)
+			c.Success(fmt.Sprintf("成功清理%d条操作日志", total))
 		}
-		service.Log.Create(
-			c.GetRequestIp(),
-			log_type.EventDelete,
-			"清理操作日志",
-			fmt.Sprintf("清理%d天前的操作日志，共%d条", day, total),
-		)
-		c.Success(fmt.Sprintf("成功清理%d条操作日志", total))
 		return
 	}
-	where := &repositoryLog.SelectLog{Keyword: form.Keyword}
+	where := &repositoryLog.SelectLog{}
+	if form.Keyword != "" {
+		where.Keyword = form.Keyword
+	}
 	if form.Ip != "" {
 		where.Ip = form.Ip
 	}

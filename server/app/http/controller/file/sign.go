@@ -46,12 +46,12 @@ func Sign(c *context.Context) {
 	key, err := service.File.CreatePreviewSign(filePath, fileName, form.Download)
 	if err != nil {
 		c.Error(err.Error())
-		return
+	} else {
+		title := "预览文件"
+		if form.Download {
+			title = "下载文件"
+		}
+		service.Log.Create(c.GetRequestIp(), log_type.EventShow, title, title+"["+form.Path+"]")
+		c.SuccessWithData("获取成功", key)
 	}
-	title := "预览文件"
-	if form.Download {
-		title = "下载文件"
-	}
-	service.Log.Create(c.GetRequestIp(), log_type.EventShow, title, title+"["+form.Path+"]")
-	c.SuccessWithData("获取成功", key)
 }

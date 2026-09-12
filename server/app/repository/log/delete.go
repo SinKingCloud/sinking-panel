@@ -4,6 +4,8 @@ import (
 	"time"
 
 	"server/app/model"
+
+	"gorm.io/gorm"
 )
 
 // SelectIdByCreateTime 查询指定时间之前的日志ID。
@@ -26,7 +28,9 @@ func (r *Repository) Delete(ids []int64) error {
 	if len(ids) == 0 {
 		return nil
 	}
-	return r.Database.BatchExecute(ids, 1000, func(batch interface{}) error {
-		return r.Database.Db.Where("id IN ?", batch.([]int64)).Delete(&model.Log{}).Error
+	return r.Database.Transaction(func(tx *gorm.DB) error {
+		return r.Database.BatchExecute(ids, 1000, func(batch interface{}) error {
+			return tx.Where("id IN ?", batch.([]int64)).Delete(&model.Log{}).Error
+		})
 	})
 }

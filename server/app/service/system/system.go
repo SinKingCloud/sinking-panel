@@ -3,7 +3,7 @@ package system
 import (
 	"context"
 	"server/app/constant"
-	"server/app/service/file"
+	serviceFile "server/app/service/file"
 	"sync"
 	"time"
 
@@ -36,7 +36,7 @@ type service struct {
 	closed                 bool
 	tasks                  map[string]*Task
 	mu                     sync.RWMutex
-	fileService            file.Service
+	fileService            serviceFile.Service
 	maxTaskWorkers         int    // 系统任务并发 worker 数量
 	systemTaskLogDirectory string // 系统任务日志目录
 
@@ -55,7 +55,7 @@ type service struct {
 	cpuInfoInitialized   bool
 	memoryInfoCache      map[string]interface{}
 	memoryInfoCacheLock  sync.RWMutex
-	disksInfoCache       []file.Disk
+	disksInfoCache       []serviceFile.Disk
 	disksInfoCacheLock   sync.RWMutex
 	loadInfoCache        map[string]interface{}
 	loadInfoCacheLock    sync.RWMutex
@@ -76,7 +76,7 @@ type service struct {
 }
 
 // NewService 实例化service
-func NewService(fileService file.Service) *service {
+func NewService(fileService serviceFile.Service) *service {
 	now := time.Now()
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &service{
@@ -91,7 +91,7 @@ func NewService(fileService file.Service) *service {
 		systemBaseCache:        make(map[string]interface{}),
 		cpuInfoCache:           make(map[string]interface{}),
 		memoryInfoCache:        make(map[string]interface{}),
-		disksInfoCache:         make([]file.Disk, 0),
+		disksInfoCache:         make([]serviceFile.Disk, 0),
 		loadInfoCache:          make(map[string]interface{}),
 		runtimeInfoCache:       make(map[string]interface{}),
 		networkInfoCache:       make([]map[string]interface{}, 0),

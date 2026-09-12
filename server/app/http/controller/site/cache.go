@@ -5,7 +5,7 @@ import (
 
 	"server/app/enum/log_type"
 	"server/app/service"
-	siteService "server/app/service/site"
+	serviceSite "server/app/service/site"
 	"server/app/util/context"
 )
 
@@ -14,39 +14,39 @@ func Cache(c *context.Context) {
 	var form struct {
 		Action string                   `json:"action" default:"get" validate:"required,oneof=get set clear" label:"操作类型"`
 		Id     int64                    `json:"id" default:"0" validate:"required,min=1" label:"网站ID"`
-		Config *siteService.CacheUpdate `json:"config" validate:"omitempty" label:"缓存配置"`
+		Config *serviceSite.CacheUpdate `json:"config" validate:"omitempty" label:"缓存配置"`
 	}
-	if ok, message := c.ValidatorAll(&form); !ok {
-		c.Error(message)
+	if ok, msg := c.ValidatorAll(&form); !ok {
+		c.Error(msg)
 		return
 	}
 	if form.Action == "get" {
-		result, err := service.Site.GetCache(form.Id)
+		data, err := service.Site.GetCache(form.Id)
 		if err != nil {
 			c.Error(err.Error())
-			return
+		} else {
+			service.Log.Create(c.GetRequestIp(), log_type.EventShow, "查看网站缓存", "查看网站["+strconv.FormatInt(form.Id, 10)+"]缓存配置")
+			c.SuccessWithData("获取成功", data)
 		}
-		service.Log.Create(c.GetRequestIp(), log_type.EventShow, "查看网站缓存", "查看网站["+strconv.FormatInt(form.Id, 10)+"]缓存配置")
-		c.SuccessWithData("获取成功", result)
-		return
-	}
-	if form.Action == "clear" {
-		if err := service.Site.ClearCache(form.Id); err != nil {
+	} else if form.Action == "clear" {
+		err := service.Site.ClearCache(form.Id)
+		if err != nil {
 			c.Error(err.Error())
+		} else {
+			service.Log.Create(c.GetRequestIp(), log_type.EventDelete, "清理网站缓存", "清理网站["+strconv.FormatInt(form.Id, 10)+"]缓存")
+			c.Success("清理成功")
+		}
+	} else {
+		if form.Config == nil {
+			c.Error("缓存配置不能为空")
 			return
 		}
-		service.Log.Create(c.GetRequestIp(), log_type.EventDelete, "清理网站缓存", "清理网站["+strconv.FormatInt(form.Id, 10)+"]缓存")
-		c.Success("清理成功")
-		return
+		err := service.Site.UpdateCache(form.Id, form.Config)
+		if err != nil {
+			c.Error(err.Error())
+		} else {
+			service.Log.Create(c.GetRequestIp(), log_type.EventUpdate, "修改网站缓存", "修改网站["+strconv.FormatInt(form.Id, 10)+"]缓存配置")
+			c.Success("修改成功")
+		}
 	}
-	if form.Config == nil {
-		c.Error("缓存配置不能为空")
-		return
-	}
-	if err := service.Site.UpdateCache(form.Id, form.Config); err != nil {
-		c.Error(err.Error())
-		return
-	}
-	service.Log.Create(c.GetRequestIp(), log_type.EventUpdate, "修改网站缓存", "修改网站["+strconv.FormatInt(form.Id, 10)+"]缓存配置")
-	c.Success("修改成功")
 }

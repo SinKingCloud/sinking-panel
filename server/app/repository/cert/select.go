@@ -13,7 +13,11 @@ func (r *Repository) SelectByIds(ids []int64, tx ...*gorm.DB) ([]*model.Cert, er
 	if len(ids) == 0 {
 		return list, nil
 	}
-	err := r.db(tx...).Where("id IN ?", ids).Order("id ASC").Find(&list).Error
+	db := r.Database.Db
+	if len(tx) > 0 && tx[0] != nil {
+		db = tx[0]
+	}
+	err := db.Where("id IN ?", ids).Order("id ASC").Find(&list).Error
 	return list, err
 }
 

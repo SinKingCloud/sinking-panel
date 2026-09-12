@@ -8,9 +8,8 @@ import (
 
 // Create 创建网站。
 func (r *Repository) Create(data *model.Site, tx ...*gorm.DB) error {
-	db := r.Database.Db
 	if len(tx) > 0 && tx[0] != nil {
-		db = tx[0]
+		return tx[0].Create(data).Error
 	}
-	return db.Create(data).Error
+	return r.Database.Db.Create(data).Error
 }

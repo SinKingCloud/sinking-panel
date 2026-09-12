@@ -1,7 +1,7 @@
 package config
 
 import (
-	"server/app/repository/config"
+	repositoryConfig "server/app/repository/config"
 	"server/app/util/cache"
 )
 
@@ -15,12 +15,12 @@ type Service interface {
 
 // service 注入结构
 type service struct {
-	repositoryConfig config.Interface
+	repositoryConfig repositoryConfig.Interface
 	cache            cache.Interface
 }
 
 // NewService 实例化service
-func NewService(repositoryConfig config.Interface, cache cache.Interface) *service {
+func NewService(repositoryConfig repositoryConfig.Interface, cache cache.Interface) *service {
 	return &service{
 		repositoryConfig: repositoryConfig,
 		cache:            cache,

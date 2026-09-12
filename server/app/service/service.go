@@ -1,68 +1,73 @@
 package service
 
 import (
-	certRepository "server/app/repository/cert"
-	configRepository "server/app/repository/config"
-	logRepository "server/app/repository/log"
-	scriptRepository "server/app/repository/script"
-	serverRepository "server/app/repository/server"
-	siteRepository "server/app/repository/site"
-	siteDomainRepository "server/app/repository/site_domain"
-	taskRepository "server/app/repository/task"
-	typeRepository "server/app/repository/types"
-	"server/app/service/auth"
-	"server/app/service/config"
-	"server/app/service/file"
-	logService "server/app/service/log"
-	"server/app/service/recycle"
-	scriptService "server/app/service/script"
-	serverService "server/app/service/server"
-	siteService "server/app/service/site"
-	"server/app/service/system"
-	taskService "server/app/service/task"
-	typeService "server/app/service/types"
+	repositoryCert "server/app/repository/cert"
+	repositoryConfig "server/app/repository/config"
+	repositoryLog "server/app/repository/log"
+	repositoryScript "server/app/repository/script"
+	repositorySecret "server/app/repository/secret"
+	repositoryServer "server/app/repository/server"
+	repositorySite "server/app/repository/site"
+	repositorySiteDomain "server/app/repository/site_domain"
+	repositoryTask "server/app/repository/task"
+	repositoryTypes "server/app/repository/types"
+	serviceAuth "server/app/service/auth"
+	serviceConfig "server/app/service/config"
+	serviceFile "server/app/service/file"
+	serviceLog "server/app/service/log"
+	serviceRecycle "server/app/service/recycle"
+	serviceScript "server/app/service/script"
+	serviceSecret "server/app/service/secret"
+	serviceServer "server/app/service/server"
+	serviceSite "server/app/service/site"
+	serviceSystem "server/app/service/system"
+	serviceTask "server/app/service/task"
+	serviceTypes "server/app/service/types"
 	"server/global"
 )
 
 // service实例
 var (
-	Config  config.Service
-	Auth    auth.Service
-	Server  serverService.Service
-	Script  scriptService.Service
-	Type    typeService.Service
-	Log     logService.Service
-	Task    taskService.Service
-	File    file.Service
-	Recycle recycle.Service
-	System  system.Service
-	Site    siteService.Service
+	Config  serviceConfig.Service
+	Auth    serviceAuth.Service
+	Server  serviceServer.Service
+	Script  serviceScript.Service
+	Secret  serviceSecret.Service
+	Type    serviceTypes.Service
+	Log     serviceLog.Service
+	Task    serviceTask.Service
+	File    serviceFile.Service
+	Recycle serviceRecycle.Service
+	System  serviceSystem.Service
+	Site    serviceSite.Service
 )
 
 // Init 初始化service
 func Init() {
-	configRepo := configRepository.NewRepository(global.App.Database)
-	logRepo := logRepository.NewRepository(global.App.Database)
-	serverRepo := serverRepository.NewRepository(global.App.Database)
-	taskRepo := taskRepository.NewRepository(global.App.Database)
-	typeRepo := typeRepository.NewRepository(global.App.Database)
-	scriptRepo := scriptRepository.NewRepository(global.App.Database)
-	siteRepo := siteRepository.NewRepository(global.App.Database)
-	siteDomainRepo := siteDomainRepository.NewRepository(global.App.Database)
-	certRepo := certRepository.NewRepository(global.App.Database)
+	configRepository := repositoryConfig.NewRepository(global.App.Database)
+	logRepository := repositoryLog.NewRepository(global.App.Database)
+	serverRepository := repositoryServer.NewRepository(global.App.Database)
+	taskRepository := repositoryTask.NewRepository(global.App.Database)
+	typesRepository := repositoryTypes.NewRepository(global.App.Database)
+	scriptRepository := repositoryScript.NewRepository(global.App.Database)
+	siteRepository := repositorySite.NewRepository(global.App.Database)
+	siteDomainRepository := repositorySiteDomain.NewRepository(global.App.Database)
+	certRepository := repositoryCert.NewRepository(global.App.Database)
+	secretRepository := repositorySecret.NewRepository(global.App.Database)
 
-	Config = config.NewService(configRepo, global.App.Cache)
-	Auth = auth.NewService(Config, global.App.Cache)
-	Server = serverService.NewService(serverRepo, Config)
-	Script = scriptService.NewService(scriptRepo)
-	Type = typeService.NewService(typeRepo, scriptRepo, siteRepo, taskRepo, global.App.Database, global.App.Cache)
-	Log = logService.NewService(logRepo)
-	Task = taskService.NewService(taskRepo, Type)
-	File = file.NewService(global.App.Cache)
-	Recycle = recycle.NewService()
-	System = system.NewService(File)
+	Config = serviceConfig.NewService(configRepository, global.App.Cache)
+	Auth = serviceAuth.NewService(Config, global.App.Cache)
+	Server = serviceServer.NewService(serverRepository, Config)
+	Script = serviceScript.NewService(scriptRepository)
+	Secret = serviceSecret.NewService(secretRepository, certRepository, global.App.Database, global.App.Cache)
+	Type = serviceTypes.NewService(typesRepository, scriptRepository, siteRepository, taskRepository, global.App.Database, global.App.Cache)
+	Log = serviceLog.NewService(logRepository)
+	Task = serviceTask.NewService(taskRepository, Type)
+	File = serviceFile.NewService(global.App.Cache)
+	Recycle = serviceRecycle.NewService()
+	System = serviceSystem.NewService(File)
 	var err error
-	Site, err = siteService.NewService(siteRepo, siteDomainRepo, certRepo, Type, Config, global.App.Database, global.App.Cache)
+	Site, err = serviceSite.NewService(siteRepository, siteDomainRepository, certRepository, secretRepository, Type, Config, global.App.Database, global.App.Cache)
 	if err != nil {
 		panic(err)
 	}

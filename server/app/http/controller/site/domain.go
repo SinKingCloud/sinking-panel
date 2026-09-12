@@ -15,28 +15,29 @@ func Domain(c *context.Context) {
 		Id      int64     `json:"id" default:"0" validate:"required,min=1" label:"网站ID"`
 		Domains *[]string `json:"domains" validate:"omitempty,max=1000,unique,dive,required,max=253" label:"网站域名"`
 	}
-	if ok, message := c.ValidatorAll(&form); !ok {
-		c.Error(message)
+	if ok, msg := c.ValidatorAll(&form); !ok {
+		c.Error(msg)
 		return
 	}
 	if form.Action == "get" {
-		result, err := service.Site.GetDomains(form.Id)
+		data, err := service.Site.GetDomains(form.Id)
 		if err != nil {
 			c.Error(err.Error())
+		} else {
+			service.Log.Create(c.GetRequestIp(), log_type.EventShow, "查看网站域名", "查看网站["+strconv.FormatInt(form.Id, 10)+"]域名配置")
+			c.SuccessWithData("获取成功", data)
+		}
+	} else {
+		if form.Domains == nil {
+			c.Error("网站域名不能为空")
 			return
 		}
-		service.Log.Create(c.GetRequestIp(), log_type.EventShow, "查看网站域名", "查看网站["+strconv.FormatInt(form.Id, 10)+"]域名配置")
-		c.SuccessWithData("获取成功", result)
-		return
+		err := service.Site.UpdateDomains(form.Id, *form.Domains)
+		if err != nil {
+			c.Error(err.Error())
+		} else {
+			service.Log.Create(c.GetRequestIp(), log_type.EventUpdate, "修改网站域名", "修改网站["+strconv.FormatInt(form.Id, 10)+"]域名配置")
+			c.Success("修改成功")
+		}
 	}
-	if form.Domains == nil {
-		c.Error("网站域名不能为空")
-		return
-	}
-	if err := service.Site.UpdateDomains(form.Id, *form.Domains); err != nil {
-		c.Error(err.Error())
-		return
-	}
-	service.Log.Create(c.GetRequestIp(), log_type.EventUpdate, "修改网站域名", "修改网站["+strconv.FormatInt(form.Id, 10)+"]域名配置")
-	c.Success("修改成功")
 }

@@ -13,7 +13,7 @@ func (r *Repository) UpdateById(id int64, data *UpdateSite, tx ...*gorm.DB) erro
 	if data == nil {
 		return nil
 	}
-	updates := map[string]interface{}{}
+	updates := make(map[string]interface{})
 	if data.Name != nil {
 		updates["name"] = *data.Name
 	}
@@ -39,18 +39,22 @@ func (r *Repository) UpdateById(id int64, data *UpdateSite, tx ...*gorm.DB) erro
 		return nil
 	}
 	updates["update_time"] = str.DateTime(time.Now())
-	db := r.Database.Db
+	execute := func(db *gorm.DB) error {
+		result := db.Model(&model.Site{}).
+			Where("id = ?", id).
+			Updates(updates)
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return gorm.ErrRecordNotFound
+		}
+		return nil
+	}
 	if len(tx) > 0 && tx[0] != nil {
-		db = tx[0]
+		return execute(tx[0])
 	}
-	result := db.Model(&model.Site{}).Where("id = ?", id).Updates(updates)
-	if result.Error != nil {
-		return result.Error
-	}
-	if result.RowsAffected == 0 {
-		return gorm.ErrRecordNotFound
-	}
-	return nil
+	return execute(r.Database.Db)
 }
 
 // ClearTypeId 清除指定类型的网站分类。

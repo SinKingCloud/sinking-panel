@@ -8,9 +8,10 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/SinKingCloud/sinking-go/sinking-web"
 	"server/app/service"
 	"server/global"
+
+	"github.com/SinKingCloud/sinking-go/sinking-web"
 )
 
 // loadErrorHandle 设置错误回调

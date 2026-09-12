@@ -10,7 +10,7 @@ import (
 	"server/app/enum/site_status"
 	"server/app/enum/site_type"
 	"server/app/model"
-	siteRepository "server/app/repository/site"
+	repositorySite "server/app/repository/site"
 	fileLog "server/app/util/log"
 	"server/app/util/page"
 	webServer "server/app/util/server"
@@ -270,7 +270,8 @@ func (s *service) updateLocked(id int64, data *siteMutation) error {
 		if prepareErr != nil {
 			return prepareErr
 		}
-		if updateErr := s.repositorySite.UpdateById(id, s.completeSiteUpdate(&candidate), tx); updateErr != nil {
+		updateData := s.completeSiteUpdate(&candidate)
+		if updateErr := s.repositorySite.UpdateById(id, updateData, tx); updateErr != nil {
 			return fmt.Errorf("更新网站失败: %w", updateErr)
 		}
 		if domainsChanged {
@@ -603,7 +604,7 @@ func (s *service) findByIdLocked(id int64) (*Site, error) {
 }
 
 // Select 分页查询网站。
-func (s *service) Select(where *siteRepository.SelectSite, queryPage *page.Query) (*page.Result[*siteRepository.Site], error) {
+func (s *service) Select(where *repositorySite.SelectSite, queryPage *page.Query) (*page.Result[*repositorySite.Site], error) {
 	s.operationMu.Lock()
 	defer s.operationMu.Unlock()
 	condition := where
@@ -699,8 +700,8 @@ func (s *service) restoreSiteRecords(record *model.Site, domains []*model.SiteDo
 	})
 }
 
-func (s *service) completeSiteUpdate(record *model.Site) *siteRepository.UpdateSite {
-	return &siteRepository.UpdateSite{
+func (s *service) completeSiteUpdate(record *model.Site) *repositorySite.UpdateSite {
+	return &repositorySite.UpdateSite{
 		Name:    &record.Name,
 		TypeId:  &record.TypeId,
 		Status:  &record.Status,

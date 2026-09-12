@@ -1,7 +1,7 @@
 package auth
 
 import (
-	"server/app/service/config"
+	serviceConfig "server/app/service/config"
 	"server/app/util/cache"
 )
 
@@ -16,12 +16,12 @@ type Service interface {
 
 // service 注入结构
 type service struct {
-	configService config.Service
+	configService serviceConfig.Service
 	cache         cache.Interface
 }
 
 // NewService 实例化service
-func NewService(configService config.Service, cache cache.Interface) *service {
+func NewService(configService serviceConfig.Service, cache cache.Interface) *service {
 	return &service{
 		configService: configService,
 		cache:         cache,

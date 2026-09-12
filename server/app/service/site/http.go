@@ -193,7 +193,7 @@ func (s *service) updateHTTPLocked(config *HTTPUpdate) error {
 	if err = s.syncLocked(); err != nil {
 		return rollback(fmt.Errorf("同步网站运行时失败: %w", err))
 	}
-	err = s.config.Sets(configs)
+	err = s.configService.Sets(configs)
 	if err == nil {
 		return nil
 	}
@@ -247,7 +247,7 @@ func (s *service) httpConfigs(config webServer.Options, update *HTTPUpdate) (map
 
 // loadHTTP 读取并合并已保存的 HTTP 服务全局参数。
 func (s *service) loadHTTP() (webServer.Options, bool, error) {
-	values := s.config.Group(constant.SiteGroup)
+	values := s.configService.Group(constant.SiteGroup)
 	config := webServer.Options{}
 	exists := false
 	decode := func(key string, target interface{}) error {

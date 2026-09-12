@@ -5,6 +5,8 @@ import (
 	"server/app/enum/file_format"
 	"server/app/enum/log_type"
 	"server/app/enum/script_type"
+	"server/app/enum/secret_name"
+	"server/app/enum/secret_provider"
 	"server/app/enum/server_auth_type"
 	"server/app/enum/site_name"
 	"server/app/enum/site_status"
@@ -20,6 +22,12 @@ import (
 var Data = map[string]interface{}{
 	"cert": map[string]interface{}{
 		"type": cert_type.Map(), //证书类型
+	},
+	"secret": func() interface{} {
+		return map[string]interface{}{
+			"provider": secret_provider.Map(), //密钥服务商
+			"name":     secret_name.Map(),     //密钥名称
+		}
 	},
 	"log": map[string]interface{}{
 		"type": log_type.Map(), //日志类型
