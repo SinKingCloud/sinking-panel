@@ -9,7 +9,6 @@ require (
 	github.com/axgle/mahonia v0.0.0-20180208002826-3358181d7394
 	github.com/baidubce/bce-sdk-go v0.9.223
 	github.com/caddy-dns/alidns v1.0.29
-	github.com/caddy-dns/dnspod v0.0.5-0.20260325061251-fb7cc31cc04c
 	github.com/caddy-dns/huaweicloud v1.0.1
 	github.com/caddy-dns/tencentcloud v0.4.3
 	github.com/caddy-dns/volcengine v0.0.1
@@ -163,7 +162,6 @@ require (
 	github.com/mrunalp/fileutils v0.5.1 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/ncruces/go-strftime v1.0.0 // indirect
-	github.com/nrdcg/dnspod-go v0.4.0 // indirect
 	github.com/opencontainers/selinux v1.13.1 // indirect
 	github.com/pbnjay/memory v0.0.0-20210728143218-7b4eea64cf58 // indirect
 	github.com/pelletier/go-toml/v2 v2.4.3 // indirect

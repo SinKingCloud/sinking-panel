@@ -282,7 +282,6 @@ type TrafficLimitOptions struct {
 type DNSCredentials struct {
 	AliyunAccessKeyID         string `json:"aliyun_access_key_id"`         // 阿里云 AccessKey ID
 	AliyunAccessKeySecret     string `json:"aliyun_access_key_secret"`     // 阿里云 AccessKey Secret
-	DNSPodAPIToken            string `json:"dnspod_api_token"`             // DNSPod API Token，格式为 ID,TOKEN
 	TencentSecretID           string `json:"tencent_secret_id"`            // 腾讯云 Secret ID
 	TencentSecretKey          string `json:"tencent_secret_key"`           // 腾讯云 Secret Key
 	HuaweiAccessKeyID         string `json:"huawei_access_key_id"`         // 华为云 AccessKey ID

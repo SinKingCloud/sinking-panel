@@ -12,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	caddyDNSPod "github.com/caddy-dns/dnspod"
 	"github.com/caddyserver/certmagic"
 	libdnsAliDNS "github.com/libdns/alidns"
 	libdnsHuaweiCloud "github.com/libdns/huaweicloud"
@@ -114,7 +113,6 @@ func (m *Manager) obtainCertificate(ctx context.Context, request CertificateRequ
 		credentials := request.DNSCredentials
 		credentials.AliyunAccessKeyID = strings.TrimSpace(credentials.AliyunAccessKeyID)
 		credentials.AliyunAccessKeySecret = strings.TrimSpace(credentials.AliyunAccessKeySecret)
-		credentials.DNSPodAPIToken = strings.TrimSpace(credentials.DNSPodAPIToken)
 		credentials.TencentSecretID = strings.TrimSpace(credentials.TencentSecretID)
 		credentials.TencentSecretKey = strings.TrimSpace(credentials.TencentSecretKey)
 		credentials.HuaweiAccessKeyID = strings.TrimSpace(credentials.HuaweiAccessKeyID)
@@ -136,10 +134,6 @@ func (m *Manager) obtainCertificate(ctx context.Context, request CertificateRequ
 				AccessKeyID:     credentials.AliyunAccessKeyID,
 				AccessKeySecret: credentials.AliyunAccessKeySecret,
 			}}
-		case DNSProviderDNSPod:
-			parts := strings.Split(credentials.DNSPodAPIToken, ",")
-			credentials.DNSPodAPIToken = strings.TrimSpace(parts[0]) + "," + strings.TrimSpace(parts[1])
-			provider = &caddyDNSPod.Provider{APIToken: credentials.DNSPodAPIToken}
 		case DNSProviderTencentCloud:
 			provider = &libdnsTencentCloud.Provider{SecretId: credentials.TencentSecretID, SecretKey: credentials.TencentSecretKey}
 		case DNSProviderHuaweiCloud:
@@ -227,11 +221,6 @@ func (credentials DNSCredentials) Validate(provider DNSProvider) error {
 	case DNSProviderAliDNS:
 		if strings.TrimSpace(credentials.AliyunAccessKeyID) == "" || strings.TrimSpace(credentials.AliyunAccessKeySecret) == "" {
 			return errors.New("阿里云 DNS 验证需要 AccessKey ID 和 AccessKey Secret")
-		}
-	case DNSProviderDNSPod:
-		parts := strings.Split(credentials.DNSPodAPIToken, ",")
-		if len(parts) != 2 || strings.TrimSpace(parts[0]) == "" || strings.TrimSpace(parts[1]) == "" {
-			return errors.New("DNSPod API Token 格式必须为 ID,TOKEN")
 		}
 	case DNSProviderTencentCloud:
 		if strings.TrimSpace(credentials.TencentSecretID) == "" || strings.TrimSpace(credentials.TencentSecretKey) == "" {

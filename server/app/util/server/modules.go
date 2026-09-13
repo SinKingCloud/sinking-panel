@@ -7,7 +7,6 @@ import (
 	_ "server/app/util/server/waf"
 
 	_ "github.com/caddy-dns/alidns"
-	_ "github.com/caddy-dns/dnspod"
 	_ "github.com/caddy-dns/huaweicloud"
 	_ "github.com/caddy-dns/tencentcloud"
 	_ "github.com/caddy-dns/volcengine"

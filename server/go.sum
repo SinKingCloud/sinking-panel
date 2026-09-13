@@ -180,8 +180,6 @@ github.com/bradfitz/go-smtpd v0.0.0-20170404230938-deb6d6237625/go.mod h1:HYsPBT
 github.com/buger/jsonparser v0.0.0-20181115193947-bf1c66bbce23/go.mod h1:bbYlZJ7hK1yFx9hf58LP0zeX7UjIGs20ufpu3evjr+s=
 github.com/caddy-dns/alidns v1.0.29 h1:HkpuwXML66ZMAqVOEil8FOEAslQGGCtCT/YHjqzo/q4=
 github.com/caddy-dns/alidns v1.0.29/go.mod h1:4xY+zxczZ5eR0PI/LPN5iYtRqMgPgch521+dRHXI7Bc=
-github.com/caddy-dns/dnspod v0.0.5-0.20260325061251-fb7cc31cc04c h1:6QrvcRisAbWdWGmtiDXCrE3CuB3x7lZbJQ2P3TAIyHM=
-github.com/caddy-dns/dnspod v0.0.5-0.20260325061251-fb7cc31cc04c/go.mod h1:7kJoTsAuTniBbnzgmIgc6S5NyOvZTTpo8WXkV+1Ey4U=
 github.com/caddy-dns/huaweicloud v1.0.1 h1:euFH+2juv+ZupWj9TQXEJBx7SPqHVvwdkbiv50DA6qI=
 github.com/caddy-dns/huaweicloud v1.0.1/go.mod h1:siebP2jWEvBCtpk77XW8jpQTLNwYZa5Lu9MRTcFwVh8=
 github.com/caddy-dns/tencentcloud v0.4.3 h1:cN4S6No8bvxmp4DaoI1PCZ7NqzXMP+VNHrmJ63R4+Co=
@@ -816,8 +814,6 @@ github.com/neelance/sourcemap v0.0.0-20151028013722-8c68805598ab/go.mod h1:Qr6/a
 github.com/newrelic/go-agent v2.15.0+incompatible/go.mod h1:a8Fv1b/fYhFSReoTU6HDkTYIMZeSVNffmoS726Y0LzQ=
 github.com/ngdinhtoan/glide-cleanup v0.2.0/go.mod h1:UQzsmiDOb8YV3nOsCxK/c9zPpCZVNoHScRE3EO9pVMM=
 github.com/nkovacs/streamquote v0.0.0-20170412213628-49af9bddb229/go.mod h1:0aYXnNPJ8l7uZxf45rWW1a/uME32OF0rhiYGNQ2oF2E=
-github.com/nrdcg/dnspod-go v0.4.0 h1:c/jn1mLZNKF3/osJ6mz3QPxTudvPArXTjpkmYj0uK6U=
-github.com/nrdcg/dnspod-go v0.4.0/go.mod h1:vZSoFSFeQVm2gWLMkyX61LZ8HI3BaqtHZWgPTGKr6KQ=
 github.com/nxadm/tail v1.4.4/go.mod h1:kenIhsEOeOJmVchQTgglprH7qJGnHDVpk1VPCcaMI8A=
 github.com/oklog/oklog v0.3.2/go.mod h1:FCV+B7mhrz4o+ueLpx+KqkyXRGMWOYEvfiXtdGtbWGs=
 github.com/oklog/run v1.0.0/go.mod h1:dlhp/R75TPv97u0XWUtDeV/lRKWPKSdTuV0TZvrmrQA=

@@ -79,7 +79,6 @@ const (
 	CertificateChallengeDNS  CertificateChallenge = "dns"  // DNS-01 验证
 
 	DNSProviderAliDNS       DNSProvider = "alidns"       // 阿里云 DNS
-	DNSProviderDNSPod       DNSProvider = "dnspod"       // DNSPod
 	DNSProviderTencentCloud DNSProvider = "tencentcloud" // 腾讯云 DNS
 	DNSProviderHuaweiCloud  DNSProvider = "huaweicloud"  // 华为云 DNS
 	DNSProviderVolcengine   DNSProvider = "volcengine"   // 火山引擎 DNS

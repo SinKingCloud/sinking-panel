@@ -6,7 +6,6 @@ const (
 	HuaweiCloud         // 华为云
 	Volcengine          // 火山引擎
 	BaiduCloud          // 百度云
-	DNSPod              // DNSPod
 )
 
 // Map 密钥服务商数据。
@@ -17,6 +16,5 @@ func Map() map[int]string {
 		HuaweiCloud:  "华为云",
 		Volcengine:   "火山云",
 		BaiduCloud:   "百度云",
-		DNSPod:       "DNSPod",
 	}
 }

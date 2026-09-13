@@ -473,11 +473,6 @@ func (s *service) prepareCertificateRequest(data *model.Cert, request *Certifica
 			err = json.Unmarshal([]byte(secret.Data), &values)
 			credentials.BaiduAccessKeyID = values.AccessKeyId
 			credentials.BaiduSecretAccessKey = values.SecretAccessKey
-		case secret_provider.DNSPod:
-			provider = webServer.DNSProviderDNSPod
-			var values serviceSecret.DNSPod
-			err = json.Unmarshal([]byte(secret.Data), &values)
-			credentials.DNSPodAPIToken = values.APIToken
 		default:
 			return acme, errors.New("关联密钥的服务商不合法")
 		}
