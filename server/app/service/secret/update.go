@@ -4,14 +4,13 @@ import (
 	"encoding/json"
 	"errors"
 	"server/app/constant"
-	"server/app/enum/secret_provider"
 	repositorySecret "server/app/repository/secret"
 	"strings"
 
 	"gorm.io/gorm"
 )
 
-// Update 更新密钥，服务商变化时解除证书关联。
+// Update 更新密钥名称及凭据。
 func (s *service) Update(id int64, data *repositorySecret.UpdateSecret) error {
 	if id <= 0 {
 		return errors.New("密钥 ID 不合法")
@@ -25,11 +24,6 @@ func (s *service) Update(id int64, data *repositorySecret.UpdateSecret) error {
 			return errors.New("密钥名称不能为空")
 		}
 		data.Name = &name
-	}
-	if data.Provider != nil {
-		if _, ok := secret_provider.Map()[*data.Provider]; !ok {
-			return errors.New("服务商不合法")
-		}
 	}
 	var fields map[string]string
 	if data.Data != nil {
@@ -48,15 +42,8 @@ func (s *service) Update(id int64, data *repositorySecret.UpdateSecret) error {
 		if err != nil {
 			return err
 		}
-		providerChanged := data.Provider != nil && *data.Provider != previous.Provider
-		if data.Data != nil || providerChanged {
-			provider := previous.Provider
-			value := previous.Data
-			if providerChanged {
-				provider = *data.Provider
-				value = "{}"
-			}
-			credentials, err := s.formatData(value, provider)
+		if data.Data != nil {
+			credentials, err := s.formatData(previous.Data, previous.Provider)
 			if err != nil {
 				return err
 			}
@@ -64,7 +51,7 @@ func (s *service) Update(id int64, data *repositorySecret.UpdateSecret) error {
 				if value, exists := fields[key]; exists {
 					value = strings.TrimSpace(value)
 					// 原样回传的当前掩码与省略字段一样，保留数据库中的原值。
-					if providerChanged || previousValue == "" || value != s.maskValue(previousValue) {
+					if previousValue == "" || value != s.maskValue(previousValue) {
 						credentials[key] = value
 					}
 				}
@@ -76,13 +63,8 @@ func (s *service) Update(id int64, data *repositorySecret.UpdateSecret) error {
 				}
 			}
 			content, _ := json.Marshal(credentials)
-			value = string(content)
+			value := string(content)
 			data.Data = &value
-		}
-		if providerChanged {
-			if err = s.repositoryCert.ClearSecretId(id, tx); err != nil {
-				return err
-			}
 		}
 		return s.repositorySecret.UpdateById(id, data, tx)
 	})

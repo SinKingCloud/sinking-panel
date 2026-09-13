@@ -17,9 +17,6 @@ func (r *Repository) UpdateById(id int64, data *UpdateSecret, tx ...*gorm.DB) er
 	if data.Name != nil {
 		updates["name"] = *data.Name
 	}
-	if data.Provider != nil {
-		updates["provider"] = *data.Provider
-	}
 	if data.Data != nil {
 		updates["data"] = *data.Data
 	}

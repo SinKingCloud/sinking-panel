@@ -10,9 +10,8 @@ type SelectSecret struct {
 
 // UpdateSecret 密钥凭据更新内容。
 type UpdateSecret struct {
-	Name     *string
-	Provider *int
-	Data     *string
+	Name *string
+	Data *string
 }
 
 // Secret 密钥凭据列表数据，不返回凭据正文。
