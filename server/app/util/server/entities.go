@@ -296,6 +296,7 @@ type DNSCredentials struct {
 type CertificateRequest struct {
 	Domain         string               `json:"domain"`          // 申请证书的域名或公网 IP 地址
 	Email          string               `json:"email"`           // ACME 账户邮箱，为空时使用全局配置
+	AccountKeyPEM  string               `json:"-"`               // 续签时复用的 ACME 账户私钥
 	CA             CertificateCA        `json:"ca"`              // 证书签发环境，默认 production
 	Challenge      CertificateChallenge `json:"challenge"`       // 所有权验证方式，默认 http，IP 地址仅支持 HTTP 验证
 	Action         CertificateAction    `json:"action"`          // 验证模式：auto 自动，manual 手动，默认 auto

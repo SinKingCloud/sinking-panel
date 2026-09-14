@@ -4,14 +4,17 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"io/fs"
 	"net"
 	"net/url"
+	"path"
 	"server/app/constant"
 	"server/app/enum/cert_type"
 	"server/app/enum/secret_provider"
@@ -26,7 +29,8 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/mholt/acmez/v3/acme"
+	"github.com/caddyserver/certmagic"
+	acmeTypes "github.com/mholt/acmez/v3/acme"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -238,12 +242,8 @@ func (s *service) ObtainCert(ctx context.Context, name string, request Certifica
 		return nil, fmt.Errorf("证书域名无效: %w", err)
 	}
 
-	// 手动验证等待用户操作，保存结果时再持有网站操作锁。
+	// 外部验证不持有网站操作锁，签发完成后再保存和同步。
 	manual := request.Type != nil && *request.Type == cert_type.Manual
-	if !manual {
-		s.operationMu.Lock()
-		defer s.operationMu.Unlock()
-	}
 	candidate := &model.Cert{
 		Id:   str.GetSnowWorkIns().GetId(),
 		Name: name,
@@ -266,10 +266,6 @@ func (s *service) ObtainCert(ctx context.Context, name string, request Certifica
 	if err != nil {
 		return nil, err
 	}
-	if manual {
-		s.operationMu.Lock()
-		defer s.operationMu.Unlock()
-	}
 	if err = ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -277,6 +273,11 @@ func (s *service) ObtainCert(ctx context.Context, name string, request Certifica
 	candidate.PrivateKey = string(issued.PrivateKeyPEM)
 	if err = s.prepareCertificate(candidate, false); err != nil {
 		return nil, fmt.Errorf("申请得到的证书无效: %w", err)
+	}
+	s.operationMu.Lock()
+	defer s.operationMu.Unlock()
+	if err = ctx.Err(); err != nil {
+		return nil, err
 	}
 	created := false
 	if err = s.database.Transaction(func(tx *gorm.DB) error {
@@ -333,8 +334,6 @@ func (s *service) RenewCert(ctx context.Context, id int64, request CertificateRe
 		return nil, fmt.Errorf("续签证书域名无效: %w", err)
 	}
 	request.Domain = requestedDomain
-	s.operationMu.Lock()
-	defer s.operationMu.Unlock()
 	current, err := s.repositoryCert.FindById(id)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -349,6 +348,16 @@ func (s *service) RenewCert(ctx context.Context, id int64, request CertificateRe
 		strings.TrimSpace(current.Certificate) == strings.TrimSpace(string(request.order.Acme.CertificatePEM)) &&
 		strings.TrimSpace(current.PrivateKey) == strings.TrimSpace(string(request.order.Acme.PrivateKeyPEM)) {
 		// 上次已保存但响应失败，复用同一订单的结果。
+		s.operationMu.Lock()
+		defer s.operationMu.Unlock()
+		current, err = s.repositoryCert.FindById(id)
+		if err != nil {
+			return nil, err
+		}
+		if strings.TrimSpace(current.Certificate) != strings.TrimSpace(string(request.order.Acme.CertificatePEM)) ||
+			strings.TrimSpace(current.PrivateKey) != strings.TrimSpace(string(request.order.Acme.PrivateKeyPEM)) {
+			return nil, errors.New("证书已修改，请重新续签")
+		}
 		if err = s.syncCertificateLocked(id, "部署续签证书", func() error { return nil }); err != nil {
 			return nil, err
 		}
@@ -384,16 +393,12 @@ func (s *service) RenewCert(ctx context.Context, id int64, request CertificateRe
 		if started.Id != id || current.Certificate != started.Certificate || current.PrivateKey != started.PrivateKey || current.Challenge != started.Challenge || current.Type != started.Type || current.SecretId != started.SecretId || current.AutoRenew != started.AutoRenew {
 			return nil, errors.New("证书在验证期间已修改，请重新续签")
 		}
-		s.operationMu.Unlock()
 	}
 	var issued *webServer.Certificate
 	if manual {
 		issued, err = request.order.Acme.Submit(ctx)
 	} else {
 		issued, err = s.http.RenewCertificate(ctx, acme)
-	}
-	if manual {
-		s.operationMu.Lock()
 	}
 	if err != nil {
 		return nil, err
@@ -406,6 +411,11 @@ func (s *service) RenewCert(ctx context.Context, id int64, request CertificateRe
 	if err = s.prepareCertificate(&candidate, false); err != nil {
 		return nil, fmt.Errorf("续签得到的证书无效: %w", err)
 	}
+	s.operationMu.Lock()
+	defer s.operationMu.Unlock()
+	if err = ctx.Err(); err != nil {
+		return nil, err
+	}
 	if err = s.database.Transaction(func(tx *gorm.DB) error {
 		latest, findErr := s.repositoryCert.FindById(id, tx.Clauses(clause.Locking{Strength: "UPDATE"}))
 		if findErr != nil {
@@ -414,12 +424,11 @@ func (s *service) RenewCert(ctx context.Context, id int64, request CertificateRe
 		if latest.Type != cert_type.Manual && latest.Type != cert_type.Auto {
 			return errors.New("证书类型已发生变化，无法续签")
 		}
-		if manual {
-			if latest.Certificate != current.Certificate || latest.PrivateKey != current.PrivateKey || latest.Challenge != current.Challenge || latest.Type != current.Type || latest.SecretId != current.SecretId || latest.AutoRenew != current.AutoRenew {
-				return errors.New("证书在验证期间已修改，请重新续签")
-			}
-			candidate.Name = latest.Name
+		if latest.Certificate != current.Certificate || latest.PrivateKey != current.PrivateKey || latest.Challenge != current.Challenge || latest.Type != current.Type ||
+			(manual && (latest.SecretId != current.SecretId || latest.AutoRenew != current.AutoRenew)) {
+			return errors.New("证书在验证期间已修改，请重新续签")
 		}
+		candidate.Name = latest.Name
 		previous = *latest
 		if latest.SecretId != current.SecretId || latest.AutoRenew != current.AutoRenew {
 			candidate.SecretId = latest.SecretId
@@ -619,14 +628,14 @@ func (s *service) ManualCert(ctx context.Context, id int64, name string, request
 	if err != nil {
 		return nil, err
 	}
-	if strings.TrimSpace(acmeRequest.Email) == "" {
-		acmeRequest.Email = s.http.Options().ACMEEmail
-	}
 	expiresAt := time.Now().Add(constant.CacheTimeWithCertOrder)
 	ctx, cancel := context.WithDeadline(ctx, expiresAt)
 	defer cancel()
-	client := webServer.NewAcme()
-	var challenges []acme.Challenge
+	client := request.acme
+	if client == nil {
+		client = webServer.NewAcme()
+	}
+	var challenges []acmeTypes.Challenge
 	if id > 0 {
 		challenges, err = client.Renew(ctx, acmeRequest)
 	} else {
@@ -639,7 +648,7 @@ func (s *service) ManualCert(ctx context.Context, id int64, name string, request
 	for _, challenge := range challenges {
 		value := map[string]string{"id": challenge.Token}
 		switch challenge.Type {
-		case acme.ChallengeTypeHTTP01:
+		case acmeTypes.ChallengeTypeHTTP01:
 			host := challenge.Identifier.Value
 			if ip := net.ParseIP(host); ip != nil && ip.To4() == nil {
 				host = "[" + host + "]"
@@ -647,7 +656,7 @@ func (s *service) ManualCert(ctx context.Context, id int64, name string, request
 			address := url.URL{Scheme: "http", Host: host, Path: challenge.HTTP01ResourcePath()}
 			value["name"], value["type"], value["value"] = challenge.Token, "HTTP", challenge.KeyAuthorization
 			value["path"], value["url"] = address.Path, address.String()
-		case acme.ChallengeTypeDNS01:
+		case acmeTypes.ChallengeTypeDNS01:
 			value["name"], value["type"], value["value"] = challenge.DNS01TXTRecordName(), "TXT", challenge.DNS01KeyAuthorization()
 		default:
 			cancel()
@@ -665,7 +674,7 @@ func (s *service) ManualCert(ctx context.Context, id int64, name string, request
 		Acme: client, Id: id, CertificateId: certificateId, SessionId: sessionId, ExpiresAt: expiresAt,
 		Name: candidate.Name, Previous: previous,
 		Request: CertificateRequest{
-			Domain: domain, Email: acmeRequest.Email, CA: acmeRequest.CA, Type: &certificateType,
+			Domain: domain, Email: client.Email, CA: client.CA, Type: &certificateType,
 			Challenge: acmeRequest.Challenge, SecretId: &secretId, AutoRenew: &autoRenew,
 		},
 	}
@@ -694,6 +703,127 @@ func (s *service) prepareCertificateRequest(data *model.Cert, request *Certifica
 		Domain: request.Domain,
 		Email:  request.Email,
 		CA:     request.CA,
+	}
+	options := s.http.Options()
+	if data.Id > 0 && data.Certificate != "" && request.Domain != "" && request.order == nil {
+		storage := &certmagic.FileStorage{Path: options.ACMEPath}
+		key := fmt.Sprintf("renewals/%d/%x.json", data.Id, sha256.Sum256([]byte(strings.TrimSpace(data.Certificate))))
+		encoded, err := storage.Load(context.Background(), key)
+		if err == nil {
+			request.acme = webServer.NewAcme()
+			if err = json.Unmarshal(encoded, request.acme); err != nil {
+				return acme, fmt.Errorf("读取证书续签信息失败: %w", err)
+			}
+		} else if errors.Is(err, fs.ErrNotExist) {
+			// 原签发文件已有账户与 CA 信息，按证书和账户 URL 精确恢复。
+			var names []string
+			if err := json.Unmarshal([]byte(data.Domains), &names); err != nil {
+				return acme, fmt.Errorf("读取证书域名失败: %w", err)
+			}
+			resource := certmagic.CertificateResource{SANs: append([]string(nil), names...)}
+			names = append(names, request.Domain, resource.NamesKey())
+			fallbackCtx := context.Background()
+			for _, caName := range []webServer.CertificateCA{webServer.CertificateCAProd, webServer.CertificateCAStaging} {
+				caURL := certmagic.LetsEncryptProductionCA
+				if caName == webServer.CertificateCAStaging {
+					caURL = certmagic.LetsEncryptStagingCA
+				}
+				issuerKey := (&certmagic.ACMEIssuer{CA: caURL}).IssuerKey()
+				for _, name := range names {
+					if name == "" {
+						continue
+					}
+					certificatePEM, err := storage.Load(fallbackCtx, certmagic.StorageKeys.SiteCert(issuerKey, name))
+					if errors.Is(err, fs.ErrNotExist) {
+						continue
+					}
+					if err != nil {
+						return acme, fmt.Errorf("读取原 ACME 证书失败: %w", err)
+					}
+					if !bytes.Equal(bytes.TrimSpace(certificatePEM), bytes.TrimSpace([]byte(data.Certificate))) {
+						continue
+					}
+					metadata, err := storage.Load(fallbackCtx, certmagic.StorageKeys.SiteMeta(issuerKey, name))
+					if err != nil {
+						return acme, fmt.Errorf("读取原 ACME 证书信息失败: %w", err)
+					}
+					var saved certmagic.CertificateResource
+					if err = json.Unmarshal(metadata, &saved); err != nil {
+						return acme, fmt.Errorf("解析原 ACME 证书信息失败: %w", err)
+					}
+					var issued acmeTypes.Certificate
+					if err = json.Unmarshal(saved.IssuerData, &issued); err != nil {
+						return acme, fmt.Errorf("解析原 ACME 签发信息失败: %w", err)
+					}
+					if issued.CA != caURL || issued.Account == "" {
+						return acme, errors.New("原 ACME 签发环境或账户信息不完整")
+					}
+					accounts, err := storage.List(fallbackCtx, path.Join("acme", certmagic.StorageKeys.Safe(issuerKey), "users"), true)
+					if err != nil {
+						return acme, fmt.Errorf("读取原 ACME 账户目录失败: %w", err)
+					}
+					for _, accountKey := range accounts {
+						if !strings.HasSuffix(accountKey, ".json") {
+							continue
+						}
+						encoded, err := storage.Load(fallbackCtx, accountKey)
+						if err != nil {
+							return acme, fmt.Errorf("读取 ACME 账户信息失败: %w", err)
+						}
+						var account acmeTypes.Account
+						if err = json.Unmarshal(encoded, &account); err != nil {
+							return acme, fmt.Errorf("解析 ACME 账户信息失败: %w", err)
+						}
+						if account.Location != issued.Account {
+							continue
+						}
+						accountPrivateKeyPEM, err := storage.Load(fallbackCtx, strings.TrimSuffix(accountKey, ".json")+".key")
+						if err != nil {
+							return acme, fmt.Errorf("读取原 ACME 账户密钥失败: %w", err)
+						}
+						if _, err = certmagic.PEMDecodePrivateKey(accountPrivateKeyPEM); err != nil {
+							return acme, fmt.Errorf("解析原 ACME 账户密钥失败: %w", err)
+						}
+						email := ""
+						if len(account.Contact) > 0 {
+							email = strings.TrimPrefix(account.Contact[0], "mailto:")
+						}
+						request.acme = &webServer.Acme{
+							Domain: request.Domain, CA: caName, Email: email,
+							AccountURL: account.Location, AccountPrivateKeyPEM: accountPrivateKeyPEM,
+							CertificatePEM: []byte(data.Certificate), PrivateKeyPEM: []byte(data.PrivateKey),
+						}
+						break
+					}
+					if request.acme == nil {
+						return acme, errors.New("找不到原 ACME 账户，请检查 ACME 数据目录")
+					}
+					break
+				}
+				if request.acme != nil {
+					break
+				}
+			}
+		} else {
+			return acme, fmt.Errorf("读取证书续签信息失败: %w", err)
+		}
+		if request.acme != nil {
+			if acme.CA == "" {
+				acme.CA = request.acme.CA
+			}
+			if acme.Email == "" {
+				acme.Email = request.acme.Email
+			}
+		}
+	}
+	if acme.CA == "" {
+		acme.CA = webServer.CertificateCAProd
+	}
+	if acme.Email == "" && request.acme == nil {
+		acme.Email = strings.TrimSpace(options.ACMEEmail)
+	}
+	if request.acme != nil && acme.CA == request.acme.CA && strings.EqualFold(acme.Email, request.acme.Email) {
+		acme.AccountKeyPEM = string(request.acme.AccountPrivateKeyPEM)
 	}
 	if request.Type != nil {
 		if data.Type == cert_type.Import {
@@ -840,7 +970,7 @@ func (s *service) prepareCertificateRequest(data *model.Cert, request *Certifica
 	return acme, nil
 }
 
-// checkCertificateSave 在保存事务内确认订单归属、保存签发进度，并重查关联密钥。
+// checkCertificateSave 确认订单归属和关联密钥，保存签发进度及供下次续签使用的信息。
 func (s *service) checkCertificateSave(data *model.Cert, request webServer.CertificateRequest, tx *gorm.DB, order *certificateOrder) error {
 	if order != nil {
 		key := constant.CacheNameWithCertOrder + order.SessionId
@@ -864,15 +994,34 @@ func (s *service) checkCertificateSave(data *model.Cert, request webServer.Certi
 			return errors.New("保存签发进度失败，请重试")
 		}
 	}
-	if data.SecretId == 0 {
-		return nil
+	settings := &CertificateRequest{Domain: request.Domain, CA: request.CA, Email: request.Email, order: order}
+	if data.Type == cert_type.Auto && data.Challenge == string(webServer.CertificateChallengeDNS) && data.SecretId == 0 {
+		// 密钥在续签期间被删除时，保留解除关联的结果，仍可保存已签发的证书。
+		settings.Domain = ""
 	}
-	acme, err := s.prepareCertificateRequest(data, &CertificateRequest{Domain: request.Domain}, tx)
+	acme, err := s.prepareCertificateRequest(data, settings, tx)
 	if err != nil {
 		return err
 	}
-	if acme.DNSProvider != request.DNSProvider {
+	if data.SecretId != 0 && acme.DNSProvider != request.DNSProvider {
 		return errors.New("关联密钥的服务商已改变，请重新申请或续签")
+	}
+	renewal := settings.acme
+	if order != nil {
+		renewal = order.Acme
+	}
+	if renewal == nil {
+		renewal = &webServer.Acme{Domain: request.Domain, CA: request.CA, Email: request.Email}
+	}
+	encoded, err := json.Marshal(renewal)
+	if err != nil {
+		return fmt.Errorf("序列化证书续签信息失败: %w", err)
+	}
+	// 按证书内容保存，失败的续签或数据库回滚不会覆盖上一张证书的账户信息。
+	storage := &certmagic.FileStorage{Path: s.http.Options().ACMEPath}
+	key := fmt.Sprintf("renewals/%d/%x.json", data.Id, sha256.Sum256([]byte(strings.TrimSpace(data.Certificate))))
+	if err = storage.Store(context.Background(), key, encoded); err != nil {
+		return fmt.Errorf("保存证书续签信息失败: %w", err)
 	}
 	return nil
 }

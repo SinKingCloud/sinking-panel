@@ -43,14 +43,10 @@ func (m *Manager) obtainCertificate(ctx context.Context, request CertificateRequ
 	if action == CertificateActionManual {
 		return nil, errors.New("手动验证请使用 Acme 申请并提交验证")
 	}
-	m.operationMu.Lock()
-	defer m.operationMu.Unlock()
+	// 签发仅使用配置快照，等待 CA 或 DNS 时不占用网站运行时的操作锁。
+	m.mu.RLock()
 	options, storage := m.options, m.acmeStorage
-	httpRuntime.Lock()
-	defer httpRuntime.Unlock()
-	if httpRuntime.owner != nil && httpRuntime.owner != m {
-		return nil, errors.New("http 运行时已由另一个 Manager 持有")
-	}
+	m.mu.RUnlock()
 
 	if ctx == nil {
 		return nil, errors.New("证书申请上下文不能为空")
@@ -121,6 +117,7 @@ func (m *Manager) obtainCertificate(ctx context.Context, request CertificateRequ
 	issuerOptions := certmagic.ACMEIssuer{
 		CA:                      caURL,
 		Email:                   email,
+		AccountKeyPEM:           request.AccountKeyPEM,
 		Agreed:                  true,
 		Logger:                  logger,
 		DisableTLSALPNChallenge: true,
@@ -185,8 +182,8 @@ func (m *Manager) obtainCertificate(ctx context.Context, request CertificateRequ
 	magic.Issuers = []certmagic.Issuer{issuer}
 
 	issuerKey := issuer.IssuerKey()
-	// 同一证书的签发和结果读取使用同一把锁，避免并发续签读到不同版本的证书与私钥。
-	lockKey := "certificate_" + issuerKey + "_" + domain
+	// 同域名的签发和结果读取串行，避免不同 CA 的 HTTP 挑战覆盖同一个内存令牌。
+	lockKey := "certificate_" + domain
 	if err = storage.Lock(ctx, lockKey); err != nil {
 		if ctx.Err() != nil {
 			err = ctx.Err()

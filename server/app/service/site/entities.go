@@ -21,6 +21,7 @@ type CertificateRequest struct {
 	AutoRenew *int                           `json:"auto_renew"` // 是否自动续签：0 关闭，1 开启
 
 	order *certificateOrder // 当前手动验证订单，仅在服务内部使用
+	acme  *webServer.Acme   // 从 ACME 数据目录恢复的上次签发信息
 }
 
 // certificateOrder 缓存手动验证所需的订单、原始参数和签发结果。
