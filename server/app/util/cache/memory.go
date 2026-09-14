@@ -91,7 +91,7 @@ func (c *Cache) UnLock(key string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	info, exists := c.locks[key]
-	if !exists {
+	if !exists || !info.locked {
 		return
 	}
 	info.mutex.Unlock()

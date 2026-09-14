@@ -27,6 +27,9 @@ type CertificateCA string
 // CertificateChallenge 表示 ACME 域名所有权验证方式。
 type CertificateChallenge string
 
+// CertificateAction 表示 ACME 验证由程序自动处理还是用户手动处理。
+type CertificateAction string
+
 // DNSProvider 表示 ACME DNS-01 服务商。
 type DNSProvider string
 
@@ -75,8 +78,11 @@ const (
 	CertificateCAProd    CertificateCA = "production" // Let's Encrypt 正式环境
 	CertificateCAStaging CertificateCA = "staging"    // Let's Encrypt 测试环境
 
-	CertificateChallengeHTTP CertificateChallenge = "http" // HTTP-01 验证
-	CertificateChallengeDNS  CertificateChallenge = "dns"  // DNS-01 验证
+	CertificateChallengeHTTP CertificateChallenge = "http" // HTTP-01 文件验证
+	CertificateChallengeDNS  CertificateChallenge = "dns"  // DNS-01 解析验证
+
+	CertificateActionAuto   CertificateAction = "auto"   // 自动处理验证
+	CertificateActionManual CertificateAction = "manual" // 手动处理验证
 
 	DNSProviderAliDNS       DNSProvider = "alidns"       // 阿里云 DNS
 	DNSProviderTencentCloud DNSProvider = "tencentcloud" // 腾讯云 DNS

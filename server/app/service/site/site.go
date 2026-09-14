@@ -85,6 +85,7 @@ type Service interface {
 	SelectCert(where *repositoryCert.SelectCert, queryPage *page.Query) (*page.Result[*repositoryCert.Cert], error)
 	ObtainCert(ctx context.Context, name string, request CertificateRequest) (*model.Cert, error)
 	RenewCert(ctx context.Context, id int64, request CertificateRequest) (*model.Cert, error)
+	ManualCert(ctx context.Context, id int64, name string, request CertificateRequest) (interface{}, error)
 }
 
 // service 注入网站、域名、证书仓储和运行时管理器。

@@ -15,6 +15,7 @@ func Update(c *context.Context) {
 		Name        string `json:"name" default:"" validate:"omitempty,max=100" label:"证书名称"`
 		Certificate string `json:"certificate" default:"" validate:"omitempty,max=4194304" label:"证书内容"`
 		PrivateKey  string `json:"private_key" default:"" validate:"omitempty,max=1048576" label:"证书私钥"`
+		Type        string `json:"type" default:"" validate:"omitempty,oneof=1 2" label:"证书类型"`
 		Challenge   string `json:"challenge" default:"" validate:"omitempty,oneof=http dns" label:"验证方式"`
 		SecretId    string `json:"secret_id" default:"" validate:"omitempty,numeric" label:"密钥ID"`
 		AutoRenew   string `json:"auto_renew" default:"" validate:"omitempty,oneof=0 1" label:"自动续签"`
@@ -32,6 +33,14 @@ func Update(c *context.Context) {
 	}
 	if form.PrivateKey != "" {
 		data.PrivateKey = &form.PrivateKey
+	}
+	if form.Type != "" {
+		certificateType, err := strconv.Atoi(form.Type)
+		if err != nil {
+			c.Error("证书类型参数错误")
+			return
+		}
+		data.Type = &certificateType
 	}
 	if form.Challenge != "" {
 		data.Challenge = &form.Challenge

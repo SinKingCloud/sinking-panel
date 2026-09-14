@@ -8,14 +8,32 @@ import (
 	"server/app/util/str"
 )
 
-// CertificateRequest 证书申请设置，DNS 验证使用已保存的密钥，续签时未传入的设置沿用原值。
+// CertificateRequest 证书申请设置，HTTP 和 DNS 验证均支持手动操作。
 type CertificateRequest struct {
+	Action    string                         `json:"action"`     // 请求步骤：start、submit、cancel
+	SessionId string                         `json:"session_id"` // 手动验证的缓存订单标识
 	Domain    string                         `json:"domain"`     // 申请证书的域名或公网 IP 地址
 	Email     string                         `json:"email"`      // ACME 账户邮箱
 	CA        webServer.CertificateCA        `json:"ca"`         // 证书签发环境
+	Type      *int                           `json:"type"`       // 手动或自动申请，未传入时继承当前设置
 	Challenge webServer.CertificateChallenge `json:"challenge"`  // 所有权验证方式
-	SecretId  *int64                         `json:"secret_id"`  // DNS 密钥 ID，DNS 申请和续签必须关联密钥
+	SecretId  *int64                         `json:"secret_id"`  // 自动 DNS 验证关联的密钥 ID
 	AutoRenew *int                           `json:"auto_renew"` // 是否自动续签：0 关闭，1 开启
+
+	order *certificateOrder // 当前手动验证订单，仅在服务内部使用
+}
+
+// certificateOrder 缓存手动验证所需的订单、原始参数和签发结果。
+type certificateOrder struct {
+	Id            int64              `json:"id"`
+	CertificateId int64              `json:"certificate_id"`
+	SessionId     string             `json:"session_id"`
+	Name          string             `json:"name"`
+	Request       CertificateRequest `json:"request"`
+	Previous      *model.Cert        `json:"previous,omitempty"`
+	Acme          *webServer.Acme    `json:"acme"`
+	ExpiresAt     time.Time          `json:"expires_at"`
+	Result        *model.Cert        `json:"result,omitempty"`
 }
 
 // HTTPConfig 是四类网站共享的 HTTP 配置。

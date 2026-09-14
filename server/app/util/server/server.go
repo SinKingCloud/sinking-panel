@@ -499,24 +499,10 @@ func (m *Manager) SaveConfig(config []byte) error {
 
 // ObtainCertificate 显式申请并返回证书，不会自动修改或启用站点 TLS。
 func (m *Manager) ObtainCertificate(ctx context.Context, request CertificateRequest) (*Certificate, error) {
-	m.operationMu.Lock()
-	defer m.operationMu.Unlock()
-	httpRuntime.Lock()
-	defer httpRuntime.Unlock()
-	if httpRuntime.owner != nil && httpRuntime.owner != m {
-		return nil, errors.New("http 运行时已由另一个 Manager 持有")
-	}
 	return m.obtainCertificate(ctx, request, false)
 }
 
 // RenewCertificate 强制续签已有证书并返回新证书，不会自动部署。
 func (m *Manager) RenewCertificate(ctx context.Context, request CertificateRequest) (*Certificate, error) {
-	m.operationMu.Lock()
-	defer m.operationMu.Unlock()
-	httpRuntime.Lock()
-	defer httpRuntime.Unlock()
-	if httpRuntime.owner != nil && httpRuntime.owner != m {
-		return nil, errors.New("http 运行时已由另一个 Manager 持有")
-	}
 	return m.obtainCertificate(ctx, request, true)
 }

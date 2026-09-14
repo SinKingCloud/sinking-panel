@@ -18,6 +18,9 @@ const (
 	CacheNameWithSecretNameEnum = "SecretNameEnum"  //密钥名称枚举
 	CacheTimeWithSecretNameEnum = 600 * time.Second //密钥名称枚举储存时间
 
+	CacheNameWithCertOrder = "CertOrder_"     //手动证书验证订单
+	CacheTimeWithCertOrder = 20 * time.Minute //手动证书验证订单有效期
+
 	CacheNameWithFilePreview            = "FilePreview_"     //文件预览签名
 	CacheTimeWithFilePreview            = 3600 * time.Second //文件预览签名储存时间
 	CacheTimeWithFilePreviewRenewBefore = 600 * time.Second  //文件预览签名续期阈值

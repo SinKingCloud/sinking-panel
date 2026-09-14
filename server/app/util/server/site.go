@@ -81,7 +81,7 @@ func (m *Manager) normalizeSite(input *Site) (*Site, error) {
 	domainSet := make(map[string]struct{}, len(site.Domains))
 	site.Domains = site.Domains[:0]
 	for _, value := range input.Domains {
-		domain, err := m.normalizeDomain(value)
+		domain, err := normalizeDomain(value)
 		if err != nil {
 			return nil, fmt.Errorf("站点 %s 域名无效: %w", site.ID, err)
 		}
@@ -110,7 +110,7 @@ func (m *Manager) normalizeSite(input *Site) (*Site, error) {
 		domains := make([]string, 0, len(redirect.Domains))
 		seenDomains := make(map[string]struct{}, len(redirect.Domains))
 		for _, value := range redirect.Domains {
-			domain, err := m.normalizeDomain(value)
+			domain, err := normalizeDomain(value)
 			if err != nil {
 				return nil, fmt.Errorf("站点 %s 重定向 %d 来源域名无效: %w", site.ID, index+1, err)
 			}
@@ -580,7 +580,7 @@ func (m *Manager) normalizeProxy(proxy *ProxyOptions, siteRoot string) error {
 		}
 	}
 	if proxy.TLSServerName != "" {
-		name, err := m.normalizeDomain(proxy.TLSServerName)
+		name, err := normalizeDomain(proxy.TLSServerName)
 		if err != nil || strings.HasPrefix(name, "*.") {
 			return errors.New("TLS 上游服务器名称无效")
 		}
@@ -1158,7 +1158,7 @@ func (m *Manager) normalizeTLS(options *TLSOptions, domains []string) error {
 		if explicitDomains {
 			seen := make(map[string]struct{}, len(certificate.Domains))
 			for _, value := range certificate.Domains {
-				domain, err := m.normalizeDomain(value)
+				domain, err := normalizeDomain(value)
 				if err != nil {
 					return fmt.Errorf("第 %d 组证书域名无效: %w", index+1, err)
 				}
@@ -1333,7 +1333,7 @@ func (m *Manager) normalizeMethods(methods []string) ([]string, error) {
 	return result, nil
 }
 
-func (m *Manager) normalizeDomain(value string) (string, error) {
+func normalizeDomain(value string) (string, error) {
 	domain := strings.ToLower(strings.TrimSpace(strings.TrimSuffix(value, ".")))
 	if strings.HasPrefix(domain, "[") && strings.HasSuffix(domain, "]") {
 		domain = strings.TrimSuffix(strings.TrimPrefix(domain, "["), "]")

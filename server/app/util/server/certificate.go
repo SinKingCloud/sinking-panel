@@ -21,21 +21,44 @@ import (
 )
 
 func (m *Manager) obtainCertificate(ctx context.Context, request CertificateRequest, renew bool) (certificate *Certificate, err error) {
-	action := "申请"
+	operation := "申请"
 	if renew {
-		action = "续签"
+		operation = "续签"
 	}
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			certificate = nil
-			err = fmt.Errorf("%s证书时发生异常，请检查验证参数后重试", action)
+			err = fmt.Errorf("%s证书时发生异常，请检查验证参数后重试", operation)
 		}
 	}()
+
+	challenge := CertificateChallenge(strings.ToLower(strings.TrimSpace(string(request.Challenge))))
+	action := CertificateAction(strings.ToLower(strings.TrimSpace(string(request.Action))))
+	if action == "" {
+		action = CertificateActionAuto
+	}
+	if action != CertificateActionAuto && action != CertificateActionManual {
+		return nil, errors.New("证书验证模式只能为自动或手动")
+	}
+	if action == CertificateActionManual {
+		return nil, errors.New("手动验证请使用 Acme 申请并提交验证")
+	}
+	m.operationMu.Lock()
+	defer m.operationMu.Unlock()
+	options, storage := m.options, m.acmeStorage
+	httpRuntime.Lock()
+	defer httpRuntime.Unlock()
+	if httpRuntime.owner != nil && httpRuntime.owner != m {
+		return nil, errors.New("http 运行时已由另一个 Manager 持有")
+	}
 
 	if ctx == nil {
 		return nil, errors.New("证书申请上下文不能为空")
 	}
-	domain, err := m.normalizeDomain(request.Domain)
+	if err = ctx.Err(); err != nil {
+		return nil, err
+	}
+	domain, err := normalizeDomain(request.Domain)
 	if err != nil {
 		return nil, fmt.Errorf("证书域名无效: %w", err)
 	}
@@ -43,17 +66,16 @@ func (m *Manager) obtainCertificate(ctx context.Context, request CertificateRequ
 	if !certmagic.SubjectQualifiesForPublicCert(domain) {
 		return nil, errors.New("域名或 IP 地址不能申请公开证书")
 	}
-	challenge := CertificateChallenge(strings.ToLower(strings.TrimSpace(string(request.Challenge))))
 	if challenge == "" {
 		challenge = CertificateChallengeHTTP
 	}
 	if challenge != CertificateChallengeHTTP && challenge != CertificateChallengeDNS {
-		return nil, errors.New("证书验证方式只支持 http 或 dns")
+		return nil, errors.New("证书验证类型只支持 HTTP 或 DNS")
 	}
 	if isIP && challenge != CertificateChallengeHTTP {
 		return nil, errors.New("IP 地址证书必须使用 HTTP 验证")
 	}
-	if strings.HasPrefix(domain, "*.") && challenge != CertificateChallengeDNS {
+	if strings.HasPrefix(domain, "*.") && challenge == CertificateChallengeHTTP {
 		return nil, errors.New("通配符证书必须使用 DNS 验证")
 	}
 
@@ -68,13 +90,13 @@ func (m *Manager) obtainCertificate(ctx context.Context, request CertificateRequ
 	default:
 		return nil, errors.New("证书 CA 只支持 production 或 staging")
 	}
-	if m.acmeStorage == nil {
+	if storage == nil {
 		return nil, errors.New("证书存储尚未初始化")
 	}
 
 	email := strings.TrimSpace(request.Email)
 	if email == "" {
-		email = strings.TrimSpace(m.options.ACMEEmail)
+		email = strings.TrimSpace(options.ACMEEmail)
 	}
 	if email != "" {
 		address, parseErr := mail.ParseAddress(email)
@@ -93,7 +115,7 @@ func (m *Manager) obtainCertificate(ctx context.Context, request CertificateRequ
 	defer cache.Stop()
 
 	magic = certmagic.New(cache, certmagic.Config{
-		Storage: m.acmeStorage,
+		Storage: storage,
 		Logger:  logger,
 	})
 	issuerOptions := certmagic.ACMEIssuer{
@@ -102,14 +124,14 @@ func (m *Manager) obtainCertificate(ctx context.Context, request CertificateRequ
 		Agreed:                  true,
 		Logger:                  logger,
 		DisableTLSALPNChallenge: true,
-		ListenHost:              strings.TrimSpace(m.options.HTTPChallengeHost),
-		AltHTTPPort:             m.options.HTTPChallengePort,
+		ListenHost:              strings.TrimSpace(options.HTTPChallengeHost),
+		AltHTTPPort:             options.HTTPChallengePort,
 	}
 	if isIP {
 		// Let's Encrypt 的 IP 证书必须使用短期配置，有效期为 160 小时。
 		issuerOptions.Profile = "shortlived"
 	}
-	if challenge == CertificateChallengeDNS {
+	if challenge == CertificateChallengeDNS && action == CertificateActionAuto {
 		credentials := request.DNSCredentials
 		credentials.AliyunAccessKeyID = strings.TrimSpace(credentials.AliyunAccessKeyID)
 		credentials.AliyunAccessKeySecret = strings.TrimSpace(credentials.AliyunAccessKeySecret)
@@ -163,24 +185,36 @@ func (m *Manager) obtainCertificate(ctx context.Context, request CertificateRequ
 	magic.Issuers = []certmagic.Issuer{issuer}
 
 	issuerKey := issuer.IssuerKey()
+	// 同一证书的签发和结果读取使用同一把锁，避免并发续签读到不同版本的证书与私钥。
+	lockKey := "certificate_" + issuerKey + "_" + domain
+	if err = storage.Lock(ctx, lockKey); err != nil {
+		if ctx.Err() != nil {
+			err = ctx.Err()
+		}
+		return nil, fmt.Errorf("锁定证书失败: %w", err)
+	}
+	defer storage.Unlock(context.WithoutCancel(ctx), lockKey)
 	certificateKey := certmagic.StorageKeys.SiteCert(issuerKey, domain)
 	privateKey := certmagic.StorageKeys.SitePrivateKey(issuerKey, domain)
 	metadataKey := certmagic.StorageKeys.SiteMeta(issuerKey, domain)
-	if m.acmeStorage.Exists(ctx, certificateKey) && m.acmeStorage.Exists(ctx, privateKey) && m.acmeStorage.Exists(ctx, metadataKey) {
+	if storage.Exists(ctx, certificateKey) && storage.Exists(ctx, privateKey) && storage.Exists(ctx, metadataKey) {
 		// 已有证书由 CertMagic 根据 ARI 和有效期判断续签，显式续签则强制执行。
 		err = magic.RenewCertSync(ctx, domain, renew)
 	} else {
 		err = magic.ObtainCertSync(ctx, domain)
 	}
 	if err != nil {
-		return nil, fmt.Errorf("%s证书失败: %w", action, err)
+		if ctx.Err() != nil {
+			err = ctx.Err()
+		}
+		return nil, fmt.Errorf("%s证书失败: %w", operation, err)
 	}
 
-	certificatePEM, err := m.acmeStorage.Load(ctx, certificateKey)
+	certificatePEM, err := storage.Load(ctx, certificateKey)
 	if err != nil {
 		return nil, fmt.Errorf("读取证书失败: %w", err)
 	}
-	privateKeyPEM, err := m.acmeStorage.Load(ctx, privateKey)
+	privateKeyPEM, err := storage.Load(ctx, privateKey)
 	if err != nil {
 		return nil, fmt.Errorf("读取证书私钥失败: %w", err)
 	}
@@ -208,8 +242,8 @@ func (m *Manager) obtainCertificate(ctx context.Context, request CertificateRequ
 		SerialNumber:    leaf.SerialNumber.String(),
 		NotBefore:       leaf.NotBefore,
 		NotAfter:        leaf.NotAfter,
-		CertificateFile: m.acmeStorage.Filename(certificateKey),
-		KeyFile:         m.acmeStorage.Filename(privateKey),
+		CertificateFile: storage.Filename(certificateKey),
+		KeyFile:         storage.Filename(privateKey),
 		CertificatePEM:  append([]byte(nil), certificatePEM...),
 		PrivateKeyPEM:   append([]byte(nil), privateKeyPEM...),
 	}, nil

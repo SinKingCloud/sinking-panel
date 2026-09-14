@@ -21,7 +21,7 @@ func Create(c *context.Context) {
 	}
 	data := &model.Cert{
 		Name:        form.Name,
-		Type:        cert_type.Manual,
+		Type:        cert_type.Import,
 		Certificate: form.Certificate,
 		PrivateKey:  form.PrivateKey,
 	}
