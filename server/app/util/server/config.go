@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net"
 	"os"
 	"path/filepath"
@@ -977,13 +978,7 @@ func (m *Manager) buildConfig(sites map[string]*Site) ([]byte, error) {
 	for name, accessLog := range accessLogs {
 		logs[name] = accessLog
 	}
-	config["logging"] = map[string]interface{}{
-		"logs": logs,
-		"sink": map[string]interface{}{
-			"writer":  logConfig["writer"],
-			"encoder": logEncoder,
-		},
-	}
+	config["logging"] = map[string]interface{}{"logs": logs}
 	result, err := json.MarshalIndent(config, "", "    ")
 	if err != nil {
 		return nil, fmt.Errorf("生成 http 配置失败: %w", err)
@@ -1094,6 +1089,13 @@ func (m *Manager) validateConfig(config []byte) error {
 	if err := caddy.StrictUnmarshalJSON(config, &parsed); err != nil {
 		return fmt.Errorf("解析 http 配置失败: %w", err)
 	}
+	// 配置校验会初始化日志，校验结束后恢复面板的标准日志配置。
+	output, flags, prefix := log.Writer(), log.Flags(), log.Prefix()
+	defer func() {
+		log.SetOutput(output)
+		log.SetFlags(flags)
+		log.SetPrefix(prefix)
+	}()
 	if err := caddy.Validate(&parsed); err != nil {
 		return fmt.Errorf("验证 http 配置失败: %w", err)
 	}
