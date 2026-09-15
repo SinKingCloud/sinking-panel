@@ -22,7 +22,6 @@ func Obtain(c *context.Context) {
 		SessionId string `json:"session_id" default:"" validate:"omitempty,max=128" label:"验证会话"`
 		Name      string `json:"name" default:"" validate:"required_if=Action start,max=100" label:"证书名称"`
 		Domain    string `json:"domain" default:"" validate:"required_if=Action start,max=253" label:"证书域名"`
-		Email     string `json:"email" default:"" validate:"omitempty,email,max=254" label:"ACME邮箱"`
 		CA        string `json:"ca" default:"" validate:"omitempty,oneof=production staging" label:"签发环境"`
 		Challenge string `json:"challenge" default:"http" validate:"required,oneof=http dns" label:"验证方式"`
 		SecretId  *int64 `json:"secret_id" validate:"omitempty,min=0" label:"密钥ID"`
@@ -49,16 +48,20 @@ func Obtain(c *context.Context) {
 		Action:    form.Action,
 		SessionId: form.SessionId,
 		Domain:    form.Domain,
-		Email:     form.Email,
 		CA:        webServer.CertificateCA(form.CA),
 		Type:      &form.Type,
 		Challenge: webServer.CertificateChallenge(form.Challenge),
 		SecretId:  form.SecretId,
 		AutoRenew: form.AutoRenew,
 	}
-	// DNS 传播可能耗时数分钟，单独延长证书请求的超时。
-	_ = http.NewResponseController(c.Writer).SetWriteDeadline(time.Now().Add(serviceSite.CertificateRequestTimeout + time.Minute))
-	ctx, cancel := stdContext.WithTimeout(c.Request.Context(), serviceSite.CertificateRequestTimeout)
+	timeout := webServer.CertificateRequestTimeout
+	writeTimeout := timeout + 5*time.Second
+	if manual {
+		timeout = serviceSite.CertificateRequestTimeout
+		writeTimeout = timeout + time.Minute
+	}
+	_ = http.NewResponseController(c.Writer).SetWriteDeadline(time.Now().Add(writeTimeout))
+	ctx, cancel := stdContext.WithTimeout(c.Request.Context(), timeout)
 	defer cancel()
 	var data interface{}
 	var err error
@@ -97,7 +100,6 @@ func Renew(c *context.Context) {
 		SessionId string `json:"session_id" default:"" validate:"omitempty,max=128" label:"验证会话"`
 		Id        int64  `json:"id" default:"0" validate:"required,min=1" label:"证书ID"`
 		Domain    string `json:"domain" default:"" validate:"required_if=Action start,max=253" label:"续签域名"`
-		Email     string `json:"email" default:"" validate:"omitempty,email,max=254" label:"ACME邮箱"`
 		CA        string `json:"ca" default:"" validate:"omitempty,oneof=production staging" label:"签发环境"`
 		Challenge string `json:"challenge" validate:"omitempty,oneof=http dns" label:"验证方式"`
 		SecretId  *int64 `json:"secret_id" validate:"omitempty,min=0" label:"密钥ID"`
@@ -124,15 +126,20 @@ func Renew(c *context.Context) {
 		Action:    form.Action,
 		SessionId: form.SessionId,
 		Domain:    form.Domain,
-		Email:     form.Email,
 		CA:        webServer.CertificateCA(form.CA),
 		Type:      &form.Type,
 		Challenge: webServer.CertificateChallenge(form.Challenge),
 		SecretId:  form.SecretId,
 		AutoRenew: form.AutoRenew,
 	}
-	_ = http.NewResponseController(c.Writer).SetWriteDeadline(time.Now().Add(serviceSite.CertificateRequestTimeout + time.Minute))
-	ctx, cancel := stdContext.WithTimeout(c.Request.Context(), serviceSite.CertificateRequestTimeout)
+	timeout := webServer.CertificateRequestTimeout
+	writeTimeout := timeout + 5*time.Second
+	if manual {
+		timeout = serviceSite.CertificateRequestTimeout
+		writeTimeout = timeout + time.Minute
+	}
+	_ = http.NewResponseController(c.Writer).SetWriteDeadline(time.Now().Add(writeTimeout))
+	ctx, cancel := stdContext.WithTimeout(c.Request.Context(), timeout)
 	defer cancel()
 	var data interface{}
 	var err error

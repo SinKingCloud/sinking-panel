@@ -13,7 +13,6 @@ type CertificateRequest struct {
 	Action    string                         `json:"action"`     // 请求步骤：start、submit、cancel
 	SessionId string                         `json:"session_id"` // 手动验证的缓存订单标识
 	Domain    string                         `json:"domain"`     // 申请证书的域名或公网 IP 地址
-	Email     string                         `json:"email"`      // ACME 账户邮箱
 	CA        webServer.CertificateCA        `json:"ca"`         // 证书签发环境
 	Type      *int                           `json:"type"`       // 手动或自动申请，未传入时继承当前设置
 	Challenge webServer.CertificateChallenge `json:"challenge"`  // 所有权验证方式

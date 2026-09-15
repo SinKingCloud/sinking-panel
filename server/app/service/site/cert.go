@@ -35,7 +35,7 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-// CertificateRequestTimeout 为 DNS 传播和用户手动验证预留时间。
+// CertificateRequestTimeout 为手动证书请求和验证会话预留时间。
 const CertificateRequestTimeout = constant.CacheTimeWithCertOrder
 
 // CreateCert 导入并保存一组证书和私钥，允许导入已过期的证书。
@@ -674,7 +674,7 @@ func (s *service) ManualCert(ctx context.Context, id int64, name string, request
 		Acme: client, Id: id, CertificateId: certificateId, SessionId: sessionId, ExpiresAt: expiresAt,
 		Name: candidate.Name, Previous: previous,
 		Request: CertificateRequest{
-			Domain: domain, Email: client.Email, CA: client.CA, Type: &certificateType,
+			Domain: domain, CA: client.CA, Type: &certificateType,
 			Challenge: acmeRequest.Challenge, SecretId: &secretId, AutoRenew: &autoRenew,
 		},
 	}
@@ -701,8 +701,10 @@ func (s *service) ManualCert(ctx context.Context, id int64, name string, request
 func (s *service) prepareCertificateRequest(data *model.Cert, request *CertificateRequest, tx ...*gorm.DB) (webServer.CertificateRequest, error) {
 	acme := webServer.CertificateRequest{
 		Domain: request.Domain,
-		Email:  request.Email,
 		CA:     request.CA,
+	}
+	if request.order != nil {
+		acme.Email = request.order.Acme.Email
 	}
 	options := s.http.Options()
 	if data.Id > 0 && data.Certificate != "" && request.Domain != "" && request.order == nil {
@@ -994,7 +996,7 @@ func (s *service) checkCertificateSave(data *model.Cert, request webServer.Certi
 			return errors.New("保存签发进度失败，请重试")
 		}
 	}
-	settings := &CertificateRequest{Domain: request.Domain, CA: request.CA, Email: request.Email, order: order}
+	settings := &CertificateRequest{Domain: request.Domain, CA: request.CA, order: order}
 	if data.Type == cert_type.Auto && data.Challenge == string(webServer.CertificateChallengeDNS) && data.SecretId == 0 {
 		// 密钥在续签期间被删除时，保留解除关联的结果，仍可保存已签发的证书。
 		settings.Domain = ""

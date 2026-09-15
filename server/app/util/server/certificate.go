@@ -20,6 +20,12 @@ import (
 	"go.uber.org/zap"
 )
 
+const (
+	// CertificateRequestTimeout 限制单次自动申请或续签的总等待时间。
+	CertificateRequestTimeout    = 30 * time.Second
+	certificateValidationTimeout = 3 * time.Second
+)
+
 func (m *Manager) obtainCertificate(ctx context.Context, request CertificateRequest, renew bool) (certificate *Certificate, err error) {
 	operation := "申请"
 	if renew {
@@ -54,6 +60,8 @@ func (m *Manager) obtainCertificate(ctx context.Context, request CertificateRequ
 	if err = ctx.Err(); err != nil {
 		return nil, err
 	}
+	ctx, cancel := context.WithTimeout(ctx, CertificateRequestTimeout)
+	defer cancel()
 	domain, err := normalizeDomain(request.Domain)
 	if err != nil {
 		return nil, fmt.Errorf("证书域名无效: %w", err)
@@ -120,6 +128,7 @@ func (m *Manager) obtainCertificate(ctx context.Context, request CertificateRequ
 		AccountKeyPEM:           request.AccountKeyPEM,
 		Agreed:                  true,
 		Logger:                  logger,
+		CertObtainTimeout:       CertificateRequestTimeout,
 		DisableTLSALPNChallenge: true,
 		ListenHost:              strings.TrimSpace(options.HTTPChallengeHost),
 		AltHTTPPort:             options.HTTPChallengePort,
@@ -146,7 +155,10 @@ func (m *Manager) obtainCertificate(ctx context.Context, request CertificateRequ
 			return nil, err
 		}
 		var provider certmagic.DNSProvider
-		manager := certmagic.DNSManager{Logger: logger}
+		manager := certmagic.DNSManager{
+			Logger:             logger,
+			PropagationTimeout: certificateValidationTimeout,
+		}
 		switch providerName {
 		case DNSProviderAliDNS:
 			provider = &libdnsAliDNS.Provider{CredentialInfo: libdnsAliDNS.CredentialInfo{
@@ -165,9 +177,8 @@ func (m *Manager) obtainCertificate(ctx context.Context, request CertificateRequ
 				AccessKeyID:     credentials.VolcengineAccessKeyID,
 				AccessKeySecret: credentials.VolcengineAccessKeySecret,
 			}}
-			// 火山引擎记录生效较慢，延长传播检测时间。
+			// 保留原有记录 TTL，传播等待与其他服务商保持一致。
 			manager.TTL = 600 * time.Second
-			manager.PropagationTimeout = 15 * time.Minute
 		case DNSProviderBaiduCloud:
 			provider = &baiduDNS.Provider{
 				AccessKeyID:     credentials.BaiduAccessKeyID,
