@@ -977,7 +977,13 @@ func (m *Manager) buildConfig(sites map[string]*Site) ([]byte, error) {
 	for name, accessLog := range accessLogs {
 		logs[name] = accessLog
 	}
-	config["logging"] = map[string]interface{}{"logs": logs}
+	config["logging"] = map[string]interface{}{
+		"logs": logs,
+		"sink": map[string]interface{}{
+			"writer":  logConfig["writer"],
+			"encoder": logEncoder,
+		},
+	}
 	result, err := json.MarshalIndent(config, "", "    ")
 	if err != nil {
 		return nil, fmt.Errorf("生成 http 配置失败: %w", err)

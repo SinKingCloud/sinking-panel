@@ -12,12 +12,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/caddyserver/caddy/v2"
 	"github.com/caddyserver/certmagic"
 	libdnsAliDNS "github.com/libdns/alidns"
 	libdnsHuaweiCloud "github.com/libdns/huaweicloud"
 	libdnsTencentCloud "github.com/libdns/tencentcloud"
 	libdnsVolcengine "github.com/libdns/volcengine"
-	"go.uber.org/zap"
 )
 
 const (
@@ -108,7 +108,7 @@ func (m *Manager) obtainCertificate(ctx context.Context, request CertificateRequ
 			return nil, errors.New("ACME 邮箱地址无效")
 		}
 	}
-	logger := zap.NewNop()
+	logger := caddy.Log().Named("acme")
 	var magic *certmagic.Config
 	cache := certmagic.NewCache(certmagic.CacheOptions{
 		Logger: logger,
@@ -132,6 +132,11 @@ func (m *Manager) obtainCertificate(ctx context.Context, request CertificateRequ
 		DisableTLSALPNChallenge: true,
 		ListenHost:              strings.TrimSpace(options.HTTPChallengeHost),
 		AltHTTPPort:             options.HTTPChallengePort,
+	}
+	if issuerOptions.Email == "" {
+		// CertMagic 同步预检先判断空串是否需要询问，再 TrimSpace。
+		// 空白值跳过控制台交互，归一化后账户邮箱仍为空。
+		issuerOptions.Email = " "
 	}
 	if isIP {
 		// Let's Encrypt 的 IP 证书必须使用短期配置，有效期为 160 小时。

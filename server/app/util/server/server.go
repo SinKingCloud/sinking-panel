@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -13,12 +14,22 @@ import (
 	"strings"
 
 	"github.com/caddyserver/caddy/v2"
+	"github.com/caddyserver/certmagic"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 func init() {
 	// 首次加载配置前先缓存 Caddy 日志，加载成功后由配置中的文件日志接管。
 	caddy.BufferedLog()
+	// FileStorage 使用包级 logger，转发到 Caddy 当前日志以跟随文件配置重载。
+	*certmagic.Default.Logger = *zap.New(
+		zapcore.NewCore(zapcore.NewConsoleEncoder(zap.NewProductionEncoderConfig()), zapcore.AddSync(io.Discard), zap.DebugLevel),
+		zap.Hooks(func(entry zapcore.Entry) error {
+			caddy.Log().Named("acme").Log(entry.Level, entry.Message)
+			return nil
+		}),
+	)
 	// Caddy 会在包初始化时接管标准日志，恢复面板原有的控制台日志格式。
 	log.SetOutput(os.Stderr)
 	log.SetFlags(log.LstdFlags)
