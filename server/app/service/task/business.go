@@ -1,6 +1,7 @@
 package task
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -352,6 +353,27 @@ func (s *service) Add(data *model.Task) error {
 	if err != nil {
 		s.instance.Remove(id)
 	}
+	return err
+}
+
+// AddFunc 注册内部任务，只加入调度器，不写入任务表。
+func (s *service) AddFunc(spec string, run func(context.Context)) error {
+	s.taskLock.Lock()
+	defer s.taskLock.Unlock()
+	if s.closed {
+		return errors.New("计划任务服务已关闭")
+	}
+	if run == nil {
+		return errors.New("任务执行方法不能为空")
+	}
+	_, err := s.instance.AddJob(spec, cron.NewChain(
+		cron.SkipIfStillRunning(cron.DiscardLogger),
+		cron.Recover(cron.DiscardLogger),
+	).Then(cron.FuncJob(func() {
+		if s.ctx.Err() == nil {
+			run(s.ctx)
+		}
+	})))
 	return err
 }
 

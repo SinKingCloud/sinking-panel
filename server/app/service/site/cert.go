@@ -16,6 +16,7 @@ import (
 	"net/url"
 	"path"
 	"server/app/constant"
+	"server/app/enum/cert_auto_renew"
 	"server/app/enum/cert_type"
 	"server/app/enum/secret_provider"
 	"server/app/model"
@@ -47,7 +48,7 @@ func (s *service) CreateCert(data *model.Cert) error {
 	candidate.Type = cert_type.Import
 	candidate.Challenge = ""
 	candidate.SecretId = 0
-	candidate.AutoRenew = 0
+	candidate.AutoRenew = cert_auto_renew.Disabled
 	if err := s.prepareCertificate(&candidate, true); err != nil {
 		return err
 	}
@@ -104,7 +105,7 @@ func (s *service) UpdateCert(id int64, data *repositoryCert.UpdateCert) error {
 			candidate.AutoRenew = *data.AutoRenew
 		}
 		// 单独关闭自动续签不依赖原密钥仍然存在或有效。
-		if data.Type != nil || data.Challenge != nil || data.SecretId != nil || (data.AutoRenew != nil && candidate.AutoRenew != 0) {
+		if data.Type != nil || data.Challenge != nil || data.SecretId != nil || (data.AutoRenew != nil && candidate.AutoRenew != cert_auto_renew.Disabled) {
 			request := CertificateRequest{Type: data.Type, SecretId: data.SecretId, AutoRenew: data.AutoRenew}
 			if data.Challenge != nil {
 				request.Challenge = webServer.CertificateChallenge(*data.Challenge)
@@ -674,7 +675,7 @@ func (s *service) ManualCert(ctx context.Context, id int64, name string, request
 		}
 		values = append(values, value)
 	}
-	certificateType, secretId, autoRenew := cert_type.Manual, int64(0), 0
+	certificateType, secretId, autoRenew := cert_type.Manual, int64(0), cert_auto_renew.Disabled
 	sessionId := rand.Text()
 	certificateId := id
 	if certificateId == 0 {
@@ -855,14 +856,14 @@ func (s *service) prepareCertificateRequest(data *model.Cert, request *Certifica
 	if request.AutoRenew != nil {
 		data.AutoRenew = *request.AutoRenew
 	}
-	if data.AutoRenew != 0 && data.AutoRenew != 1 {
-		return acme, errors.New("自动续签只能设置为 0 或 1")
+	if _, ok := cert_auto_renew.Map()[data.AutoRenew]; !ok {
+		return acme, errors.New("自动续签参数错误")
 	}
 	if data.SecretId < 0 {
 		return acme, errors.New("密钥 ID 不合法")
 	}
 	if data.Type == cert_type.Import {
-		if data.Challenge != "" || data.SecretId != 0 || data.AutoRenew != 0 {
+		if data.Challenge != "" || data.SecretId != 0 || data.AutoRenew != cert_auto_renew.Disabled {
 			return acme, errors.New("导入的证书不能设置 ACME 申请方式、密钥或自动续签")
 		}
 		return acme, nil
@@ -900,11 +901,11 @@ func (s *service) prepareCertificateRequest(data *model.Cert, request *Certifica
 		if request.SecretId != nil && *request.SecretId != 0 {
 			return acme, errors.New("手动验证不需要关联密钥")
 		}
-		if request.AutoRenew != nil && *request.AutoRenew != 0 {
+		if request.AutoRenew != nil && *request.AutoRenew != cert_auto_renew.Disabled {
 			return acme, errors.New("手动验证不支持自动续签")
 		}
 		data.SecretId = 0
-		data.AutoRenew = 0
+		data.AutoRenew = cert_auto_renew.Disabled
 		return acme, nil
 	}
 	switch acme.Challenge {
@@ -919,7 +920,7 @@ func (s *service) prepareCertificateRequest(data *model.Cert, request *Certifica
 			if request.Domain != "" {
 				return acme, errors.New("请先添加并选择 DNS 验证密钥")
 			}
-			if data.AutoRenew != 0 {
+			if data.AutoRenew != cert_auto_renew.Disabled {
 				return acme, errors.New("DNS 自动续签需要关联已保存的密钥")
 			}
 			return acme, nil
@@ -1212,7 +1213,7 @@ func (s *service) restoreCertificate(data, expected *model.Cert) error {
 					return err
 				}
 				restored.SecretId = 0
-				restored.AutoRenew = 0
+				restored.AutoRenew = cert_auto_renew.Disabled
 			}
 		}
 		return s.repositoryCert.Restore(&restored, tx)

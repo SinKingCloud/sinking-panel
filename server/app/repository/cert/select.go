@@ -1,6 +1,8 @@
 package cert
 
 import (
+	"server/app/enum/cert_auto_renew"
+	"server/app/enum/cert_type"
 	"server/app/model"
 	"server/app/util/page"
 	"strconv"
@@ -22,6 +24,15 @@ func (r *Repository) SelectByIds(ids []int64, tx ...*gorm.DB) ([]*model.Cert, er
 		db = tx[0]
 	}
 	err := db.Where("id IN ?", ids).Order("id ASC").Find(&list).Error
+	return list, err
+}
+
+// SelectAutoRenewTask 查询指定时间前到期的自动续签证书，包含已过期证书。
+func (r *Repository) SelectAutoRenewTask(expireTime time.Time) ([]*Cert, error) {
+	list := make([]*Cert, 0)
+	err := r.Database.Db.Model(&model.Cert{}).
+		Where("type = ? AND auto_renew = ? AND expire_time <= ?", cert_type.Auto, cert_auto_renew.Enabled, expireTime.Format("2006-01-02 15:04:05")).
+		Order("expire_time ASC, id ASC").Find(&list).Error
 	return list, err
 }
 

@@ -66,21 +66,22 @@ func Init() {
 	File = serviceFile.NewService(global.App.Cache)
 	Recycle = serviceRecycle.NewService()
 	System = serviceSystem.NewService(File)
-	var err error
-	Site, err = serviceSite.NewService(siteRepository, siteDomainRepository, certRepository, secretRepository, Type, Config, global.App.Database, global.App.Cache)
-	if err != nil {
-		panic(err)
-	}
+	Site, _ = serviceSite.NewService(siteRepository, siteDomainRepository, certRepository, secretRepository, Type, Config, Task, global.App.Database, global.App.Cache)
 }
 
 // Boot 启动服务运行时，并返回统一的清理函数。
 func Boot() func() {
 	System.Start()
+	var stopSite func()
+	if Site != nil {
+		stopSite = Site.Boot()
+	}
 	Task.Start()
-	stopSite := Site.Boot()
 	return func() {
-		stopSite()
 		Task.Close()
+		if stopSite != nil {
+			stopSite()
+		}
 		System.Close()
 	}
 }

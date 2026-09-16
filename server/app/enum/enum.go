@@ -1,6 +1,7 @@
 package enum
 
 import (
+	"server/app/enum/cert_auto_renew"
 	"server/app/enum/cert_type"
 	"server/app/enum/file_format"
 	"server/app/enum/log_type"
@@ -21,7 +22,8 @@ import (
 // Data 枚举信息
 var Data = map[string]interface{}{
 	"cert": map[string]interface{}{
-		"type": cert_type.Map(), //证书类型
+		"type":       cert_type.Map(),       //证书类型
+		"auto_renew": cert_auto_renew.Map(), //自动续签状态
 	},
 	"secret": func() interface{} {
 		return map[string]interface{}{

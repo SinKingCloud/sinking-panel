@@ -196,7 +196,7 @@ func (s *service) updateHTTPLocked(config *HTTPUpdate) error {
 		path   string
 	}{
 		{&effective.DataPath, constant.ServerDataPath},
-		{&effective.ACMEPath, constant.AcmePath},
+		{&effective.ACMEPath, s.acmePath},
 		{&effective.CachePath, constant.ServerCachePath},
 		{&effective.LogPath, constant.ServerLogPath},
 		{&effective.WAFLogPath, constant.ServerWAFLogPath},

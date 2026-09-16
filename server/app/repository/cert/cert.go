@@ -5,6 +5,7 @@ import (
 	"server/app/util/database"
 	"server/app/util/page"
 	"server/app/util/repository"
+	"time"
 
 	"gorm.io/gorm"
 )
@@ -16,6 +17,7 @@ type Interface interface {
 	FindById(id int64, tx ...*gorm.DB) (*model.Cert, error)
 	Select(where *SelectCert, queryPage *page.Query) (*page.Result[*Cert], error)
 	SelectByIds(ids []int64, tx ...*gorm.DB) ([]*model.Cert, error)
+	SelectAutoRenewTask(expireTime time.Time) ([]*Cert, error)
 	ClearSecretId(secretId int64, tx ...*gorm.DB) error
 	UpdateById(id int64, data *UpdateCert, tx ...*gorm.DB) error
 	Restore(data *model.Cert, tx ...*gorm.DB) error

@@ -19,6 +19,7 @@ type Service interface {
 	Remove(ids []int64) error
 	Refresh(id int64) error
 	Add(data *model.Task) error
+	AddFunc(spec string, run func(context.Context)) error
 	Start()
 	Close()
 	FindById(id int64) (*Info, error)

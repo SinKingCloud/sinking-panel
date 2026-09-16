@@ -1,6 +1,7 @@
 package cert
 
 import (
+	"server/app/enum/cert_auto_renew"
 	"server/app/enum/log_type"
 	repositoryCert "server/app/repository/cert"
 	"server/app/service"
@@ -55,7 +56,7 @@ func Update(c *context.Context) {
 	}
 	if form.AutoRenew != "" {
 		autoRenew, err := strconv.Atoi(form.AutoRenew)
-		if err != nil || (autoRenew != 0 && autoRenew != 1) {
+		if _, ok := cert_auto_renew.Map()[autoRenew]; err != nil || !ok {
 			c.Error("自动续签参数错误")
 			return
 		}

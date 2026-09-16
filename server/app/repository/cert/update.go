@@ -1,6 +1,7 @@
 package cert
 
 import (
+	"server/app/enum/cert_auto_renew"
 	"server/app/model"
 	"server/app/util/str"
 	"time"
@@ -73,7 +74,7 @@ func (r *Repository) ClearSecretId(secretId int64, tx ...*gorm.DB) error {
 	}
 	updates := make(map[string]interface{})
 	updates["secret_id"] = int64(0)
-	updates["auto_renew"] = 0
+	updates["auto_renew"] = cert_auto_renew.Disabled
 	updates["update_time"] = str.DateTime(time.Now())
 	execute := func(db *gorm.DB) error {
 		return db.Model(&model.Cert{}).

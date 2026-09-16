@@ -103,6 +103,7 @@ func loadCertRoute(s *sinking_web.Engine) {
 	g.ANY("/delete", context.HandleFunc(cert.Delete)) // 删除证书
 	g.ANY("/obtain", context.HandleFunc(cert.Obtain)) // 申请证书
 	g.ANY("/renew", context.HandleFunc(cert.Renew))   // 续签证书
+	g.ANY("/log", context.HandleFunc(cert.Log))       // 自动续签任务日志
 }
 
 // loadSecretRoute 密钥管理路由。

@@ -18,6 +18,7 @@ import (
 	repositorySite "server/app/repository/site"
 	repositorySiteDomain "server/app/repository/site_domain"
 	serviceConfig "server/app/service/config"
+	serviceTask "server/app/service/task"
 	serviceTypes "server/app/service/types"
 	"server/app/util/cache"
 	"server/app/util/database"
@@ -85,6 +86,8 @@ type Service interface {
 	SelectCert(where *repositoryCert.SelectCert, queryPage *page.Query) (*page.Result[*repositoryCert.Cert], error)
 	ObtainCert(ctx context.Context, name string, request CertificateRequest) (*model.Cert, error)
 	RenewCert(ctx context.Context, id int64, request CertificateRequest) (*model.Cert, error)
+	ReadCertLog(after int64, before int64, pageSize int) (map[string]interface{}, error)
+	ClearCertLog() error
 	ManualCert(ctx context.Context, id int64, name string, request CertificateRequest) (interface{}, error)
 }
 
@@ -96,20 +99,22 @@ type service struct {
 	repositorySecret     repositorySecret.Interface
 	typeService          serviceTypes.Service
 	configService        serviceConfig.Service
+	taskService          serviceTask.Service
 	cache                cache.Interface
 	database             *database.Database
 	http                 *webServer.Manager
 	process              *processManager.Manager
 	processes            []processManager.Config
 	root                 string
+	acmePath             string
 	active               bool
 	operationMu          sync.Mutex
 	logMu                sync.RWMutex
 }
 
 // NewService 创建网站管理服务。
-func NewService(repositorySite repositorySite.Interface, repositorySiteDomain repositorySiteDomain.Interface, repositoryCert repositoryCert.Interface, repositorySecret repositorySecret.Interface, typeService serviceTypes.Service, configService serviceConfig.Service, database *database.Database, cache cache.Interface, options ...Options) (*service, error) {
-	if repositorySite == nil || repositorySiteDomain == nil || repositoryCert == nil || repositorySecret == nil || typeService == nil || configService == nil || database == nil || database.Db == nil || cache == nil {
+func NewService(repositorySite repositorySite.Interface, repositorySiteDomain repositorySiteDomain.Interface, repositoryCert repositoryCert.Interface, repositorySecret repositorySecret.Interface, typeService serviceTypes.Service, configService serviceConfig.Service, taskService serviceTask.Service, database *database.Database, cache cache.Interface, options ...Options) (*service, error) {
+	if repositorySite == nil || repositorySiteDomain == nil || repositoryCert == nil || repositorySecret == nil || typeService == nil || configService == nil || taskService == nil || database == nil || database.Db == nil || cache == nil {
 		return nil, errors.New("网站服务依赖不能为空")
 	}
 	if len(options) > 1 {
@@ -158,9 +163,11 @@ func NewService(repositorySite repositorySite.Interface, repositorySiteDomain re
 		repositorySecret:     repositorySecret,
 		typeService:          typeService,
 		configService:        configService,
+		taskService:          taskService,
 		cache:                cache,
 		database:             database,
 		root:                 filepath.Clean(root),
+		acmePath:             defaultHTTP.ACMEPath,
 		active:               true,
 	}
 	result.process = processManager.NewManager()
@@ -205,5 +212,9 @@ func NewService(repositorySite repositorySite.Interface, repositorySiteDomain re
 		return nil, err
 	}
 	result.http = httpManager
+	// 使用服务器本地时间，每天凌晨三点执行内部续签任务。
+	if err = result.taskService.AddFunc("0 0 3 * * *", result.autoRenewCerts); err != nil {
+		return nil, fmt.Errorf("注册证书自动续签任务失败: %w", err)
+	}
 	return result, nil
 }
