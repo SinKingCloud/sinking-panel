@@ -57,6 +57,20 @@ const useStyles = createStyles(({css, token}) => ({
             font-size: ${token.fontSizeSM}px;
         }
 
+        .site-root-link {
+            padding: 0;
+            border: 0;
+            outline: none;
+            background: transparent;
+            cursor: pointer;
+            text-align: left;
+        }
+
+        .site-root-link:hover,
+        .site-root-link:focus-visible {
+            color: ${token.colorPrimary};
+        }
+
         .site-state {
             display: inline-flex;
             align-items: center;

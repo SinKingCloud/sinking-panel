@@ -159,6 +159,32 @@ const useStyles = createStyles<{compact?: boolean}>(({css, token}, props = {}) =
                 transition: opacity ${token.motionDurationFast};
             }
 
+            .file-preview-nav.ant-btn:disabled {
+                color: ${token.colorTextTertiary};
+                background: linear-gradient(${token.colorBgContainerDisabled}, ${token.colorBgContainerDisabled}), ${token.colorBgContainer};
+            }
+
+            .file-preview-stage:fullscreen :is(.file-preview-nav, .file-preview-fullscreen).ant-btn {
+                color: rgba(255, 255, 255, 0.94);
+                border-color: rgba(255, 255, 255, 0.22);
+                background: rgba(24, 24, 24, 0.48);
+                -webkit-backdrop-filter: blur(12px);
+                backdrop-filter: blur(12px);
+
+                &:not(:disabled):hover,
+                &:not(:disabled):active {
+                    color: #fff;
+                    border-color: rgba(255, 255, 255, 0.36);
+                    background: rgba(24, 24, 24, 0.64);
+                }
+
+                &:disabled {
+                    color: rgba(255, 255, 255, 0.42);
+                    border-color: rgba(255, 255, 255, 0.14);
+                    background: rgba(24, 24, 24, 0.34);
+                }
+            }
+
             .file-preview-stage.file-preview-controls-hidden .file-preview-fullscreen.ant-btn,
             .file-preview-stage.file-preview-controls-hidden .file-preview-nav.ant-btn {
                 opacity: 0;

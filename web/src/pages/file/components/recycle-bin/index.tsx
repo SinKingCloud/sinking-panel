@@ -1,4 +1,4 @@
-import React, {
+import {
     forwardRef,
     memo,
     useCallback,
@@ -249,6 +249,7 @@ const FileRecycleBin = memo(forwardRef<FileRecycleBinRef, FileRecycleBinProps>((
             title: "操作",
             key: "option",
             width: 80,
+            fixed: "right",
             className: "action-cell",
             render: (_: unknown, record: any) => (
                 <RecycleRowActions

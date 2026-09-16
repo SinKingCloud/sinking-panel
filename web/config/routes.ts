@@ -12,6 +12,14 @@ export default [
         component: "@/pages/index",
     },
     {
+        path: "site",
+        title: "网站管理",
+        name: "site",
+        icon: "GlobalOutlined",
+        hideInMenu: false,
+        component: "@/pages/site",
+    },
+    {
         path: "file",
         title: "文件管理",
         name: "file",
