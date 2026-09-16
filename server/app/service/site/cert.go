@@ -219,6 +219,16 @@ func (s *service) SelectCert(where *repositoryCert.SelectCert, queryPage *page.Q
 				return nil, errors.New("证书类型不合法")
 			}
 		}
+		if value.Domain != nil {
+			domain, err := s.normalizeDomain(strings.TrimSpace(*value.Domain))
+			if err != nil {
+				return nil, fmt.Errorf("证书域名无效: %w", err)
+			}
+			value.Domain = &domain
+		}
+		if value.Usable != nil && *value.Usable != 0 && *value.Usable != 1 {
+			return nil, errors.New("可用证书参数错误")
+		}
 		filter = &value
 	}
 	result, err := s.repositoryCert.Select(filter, queryPage)

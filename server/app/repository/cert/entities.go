@@ -7,6 +7,8 @@ type SelectCert struct {
 	Keyword         *string
 	Name            *string
 	Type            *int
+	Domain          *string
+	Usable          *int
 	ExpireTimeStart *string
 	ExpireTimeEnd   *string
 	CreateTimeStart *string

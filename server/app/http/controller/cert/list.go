@@ -15,6 +15,8 @@ func List(c *context.Context) {
 		Keyword         string `json:"keyword" default:"" validate:"omitempty,max=100" label:"关键词"`
 		Name            string `json:"name" default:"" validate:"omitempty,max=100" label:"证书名称"`
 		Type            string `json:"type" default:"" validate:"omitempty,numeric" label:"证书类型"`
+		Domain          string `json:"domain" default:"" validate:"omitempty,max=253" label:"证书域名"`
+		Usable          string `json:"usable" default:"" validate:"omitempty,oneof=0 1" label:"可用证书"`
 		ExpireTimeStart string `json:"expire_time_start" default:"" validate:"omitempty,datetime=2006-01-02 15:04:05" label:"到期起始时间"`
 		ExpireTimeEnd   string `json:"expire_time_end" default:"" validate:"omitempty,datetime=2006-01-02 15:04:05" label:"到期结束时间"`
 		CreateTimeStart string `json:"create_time_start" default:"" validate:"omitempty,datetime=2006-01-02 15:04:05" label:"创建起始时间"`
@@ -38,6 +40,17 @@ func List(c *context.Context) {
 			return
 		}
 		where.Type = &certificateType
+	}
+	if form.Domain != "" {
+		where.Domain = &form.Domain
+	}
+	if form.Usable != "" {
+		usable, err := strconv.Atoi(form.Usable)
+		if err != nil {
+			c.Error("可用证书参数错误")
+			return
+		}
+		where.Usable = &usable
 	}
 	if form.ExpireTimeStart != "" {
 		where.ExpireTimeStart = &form.ExpireTimeStart

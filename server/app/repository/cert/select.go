@@ -1,8 +1,12 @@
 package cert
 
 import (
+	"net"
 	"server/app/model"
 	"server/app/util/page"
+	"strconv"
+	"strings"
+	"time"
 
 	"gorm.io/gorm"
 )
@@ -34,6 +38,20 @@ func (r *Repository) Select(where *SelectCert, queryPage *page.Query) (*page.Res
 		}
 		if where.Type != nil {
 			query = query.Where("type = ?", *where.Type)
+		}
+		if where.Domain != nil {
+			domain := *where.Domain
+			// 连同 JSON 双引号匹配完整域名，避免命中其他域名的子串。
+			if _, suffix, ok := strings.Cut(domain, "."); ok && !strings.HasPrefix(domain, "*.") && net.ParseIP(domain) == nil {
+				query = query.Where("domains LIKE ? OR domains LIKE ?", "%"+strconv.Quote(domain)+"%", "%"+strconv.Quote("*."+suffix)+"%")
+			} else {
+				query = query.Where("domains LIKE ?", "%"+strconv.Quote(domain)+"%")
+			}
+		}
+		if where.Usable != nil && *where.Usable == 1 {
+			// X.509 有效期以 UTC 写入数据库。
+			now := time.Now().UTC().Format("2006-01-02 15:04:05")
+			query = query.Where("start_time <= ? AND expire_time > ?", now, now)
 		}
 		if where.ExpireTimeStart != nil {
 			query = query.Where("expire_time >= ?", *where.ExpireTimeStart)
