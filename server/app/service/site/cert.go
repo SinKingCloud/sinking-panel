@@ -1080,8 +1080,8 @@ func (s *service) prepareCertificate(data *model.Cert, allowExpired bool) error 
 	data.Certificate = certificate + "\n"
 	data.PrivateKey = privateKey + "\n"
 	data.Domains = string(encodedDomains)
-	data.StartTime = str.DateTime(leaf.NotBefore)
-	data.ExpireTime = str.DateTime(leaf.NotAfter)
+	data.StartTime = str.DateTime(leaf.NotBefore.Local())
+	data.ExpireTime = str.DateTime(leaf.NotAfter.Local())
 	return nil
 }
 

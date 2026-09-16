@@ -1,13 +1,13 @@
 package cert
 
 import (
-	"net"
 	"server/app/model"
 	"server/app/util/page"
 	"strconv"
 	"strings"
 	"time"
 
+	"golang.org/x/net/publicsuffix"
 	"gorm.io/gorm"
 )
 
@@ -42,15 +42,19 @@ func (r *Repository) Select(where *SelectCert, queryPage *page.Query) (*page.Res
 		if where.Domain != nil {
 			domain := *where.Domain
 			// 连同 JSON 双引号匹配完整域名，避免命中其他域名的子串。
-			if _, suffix, ok := strings.Cut(domain, "."); ok && !strings.HasPrefix(domain, "*.") && net.ParseIP(domain) == nil {
-				query = query.Where("domains LIKE ? OR domains LIKE ?", "%"+strconv.Quote(domain)+"%", "%"+strconv.Quote("*."+suffix)+"%")
+			pattern := "%" + strconv.Quote(domain) + "%"
+			rootDomain, err := publicsuffix.EffectiveTLDPlusOne(domain)
+			if err == nil && domain != rootDomain && !strings.HasPrefix(domain, "*.") {
+				// 仅注册域名下的子域名匹配泛域名，且只替换最左侧一级。
+				_, parentDomain, _ := strings.Cut(domain, ".")
+				query = query.Where("domains LIKE ? OR domains LIKE ?", pattern, "%"+strconv.Quote("*."+parentDomain)+"%")
 			} else {
-				query = query.Where("domains LIKE ?", "%"+strconv.Quote(domain)+"%")
+				query = query.Where("domains LIKE ?", pattern)
 			}
 		}
 		if where.Usable != nil && *where.Usable == 1 {
-			// X.509 有效期以 UTC 写入数据库。
-			now := time.Now().UTC().Format("2006-01-02 15:04:05")
+			// 与证书有效期写入时使用的服务器本地时间保持一致。
+			now := time.Now().Format("2006-01-02 15:04:05")
 			query = query.Where("start_time <= ? AND expire_time > ?", now, now)
 		}
 		if where.ExpireTimeStart != nil {
