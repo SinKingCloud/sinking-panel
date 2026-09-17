@@ -12,6 +12,7 @@ import (
 	"sync"
 
 	"server/app/constant"
+	"server/app/enum/task_status"
 	"server/app/model"
 	repositoryCert "server/app/repository/cert"
 	repositorySecret "server/app/repository/secret"
@@ -213,7 +214,12 @@ func NewService(repositorySite repositorySite.Interface, repositorySiteDomain re
 	}
 	result.http = httpManager
 	// 使用服务器本地时间，每天凌晨三点执行内部续签任务。
-	if err = result.taskService.AddFunc("0 0 3 * * *", result.autoRenewCerts); err != nil {
+	if err = result.taskService.Add(&model.Task{
+		Id:     constant.TaskCertAutoRenew,
+		Name:   "证书自动续签",
+		Spec:   "0 0 3 * * *",
+		Status: task_status.Running,
+	}, result.autoRenewCerts); err != nil {
 		return nil, fmt.Errorf("注册证书自动续签任务失败: %w", err)
 	}
 	return result, nil

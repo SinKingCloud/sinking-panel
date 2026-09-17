@@ -153,15 +153,20 @@ func (s *service) Stop(id int64) error {
 	s.taskLock.Lock()
 	defer s.taskLock.Unlock()
 
-	task, err := s.repositoryTask.FindById(id)
+	task, err := s.findById(id)
 	if err != nil {
 		return err
 	}
-	if err = s.repositoryTask.UpdateStateById(id, 0, task_status.Stop); err != nil {
+	entryID := task.EntryID
+	if id < 0 {
+		task.EntryID = 0
+		task.Status = task_status.Stop
+		task.UpdateTime = str.DateTime(time.Now())
+	} else if err = s.repositoryTask.UpdateStateById(id, 0, task_status.Stop); err != nil {
 		return err
 	}
-	if task.EntryID > 0 {
-		s.instance.Remove(cron.EntryID(task.EntryID))
+	if entryID > 0 {
+		s.instance.Remove(cron.EntryID(entryID))
 	}
 	return nil
 }
@@ -174,11 +179,14 @@ func (s *service) Restore(id int64) error {
 		return errors.New("计划任务服务已关闭")
 	}
 
-	task, err := s.repositoryTask.FindById(id)
+	task, err := s.findById(id)
 	if err != nil {
 		return err
 	}
-	j := newJob(task, s)
+	j := s.internalTasks[id]
+	if j == nil {
+		j = newJob(task, s)
+	}
 	if j == nil {
 		return errors.New("任务实例化失败")
 	}
@@ -189,12 +197,17 @@ func (s *service) Restore(id int64) error {
 	if entryID <= 0 {
 		return errors.New("任务实例化失败")
 	}
-	if err = s.repositoryTask.UpdateStateById(id, int(entryID), task_status.Running); err != nil {
+	oldEntryID := cron.EntryID(task.EntryID)
+	if id < 0 {
+		task.EntryID = int(entryID)
+		task.Status = task_status.Running
+		task.UpdateTime = str.DateTime(time.Now())
+	} else if err = s.repositoryTask.UpdateStateById(id, int(entryID), task_status.Running); err != nil {
 		s.instance.Remove(entryID)
 		return err
 	}
-	if task.EntryID > 0 && cron.EntryID(task.EntryID) != entryID {
-		s.instance.Remove(cron.EntryID(task.EntryID))
+	if oldEntryID > 0 && oldEntryID != entryID {
+		s.instance.Remove(oldEntryID)
 	}
 	return nil
 }
@@ -206,12 +219,15 @@ func (s *service) Run(id int64) error {
 		s.taskLock.Unlock()
 		return errors.New("计划任务服务已关闭")
 	}
-	task, err := s.repositoryTask.FindById(id)
+	task, err := s.findById(id)
 	if err != nil {
 		s.taskLock.Unlock()
 		return err
 	}
-	j := newJob(task, s)
+	j := s.internalTasks[id]
+	if j == nil {
+		j = newJob(task, s)
+	}
 	if j == nil {
 		s.taskLock.Unlock()
 		return errors.New("任务实例化失败")
@@ -220,7 +236,7 @@ func (s *service) Run(id int64) error {
 	s.taskLock.Unlock()
 	go func() {
 		defer s.runWait.Done()
-		j.Run()
+		cron.Recover(cron.DiscardLogger)(j).Run()
 	}()
 	return nil
 }
@@ -234,19 +250,26 @@ func (s *service) Remove(ids []int64) error {
 		return errors.New("删除任务不能为空")
 	}
 	tasks := make([]*model.Task, 0, len(ids))
+	storedIds := make([]int64, 0, len(ids))
 	for _, id := range ids {
-		task, err := s.repositoryTask.FindById(id)
+		task, err := s.findById(id)
 		if err != nil {
 			return err
 		}
 		tasks = append(tasks, task)
+		if id >= 0 {
+			storedIds = append(storedIds, id)
+		}
 	}
 	s.logLock.Lock()
 	defer s.logLock.Unlock()
-	if err := s.repositoryTask.DeleteByIds(ids); err != nil {
-		return err
+	if len(storedIds) > 0 {
+		if err := s.repositoryTask.DeleteByIds(storedIds); err != nil {
+			return err
+		}
 	}
 	for _, task := range tasks {
+		delete(s.internalTasks, task.Id)
 		if task.EntryID > 0 {
 			s.instance.Remove(cron.EntryID(task.EntryID))
 		}
@@ -262,21 +285,26 @@ func (s *service) refresh(id int64) error {
 	if s.closed {
 		return errors.New("计划任务服务已关闭")
 	}
-	task, err := s.repositoryTask.FindById(id)
+	task, err := s.findById(id)
 	if err != nil {
 		return err
 	}
 	oldEntryID := cron.EntryID(task.EntryID)
 	if task.Status != task_status.Running {
 		if oldEntryID > 0 {
-			if err = s.repositoryTask.UpdateEntryIDById(id, 0); err != nil {
+			if id < 0 {
+				task.EntryID = 0
+			} else if err = s.repositoryTask.UpdateEntryIDById(id, 0); err != nil {
 				return err
 			}
 			s.instance.Remove(oldEntryID)
 		}
 		return nil
 	}
-	j := newJob(task, s)
+	j := s.internalTasks[id]
+	if j == nil {
+		j = newJob(task, s)
+	}
 	if j == nil {
 		return errors.New("任务实例化失败")
 	}
@@ -287,7 +315,9 @@ func (s *service) refresh(id int64) error {
 	if entryID <= 0 {
 		return errors.New("任务实例化失败")
 	}
-	if err = s.repositoryTask.UpdateEntryIDById(id, int(entryID)); err != nil {
+	if id < 0 {
+		task.EntryID = int(entryID)
+	} else if err = s.repositoryTask.UpdateEntryIDById(id, int(entryID)); err != nil {
 		s.instance.Remove(entryID)
 		return err
 	}
@@ -304,8 +334,8 @@ func (s *service) Refresh(id int64) error {
 	return s.refresh(id)
 }
 
-// Add 添加任务
-func (s *service) Add(data *model.Task) error {
+// Add 添加任务。传入执行方法时使用固定负数 ID 注册内部任务，只保存在内存中。
+func (s *service) Add(data *model.Task, run ...func(context.Context)) error {
 	s.taskLock.Lock()
 	defer s.taskLock.Unlock()
 	if s.closed {
@@ -315,11 +345,27 @@ func (s *service) Add(data *model.Task) error {
 	if data == nil {
 		return errors.New("任务数据不能为空")
 	}
+	if len(run) > 1 || (len(run) == 1 && run[0] == nil) {
+		return errors.New("任务执行方法不合法")
+	}
+	internal := len(run) == 1
+	if internal {
+		if data.Id >= 0 {
+			return errors.New("内部任务必须使用固定负数ID")
+		}
+		if s.internalTasks[data.Id] != nil {
+			return errors.New("内部任务ID已存在")
+		}
+	} else if data.Id < 0 {
+		return errors.New("内部任务必须提供执行方法")
+	}
 	if err := s.validateTypeId(data.TypeId); err != nil {
 		return err
 	}
-	if _, ok := task_exec_type.Map()[data.ExecType]; !ok {
-		return errors.New("任务执行类型不合法")
+	if !internal {
+		if _, ok := task_exec_type.Map()[data.ExecType]; !ok {
+			return errors.New("任务执行类型不合法")
+		}
 	}
 	if _, ok := task_status.Map()[data.Status]; !ok {
 		return errors.New("任务状态不合法")
@@ -329,6 +375,42 @@ func (s *service) Add(data *model.Task) error {
 	}
 	if !s.validateCron(data.Spec) {
 		return errors.New("任务表达式不合法")
+	}
+	if internal {
+		task := *data
+		task.EntryID = 0
+		task.CreateTime = str.DateTime(time.Now())
+		task.UpdateTime = task.CreateTime
+		id := task.Id
+		j := &job{Task: &task, service: s, ctx: s.ctx}
+		// 复用同一执行包装，改周期、暂停恢复和手动执行都不会重叠运行。
+		j.run = cron.NewChain(
+			cron.SkipIfStillRunning(cron.DiscardLogger),
+			cron.Recover(cron.DiscardLogger),
+		).Then(cron.FuncJob(func() {
+			s.taskLock.Lock()
+			active := !s.closed && s.internalTasks[id] == j
+			s.taskLock.Unlock()
+			if !active || s.ctx.Err() != nil {
+				return
+			}
+			defer func() {
+				s.taskLock.Lock()
+				defer s.taskLock.Unlock()
+				j.RunTime = str.DateTime(time.Now())
+			}()
+			run[0](s.ctx)
+		}))
+		if task.Status == task_status.Running {
+			entryID, err := s.instance.AddJob(task.Spec, j)
+			if err != nil {
+				return err
+			}
+			task.EntryID = int(entryID)
+		}
+		s.internalTasks[id] = j
+		*data = task
+		return nil
 	}
 	content, err := s.checkContent(data.Script, data.ExecType)
 	if err != nil {
@@ -353,27 +435,6 @@ func (s *service) Add(data *model.Task) error {
 	if err != nil {
 		s.instance.Remove(id)
 	}
-	return err
-}
-
-// AddFunc 注册内部任务，只加入调度器，不写入任务表。
-func (s *service) AddFunc(spec string, run func(context.Context)) error {
-	s.taskLock.Lock()
-	defer s.taskLock.Unlock()
-	if s.closed {
-		return errors.New("计划任务服务已关闭")
-	}
-	if run == nil {
-		return errors.New("任务执行方法不能为空")
-	}
-	_, err := s.instance.AddJob(spec, cron.NewChain(
-		cron.SkipIfStillRunning(cron.DiscardLogger),
-		cron.Recover(cron.DiscardLogger),
-	).Then(cron.FuncJob(func() {
-		if s.ctx.Err() == nil {
-			run(s.ctx)
-		}
-	})))
 	return err
 }
 
@@ -455,6 +516,13 @@ func (s *service) ClearLog(id int64) error {
 
 // WriteLog 写入日志
 func (s *service) WriteLog(id int64, content string) error {
+	if id < 0 {
+		s.taskLock.Lock()
+		defer s.taskLock.Unlock()
+		if s.internalTasks[id] == nil {
+			return nil
+		}
+	}
 	s.logLock.Lock()
 	defer s.logLock.Unlock()
 
@@ -465,7 +533,7 @@ func (s *service) WriteLog(id int64, content string) error {
 	}
 
 	fileName := s.getTaskLogFilePath(id)
-	if _, err := os.Stat(fileName); os.IsNotExist(err) {
+	if _, err := os.Stat(fileName); id >= 0 && os.IsNotExist(err) {
 		if _, findErr := s.repositoryTask.FindById(id); findErr != nil {
 			return nil
 		}

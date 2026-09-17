@@ -5,10 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"os"
+	"server/app/constant"
 	"server/app/enum/cert_auto_renew"
 	"server/app/enum/cert_type"
-	fileLog "server/app/util/log"
 	webServer "server/app/util/server"
 	"strings"
 	"time"
@@ -20,19 +19,7 @@ func (s *service) autoRenewCerts(ctx context.Context) {
 		return
 	}
 	writeLog := func(format string, args ...interface{}) {
-		s.logMu.Lock()
-		defer s.logMu.Unlock()
-		if err := os.MkdirAll(s.acmePath, 0700); err != nil {
-			log.Printf("创建证书续签日志目录失败: %v", err)
-			return
-		}
-		file, err := os.OpenFile(s.acmePath+"/auto_renew.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
-		if err != nil {
-			log.Printf("打开证书续签日志失败: %v", err)
-			return
-		}
-		defer file.Close()
-		if _, err = fmt.Fprintf(file, "[%s] %s\n", time.Now().Format("2006-01-02 15:04:05"), fmt.Sprintf(format, args...)); err != nil {
+		if err := s.taskService.WriteLog(constant.TaskCertAutoRenew, fmt.Sprintf(format, args...)); err != nil {
 			log.Printf("写入证书续签日志失败: %v", err)
 		}
 	}
@@ -92,17 +79,10 @@ func (s *service) autoRenewCerts(ctx context.Context) {
 
 // ReadCertLog 读取内部证书续签任务日志。
 func (s *service) ReadCertLog(after int64, before int64, pageSize int) (map[string]interface{}, error) {
-	s.logMu.RLock()
-	defer s.logMu.RUnlock()
-	return fileLog.Read(s.acmePath+"/auto_renew.log", after, before, pageSize)
+	return s.taskService.ReadLog(constant.TaskCertAutoRenew, after, before, pageSize)
 }
 
 // ClearCertLog 清空内部证书续签任务日志。
 func (s *service) ClearCertLog() error {
-	s.logMu.Lock()
-	defer s.logMu.Unlock()
-	if err := os.MkdirAll(s.acmePath, 0700); err != nil {
-		return err
-	}
-	return fileLog.Clear(s.acmePath + "/auto_renew.log")
+	return s.taskService.ClearLog(constant.TaskCertAutoRenew)
 }

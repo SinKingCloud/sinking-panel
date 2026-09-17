@@ -4,8 +4,11 @@ import (
 	"errors"
 	"server/app/enum/task_exec_type"
 	"server/app/enum/task_status"
+	"server/app/model"
 	repositoryTask "server/app/repository/task"
+	"server/app/util/str"
 	"strings"
+	"time"
 )
 
 // UpdateByIds 通过ID列表更新
@@ -48,10 +51,40 @@ func (s *service) UpdateByIds(ids []int64, data *repositoryTask.UpdateTask) (err
 	if s.closed {
 		return errors.New("计划任务服务已关闭")
 	}
+	storedIds := make([]int64, 0, len(ids))
+	internalTasks := make(map[int64]model.Task)
+	for _, id := range ids {
+		if id >= 0 {
+			storedIds = append(storedIds, id)
+			continue
+		}
+		task, findErr := s.findById(id)
+		if findErr != nil {
+			return findErr
+		}
+		if data.ExecType != nil || data.Script != nil {
+			return errors.New("内部任务通过注册的执行方法运行，不能修改执行类型或内容")
+		}
+		value := *task
+		if data.TypeId != nil {
+			value.TypeId = *data.TypeId
+		}
+		if data.Name != nil {
+			value.Name = *data.Name
+		}
+		if data.Spec != nil {
+			value.Spec = *data.Spec
+		}
+		if data.Status != nil {
+			value.Status = *data.Status
+		}
+		value.UpdateTime = str.DateTime(time.Now())
+		internalTasks[id] = value
+	}
 	var normalizedContent string
 	contentType := -1
 	if data.ExecType != nil || data.Script != nil {
-		for _, id := range ids {
+		for _, id := range storedIds {
 			task, findErr := s.repositoryTask.FindById(id)
 			if findErr != nil {
 				return findErr
@@ -85,12 +118,17 @@ func (s *service) UpdateByIds(ids []int64, data *repositoryTask.UpdateTask) (err
 	if data.Script != nil {
 		data.Script = &normalizedContent
 	}
-	err = s.repositoryTask.UpdateByIds(ids, data)
-	if err == nil {
-		for _, v := range ids {
-			if refreshErr := s.refresh(v); refreshErr != nil && err == nil {
-				err = refreshErr
-			}
+	if len(storedIds) > 0 {
+		if err = s.repositoryTask.UpdateByIds(storedIds, data); err != nil {
+			return err
+		}
+	}
+	for id, task := range internalTasks {
+		*s.internalTasks[id].Task = task
+	}
+	for _, id := range ids {
+		if refreshErr := s.refresh(id); refreshErr != nil && err == nil {
+			err = refreshErr
 		}
 	}
 	return

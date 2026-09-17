@@ -13,12 +13,15 @@ import (
 	"server/app/util/cmd"
 	"strings"
 	"time"
+
+	"github.com/robfig/cron/v3"
 )
 
 type job struct {
 	*model.Task
 	service *service
 	ctx     context.Context
+	run     cron.Job
 }
 
 func newJob(task *model.Task, service *service) *job {
@@ -34,6 +37,10 @@ func newJob(task *model.Task, service *service) *job {
 }
 
 func (j *job) Run() {
+	if j.run != nil {
+		j.run.Run()
+		return
+	}
 	defer func() {
 		_ = j.service.repositoryTask.UpdateRuntimeById(j.Id, time.Now())
 	}()

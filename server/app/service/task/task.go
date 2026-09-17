@@ -18,8 +18,7 @@ type Service interface {
 	Run(id int64) error
 	Remove(ids []int64) error
 	Refresh(id int64) error
-	Add(data *model.Task) error
-	AddFunc(spec string, run func(context.Context)) error
+	Add(data *model.Task, run ...func(context.Context)) error
 	Start()
 	Close()
 	FindById(id int64) (*Info, error)
@@ -35,6 +34,7 @@ type service struct {
 	repositoryTask repositoryTask.Interface
 	typeService    serviceTypes.Service
 	instance       *cron.Cron
+	internalTasks  map[int64]*job
 	ctx            context.Context
 	cancel         context.CancelFunc
 	startOnce      sync.Once
@@ -51,6 +51,7 @@ func NewService(repositoryTask repositoryTask.Interface, typeService serviceType
 	return &service{
 		repositoryTask: repositoryTask,
 		typeService:    typeService,
+		internalTasks:  make(map[int64]*job),
 		ctx:            ctx,
 		cancel:         cancel,
 		instance: cron.New(

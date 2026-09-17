@@ -11,7 +11,7 @@ import (
 // Update 修改信息
 func Update(c *context.Context) {
 	var form struct {
-		Ids      []int64 `json:"ids" default:"" validate:"required,min=1,max=1000,unique" label:"ID列表"`
+		Ids      []int64 `json:"ids" default:"" validate:"required,min=1,max=1000,unique,dive,min=1" label:"ID列表"`
 		TypeId   string  `json:"type_id" default:"" validate:"omitempty,numeric" label:"任务分类ID"`
 		ExecType string  `json:"exec_type" default:"" validate:"omitempty,numeric" label:"任务执行类型"`
 		Name     string  `json:"name" default:"" validate:"omitempty" label:"任务名称"`
