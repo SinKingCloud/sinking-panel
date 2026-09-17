@@ -276,6 +276,14 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
                 padding: 0;
             }
 
+            .ant-btn .anticon {
+                font-size: ${compact ? 12 : 13}px;
+            }
+
+            .ant-btn:not(:disabled) .anticon {
+                color: ${token.colorTextTertiary};
+            }
+
             @container terminal-workspace (max-width: 760px) {
                 min-height: ${compact ? 46 : 50}px;
                 padding: 8px;

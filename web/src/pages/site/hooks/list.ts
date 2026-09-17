@@ -38,10 +38,12 @@ const useList = () => {
     const [sites, setSites] = useState<any[]>([]);
     const [total, setTotal] = useState(0);
     const [keyword, setKeyword] = useState("");
+    const [searchField, setSearchField] = useState("keyword");
     const [query, setQuery] = useState({
         page: 1,
         pageSize: 10,
         keyword: "",
+        field: "keyword",
         typeId: "0",
         type: "",
         status: "",
@@ -66,7 +68,7 @@ const useList = () => {
                 page_size: pageSize,
                 order_by_field: sort,
                 order_by_type: order,
-                keyword: query.keyword,
+                ...(query.keyword ? {[query.field]: query.keyword} : {}),
                 type_id: typeId,
                 type,
                 status,
@@ -107,24 +109,17 @@ const useList = () => {
         return () => {
             active = false;
         };
-    }, [message, order, page, pageSize, query.keyword, reloadKey, sort, status, type, typeId]);
+    }, [message, order, page, pageSize, query.field, query.keyword, reloadKey, sort, status, type, typeId]);
 
     const reload = useCallback(() => {
         requestRef.current += 1;
         setReloadKey((value) => value + 1);
     }, []);
 
-    const changeKeyword = useCallback((value: string) => {
+    const search = useCallback((value: string, field = searchField) => {
         setKeyword(value);
-        if (!value) {
-            setQuery((current) => ({...current, page: 1, keyword: ""}));
-        }
-    }, []);
-
-    const search = useCallback((value: string) => {
-        setKeyword(value);
-        setQuery((current) => ({...current, page: 1, keyword: value.trim()}));
-    }, []);
+        setQuery((current) => ({...current, page: 1, keyword: value.trim(), field}));
+    }, [searchField]);
 
     const changeType = useCallback((value: string) => {
         setQuery((current) => ({...current, page: 1, type: value}));
@@ -238,6 +233,7 @@ const useList = () => {
         page,
         pageSize,
         keyword,
+        searchField,
         typeId,
         type,
         status,
@@ -247,7 +243,8 @@ const useList = () => {
         initialized,
         operating,
         reload,
-        changeKeyword,
+        changeKeyword: setKeyword,
+        changeSearchField: setSearchField,
         search,
         changeTypeId,
         changeType,

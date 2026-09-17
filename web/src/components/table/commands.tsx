@@ -17,7 +17,7 @@ const datePresets = [
 
 const datePopupAlign = {overflow: {adjustX: true, adjustY: true, shiftX: true}};
 
-export const TableDateFilter = ({value, onChange, ariaLabel = "时间筛选", disabled, presets = datePresets}: TableDateFilterProps) => {
+export const TableDateFilter = ({value, onChange, ariaLabel = "时间筛选", tooltip, disabled, presets = datePresets}: TableDateFilterProps) => {
     const {styles} = useTableStyles();
     const [open, setOpen] = useState(false);
     const today = dayjs();
@@ -36,7 +36,7 @@ export const TableDateFilter = ({value, onChange, ariaLabel = "时间筛选", di
                 disabled={disabled}
                 icon="CalendarOutlined"
                 ariaLabel={`${ariaLabel}：${title}`}
-                title={title}
+                tooltip={tooltip}
                 onChange={(next) => {
                     if (next === "custom") {
                         setOpen(true);
@@ -75,10 +75,9 @@ const TableIconCommand = ({item}: {item: Omit<Extract<TableToolbarItem, {type: "
     const button = <Button {...props} type="text" aria-label={ariaLabel}
         className={`${styles.toolbarIconButton} ${props.className || ""}`}
         icon={<Icon type={icon}/>}>{suffixIcon && <Icon type={suffixIcon}/>}</Button>;
-    return <Tooltip title={tooltip || ariaLabel}>
-        {menu ? <Dropdown trigger={["click"]} placement={placement}
-            classNames={{root: `${styles.toolbarDropdown} ${menuClassName}`}} menu={menu}>{button}</Dropdown> : button}
-    </Tooltip>;
+    const control = menu ? <Dropdown trigger={["click"]} placement={placement}
+        classNames={{root: `${styles.toolbarDropdown} ${menuClassName}`}} menu={menu}>{button}</Dropdown> : button;
+    return tooltip ? <Tooltip title={tooltip}>{control}</Tooltip> : control;
 };
 
 export const TableCommand = ({item}: {item: TableToolbarItem}) => {
@@ -98,7 +97,9 @@ export const TableCommand = ({item}: {item: TableToolbarItem}) => {
             return <TableDateFilter {...props}/>;
         }
         case "icon": return <TableIconCommand item={command}/>;
-        case "custom": return <>{command.render}</>;
+        case "custom": return command.tooltip
+            ? <Tooltip title={command.tooltip}><span className="table-custom-action">{command.render}</span></Tooltip>
+            : <>{command.render}</>;
     }
 };
 
@@ -117,7 +118,7 @@ export const TableSelectionAction = ({count, items, onClear, clearDisabled}: {
         if (item.type !== "button") return {key: item.key, label: <TableCommand item={item}/>};
         return {
             key: item.key,
-            label: item.label,
+            label: item.tooltip ? <Tooltip title={item.tooltip}><span>{item.label}</span></Tooltip> : item.label,
             icon: item.icon ? <Icon type={item.icon}/> : undefined,
             danger: item.danger,
             disabled: item.disabled || Boolean(item.loading),

@@ -1,5 +1,5 @@
 import {forwardRef, memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState} from "react";
-import {App, Button, Empty, Tooltip} from "antd";
+import {App, Button, Empty, Grid, Tooltip} from "antd";
 import {createStyles} from "antd-style";
 import {Title, useTheme} from "sinking-antd";
 import ModalTable from "@/components/modal-table";
@@ -56,6 +56,7 @@ const SecretManager = forwardRef<SecretManagerRef, SecretManagerProps>(({zIndex 
     const {message, modal} = App.useApp();
     const theme = useTheme();
     const compact = Boolean(theme?.isCompactTheme?.());
+    const screens = Grid.useBreakpoint();
     const {styles} = useStyles();
     const tableRef = useRef<ModalTableRef<SecretRecord> | null>(null);
     const formRef = useRef<SecretFormRef | null>(null);
@@ -147,11 +148,11 @@ const SecretManager = forwardRef<SecretManagerRef, SecretManagerProps>(({zIndex 
         };
     }, []);
 
-    const request = useCallback(async ({page, pageSize, keyword, provider}: TableRequestParams) => {
+    const request = useCallback(async ({current, pageSize, keyword, provider}: TableRequestParams) => {
         const response = await getSecretList({body: {
-            page,
+            page: current,
             page_size: pageSize,
-            keyword: keyword.trim(),
+            keyword: typeof keyword === "string" ? keyword.trim() : "",
             provider,
             order_by_field: "id",
             order_by_type: "desc",
@@ -166,7 +167,7 @@ const SecretManager = forwardRef<SecretManagerRef, SecretManagerProps>(({zIndex 
             create_time: item.create_time,
             update_time: item.update_time,
         }));
-        return {data, total: Number(response.data.total || 0)};
+        return {data, total: Number(response.data.total || 0), success: true};
     }, []);
 
     const changed = useCallback((change: SecretChange) => {
@@ -316,7 +317,11 @@ const SecretManager = forwardRef<SecretManagerRef, SecretManagerProps>(({zIndex 
                 ],
             }}
             pagination={{unit: "条"}}
-            modalProps={{zIndex, destroyOnHidden: true}}/>
+            modalProps={{
+                zIndex,
+                destroyOnHidden: true,
+                style: {top: screens.md ? 100 : 24, paddingBottom: screens.md ? 100 : 24, maxWidth: "calc(100vw - 24px)"},
+            }}/>
         <SecretForm ref={formRef} zIndex={zIndex + 20} onSuccess={changed}/>
     </>;
 });

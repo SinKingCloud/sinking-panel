@@ -10,8 +10,7 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
     return {
         page: css`
             width: 100%;
-            max-width: 1450px;
-            margin: 0 auto;
+            min-width: 0;
         `,
         workspace: css`
             container-name: data-table-workspace;
@@ -230,6 +229,7 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
             &.without-search .command-actions > .ant-tooltip-open:last-child,
             &.without-search .command-actions > .ant-btn:last-child { margin-left: auto; }
             .table-selection-action { flex: none; }
+            .table-custom-action { display: inline-flex; align-items: center; }
 
             .command-content {
                 min-width: 0;
@@ -279,7 +279,7 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
                 grid-template-columns: minmax(0, 1fr);
                 gap: 6px;
 
-                > .ant-input-affix-wrapper {
+                > .ui-table-search {
                     width: 100%;
                     max-width: none;
                 }
@@ -343,6 +343,61 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
                 max-width: none;
                 flex: none;
             }
+        `,
+        searchGroup: css`
+            display: flex;
+            align-items: center;
+            height: ${compact ? 30 : 34}px;
+            border: 1px solid transparent;
+            border-radius: ${token.borderRadiusSM}px;
+            background: ${token.colorFillTertiary};
+            transition: background-color .16s ease, border-color .16s ease;
+
+            &:hover { background: ${token.colorFillSecondary}; }
+            &:focus-within {
+                border-color: ${token.colorPrimary};
+                background: ${token.colorBgContainer};
+            }
+
+            .search-field.ant-select {
+                flex: 0 0 auto;
+                align-items: center;
+                width: max-content;
+                min-width: ${compact ? 54 : 60}px;
+                max-width: calc(100% - ${compact ? 80 : 96}px);
+                height: 100%;
+                padding-block: 0;
+                padding-inline: ${compact ? 9 : 12}px 6px;
+                font-size: ${compact ? 11 : 12}px;
+                color: ${token.colorTextSecondary};
+            }
+
+            .search-field-label {
+                display: block;
+                min-width: 0;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+                font-size: inherit;
+            }
+            .search-field .ant-select-suffix {
+                color: ${token.colorTextQuaternary};
+                font-size: ${compact ? 9 : 10}px;
+            }
+
+            .search-input {
+                flex: 1;
+                width: 0;
+                min-width: 0;
+                height: calc(100% - 10px);
+                padding: 0 ${compact ? 9 : 12}px;
+                border: 0;
+                border-left: 1px solid ${token.colorBorderSecondary};
+                border-radius: 0;
+                box-shadow: none;
+            }
+
+            .search-input .ant-input-suffix { margin-inline-start: 4px; }
         `,
         toolbarTrigger: css`
             display: inline-flex;

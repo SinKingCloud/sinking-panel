@@ -1,61 +1,225 @@
-import React, {useRef} from "react";
-import {Body} from "sinking-antd";
-import Table from "@/components/table";
+import React, {useEffect, useMemo, useRef, useState} from "react";
+import {App, Form, InputNumber, Tooltip, Typography} from "antd";
+import {Body, ProModal, ProModalRef, Title} from "sinking-antd";
+import Table, {TableProps, TableRef} from "@/components/table";
+import {getLog} from "@/service/api/system";
 import useEnum from "@/utils/enum";
-import useLogHeader from "./components/header";
-import Clear, {ClearRef} from "./components/clear";
-import useLogTable from "./components/table";
-import useList from "./hooks/list";
+import {getParams} from "@/utils/page";
 import useStyles from "./styles";
 
 const emptyEnum = {};
 
+interface LogRecord {
+    id: number;
+    ip: string;
+    location: string;
+    type: number;
+    title: string;
+    content: string;
+    create_time: string;
+}
+
 export default (): React.ReactNode => {
     const {styles} = useStyles();
-    const [enumData, enumLoading] = useEnum("log");
-    const clearRef = useRef<ClearRef | null>(null);
-    const list = useList();
-    const typeData = enumData?.type || emptyEnum;
+    const {message} = App.useApp();
+    const [enumData, enumLoading]: any = useEnum("log");
+    const tableRef = useRef<TableRef<LogRecord> | null>(null);
+    const clearRef = useRef<ProModalRef | null>(null);
+    const requestRef = useRef(0);
+    const submittingRef = useRef(false);
+    const [form] = Form.useForm<{ day: number }>();
+    const [submitting, setSubmitting] = useState(false);
+    const typeData: Record<string, string> = enumData?.type || emptyEnum;
 
-    const header = useLogHeader({
-        keyword: list.keyword,
-        type: list.type,
-        dateRange: list.dateRange,
-        typeData,
-        refreshing: list.loading,
-        onKeywordChange: list.changeKeyword,
-        onSearch: list.search,
-        onTypeChange: list.changeType,
-        onDateRangeChange: list.changeDateRange,
-        onRefresh: list.reload,
-        onClear: () => clearRef.current?.open(),
-    });
-    const table = useLogTable({
-        className: styles.logTable,
-        logs: list.logs,
-        loading: list.loading,
-        typeData,
-        sort: list.sort,
-        order: list.order,
-        onSortChange: list.changeSort,
-    });
+    useEffect(() => () => {
+        requestRef.current += 1;
+    }, []);
+
+    const columns = useMemo<TableProps<LogRecord>["columns"]>(() => [
+        {
+            title: "操作IP",
+            dataIndex: "ip",
+            key: "ip",
+            width: 150,
+            render: (value: string) => (
+                <Typography.Text className="log-copy" copyable={value ? {text: value} : false}>
+                    {value || "-"}
+                </Typography.Text>
+            ),
+        },
+        {
+            title: "IP归属地",
+            dataIndex: "location",
+            key: "location",
+            width: 220,
+            render: (value: string) => (
+                <Typography.Text className="log-copy" copyable={value ? {text: value} : false}>
+                    {value || "-"}
+                </Typography.Text>
+            ),
+        },
+        {
+            title: "操作类型",
+            dataIndex: "type",
+            key: "type",
+            width: 100,
+            render: (value: number) => (
+                <span className={`log-type is-${value}`}>
+                    <i/>
+                    {typeData[String(value)] || "未知类型"}
+                </span>
+            ),
+        },
+        {
+            title: "操作标题",
+            dataIndex: "title",
+            key: "title",
+            width: 150,
+            render: (value: string) => (
+                <Tooltip title={value || "-"}><span className="log-text">{value || "-"}</span></Tooltip>
+            ),
+        },
+        {
+            title: "操作内容",
+            dataIndex: "content",
+            key: "content",
+            width: 260,
+            render: (value: string) => (
+                <Tooltip title={value || "-"}><span className="log-text">{value || "-"}</span></Tooltip>
+            ),
+        },
+        {
+            title: "操作时间",
+            dataIndex: "create_time",
+            key: "create_time",
+            width: 170,
+            sorter: true,
+            render: (value: string) => (
+                <Tooltip title={value || "-"}><span className="log-time">{value || "-"}</span></Tooltip>
+            ),
+        },
+    ], [typeData]);
+
+    const submit = async (values: { day: number }) => {
+        if (submittingRef.current) return;
+        const requestId = ++requestRef.current;
+        submittingRef.current = true;
+        setSubmitting(true);
+        try {
+            const response = await getLog({body: {action: "clear", day: String(values.day)}});
+            if (requestRef.current !== requestId) return;
+            if (response?.code !== 200) {
+                message.error(response?.message || "清理失败");
+                return;
+            }
+            clearRef.current?.hide();
+            tableRef.current?.reload();
+            message.success(response.message || "清理成功");
+        } catch {
+            if (requestRef.current === requestId) message.error("清理失败");
+        } finally {
+            if (requestRef.current === requestId) {
+                submittingRef.current = false;
+                setSubmitting(false);
+            }
+        }
+    };
 
     return (
         <Body loading={enumLoading}>
-            <Table
-                {...header}
-                {...table}
+            <Table<LogRecord>
+                ref={tableRef}
                 ariaLabel="操作日志"
-                paginationAffix
-                empty={list.initialized && list.logs.length === 0}
-                pagination={{
-                    page: list.page,
-                    pageSize: list.pageSize,
-                    total: list.total,
-                    unit: "条",
-                    onChange: list.changePage,
-                }}/>
-            <Clear ref={clearRef} onSuccess={list.reload}/>
+                className={styles.logTable}
+                columns={columns}
+                rowKey="id"
+                request={async (params, sort) => {
+                    const response = await getLog({body: getParams(params, sort)});
+                    if (response?.code !== 200 || !response.data) {
+                        throw new Error(response?.message || "获取列表失败");
+                    }
+                    return {data: response.data.list, total: response.data.total, success: true};
+                }}
+                defaultPageSize={20}
+                defaultSort={{id: "descend"}}
+                paginationAffix={{offsetBottom: 15}}
+                hero={{
+                    eyebrow: "OPERATION AUDIT",
+                    title: "操作日志",
+                    action: {
+                        label: "清理日志",
+                        onClick: () => {
+                            requestRef.current += 1;
+                            submittingRef.current = false;
+                            setSubmitting(false);
+                            form.resetFields();
+                            form.setFieldsValue({day: 30});
+                            clearRef.current?.show();
+                        },
+                    },
+                }}
+                search={{
+                    placeholder: "搜索日志",
+                    maxLength: 200,
+                    fields: [
+                        {value: "keyword", label: "全部", placeholder: "搜索 IP、归属地、标题或内容"},
+                        {value: "title", label: "标题", placeholder: "搜索标题"},
+                        {value: "content", label: "内容", placeholder: "搜索内容"},
+                        {value: "location", label: "归属地", placeholder: "搜索归属地", maxLength: 100},
+                        {value: "ip", label: "IP", placeholder: "搜索 IP"},
+                    ],
+                }}
+                filters={[
+                    {
+                        type: "select",
+                        name: "type",
+                        label: "日志类型筛选",
+                        icon: "TagsOutlined",
+                        allLabel: "全部类型",
+                        valueEnum: typeData
+                    },
+                    {type: "date", name: "create_time", label: "操作时间筛选"},
+                ]}
+                toolbar={{refresh: {ariaLabel: "刷新操作日志列表"}}}
+            />
+            <ProModal
+                ref={clearRef}
+                title={<Title>清理日志</Title>}
+                width={320}
+                onOk={form.submit}
+                onCancel={() => {
+                    requestRef.current += 1;
+                    clearRef.current?.hide();
+                }}
+                modalProps={{
+                    confirmLoading: submitting,
+                    okText: "提交",
+                    cancelText: "取消",
+                    cancelButtonProps: {disabled: false},
+                    closable: true,
+                    keyboard: true,
+                    forceRender: true,
+                    style: {top: 100, paddingBottom: 100},
+                    mask: {closable: true},
+                    afterClose: () => {
+                        requestRef.current += 1;
+                        submittingRef.current = false;
+                        form.resetFields();
+                        setSubmitting(false);
+                    },
+                } as any}
+            >
+                <Form form={form} layout="vertical" onFinish={submit}>
+                    <Form.Item
+                        name="day"
+                        label="保留天数"
+                        rules={[{required: true, message: "请输入保留天数"}]}
+                    >
+                        <InputNumber min={1} precision={0} step={1} style={{width: "100%"}}
+                                     placeholder="请输入保留天数"/>
+                    </Form.Item>
+                </Form>
+            </ProModal>
         </Body>
     );
 };

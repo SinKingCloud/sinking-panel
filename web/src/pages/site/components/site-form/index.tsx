@@ -23,7 +23,7 @@ const useStyles = createStyles(({css, token}, {compact}: {compact: boolean}) => 
         margin-bottom: ${compact ? 20 : 24}px;
     `,
     content: css`
-        height: ${compact ? 350 : 390}px;
+        height: ${compact ? 330 : 370}px;
         max-height: calc(100dvh - 290px);
         overflow-x: hidden;
         overflow-y: auto;

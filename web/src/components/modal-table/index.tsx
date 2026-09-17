@@ -1,14 +1,13 @@
 import React, {forwardRef, useEffect, useImperativeHandle, useRef, useState} from "react";
-import {App, Grid, Modal, Spin} from "antd";
+import {App, Modal, Spin} from "antd";
 import type {ModalProps} from "antd";
 import {createStyles} from "antd-style";
-import {Title, useTheme} from "sinking-antd";
-import Table from "@/components/table";
-import type {TableProps, TableRef} from "@/components/table";
+import Table from "../table";
+import type {TableProps, TableRef} from "../table";
 
-export type * from "@/components/table";
+export type * from "../table";
 
-/** 工具栏、筛选和请求参数复用 Table API，参见本目录 README。 */
+/** 工具栏、筛选和请求参数复用 Table API。 */
 export interface ModalTableProps<RecordType extends object = any> extends Omit<TableProps<RecordType>, "title" | "paginationAffix"> {
     title?: React.ReactNode;
     width?: ModalProps["width"];
@@ -18,8 +17,10 @@ export interface ModalTableProps<RecordType extends object = any> extends Omit<T
     modalProps?: Omit<ModalProps, "open" | "children">;
     /** modal：整个弹窗随页面滚动；body：只滚动表格区域。 */
     scrollMode?: "modal" | "body";
-    minHeight?: number | string;
-    bodyHeight?: number | string;
+    /** 可选最低高度，不设置时由内容撑起。 */
+    minHeight?: React.CSSProperties["minHeight"];
+    /** body 模式的可选容器高度，不设置时不限制高度。 */
+    bodyHeight?: React.CSSProperties["height"];
 }
 
 export interface ModalTableRef<RecordType extends object = any> extends TableRef<RecordType> {
@@ -31,12 +32,11 @@ export interface ModalTableRef<RecordType extends object = any> extends TableRef
 
 const useStyles = createStyles(({css, token}: any) => ({
     modal: css`
-        .ant-modal { max-width: calc(100vw - 24px); outline: none; }
+        .ant-modal { outline: none; }
         .ant-modal-body { padding: 0; }
         .ui-table-root {
             min-width: 0;
             max-width: none;
-            min-height: var(--modal-table-min-height);
             display: flex;
             flex-direction: column;
         }
@@ -71,14 +71,11 @@ const useStyles = createStyles(({css, token}: any) => ({
             padding: 4px 0 12px;
             background: transparent;
         }
-        .ui-table-toolbar > .ant-input-affix-wrapper { width: 240px; flex: 0 1 240px; }
+        .ui-table-toolbar > .ui-table-search { width: 240px; flex: 0 1 240px; }
         .ui-table-pagination { flex: none; }
         .ui-table-pagination > .ant-card { border: 0; background: ${token.colorFillQuaternary}; box-shadow: none; }
         .ui-table-pagination .ant-pagination { flex-wrap: wrap; gap: 6px 0; }
 
-        .modal-table-scroll-body {
-            height: var(--modal-table-body-height);
-        }
         .modal-table-scroll-body .ui-table-workspace { min-height: 0; flex: 1 1 auto; }
         .modal-table-scroll-body .ui-table-workspace > .ui-table-data {
             min-height: 0;
@@ -88,7 +85,7 @@ const useStyles = createStyles(({css, token}: any) => ({
             scrollbar-width: thin;
         }
         @container data-table-workspace (max-width: 680px) {
-            .ui-table-toolbar > .ant-input-affix-wrapper { width: 100%; flex-basis: 100%; }
+            .ui-table-toolbar > .ui-table-search { width: 100%; flex-basis: 100%; }
         }
     `,
 }));
@@ -136,11 +133,8 @@ const ModalTableContent = <RecordType extends object = any>({tableRef, ...props}
 
 const ModalTable = <RecordType extends object = any>({
     title, width, open: controlledOpen, onOpenChange, onCancel, modalProps = {}, scrollMode = "modal",
-    minHeight, bodyHeight, rootClassName = "", requestEnabled, ...tableProps
+    minHeight, bodyHeight, rootClassName = "", rootStyle, requestEnabled, ...tableProps
 }: ModalTableProps<RecordType>, ref: React.ForwardedRef<ModalTableRef<RecordType>>) => {
-    const screens = Grid.useBreakpoint();
-    const theme = useTheme();
-    const compact = Boolean(theme?.isCompactTheme?.());
     const {styles} = useStyles();
     const [internalOpen, setInternalOpen] = useState(false);
     const [opened, setOpened] = useState(false);
@@ -173,19 +167,22 @@ const ModalTable = <RecordType extends object = any>({
         invertSelectedRow: () => tableRef.current?.invertSelectedRow(),
         scrollToTop: () => tableRef.current?.scrollToTop(),
     }));
-    const cssSize = (value: number | string) => typeof value === "number" ? `${value}px` : value;
+    const contentStyle: React.CSSProperties = {
+        minHeight,
+        height: scrollMode === "body" ? bodyHeight : undefined,
+        ...rootStyle,
+    };
 
     return <Modal
         {...modalProps}
         open={open}
         destroyOnHidden={modalProps.destroyOnHidden ?? true}
-        title={typeof title === "string" ? <Title>{title}</Title> : title}
-        width={width ?? (compact ? 760 : 800)}
+        title={title}
+        width={width ?? modalProps.width}
         footer={modalProps.footer ?? null}
         mask={modalProps.mask ?? {closable: true}}
         focusable={modalProps.focusable ?? {focusTriggerAfterClose: false}}
         rootClassName={`${styles.modal} ${modalProps.rootClassName || ""}`}
-        style={{top: screens.md ? 100 : 24, paddingBottom: screens.md ? 100 : 24, ...modalProps.style}}
         onCancel={(event) => {
             changeOpen(false);
             onCancel?.(event);
@@ -195,19 +192,15 @@ const ModalTable = <RecordType extends object = any>({
             setOpened(visible && open);
             if (!visible) afterOpenChange.current?.(false);
         }}>
-        <div style={{
-            "--modal-table-min-height": cssSize(minHeight ?? (compact ? 440 : 480)),
-            "--modal-table-body-height": cssSize(bodyHeight ?? (screens.md ? "calc(100dvh - 280px)" : "calc(100dvh - 148px)")),
-        } as React.CSSProperties}>
-            {open && opened ? <ModalTableContent<RecordType>
-                {...tableProps}
-                tableRef={tableRef}
-                rootClassName={`modal-table-scroll-${scrollMode} ${rootClassName}`}
-                requestEnabled={requestEnabled}/>
-                : <div className={`ui-table-root modal-table-loading modal-table-scroll-${scrollMode}`} role="status">
-                    <Spin/>
-                </div>}
-        </div>
+        {open && opened ? <ModalTableContent<RecordType>
+            {...tableProps}
+            tableRef={tableRef}
+            rootClassName={`modal-table-scroll-${scrollMode} ${rootClassName}`}
+            rootStyle={contentStyle}
+            requestEnabled={requestEnabled}/>
+            : <div className={`ui-table-root modal-table-loading modal-table-scroll-${scrollMode} ${rootClassName}`} style={contentStyle} role="status">
+                <Spin/>
+            </div>}
     </Modal>;
 };
 

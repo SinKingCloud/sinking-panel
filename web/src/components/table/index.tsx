@@ -1,13 +1,14 @@
-import React, {forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState} from "react";
+import React, {forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState} from "react";
 import {Affix, Empty, Spin} from "antd";
 import {DataTable, TableHero, TablePagination, TableToolbar, useTableStyles} from "./parts";
 import {TableCommands, TableSelectionAction} from "./commands";
 import useTableData from "./use-data";
 import useTableSelection from "./use-selection";
-import type {TableProps, TableRef} from "./types";
+import useTableFilters from "./use-filters";
+import type {TableProps, TableRef, TableSearchConfig} from "./types";
 
 export type * from "./types";
-export {DataTable, TableHero, TableToolbar, TableAction, TableFilter, TablePagination} from "./parts";
+export {DataTable, TableHero, TableSearch, TableToolbar, TableAction, TableFilter, TablePagination} from "./parts";
 export type {DataTableProps, TableHeroProps, TableActionProps, TableFilterProps, TableSearchProps, TableRefreshProps, PageTablePaginationProps} from "./parts";
 export {TableDateFilter} from "./commands";
 
@@ -60,14 +61,16 @@ const restoreScrollPositions = (positions: ScrollPosition[]) => {
 
 const Table = <RecordType extends object = any>(props: TableProps<RecordType>, ref: React.ForwardedRef<TableRef<RecordType>>) => {
     const {
-        hero, toolbar, contentBar, rowSelection, pagination, scrollToTopOnPageChange = false, paginationAffix = false, ariaLabel, rootClassName = "", empty, emptyContent,
+        hero, toolbar, search, filters, contentBar, rowSelection, pagination, scrollToTopOnPageChange = false, paginationAffix = false, ariaLabel, rootClassName = "", rootStyle, empty, emptyContent,
         tableRender, request, params, defaultPage, defaultPageSize, defaultSort, manualRequest, requestEnabled,
         onLoad, onRequestError, onReload, onSortChange, dataSource, loading, rowKey = "id", ...tableProps
     } = props;
     const {styles} = useTableStyles();
     const rootRef = useRef<HTMLDivElement>(null);
     const paginationScrollRef = useRef<PaginationScrollSnapshot | null>(null);
-    const data = useTableData(props);
+    const searchConfig: TableSearchConfig | undefined = search === false ? undefined : search === true ? {} : search ?? (toolbar ? toolbar.search : undefined);
+    const filter = useTableFilters(filters);
+    const data = useTableData({...props, search: searchConfig, params: {...params, ...filter.params}});
     const selection = useTableSelection(data.data, rowKey, rowSelection);
     const selectedKeys = selection.keys;
     const scrollToTop = useCallback(() => {
@@ -77,9 +80,9 @@ const Table = <RecordType extends object = any>(props: TableProps<RecordType>, r
         if (modal) modal.scrollTo({top: 0});
         else rootRef.current?.scrollIntoView({block: "start", inline: "nearest"});
     }, []);
-    const searchConfig = toolbar ? toolbar.search : undefined;
-    const [keyword, setKeyword] = useState("");
+    const [keyword, setKeyword] = useState(searchConfig?.defaultValue || "");
     const [paginationAffixed, setPaginationAffixed] = useState(false);
+    const affixProps = typeof paginationAffix === "object" ? paginationAffix : undefined;
     const searchValue = searchConfig?.value ?? keyword;
     const submittedSearch = useRef(searchValue);
     const searchTimer = useRef<number | undefined>(undefined);
@@ -88,7 +91,7 @@ const Table = <RecordType extends object = any>(props: TableProps<RecordType>, r
         window.clearTimeout(searchTimer.current);
         submittedSearch.current = value;
         data.search(value);
-        searchConfig?.onSearch?.(value);
+        searchConfig?.onSearch?.(value, data.searchName);
     };
     useEffect(() => {
         if (!searchConfig || searchConfig.debounce === undefined || requestEnabled === false || submittedSearch.current === searchValue) return;
@@ -101,9 +104,13 @@ const Table = <RecordType extends object = any>(props: TableProps<RecordType>, r
         refreshTableData: data.reload,
         resetTableData: () => {
             window.clearTimeout(searchTimer.current);
-            submittedSearch.current = "";
-            if (searchConfig?.value === undefined) setKeyword("");
-            searchConfig?.onChange?.("");
+            const keyword = searchConfig?.defaultValue || "";
+            submittedSearch.current = keyword;
+            if (searchConfig?.value === undefined) setKeyword(keyword);
+            searchConfig?.onChange?.(keyword);
+            const field = searchConfig?.fields?.find((field) => field.value === searchConfig.defaultField)?.value || searchConfig?.fields?.[0]?.value;
+            if (field) searchConfig?.onFieldChange?.(field);
+            filter.reset();
             selection.clear();
             data.reset();
             scrollToTop();
@@ -123,9 +130,9 @@ const Table = <RecordType extends object = any>(props: TableProps<RecordType>, r
     const content = contentBar ? contentBar.content : undefined;
     const hasContent = content !== undefined && content !== null && content !== false;
     const hasContentActions = Boolean(contentBar && contentBar.actions?.some((item) => !item.hidden));
-    const toolbarActions = [...(toolbar ? toolbar.actions || [] : []), ...(!hasContent && contentBar ? contentBar.actions || [] : [])];
-    const showToolbar = Boolean(toolbar || toolbarActions.length || (!hasContent && selectedKeys.length));
-    const refresh = toolbar && toolbar.refresh;
+    const toolbarActions = [...filter.items, ...(toolbar ? toolbar.actions || [] : []), ...(!hasContent && contentBar ? contentBar.actions || [] : [])];
+    const refresh = toolbar === false ? false : toolbar?.refresh ?? Boolean(request);
+    const showToolbar = toolbar !== false && Boolean(toolbar || searchConfig || toolbarActions.length || refresh || (!hasContent && selectedKeys.length));
     const showEmpty = empty ?? data.data.length === 0;
     const spinning = typeof data.loading === "boolean" ? data.loading : Boolean(data.loading?.spinning);
     const changePage = useCallback((page: number, pageSize: number) => {
@@ -161,9 +168,19 @@ const Table = <RecordType extends object = any>(props: TableProps<RecordType>, r
             window.clearTimeout(timeout);
         };
     }, [data.data, data.loading, data.page, data.pageSize]);
+    const columns = useMemo(() => {
+        if (!request || !tableProps.columns) return tableProps.columns;
+        const sortColumns = (items: NonNullable<typeof tableProps.columns>): typeof items => items.map((column) => {
+            if ("children" in column) return {...column, children: sortColumns(column.children)};
+            if (!column.sorter || column.sortOrder !== undefined) return column;
+            const field = Array.isArray(column.dataIndex) ? column.dataIndex.join(".") : column.dataIndex ?? column.key;
+            return {...column, sortOrder: data.sort[String(field)] || null};
+        });
+        return sortColumns(tableProps.columns);
+    }, [Boolean(request), tableProps.columns, data.sort]);
     const table = showEmpty ? <div className={styles.state} role="status">
         {spinning ? <Spin/> : emptyContent ?? <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无数据"/>}
-    </div> : <DataTable<RecordType> {...tableProps} dataSource={data.data} loading={data.loading}
+    </div> : <DataTable<RecordType> {...tableProps} columns={columns} dataSource={data.data} loading={data.loading}
                             rowKey={rowKey} rowSelection={selection.rowSelection} onSortChange={data.changeSort}/>;
     const paginationContent = pagination !== false && data.total > 0 ? (
         <nav className="ui-table-pagination" aria-label="表格分页">
@@ -174,7 +191,7 @@ const Table = <RecordType extends object = any>(props: TableProps<RecordType>, r
     ) : null;
 
     return (
-        <div ref={rootRef} className={`${styles.page} ui-table-root ${rootClassName}`}>
+        <div ref={rootRef} className={`${styles.page} ui-table-root ${rootClassName}`} style={rootStyle}>
             <section className={`${styles.workspace} ui-table-workspace`} aria-label={ariaLabel}>
                 {hero && <TableHero {...hero}/>}
                 {showToolbar && <TableToolbar
@@ -182,21 +199,33 @@ const Table = <RecordType extends object = any>(props: TableProps<RecordType>, r
                     search={searchConfig ? {
                         ...searchConfig,
                         value: searchValue,
+                        field: data.searchName,
                         placeholder: searchConfig.placeholder || "搜索",
+                        onFieldChange: (field) => {
+                            window.clearTimeout(searchTimer.current);
+                            const maxLength = searchConfig.fields?.find((option) => option.value === field)?.maxLength ?? searchConfig.maxLength;
+                            const value = maxLength === undefined ? searchValue : searchValue.slice(0, maxLength);
+                            if (value !== searchValue) {
+                                if (searchConfig.value === undefined) setKeyword(value);
+                                searchConfig.onChange?.(value);
+                            }
+                            submittedSearch.current = value;
+                            data.search(value, field);
+                            searchConfig.onFieldChange?.(field);
+                            if (value.trim()) searchConfig.onSearch?.(value, field);
+                        },
                         onChange: (value) => {
                             if (searchConfig.value === undefined) setKeyword(value);
                             searchConfig.onChange?.(value);
-                            if (!value && searchConfig.debounce === undefined) {
-                                submittedSearch.current = "";
-                                data.search("");
+                            if (!value.trim()) {
+                                window.clearTimeout(searchTimer.current);
+                                if (submittedSearch.current.trim()) searchCallback.current(value);
+                                else submittedSearch.current = value;
                             }
                         },
-                        onSearch: (value) => {
-                            searchCallback.current(value);
-                            scrollToTop();
-                        },
+                        onSearch: (value) => searchCallback.current(value),
                     } : undefined}
-                    refresh={refresh === true ? {loading: spinning, onClick: data.reload} : refresh || undefined}
+                    refresh={refresh ? {loading: spinning, onClick: data.reload, ...(refresh === true ? {} : refresh)} : undefined}
                     extra={!hasContent && selectedKeys.length > 0 ? selectionAction : undefined}>
                     <TableCommands items={toolbarActions}/>
                 </TableToolbar>}
@@ -212,7 +241,12 @@ const Table = <RecordType extends object = any>(props: TableProps<RecordType>, r
                 </div>
             </section>
             {paginationContent && (paginationAffix ? (
-                <Affix offsetBottom={15} onChange={(affixed) => setPaginationAffixed(Boolean(affixed))}>
+                <Affix {...affixProps}
+                    offsetBottom={affixProps?.offsetBottom ?? (affixProps?.offsetTop === undefined ? 0 : undefined)}
+                    onChange={(affixed) => {
+                        setPaginationAffixed(Boolean(affixed));
+                        affixProps?.onChange?.(affixed);
+                    }}>
                     {paginationContent}
                 </Affix>
             ) : paginationContent)}

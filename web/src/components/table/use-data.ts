@@ -6,12 +6,22 @@ export default function useTableData<RecordType extends object>(props: TableProp
     const {message} = App.useApp();
     const latest = useRef(props);
     latest.current = props;
+    const searchConfig = typeof props.search === "object" ? props.search : undefined;
+    const fields = searchConfig?.fields;
+    const defaultField = fields?.find((field) => field.value === searchConfig?.defaultField)?.value || fields?.[0]?.value || "";
+    const hasSearch = Boolean(searchConfig);
     const [query, setQuery] = useState(() => ({
         page: props.defaultPage || 1,
         pageSize: props.defaultPageSize || 10,
-        keyword: props.toolbar ? props.toolbar.search?.value || "" : "",
+        keyword: (searchConfig?.value ?? searchConfig?.defaultValue ?? "").trim(),
+        field: defaultField,
         sort: props.defaultSort || {} as TableSort,
     }));
+    const searchName = fields?.length
+        ? fields.find((field) => field.value === (searchConfig?.field ?? query.field))?.value || defaultField
+        : searchConfig?.name || "keyword";
+    // 空搜索词切换字段不改变查询条件，也不打断正在加载的请求。
+    const searchKey = hasSearch && query.keyword ? searchName : "";
     const [result, setResult] = useState({data: [] as RecordType[], total: 0});
     const [loading, setLoading] = useState(Boolean(props.request && !props.manualRequest && props.requestEnabled !== false));
     const [revision, setRevision] = useState(0);
@@ -24,6 +34,7 @@ export default function useTableData<RecordType extends object>(props: TableProp
     const paramsKey = hasRequest ? JSON.stringify(props.params || {}) : "";
     const sortKey = hasRequest ? JSON.stringify(query.sort) : "";
     const previousParamsKey = useRef(paramsKey);
+    const previousSearchKey = useRef(searchKey);
 
     useEffect(() => {
         if (!hasRequest || props.requestEnabled === false) {
@@ -36,8 +47,9 @@ export default function useTableData<RecordType extends object>(props: TableProp
             return;
         }
         handledRevision.current = revision;
-        if (previousParamsKey.current !== paramsKey) {
+        if (previousParamsKey.current !== paramsKey || previousSearchKey.current !== searchKey) {
             previousParamsKey.current = paramsKey;
+            previousSearchKey.current = searchKey;
             if (page !== 1) {
                 setQuery((value) => ({...value, page: 1}));
                 if (latest.current.pagination) latest.current.pagination.onChange?.(1, pageSize);
@@ -47,12 +59,15 @@ export default function useTableData<RecordType extends object>(props: TableProp
         }
         const version = ++requestVersion.current;
         let active = true;
+        let pageAdjusted = false;
+        const request = latest.current.request!;
         const current = {params: latest.current.params, page, pageSize, keyword: query.keyword, sort: query.sort};
         setLoading(true);
         void (async () => {
             try {
-                const response = await latest.current.request!({
-                    ...current.params, page: current.page, pageSize: current.pageSize, keyword: current.keyword,
+                const response = await request({
+                    ...current.params, current: current.page, pageSize: current.pageSize,
+                    ...(searchKey ? {[searchKey]: current.keyword} : {}),
                 }, current.sort);
                 if (!active || version !== requestVersion.current) return;
                 if (response?.success === false || !Array.isArray(response?.data)) {
@@ -61,6 +76,7 @@ export default function useTableData<RecordType extends object>(props: TableProp
                 const total = Math.max(0, Number(response.total) || 0);
                 const lastPage = Math.max(1, Math.ceil(total / current.pageSize));
                 if (current.page > lastPage) {
+                    pageAdjusted = true;
                     setQuery((value) => ({...value, page: lastPage}));
                     if (latest.current.pagination) latest.current.pagination.onChange?.(lastPage, current.pageSize);
                     if (props.manualRequest) setRevision((value) => value + 1);
@@ -74,11 +90,11 @@ export default function useTableData<RecordType extends object>(props: TableProp
                 if (latest.current.onRequestError) latest.current.onRequestError(error);
                 else message.error(error.message);
             } finally {
-                if (active && version === requestVersion.current) setLoading(false);
+                if (active && version === requestVersion.current && !pageAdjusted) setLoading(false);
             }
         })();
         return () => { active = false; };
-    }, [hasRequest, props.manualRequest, props.requestEnabled, paramsKey, page, pageSize, query.keyword, sortKey, revision, message]);
+    }, [hasRequest, props.manualRequest, props.requestEnabled, paramsKey, page, pageSize, query.keyword, searchKey, sortKey, revision, message]);
 
     const reload = useCallback(() => {
         requestVersion.current += 1;
@@ -97,15 +113,25 @@ export default function useTableData<RecordType extends object>(props: TableProp
         }
         config.onChange?.(resolvedPage, nextSize);
     }, [pageSize]);
-    const search = useCallback((keyword: string) => {
+    const search = useCallback((keyword: string, field?: string) => {
         const config = latest.current.pagination;
+        const nextKeyword = keyword.trim();
+        const fieldOnly = field !== undefined && !nextKeyword;
         if (latest.current.request) {
-            const nextKeyword = keyword.trim();
-            setQuery((value) => value.page === 1 && value.keyword === nextKeyword ? value : {...value, page: 1, keyword: nextKeyword});
-        } else if (config !== false && config?.page === undefined) {
-            setQuery((value) => value.page === 1 ? value : {...value, page: 1});
+            setQuery((value) => {
+                const nextField = field ?? value.field;
+                const page = fieldOnly ? value.page : 1;
+                return value.page === page && value.keyword === nextKeyword && value.field === nextField
+                    ? value : {...value, page, keyword: nextKeyword, field: nextField};
+            });
+        } else {
+            setQuery((value) => {
+                const page = !fieldOnly && config !== false && config?.page === undefined ? 1 : value.page;
+                const nextField = field ?? value.field;
+                return page === value.page && nextField === value.field ? value : {...value, page, field: nextField};
+            });
         }
-        if (latest.current.request && config && config.page !== undefined) config.onChange?.(1, config.pageSize || pageSize);
+        if (!fieldOnly && latest.current.request && config && config.page !== undefined) config.onChange?.(1, config.pageSize || pageSize);
     }, [pageSize]);
     const changeSort = useCallback((field: string, order?: "ascend" | "descend") => {
         const config = latest.current.pagination;
@@ -121,13 +147,16 @@ export default function useTableData<RecordType extends object>(props: TableProp
     const reset = useCallback(() => {
         const resetSize = latest.current.defaultPageSize || 10;
         const config = latest.current.pagination || undefined;
+        const search = typeof latest.current.search === "object" ? latest.current.search : undefined;
+        const field = search?.fields?.find((field) => field.value === search.defaultField)?.value || search?.fields?.[0]?.value || "";
         if (latest.current.request) {
-            setQuery({page: 1, pageSize: resetSize, keyword: "", sort: latest.current.defaultSort || {}});
-        } else if (latest.current.pagination !== false && (config?.page === undefined || config.pageSize === undefined)) {
+            const keyword = search?.defaultValue || "";
+            setQuery({page: 1, pageSize: resetSize, keyword: keyword.trim(), field, sort: latest.current.defaultSort || {}});
+        } else {
             setQuery((value) => {
-                const page = config?.page === undefined ? 1 : value.page;
-                const pageSize = config?.pageSize === undefined ? resetSize : value.pageSize;
-                return page === value.page && pageSize === value.pageSize ? value : {...value, page, pageSize};
+                const page = latest.current.pagination !== false && config?.page === undefined ? 1 : value.page;
+                const pageSize = latest.current.pagination !== false && config?.pageSize === undefined ? resetSize : value.pageSize;
+                return page === value.page && pageSize === value.pageSize && field === value.field ? value : {...value, page, pageSize, field};
             });
         }
         if (config?.onChange && (page !== 1 || pageSize !== resetSize)) {
@@ -147,6 +176,6 @@ export default function useTableData<RecordType extends object>(props: TableProp
         data,
         loading: props.loading ?? loading,
         total: pagination.total ?? (hasRequest ? result.total : source.length),
-        page: resolvedPage, pageSize, reload, changePage, search, changeSort, reset,
+        page: resolvedPage, pageSize, sort: query.sort, searchName, reload, changePage, search, changeSort, reset,
     };
 }

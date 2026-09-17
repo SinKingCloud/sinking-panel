@@ -285,7 +285,9 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
     const [pageSize, setPageSize] = useState(10);
     const [total, setTotal] = useState(0);
     const [keyword, setKeyword] = useState("");
+    const [searchField, setSearchField] = useState("keyword");
     const [appliedKeyword, setAppliedKeyword] = useState("");
+    const [appliedField, setAppliedField] = useState("keyword");
     const selectedSecretId = Form.useWatch("secret_id", form);
     const certificateType = Number(Form.useWatch("type", form) ?? 2);
     const automaticDNS = challenge === "dns" && certificateType === 2;
@@ -307,8 +309,10 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
         return () => observer.disconnect();
     }, [manualSession]);
 
-    const loadList = useCallback(async (nextPage = page, nextPageSize = pageSize, nextKeyword = appliedKeyword) => {
+    const loadList = useCallback(async (nextPage = page, nextPageSize = pageSize, nextKeyword = appliedKeyword, nextField = appliedField) => {
         const requestId = ++listRequestRef.current;
+        setAppliedKeyword(nextKeyword.trim());
+        setAppliedField(nextField);
         setLoading(true);
         setListError(false);
         try {
@@ -316,7 +320,7 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
                 body: {
                     page: nextPage,
                     page_size: nextPageSize,
-                    keyword: nextKeyword.trim(),
+                    ...(nextKeyword.trim() ? {[nextField]: nextKeyword.trim()} : {}),
                     order_by_field: "id",
                     order_by_type: "desc",
                     ...(deployRef.current ? {domain: deployRef.current.domain, usable: 1} : {}),
@@ -341,7 +345,6 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
             setTotal(nextTotal);
             setPage(Number(data.page || nextPage));
             setPageSize(Number(data.page_size || nextPageSize));
-            setAppliedKeyword(nextKeyword.trim());
         } catch {
             if (listRequestRef.current === requestId) {
                 setListError(true);
@@ -356,15 +359,7 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
                 setLoading(false);
             }
         }
-    }, [appliedKeyword, message, page, pageSize]);
-
-    useEffect(() => {
-        if (!active || formOpen || keyword.trim() === appliedKeyword) {
-            return;
-        }
-        const timer = window.setTimeout(() => void loadList(1, pageSize, keyword), 300);
-        return () => window.clearTimeout(timer);
-    }, [active, appliedKeyword, formOpen, keyword, loadList, pageSize]);
+    }, [appliedField, appliedKeyword, message, page, pageSize]);
 
     const loadSecrets = useCallback(async () => {
         const requestId = ++secretRequestRef.current;
@@ -552,10 +547,12 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
         setTotal(0);
         setPage(1);
         setKeyword("");
+        setSearchField("keyword");
         setAppliedKeyword("");
+        setAppliedField("keyword");
         modalRef.current?.show();
         void loadSecrets();
-        if (active) void loadList(1, pageSize, "");
+        if (active) void loadList(1, pageSize, "", "keyword");
     }, [active, closeForm, loadList, loadSecrets, pageSize]);
 
     const close = useCallback(() => {
@@ -1052,10 +1049,18 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
                 toolbar={{
                     search: {
                         value: keyword,
-                        placeholder: "搜索名称或域名",
+                        field: searchField,
+                        maxLength: 100,
+                        fields: [
+                            {value: "keyword", label: "全部", placeholder: "搜索名称或域名"},
+                            {value: "name", label: "名称", placeholder: "搜索证书名称"},
+                            {value: "domains", label: "域名", placeholder: "搜索证书域名", maxLength: 253},
+                        ],
                         ariaLabel: "搜索证书",
+                        debounce: active && !formOpen ? 300 : undefined,
                         onChange: setKeyword,
-                        onSearch: (value) => void loadList(1, pageSize, value),
+                        onFieldChange: setSearchField,
+                        onSearch: (value, field) => void loadList(1, pageSize, value, field),
                     },
                     refresh: {
                         loading,
@@ -1085,7 +1090,7 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
                     closable: true,
                     keyboard: true,
                     mask: {closable: true},
-                    style: {top: screens.md ? 100 : 24, paddingBottom: screens.md ? 100 : 24},
+                    style: {top: screens.md ? 100 : 24, paddingBottom: screens.md ? 100 : 24, maxWidth: "calc(100vw - 24px)"},
                     focusable: {focusTriggerAfterClose: false},
                 } as any}/>
             <ProModal

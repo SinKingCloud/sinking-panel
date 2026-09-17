@@ -8,11 +8,11 @@ import {
     useRef,
     useState,
 } from "react";
-import {App, Button, Space, Tooltip} from "antd";
+import {App, Button, Grid, Space, Tooltip} from "antd";
 import type {TableColumnsType} from "antd";
 import {Icon, Title, useTheme} from "sinking-antd";
 import ModalTable from "@/components/modal-table";
-import type {ModalTableRef} from "@/components/modal-table";
+import type {ModalTableRef, TableRequestParams} from "@/components/modal-table";
 import Dropdown from "@/pages/components/stable-dropdown";
 import {
     clearRecycle,
@@ -78,6 +78,7 @@ const FileRecycleBin = memo(forwardRef<FileRecycleBinRef, FileRecycleBinProps>((
     const {message, modal} = App.useApp();
     const appTheme = useTheme();
     const compact = Boolean(appTheme?.isCompactTheme?.());
+    const screens = Grid.useBreakpoint();
     const {styles} = useStyles({compact});
     const tableRef = useRef<ModalTableRef | null>(null);
     const countRequestRef = useRef(0);
@@ -262,7 +263,7 @@ const FileRecycleBin = memo(forwardRef<FileRecycleBinRef, FileRecycleBinProps>((
     ], [confirmDelete, confirmRestore]);
 
     const request = useCallback(
-        ({page, pageSize}: {page: number; pageSize: number}) => getData({current: page, pageSize}, recycleSort, getRecycleList),
+        (params: TableRequestParams) => getData(params, recycleSort, getRecycleList),
         [],
     );
 
@@ -279,6 +280,7 @@ const FileRecycleBin = memo(forwardRef<FileRecycleBinRef, FileRecycleBinProps>((
             title={<Title>回收站</Title>}
             width={910}
             minHeight={compact ? 440 : 480}
+            modalProps={{style: {top: screens.md ? 100 : 24, paddingBottom: screens.md ? 100 : 24, maxWidth: "calc(100vw - 24px)"}}}
             scrollMode="modal"
             onCancel={close}
             rowKey="id"

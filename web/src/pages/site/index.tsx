@@ -69,6 +69,7 @@ export default (): React.ReactNode => {
 
     const header = useSiteHeader({
         keyword: list.keyword,
+        searchField: list.searchField,
         typeId: list.typeId,
         type: list.type,
         status: list.status,
@@ -77,6 +78,7 @@ export default (): React.ReactNode => {
         statusData,
         refreshing: list.loading,
         onKeywordChange: list.changeKeyword,
+        onSearchFieldChange: list.changeSearchField,
         onSearch: list.search,
         onTypeIdChange: list.changeTypeId,
         onManageTypes: openTypeManager,
@@ -109,7 +111,7 @@ export default (): React.ReactNode => {
                 {...header}
                 {...table}
                 ariaLabel="网站管理"
-                paginationAffix
+                paginationAffix={{offsetBottom: 15}}
                 empty={list.initialized && list.sites.length === 0}
                 pagination={{
                     page: list.page,

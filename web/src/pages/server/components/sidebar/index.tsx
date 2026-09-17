@@ -188,7 +188,9 @@ const Sidebar = ({
                     placeholder="搜索终端"
                     onChange={(event) => onKeywordChange(event.target.value)}/>
                 <Button
-                    type="text"
+                    color="default"
+                    variant="filled"
+                    style={{borderColor: "transparent"}}
                     disabled={loading}
                     aria-label="刷新终端列表"
                     icon={<Icon type="ReloadOutlined"/>}

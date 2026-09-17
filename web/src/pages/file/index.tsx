@@ -182,7 +182,7 @@ export default (): React.ReactNode => {
             <Table
                 {...fileTable}
                 ariaLabel="文件管理"
-                paginationAffix
+                paginationAffix={{offsetBottom: 15}}
                 hero={{
                     title: "文件管理",
                     eyebrow: "FILE MANAGER",

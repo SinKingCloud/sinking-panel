@@ -4,6 +4,7 @@ import type {TableProps} from "@/components/table";
 
 const useSiteHeader = ({
     keyword,
+    searchField,
     typeId,
     type,
     status,
@@ -12,6 +13,7 @@ const useSiteHeader = ({
     statusData,
     refreshing,
     onKeywordChange,
+    onSearchFieldChange,
     onSearch,
     onTypeIdChange,
     onManageTypes,
@@ -45,8 +47,15 @@ const useSiteHeader = ({
         toolbar: {
             search: {
                 value: keyword,
-                placeholder: "搜索网站名称",
+                field: searchField,
+                maxLength: 100,
+                fields: [
+                    {value: "keyword", label: "全部", placeholder: "搜索名称或目录"},
+                    {value: "name", label: "名称", placeholder: "搜索网站名称"},
+                    {value: "root", label: "目录", placeholder: "搜索网站目录"},
+                ],
                 onChange: onKeywordChange,
+                onFieldChange: onSearchFieldChange,
                 onSearch,
             },
             refresh: {loading: refreshing, ariaLabel: "刷新网站列表", onClick: onRefresh},

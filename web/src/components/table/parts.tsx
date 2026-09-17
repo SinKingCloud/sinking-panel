@@ -6,6 +6,7 @@ import {
     Dropdown,
     Input,
     Pagination,
+    Select,
     Table as AntTable,
     Tooltip,
 } from "antd";
@@ -38,7 +39,7 @@ export const TablePagination = ({
     pageSize,
     total,
     disabled,
-    unit = "项",
+    unit = "条",
     pageSizeOptions = [10, 20, 50, 100],
     affixed = false,
     onChange,
@@ -134,18 +135,24 @@ export const TableHero = React.memo(({title, eyebrow, action, background = true,
 export interface TableSearchProps {
     value: string;
     placeholder: string;
+    className?: string;
+    style?: React.CSSProperties;
     ariaLabel?: string;
     maxLength?: number;
     allowClear?: boolean;
+    fields?: {value: string; label: React.ReactNode; placeholder?: string; maxLength?: number}[];
+    field?: string;
+    tooltip?: React.ReactNode;
     onChange: (value: string) => void;
-    onSearch?: (value: string) => void;
+    onFieldChange?: (field: string) => void;
+    onSearch?: (value: string, field?: string) => void;
 }
 
 export interface TableRefreshProps {
     loading?: boolean;
     disabled?: boolean;
     ariaLabel?: string;
-    tooltip?: string;
+    tooltip?: React.ReactNode;
     onClick: () => void;
 }
 
@@ -157,43 +164,64 @@ export interface TableToolbarProps {
     extra?: React.ReactNode;
 }
 
+export const TableSearch = React.memo((search: TableSearchProps) => {
+    const {styles} = useTableStyles();
+    const field = search.fields?.find((item) => item.value === search.field) || search.fields?.[0];
+    const className = `${styles.searchBox} ui-table-search ${search.className || ""}`;
+    const searchInput = <Input
+        className={field ? "search-input" : className}
+        style={field ? undefined : search.style}
+        variant={field ? "borderless" : "filled"}
+        styles={field ? {root: {outline: "none", boxShadow: "none"}, input: {outline: "none", boxShadow: "none"}} : undefined}
+        value={search.value}
+        aria-label={search.ariaLabel}
+        allowClear={search.allowClear !== false}
+        maxLength={field?.maxLength ?? search.maxLength}
+        prefix={field ? undefined : <Icon type="SearchOutlined"/>}
+        placeholder={field?.placeholder ?? search.placeholder}
+        onChange={(event) => search.onChange(event.target.value)}
+        onPressEnter={search.onSearch
+            ? (event) => search.onSearch?.(event.currentTarget.value, field?.value)
+            : undefined}/>;
+    const searchControl = field ? <div className={`${className} ${styles.searchGroup}`} style={search.style}>
+        <Select
+            className="search-field"
+            classNames={{popup: {root: styles.pageSizeDropdown}}}
+            styles={{root: {outline: "none", boxShadow: "none", border: 0}}}
+            variant="borderless"
+            aria-label="搜索字段"
+            title=""
+            value={field.value}
+            showSearch={false}
+            popupMatchSelectWidth={false}
+            options={search.fields?.map(({value, label}) => ({value, label, title: ""}))}
+            labelRender={({label}) => <span className="search-field-label">{label}</span>}
+            onChange={search.onFieldChange}/>
+        {searchInput}
+    </div> : searchInput;
+    return search.tooltip ? <Tooltip title={search.tooltip}>{searchControl}</Tooltip> : searchControl;
+});
+
 export const TableToolbar = React.memo(({left, search, refresh, children, extra}: TableToolbarProps) => {
     const {styles} = useTableStyles();
     const hasLeft = left !== undefined && left !== null && left !== false;
+    const refreshButton = refresh && <Button
+        className={styles.toolbarIconButton}
+        type="text"
+        aria-label={refresh.ariaLabel || "刷新列表"}
+        loading={refresh.loading}
+        disabled={refresh.disabled}
+        icon={<Icon type="ReloadOutlined"/>}
+        onClick={refresh.onClick}/>;
     return (
         <div className={`${styles.commandBar} ui-table-toolbar ${!search && !hasLeft ? "without-search" : ""} ${hasLeft && !search ? "with-content" : ""}`}>
             {hasLeft && <div className="command-content">{left}</div>}
-            {search && (
-                <Input
-                    className={styles.searchBox}
-                    variant="filled"
-                    value={search.value}
-                    aria-label={search.ariaLabel}
-                    allowClear={search.allowClear !== false}
-                    maxLength={search.maxLength}
-                    prefix={<Icon type="SearchOutlined"/>}
-                    placeholder={search.placeholder}
-                    onChange={(event) => search.onChange(event.target.value)}
-                    onPressEnter={search.onSearch
-                        ? (event) => search.onSearch?.(event.currentTarget.value)
-                        : undefined}/>
-            )}
+            {search && <TableSearch {...search}/>}
             <div className="command-actions">
                 {hasLeft && extra}
                 <div className="command-actions-scroll">{children}</div>
                 {!hasLeft && extra}
-                {refresh && (
-                    <Tooltip title={refresh.tooltip || "刷新列表"}>
-                        <Button
-                            className={styles.toolbarIconButton}
-                            type="text"
-                            aria-label={refresh.ariaLabel || "刷新列表"}
-                            loading={refresh.loading}
-                            disabled={refresh.disabled}
-                            icon={<Icon type="ReloadOutlined"/>}
-                            onClick={refresh.onClick}/>
-                    </Tooltip>
-                )}
+                {refresh?.tooltip ? <Tooltip title={refresh.tooltip}>{refreshButton}</Tooltip> : refreshButton}
             </div>
         </div>
     );
@@ -216,6 +244,7 @@ export interface TableFilterProps {
     icon: string;
     ariaLabel: string;
     title?: string;
+    tooltip?: React.ReactNode;
     disabled?: boolean;
     matchWidth?: boolean;
     command?: TableFilterCommand;
@@ -228,6 +257,7 @@ export const TableFilter = React.memo(({
     icon,
     ariaLabel,
     title,
+    tooltip,
     disabled,
     matchWidth,
     command,
@@ -248,7 +278,7 @@ export const TableFilter = React.memo(({
         ] : []),
     ], [command, options]);
 
-    return (
+    const dropdown = (
         <Dropdown
             disabled={disabled}
             trigger={["click"]}
@@ -267,25 +297,27 @@ export const TableFilter = React.memo(({
                 aria-label={ariaLabel}>
                 <Icon type={icon} className="marker"/>
                 {matchWidth ? (
-                    <span className="value-stack" title={title || String(active?.label || "")}>
+                    <span className="value-stack" title={title}>
                         {options.map((item) => (
                             <span className="value measure" aria-hidden="true" key={item.value}>{item.label}</span>
                         ))}
                         <span className="value active">{active?.label}</span>
                     </span>
                 ) : (
-                    <span className="value" title={title || String(active?.label || "")}>{active?.label}</span>
+                    <span className="value" title={title}>{active?.label}</span>
                 )}
                 <Icon type="DownOutlined" className="arrow"/>
             </button>
         </Dropdown>
     );
+    return tooltip ? <Tooltip title={tooltip}>{dropdown}</Tooltip> : dropdown;
 });
 
 export interface TableActionProps extends Omit<ButtonProps, "icon" | "children" | "type"> {
     label: React.ReactNode;
     icon?: string;
     suffixIcon?: string;
+    tooltip?: React.ReactNode;
     menu?: MenuProps;
     menuClassName?: string;
     placement?: "bottom" | "bottomLeft" | "bottomRight" | "top" | "topLeft" | "topRight";
@@ -295,6 +327,7 @@ export const TableAction = React.memo(({
     label,
     icon,
     suffixIcon,
+    tooltip,
     menu,
     menuClassName = "",
     placement = "bottomRight",
@@ -312,10 +345,7 @@ export const TableAction = React.memo(({
             {suffixIcon && <Icon type={suffixIcon} className="arrow"/>}
         </Button>
     );
-    if (!menu) {
-        return button;
-    }
-    return (
+    const control = menu ? (
         <Dropdown
             trigger={["click"]}
             placement={placement}
@@ -323,7 +353,8 @@ export const TableAction = React.memo(({
             menu={menu}>
             {button}
         </Dropdown>
-    );
+    ) : button;
+    return tooltip ? <Tooltip title={tooltip}>{control}</Tooltip> : control;
 });
 
 export type DataTableProps<RecordType extends object = any> = Omit<TableProps<RecordType>, "pagination"> & {
@@ -348,7 +379,7 @@ export const DataTable = <RecordType extends object = any>({
         }
         const current = Array.isArray(sorter) ? sorter[0] : sorter;
         const field = current?.field || current?.columnKey;
-        onSortChange(typeof field === "string" ? field : "", current?.order || undefined);
+        onSortChange(Array.isArray(field) ? field.join(".") : typeof field === "string" ? field : "", current?.order || undefined);
     }, [onChange, onSortChange]);
 
     return (
