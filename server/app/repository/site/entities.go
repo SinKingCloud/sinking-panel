@@ -6,6 +6,7 @@ import "server/app/util/str"
 type SelectSite struct {
 	Keyword         *string
 	Name            *string
+	Root            *string
 	TypeId          *int64
 	Type            *int
 	Status          *int

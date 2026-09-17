@@ -14,6 +14,7 @@ func List(c *context.Context) {
 	var form struct {
 		Keyword         string `json:"keyword" default:"" validate:"omitempty,max=100" label:"关键词"`
 		Name            string `json:"name" default:"" validate:"omitempty,max=100" label:"网站名称"`
+		Root            string `json:"root" default:"" validate:"omitempty,max=100" label:"网站目录"`
 		TypeId          string `json:"type_id" default:"" validate:"omitempty,numeric" label:"网站分类ID"`
 		Type            string `json:"type" default:"" validate:"omitempty,numeric" label:"网站类型"`
 		Status          string `json:"status" default:"" validate:"omitempty,numeric" label:"网站状态"`
@@ -32,6 +33,9 @@ func List(c *context.Context) {
 	}
 	if form.Name != "" {
 		where.Name = &form.Name
+	}
+	if form.Root != "" {
+		where.Root = &form.Root
 	}
 	if form.TypeId != "" {
 		typeId, err := strconv.ParseInt(form.TypeId, 10, 64)

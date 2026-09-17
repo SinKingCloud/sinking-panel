@@ -6,6 +6,7 @@ import "server/app/util/str"
 type SelectCert struct {
 	Keyword         *string
 	Name            *string
+	Domains         *string
 	Type            *int
 	Domain          *string
 	Usable          *int

@@ -14,6 +14,7 @@ func List(c *context.Context) {
 	var form struct {
 		Keyword         string `json:"keyword" default:"" validate:"omitempty,max=100" label:"关键词"`
 		Name            string `json:"name" default:"" validate:"omitempty,max=100" label:"证书名称"`
+		Domains         string `json:"domains" default:"" validate:"omitempty,max=253" label:"证书域名关键词"`
 		Type            string `json:"type" default:"" validate:"omitempty,numeric" label:"证书类型"`
 		Domain          string `json:"domain" default:"" validate:"omitempty,max=253" label:"证书域名"`
 		Usable          string `json:"usable" default:"" validate:"omitempty,oneof=0 1" label:"可用证书"`
@@ -32,6 +33,9 @@ func List(c *context.Context) {
 	}
 	if form.Name != "" {
 		where.Name = &form.Name
+	}
+	if form.Domains != "" {
+		where.Domains = &form.Domains
 	}
 	if form.Type != "" {
 		certificateType, err := strconv.Atoi(form.Type)

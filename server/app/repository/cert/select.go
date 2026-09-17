@@ -47,6 +47,9 @@ func (r *Repository) Select(where *SelectCert, queryPage *page.Query) (*page.Res
 		if where.Name != nil {
 			query = query.Where("name LIKE ?", "%"+*where.Name+"%")
 		}
+		if where.Domains != nil {
+			query = query.Where("domains LIKE ?", "%"+*where.Domains+"%")
+		}
 		if where.Type != nil {
 			query = query.Where("type = ?", *where.Type)
 		}
