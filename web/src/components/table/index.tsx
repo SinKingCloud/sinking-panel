@@ -224,6 +224,12 @@ const Table = <RecordType extends object = any>(props: TableProps<RecordType>, r
                             }
                         },
                         onSearch: (value) => searchCallback.current(value),
+                        onBlur: (value) => {
+                            window.clearTimeout(searchTimer.current);
+                            if (value.trim() !== submittedSearch.current.trim()) searchCallback.current(value);
+                            else submittedSearch.current = value;
+                            searchConfig.onBlur?.(value);
+                        },
                     } : undefined}
                     refresh={refresh ? {loading: spinning, onClick: data.reload, ...(refresh === true ? {} : refresh)} : undefined}
                     extra={!hasContent && selectedKeys.length > 0 ? selectionAction : undefined}>

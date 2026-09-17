@@ -27,6 +27,7 @@ export default function useTableData<RecordType extends object>(props: TableProp
     const [revision, setRevision] = useState(0);
     const requestVersion = useRef(0);
     const handledRevision = useRef(0);
+    const adjustedPage = useRef<number | undefined>(undefined);
     const pagination = props.pagination || {};
     const page = pagination.page ?? query.page;
     const pageSize = pagination.pageSize ?? query.pageSize;
@@ -38,14 +39,16 @@ export default function useTableData<RecordType extends object>(props: TableProp
 
     useEffect(() => {
         if (!hasRequest || props.requestEnabled === false) {
+            adjustedPage.current = undefined;
             handledRevision.current = revision;
             setLoading(false);
             return;
         }
-        if (props.manualRequest && handledRevision.current === revision) {
+        if (props.manualRequest && handledRevision.current === revision && adjustedPage.current !== page) {
             setLoading(false);
             return;
         }
+        adjustedPage.current = undefined;
         handledRevision.current = revision;
         if (previousParamsKey.current !== paramsKey || previousSearchKey.current !== searchKey) {
             previousParamsKey.current = paramsKey;
@@ -70,20 +73,24 @@ export default function useTableData<RecordType extends object>(props: TableProp
                     ...(searchKey ? {[searchKey]: current.keyword} : {}),
                 }, current.sort);
                 if (!active || version !== requestVersion.current) return;
-                if (response?.success === false || !Array.isArray(response?.data)) {
+                if (!response || response.success === false || (response.data != null && !Array.isArray(response.data))) {
                     throw new Error("获取列表失败");
                 }
+                const data = response.data ?? [];
                 const total = Math.max(0, Number(response.total) || 0);
+                setResult({data, total});
+                latest.current.onLoad?.(data, {...response, data, total});
                 const lastPage = Math.max(1, Math.ceil(total / current.pageSize));
                 if (current.page > lastPage) {
-                    pageAdjusted = true;
+                    const pagination = latest.current.pagination;
+                    const controlled = Boolean(pagination && pagination.page !== undefined);
+                    pageAdjusted = total > 0 && !controlled;
+                    if (props.manualRequest && controlled) adjustedPage.current = lastPage;
                     setQuery((value) => ({...value, page: lastPage}));
-                    if (latest.current.pagination) latest.current.pagination.onChange?.(lastPage, current.pageSize);
-                    if (props.manualRequest) setRevision((value) => value + 1);
+                    if (pagination) pagination.onChange?.(lastPage, current.pageSize);
+                    if (props.manualRequest && !controlled) setRevision((value) => value + 1);
                     return;
                 }
-                setResult({data: response.data, total});
-                latest.current.onLoad?.(response.data, {...response, total});
             } catch (reason) {
                 if (!active || version !== requestVersion.current) return;
                 const error = reason instanceof Error ? reason : new Error("获取列表失败");
@@ -97,11 +104,13 @@ export default function useTableData<RecordType extends object>(props: TableProp
     }, [hasRequest, props.manualRequest, props.requestEnabled, paramsKey, page, pageSize, query.keyword, searchKey, sortKey, revision, message]);
 
     const reload = useCallback(() => {
+        adjustedPage.current = undefined;
         requestVersion.current += 1;
         if (latest.current.request) setRevision((value) => value + 1);
         else void latest.current.onReload?.();
     }, []);
     const changePage = useCallback((nextPage: number, nextSize: number) => {
+        adjustedPage.current = undefined;
         const config = latest.current.pagination || {};
         const resolvedPage = nextSize === pageSize ? nextPage : 1;
         if (config.page === undefined || config.pageSize === undefined) {
@@ -114,6 +123,7 @@ export default function useTableData<RecordType extends object>(props: TableProp
         config.onChange?.(resolvedPage, nextSize);
     }, [pageSize]);
     const search = useCallback((keyword: string, field?: string) => {
+        adjustedPage.current = undefined;
         const config = latest.current.pagination;
         const nextKeyword = keyword.trim();
         const fieldOnly = field !== undefined && !nextKeyword;
@@ -134,6 +144,7 @@ export default function useTableData<RecordType extends object>(props: TableProp
         if (!fieldOnly && latest.current.request && config && config.page !== undefined) config.onChange?.(1, config.pageSize || pageSize);
     }, [pageSize]);
     const changeSort = useCallback((field: string, order?: "ascend" | "descend") => {
+        adjustedPage.current = undefined;
         const config = latest.current.pagination;
         if (latest.current.request) {
             const sort = field && order ? {[field]: order} : latest.current.defaultSort || {};

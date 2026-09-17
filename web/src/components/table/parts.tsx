@@ -146,6 +146,7 @@ export interface TableSearchProps {
     onChange: (value: string) => void;
     onFieldChange?: (field: string) => void;
     onSearch?: (value: string, field?: string) => void;
+    onBlur?: (value: string) => void;
 }
 
 export interface TableRefreshProps {
@@ -168,6 +169,9 @@ export const TableSearch = React.memo((search: TableSearchProps) => {
     const {styles} = useTableStyles();
     const field = search.fields?.find((item) => item.value === search.field) || search.fields?.[0];
     const className = `${styles.searchBox} ui-table-search ${search.className || ""}`;
+    const onBlur: React.FocusEventHandler<HTMLElement> = (event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) search.onBlur?.(search.value);
+    };
     const searchInput = <Input
         className={field ? "search-input" : className}
         style={field ? undefined : search.style}
@@ -180,10 +184,11 @@ export const TableSearch = React.memo((search: TableSearchProps) => {
         prefix={field ? undefined : <Icon type="SearchOutlined"/>}
         placeholder={field?.placeholder ?? search.placeholder}
         onChange={(event) => search.onChange(event.target.value)}
+        onBlur={field ? undefined : onBlur}
         onPressEnter={search.onSearch
             ? (event) => search.onSearch?.(event.currentTarget.value, field?.value)
             : undefined}/>;
-    const searchControl = field ? <div className={`${className} ${styles.searchGroup}`} style={search.style}>
+    const searchControl = field ? <div className={`${className} ${styles.searchGroup}`} style={search.style} onBlur={onBlur}>
         <Select
             className="search-field"
             classNames={{popup: {root: styles.pageSizeDropdown}}}

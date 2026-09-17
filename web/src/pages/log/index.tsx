@@ -135,10 +135,10 @@ export default (): React.ReactNode => {
                 rowKey="id"
                 request={async (params, sort) => {
                     const response = await getLog({body: getParams(params, sort)});
-                    if (response?.code !== 200 || !response.data) {
+                    if (response?.code !== 200) {
                         throw new Error(response?.message || "获取列表失败");
                     }
-                    return {data: response.data.list, total: response.data.total, success: true};
+                    return {data: response.data?.list, total: response.data?.total ?? 0, success: true};
                 }}
                 defaultPageSize={20}
                 defaultSort={{id: "descend"}}

@@ -157,17 +157,18 @@ const SecretManager = forwardRef<SecretManagerRef, SecretManagerProps>(({zIndex 
             order_by_field: "id",
             order_by_type: "desc",
         }});
-        if (response?.code !== 200 || !Array.isArray(response.data?.list)) {
+        const list = response?.data?.list ?? [];
+        if (response?.code !== 200 || !Array.isArray(list)) {
             throw new Error(response?.message || "获取密钥列表失败");
         }
-        const data: SecretRecord[] = response.data.list.map((item: SecretRecord) => ({
+        const data: SecretRecord[] = list.map((item: SecretRecord) => ({
             id: Number(item.id),
             name: item.name,
             provider: Number(item.provider),
             create_time: item.create_time,
             update_time: item.update_time,
         }));
-        return {data, total: Number(response.data.total || 0), success: true};
+        return {data, total: Number(response.data?.total || 0), success: true};
     }, []);
 
     const changed = useCallback((change: SecretChange) => {

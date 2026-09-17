@@ -88,19 +88,16 @@ const useFileList = (initialPath = "/") => {
             const list = Array.isArray(data?.list) ? data.list : [];
             const responseTotal = Number(data?.total);
             const nextTotal = Number.isFinite(responseTotal) && responseTotal > 0 ? responseTotal : 0;
-            const lastPage = Math.max(1, Math.ceil(nextTotal / pageSize));
-            if (page > lastPage) {
-                pageAdjusted = true;
-                setTotal(nextTotal);
-                setQuery((value) => ({...value, page: lastPage}));
-                return;
-            }
-
             committedPathRef.current = path;
             setCommittedPath(path);
             setItems(list);
             setTotal(nextTotal);
             setLoaded(true);
+            const lastPage = Math.max(1, Math.ceil(nextTotal / pageSize));
+            if (page > lastPage) {
+                pageAdjusted = nextTotal > 0;
+                setQuery((value) => ({...value, page: lastPage}));
+            }
         }).catch(() => {
             fail("获取文件列表失败");
         }).finally(() => {

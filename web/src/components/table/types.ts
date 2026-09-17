@@ -34,7 +34,7 @@ export interface TableSearchConfig extends Omit<TableSearchProps, "value" | "onC
     defaultField?: string;
     placeholder?: string;
     onChange?: (value: string) => void;
-    /** 设置后输入自动搜索；省略时通过回车或清空搜索。 */
+    /** 设置后输入自动搜索；省略时通过回车、失焦或清空搜索。 */
     debounce?: number;
 }
 
@@ -98,7 +98,7 @@ export interface TableRequestParams extends Record<string, unknown> {
 }
 export type TableSort = Record<string, "ascend" | "descend">;
 export interface TableRequestResult<RecordType> {
-    data: RecordType[];
+    data?: RecordType[] | null;
     total: number;
     success?: boolean;
 }
