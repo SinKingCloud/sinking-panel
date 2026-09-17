@@ -41,7 +41,7 @@ func (m *Manager) lockOpen() (func(), error) {
 	m.mu.RUnlock()
 	if closing {
 		m.lifecycleMu.RUnlock()
-		return nil, errManagerClosed
+		return nil, errors.New("容器管理器已关闭")
 	}
 	return m.lifecycleMu.RUnlock, nil
 }

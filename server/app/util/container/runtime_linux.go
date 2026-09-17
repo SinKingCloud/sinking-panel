@@ -116,13 +116,17 @@ func (m *Manager) startPlatformRuntime(instance *Instance, image *Image, options
 	if workingDir == "" {
 		workingDir = "/"
 	}
-	uid, gid, groups, err := m.resolveUser(rootfs, image.User)
+	user := options.User
+	if user == "" {
+		user = image.User
+	}
+	uid, gid, groups, err := m.resolveUser(rootfs, user)
 	if err != nil {
-		failure := fmt.Errorf("解析镜像运行用户失败: %w", err)
+		failure := fmt.Errorf("解析容器运行用户失败: %w", err)
 		return errors.Join(failure, m.abortPlatformStart(instance, container, nil, logFile, failure))
 	}
 	if _, _, err := m.mapOwnership(uid, gid); err != nil {
-		failure := fmt.Errorf("镜像运行用户超出 User Namespace 映射范围: %w", err)
+		failure := fmt.Errorf("容器运行用户超出 User Namespace 映射范围: %w", err)
 		return errors.Join(failure, m.abortPlatformStart(instance, container, nil, logFile, failure))
 	}
 	for _, group := range groups {
@@ -461,7 +465,7 @@ func (m *Manager) finishPlatformRuntime(id string, generation uint64, runtime *l
 		return
 	}
 	releaseErr := m.releasePlatformRuntime(id, runtime, runtime.container)
-	m.markExitedLocked(id, generation, exitCode, errors.Join(waitErr, releaseErr), !errors.Is(releaseErr, errRuntimeCleanupPending), runtime.failure)
+	m.markExitedLocked(id, generation, exitCode, errors.Join(waitErr, releaseErr), releaseErr == nil, runtime.failure)
 	if releaseErr == nil && runtime.failure == nil {
 		m.scheduleAutoRestart(id, generation)
 	}
@@ -656,9 +660,13 @@ func (m *Manager) execPlatformCommand(id string, options ExecOptions) (*ExecResu
 	if rootfs == "" {
 		rootfs = image.Rootfs
 	}
-	uid, gid, groups, err := m.resolveUser(rootfs, image.User)
+	user := instance.User
+	if user == "" {
+		user = image.User
+	}
+	uid, gid, groups, err := m.resolveUser(rootfs, user)
 	if err != nil {
-		return nil, fmt.Errorf("解析镜像运行用户失败: %w", err)
+		return nil, fmt.Errorf("解析容器运行用户失败: %w", err)
 	}
 	output := &limitedBuffer{max: options.MaxOutput}
 	outputReader, outputWriter, err := os.Pipe()
@@ -673,6 +681,7 @@ func (m *Manager) execPlatformCommand(id string, options ExecOptions) (*ExecResu
 		AdditionalGroups: groups,
 		Capabilities:     m.processCapabilities(uid),
 		Cwd:              workingDir,
+		Stdin:            options.Stdin,
 		Stdout:           outputWriter,
 		Stderr:           outputWriter,
 	}
@@ -698,7 +707,7 @@ func (m *Manager) execPlatformCommand(id string, options ExecOptions) (*ExecResu
 		_ = outputReader.Close()
 		_ = process.Signal(unix.SIGKILL)
 		_, _ = process.Wait()
-		return nil, errManagerClosed
+		return nil, errors.New("容器管理器已关闭")
 	}
 	closeOutput := func() {
 		timer := time.NewTimer(time.Second)
@@ -723,7 +732,7 @@ func (m *Manager) execPlatformCommand(id string, options ExecOptions) (*ExecResu
 	}) {
 		_ = process.Signal(unix.SIGKILL)
 		_, _ = process.Wait()
-		return nil, errManagerClosed
+		return nil, errors.New("容器管理器已关闭")
 	}
 	m.mu.RLock()
 	managerContext := m.ctx
@@ -760,7 +769,7 @@ func (m *Manager) execPlatformCommand(id string, options ExecOptions) (*ExecResu
 		if value.state != nil {
 			result.ExitCode = value.state.ExitCode()
 		}
-		return nil, errManagerClosed
+		return nil, errors.New("容器管理器已关闭")
 	}
 	closeOutput()
 	result.Output, result.Truncated = output.snapshot()
@@ -931,6 +940,8 @@ func (m *Manager) releasePlatformRuntime(id string, runtime *linuxRuntime, conta
 		retained = current == runtime || current != nil && current.container == container
 		if retained {
 			if instance := m.instances[id]; instance != nil {
+				instance.Status = StatusStopping
+				instance.PID = 0
 				cleanupGeneration = instance.Generation
 			}
 		}
@@ -939,7 +950,7 @@ func (m *Manager) releasePlatformRuntime(id string, runtime *linuxRuntime, conta
 	}
 	m.mu.Unlock()
 	if destroyErr != nil {
-		destroyErr = errors.Join(errRuntimeCleanupPending, fmt.Errorf("清理容器运行状态失败: %w", destroyErr))
+		destroyErr = errors.Join(errors.New("容器运行状态等待清理"), fmt.Errorf("清理容器运行状态失败: %w", destroyErr))
 		if retained && cleanupGeneration > 0 {
 			m.retryPlatformCleanup(id, cleanupGeneration, runtime)
 		}

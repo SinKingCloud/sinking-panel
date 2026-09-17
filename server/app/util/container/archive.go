@@ -901,6 +901,9 @@ func (m *Manager) commitInstance(instance *Instance, name string, tags []string)
 	if instance.WorkingDir != "" {
 		image.WorkingDir = instance.WorkingDir
 	}
+	if instance.User != "" {
+		image.User = instance.User
+	}
 	if len(image.Tags) == 0 && strings.Contains(name, ":") {
 		image.Tags = []string{name}
 	}

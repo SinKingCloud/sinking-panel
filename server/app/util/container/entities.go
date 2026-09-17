@@ -2,7 +2,6 @@ package container
 
 import (
 	"context"
-	"errors"
 	"io"
 	"sync"
 	"time"
@@ -13,10 +12,6 @@ const (
 	securityMetadataVersion = 1     // 容器安全元数据版本
 	defaultIDMapSize        = 65536 // 默认映射完整的常规容器 UID/GID 范围
 )
-
-var errRuntimeCleanupPending = errors.New("容器运行状态等待清理")
-var errPlatformRuntimeUnavailable = errors.New("当前平台无法管理容器运行状态")
-var errManagerClosed = errors.New("容器管理器已关闭")
 
 // ManagerOptions 控制容器运行时的轮询、日志和停止策略。
 // 字段为零值时使用内置默认值，便于按需只覆盖单项配置。
@@ -64,6 +59,7 @@ type RunOptions struct {
 	Env         []string
 	Command     []string
 	WorkingDir  string
+	User        string // 空值继承镜像运行用户
 	Resources   ResourceLimits
 	AutoRestart bool
 	// ReadOnly 禁用实例可写层；默认使用独立 overlay 写层保护镜像。
@@ -74,6 +70,7 @@ type RunOptions struct {
 type ExecOptions struct {
 	Command    []string
 	Env        []string
+	Stdin      io.Reader // 可通过标准输入传入敏感参数，避免出现在进程命令行
 	WorkingDir string
 	Timeout    time.Duration
 	MaxOutput  int64
@@ -138,8 +135,10 @@ type Instance struct {
 	Command         []string       `json:"command,omitempty"`
 	Env             []string       `json:"env,omitempty"`
 	WorkingDir      string         `json:"working_dir,omitempty"`
+	User            string         `json:"user,omitempty"`
 	Resources       ResourceLimits `json:"resources,omitempty"`
 	AutoRestart     bool           `json:"auto_restart"`
+	ManualStop      bool           `json:"manual_stop,omitempty"` // 手动停止后不自动恢复，保留原保活策略
 	WritableLayer   bool           `json:"writable_layer"`
 	Rootfs          string         `json:"rootfs,omitempty"`
 	UpperDir        string         `json:"upper_dir,omitempty"`

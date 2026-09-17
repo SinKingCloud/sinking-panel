@@ -318,16 +318,16 @@ func (m *Manager) openPlatformMount(source string) (*os.File, error) {
 	return os.NewFile(uintptr(sourceFD), source), nil
 }
 
-func (m *Manager) scanPlatformMount(root string, prepare, requireMapped bool) error {
+func (m *Manager) scanPlatformMount(root string, prepare, requireMapped bool, owner ...[2]int) error {
 	source, err := m.openPlatformMount(root)
 	if err != nil {
 		return err
 	}
 	defer source.Close()
-	return m.scanPlatformMountHandle(root, source, prepare, requireMapped)
+	return m.scanPlatformMountHandle(root, source, prepare, requireMapped, owner...)
 }
 
-func (m *Manager) scanPlatformMountHandle(root string, source *os.File, prepare, requireMapped bool) error {
+func (m *Manager) scanPlatformMountHandle(root string, source *os.File, prepare, requireMapped bool, owner ...[2]int) error {
 	rootDevice, err := m.validatePlatformMountTree(root)
 	if err != nil {
 		return err
@@ -425,11 +425,17 @@ func (m *Manager) scanPlatformMountHandle(root string, source *os.File, prepare,
 				}
 				seen[relative] = struct{}{}
 			}
-			mappedUID, uidErr := mapID(pathStat.Uid, m.security.UIDMapStart, currentPath, "UID")
-			mappedGID, gidErr := mapID(pathStat.Gid, m.security.GIDMapStart, currentPath, "GID")
-			if prepare && (uidErr != nil || gidErr != nil) {
-				_ = unix.Close(pathFD)
-				return errors.Join(uidErr, gidErr)
+			var mappedUID, mappedGID int
+			if len(owner) > 0 {
+				mappedUID, mappedGID = owner[0][0], owner[0][1]
+			} else {
+				var uidErr, gidErr error
+				mappedUID, uidErr = mapID(pathStat.Uid, m.security.UIDMapStart, currentPath, "UID")
+				mappedGID, gidErr = mapID(pathStat.Gid, m.security.GIDMapStart, currentPath, "GID")
+				if prepare && (uidErr != nil || gidErr != nil) {
+					_ = unix.Close(pathFD)
+					return errors.Join(uidErr, gidErr)
+				}
 			}
 			if requireMapped && (int64(pathStat.Uid) < m.security.UIDMapStart || int64(pathStat.Uid) >= m.security.UIDMapStart+m.security.IDMapSize ||
 				int64(pathStat.Gid) < m.security.GIDMapStart || int64(pathStat.Gid) >= m.security.GIDMapStart+m.security.IDMapSize) {
@@ -515,12 +521,35 @@ func (m *Manager) scanPlatformMountHandle(root string, source *os.File, prepare,
 	return walk(false, false)
 }
 
-func (m *Manager) preparePlatformMountOwnership(root string) error {
+func (m *Manager) preparePlatformMountOwnership(root string, options ...RunOptions) error {
+	var owner [][2]int
+	if len(options) > 0 {
+		image, err := m.Image(options[0].ImageID)
+		if err != nil {
+			return err
+		}
+		if err := m.validateImageSecurity(image); err != nil {
+			return err
+		}
+		user := options[0].User
+		if user == "" {
+			user = image.User
+		}
+		uid, gid, _, err := m.resolveUser(image.Rootfs, user)
+		if err != nil {
+			return fmt.Errorf("解析挂载镜像用户失败: %w", err)
+		}
+		uid, gid, err = m.mapOwnership(uid, gid)
+		if err != nil {
+			return err
+		}
+		owner = append(owner, [2]int{uid, gid})
+	}
 	unlock, err := m.lockPlatformMountStaging()
 	if err != nil {
 		return err
 	}
-	return errors.Join(m.scanPlatformMount(root, true, false), unlock())
+	return errors.Join(m.scanPlatformMount(root, true, false, owner...), unlock())
 }
 
 func (m *Manager) validatePlatformMountOwnership(root string) error {

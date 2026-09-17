@@ -16,7 +16,7 @@ func (m *Manager) normalizePlatformRootfsOwnership(root string) error {
 	return nil
 }
 
-func (m *Manager) preparePlatformMountOwnership(root string) error {
+func (m *Manager) preparePlatformMountOwnership(root string, options ...RunOptions) error {
 	return errors.New("准备容器挂载需要启用 cgo")
 }
 
@@ -45,7 +45,7 @@ func (m *Manager) cleanupPlatformRootfs(instance *Instance) error {
 }
 
 func (m *Manager) cleanupOrphanPlatformRuntime(id string) error {
-	return errPlatformRuntimeUnavailable
+	return errors.New("当前平台无法管理容器运行状态")
 }
 
 func (m *Manager) execPlatformCommand(id string, options ExecOptions) (*ExecResult, error) {

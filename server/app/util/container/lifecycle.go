@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"path"
 	"path/filepath"
@@ -225,21 +226,21 @@ func (m *Manager) recoverInstances() error {
 			continue
 		}
 		if instance == nil || !m.isActiveStatus(instance.Status) && instance.PID <= 0 && !hasRuntimeState {
+			if instance != nil && (instance.Status == StatusStopped || instance.Status == StatusFailed) {
+				m.scheduleAutoRestart(instance.ID, instance.Generation)
+			}
 			unlock()
 			continue
 		}
 		previousStatus, previousError := instance.Status, instance.Error
 		shouldAutoRestart := false
 		running, err := m.recoverPlatformRuntime(instance)
-		if errors.Is(err, errRuntimeCleanupPending) {
-			m.mu.RLock()
-			current := m.cloneInstance(m.instances[id])
-			m.mu.RUnlock()
-			if current != nil && current.Generation == instance.Generation {
-				instance = current
-			}
-			instance.Status = StatusStopping
-			instance.PID = 0
+		m.mu.RLock()
+		current := m.cloneInstance(m.instances[id])
+		_, pendingRuntime := m.runtime[id]
+		m.mu.RUnlock()
+		if err != nil && pendingRuntime && current != nil && current.Generation == instance.Generation && current.Status == StatusStopping && current.PID == 0 {
+			instance = current
 			instance.Error = err.Error()
 		} else if err != nil {
 			instance.Status = StatusUnknown
@@ -248,7 +249,7 @@ func (m *Manager) recoverInstances() error {
 			instance.Status = StatusRunning
 			instance.Error = ""
 		} else {
-			shouldAutoRestart = instance.AutoRestart && (previousStatus == StatusRunning || previousStatus == StatusStarting)
+			shouldAutoRestart = instance.AutoRestart && !instance.ManualStop
 			instance.Status = StatusStopped
 			instance.PID = 0
 			instance.EndedAt = time.Now().Unix()
@@ -271,7 +272,7 @@ func (m *Manager) recoverInstances() error {
 			unlock()
 			return fmt.Errorf("保存实例恢复状态失败: %w", writeErr)
 		}
-		if shouldAutoRestart && instance.Status == StatusStopped {
+		if shouldAutoRestart && (instance.Status == StatusStopped || instance.Status == StatusFailed) {
 			m.scheduleAutoRestart(instance.ID, instance.Generation)
 		}
 		unlock()
@@ -315,7 +316,7 @@ func (m *Manager) runLocked(options RunOptions) (*Instance, error) {
 	closing := m.closing
 	m.mu.RUnlock()
 	if closing {
-		return nil, errManagerClosed
+		return nil, errors.New("容器管理器已关闭")
 	}
 	m.mountMu.Lock()
 	defer m.mountMu.Unlock()
@@ -420,6 +421,7 @@ func (m *Manager) runLocked(options RunOptions) (*Instance, error) {
 		Command:         append([]string(nil), options.Command...),
 		Env:             append([]string(nil), options.Env...),
 		WorkingDir:      options.WorkingDir,
+		User:            options.User,
 		Resources:       options.Resources,
 		AutoRestart:     options.AutoRestart,
 		WritableLayer:   !options.ReadOnly,
@@ -460,7 +462,13 @@ func (m *Manager) runLocked(options RunOptions) (*Instance, error) {
 		failure := fmt.Errorf("保存运行状态失败: %w", err)
 		m.setPlatformFailure(instance.ID, failure)
 		stopErr := m.stopRuntime(instance)
-		cleanupErr := m.cleanupRuntimeRootfs(instance)
+		m.mu.RLock()
+		_, hasRuntime := m.runtime[instance.ID]
+		m.mu.RUnlock()
+		var cleanupErr error
+		if stopErr == nil && !hasRuntime {
+			cleanupErr = m.cleanupRuntimeRootfs(instance)
+		}
 		instance.PID = 0
 		instance.Status = StatusFailed
 		instance.Error = failure.Error()
@@ -506,10 +514,7 @@ func (m *Manager) stopLocked(id string) error {
 	if err := m.stopRuntime(instance); err != nil {
 		m.mu.Lock()
 		if current = m.instances[id]; current != nil && current.Generation == generation {
-			if errors.Is(err, errRuntimeCleanupPending) {
-				current.Status = StatusStopping
-				current.PID = 0
-			} else {
+			if _, pendingRuntime := m.runtime[id]; !pendingRuntime || current.Status != StatusStopping || current.PID != 0 {
 				current.Status = previousStatus
 			}
 			current.Error = err.Error()
@@ -579,12 +584,12 @@ func (m *Manager) markExitedLocked(id string, generation uint64, exitCode int, w
 	_ = m.writeJSON(filepath.Join(m.instancesRoot, id, "instance.json"), instance)
 }
 
-// scheduleAutoRestart 在异常退出后的短暂延迟后重新启动实例。
+// scheduleAutoRestart 在初始化恢复或异常退出后的短暂延迟后重新启动实例。
 // 通过实例代次和待重启标记校验，避免旧进程退出事件覆盖用户后续的手动操作。
 func (m *Manager) scheduleAutoRestart(id string, generation uint64) {
 	m.mu.Lock()
 	instance := m.instances[id]
-	if m.closing || instance == nil || instance.Generation != generation || !instance.AutoRestart {
+	if m.closing || instance == nil || instance.Generation != generation || !instance.AutoRestart || instance.ManualStop {
 		m.mu.Unlock()
 		return
 	}
@@ -618,18 +623,31 @@ func (m *Manager) scheduleAutoRestart(id string, generation uint64) {
 		closing := m.closing
 		m.mu.Unlock()
 		if !pending || pendingGeneration != generation || instance == nil || instance.Generation != generation ||
-			closing || !instance.AutoRestart || (instance.Status != StatusStopped && instance.Status != StatusFailed) || instance.PID > 0 || hasRuntime {
+			closing || !instance.AutoRestart || instance.ManualStop || (instance.Status != StatusStopped && instance.Status != StatusFailed) || instance.PID > 0 || hasRuntime {
 			return
 		}
 		hasRuntimeState, err := m.hasRuntimeState(id)
-		if err != nil || hasRuntimeState {
+		if hasRuntimeState {
 			return
 		}
 		options := m.optionsFromInstance(instance)
-		if err := m.normalizeRunOptions(&options); err != nil {
-			return
+		if err == nil {
+			err = m.normalizeRunOptions(&options)
 		}
-		_, _ = m.runLocked(options)
+		if err == nil {
+			_, err = m.runLocked(options)
+		}
+		if err != nil {
+			m.mu.RLock()
+			instance = m.cloneInstance(m.instances[id])
+			m.mu.RUnlock()
+			if instance != nil {
+				instance.Error = err.Error()
+				m.storeInstance(instance)
+				err = errors.Join(err, m.writeJSON(filepath.Join(m.instancesRoot, id, "instance.json"), instance))
+			}
+			log.Printf("自动启动容器 %s 失败: %v", id, err)
+		}
 	})
 	if !started {
 		m.cancelAutoRestart(id)
@@ -669,7 +687,7 @@ func (m *Manager) markRuntimeCleanupLocked(id string, generation uint64, exitCod
 			current.Error = "保存实例退出状态失败: " + err.Error()
 		}
 		m.mu.Unlock()
-		return errors.Join(errRuntimeCleanupPending, fmt.Errorf("保存实例退出状态失败: %w", err))
+		return errors.Join(errors.New("容器运行状态等待清理"), fmt.Errorf("保存实例退出状态失败: %w", err))
 	}
 	return nil
 }
@@ -691,15 +709,12 @@ func (m *Manager) refreshInstanceLocked(id string) (*Instance, error) {
 	}
 	previousStatus, previousPID := instance.Status, instance.PID
 	running, err := m.refreshPlatformRuntime(instance)
-	if errors.Is(err, errRuntimeCleanupPending) {
-		m.mu.RLock()
-		current := m.cloneInstance(m.instances[id])
-		m.mu.RUnlock()
-		if current != nil && current.Generation == instance.Generation {
-			instance = current
-		}
-		instance.Status = StatusStopping
-		instance.PID = 0
+	m.mu.RLock()
+	current := m.cloneInstance(m.instances[id])
+	_, pendingRuntime := m.runtime[id]
+	m.mu.RUnlock()
+	if err != nil && pendingRuntime && current != nil && current.Generation == instance.Generation && current.Status == StatusStopping && current.PID == 0 {
+		instance = current
 		instance.Error = err.Error()
 	} else if err != nil {
 		instance.Status = StatusUnknown
@@ -731,8 +746,11 @@ func (m *Manager) refreshInstanceLocked(id string) (*Instance, error) {
 
 func (m *Manager) failStart(instance *Instance, startErr error) error {
 	m.setPlatformFailure(instance.ID, startErr)
+	m.mu.RLock()
+	_, hasRuntime := m.runtime[instance.ID]
+	m.mu.RUnlock()
 	var cleanupErr error
-	if !errors.Is(startErr, errRuntimeCleanupPending) {
+	if !hasRuntime {
 		cleanupErr = m.cleanupRuntimeRootfs(instance)
 	}
 	result := errors.Join(startErr, cleanupErr)
@@ -754,6 +772,7 @@ func (m *Manager) optionsFromInstance(instance *Instance) RunOptions {
 		Env:         append([]string(nil), instance.Env...),
 		Command:     append([]string(nil), instance.Command...),
 		WorkingDir:  instance.WorkingDir,
+		User:        instance.User,
 		Resources:   instance.Resources,
 		AutoRestart: instance.AutoRestart,
 		ReadOnly:    !instance.WritableLayer,
@@ -764,6 +783,10 @@ func (m *Manager) normalizeRunOptions(options *RunOptions) error {
 	options.ID = strings.TrimSpace(options.ID)
 	options.ImageID = strings.TrimSpace(options.ImageID)
 	options.WorkingDir = strings.TrimSpace(options.WorkingDir)
+	if strings.ContainsAny(options.User, "\x00\r\n") {
+		return errors.New("容器运行用户不能包含空字符或换行")
+	}
+	options.User = strings.TrimSpace(options.User)
 	if options.ImageID == "" {
 		return errors.New("镜像不能为空")
 	}

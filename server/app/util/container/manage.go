@@ -292,10 +292,21 @@ func (m *Manager) HostID(uid, gid int) (int, int, error) {
 }
 
 // PrepareMount 将受管目录内的全部文件转换为容器 UID/GID，并移除宿主可利用的提权位。
-// 该操作会修改宿主文件所有权，只应在首次挂载可写业务目录前调用。
-func (m *Manager) PrepareMount(source string) error {
+// 可选 RunOptions 的 ImageID/User 指定目录树属主；User 为空时使用镜像默认用户。
+// 不传 options 保留各文件原有容器 UID/GID；只应在首次挂载可写业务目录前调用。
+func (m *Manager) PrepareMount(source string, options ...RunOptions) error {
+	if len(options) > 1 {
+		return errors.New("准备挂载最多接受一个运行选项")
+	}
+	if len(options) == 1 && strings.TrimSpace(options[0].ImageID) == "" {
+		return errors.New("指定挂载属主时必须提供镜像 ImageID")
+	}
 	m.mountMu.Lock()
 	defer m.mountMu.Unlock()
+	if len(options) == 1 {
+		m.imageMu.RLock()
+		defer m.imageMu.RUnlock()
+	}
 	resolved, err := m.resolveMountSource(source)
 	if err != nil {
 		return err
@@ -322,7 +333,7 @@ func (m *Manager) PrepareMount(source string) error {
 		}
 	}
 	m.mu.RUnlock()
-	return m.preparePlatformMountOwnership(resolved)
+	return m.preparePlatformMountOwnership(resolved, options...)
 }
 
 func (m *Manager) Import(source string) (*Image, error) {
@@ -487,7 +498,7 @@ func (m *Manager) Start(id string) (*Instance, error) {
 	return m.runLocked(options)
 }
 
-// Stop 优雅停止实例，超时后由平台运行时强制结束。
+// Stop 手动停止实例并暂停自动恢复，超时后由平台运行时强制结束。
 func (m *Manager) Stop(id string) error {
 	if err := m.validateID(id); err != nil {
 		return err
@@ -495,6 +506,19 @@ func (m *Manager) Stop(id string) error {
 	unlock := m.lockInstance(id)
 	defer unlock()
 	m.cancelAutoRestart(id)
+	m.mu.RLock()
+	instance := m.cloneInstance(m.instances[id])
+	m.mu.RUnlock()
+	if instance == nil {
+		return errors.New("实例不存在")
+	}
+	if !instance.ManualStop {
+		instance.ManualStop = true
+		if err := m.writeJSON(filepath.Join(m.instancesRoot, id, "instance.json"), instance); err != nil {
+			return fmt.Errorf("保存实例手动停止状态失败: %w", err)
+		}
+		m.storeInstance(instance)
+	}
 	return m.stopLocked(id)
 }
 
@@ -702,7 +726,9 @@ func (m *Manager) StopAll() error {
 			group.Add(1)
 			go func(instanceID string) {
 				defer group.Done()
-				if err := m.Stop(instanceID); err != nil {
+				unlock := m.lockInstance(instanceID)
+				defer unlock()
+				if err := m.stopLocked(instanceID); err != nil {
 					errorsChannel <- fmt.Errorf("停止实例 %s 失败: %w", instanceID, err)
 				}
 			}(id)

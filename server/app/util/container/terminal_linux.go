@@ -121,9 +121,13 @@ func (m *Manager) openPlatformTerminal(id string, height, width int) (TerminalSe
 	if rootfs == "" {
 		rootfs = image.Rootfs
 	}
-	uid, gid, groups, err := m.resolveUser(rootfs, image.User)
+	user := instance.User
+	if user == "" {
+		user = image.User
+	}
+	uid, gid, groups, err := m.resolveUser(rootfs, user)
 	if err != nil {
-		return nil, fmt.Errorf("解析镜像运行用户失败: %w", err)
+		return nil, fmt.Errorf("解析容器运行用户失败: %w", err)
 	}
 	workingDir := instance.WorkingDir
 	if workingDir == "" {
@@ -176,7 +180,7 @@ func (m *Manager) openPlatformTerminal(id string, height, width int) (TerminalSe
 		_ = process.Signal(unix.SIGKILL)
 		_, _ = process.Wait()
 		_ = parent.Close()
-		return nil, errManagerClosed
+		return nil, errors.New("容器管理器已关闭")
 	}
 	cleanupProcess := func() {
 		_ = process.Signal(unix.SIGTERM)
@@ -224,7 +228,7 @@ func (m *Manager) openPlatformTerminal(id string, height, width int) (TerminalSe
 	session.onClose = func() { m.unregisterTerminal(session) }
 	if !m.registerTerminal(session) {
 		_ = session.Close()
-		return nil, errManagerClosed
+		return nil, errors.New("容器管理器已关闭")
 	}
 	if !m.runBackground(func(context.Context) {
 		<-processDone
@@ -232,7 +236,7 @@ func (m *Manager) openPlatformTerminal(id string, height, width int) (TerminalSe
 		session.release()
 	}) {
 		_ = session.Close()
-		return nil, errManagerClosed
+		return nil, errors.New("容器管理器已关闭")
 	}
 	return session, nil
 }
