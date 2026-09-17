@@ -1,6 +1,6 @@
 import React from "react";
 import {Icon} from "sinking-antd";
-import type {TableProps} from "@/components/table";
+import type {PageTableProps} from "sinking-antd";
 
 const useSiteHeader = ({
     keyword,
@@ -24,7 +24,7 @@ const useSiteHeader = ({
     onHTTPSettings,
     onManageCert,
     onManageSecret,
-}: any): Pick<TableProps, "hero" | "toolbar"> => {
+}: any): Pick<PageTableProps, "hero" | "toolbar"> => {
     const categoryOptions = React.useMemo(() => [
         {label: "全部分类", value: "0"},
         ...(typeItems || []).map((item: any) => ({value: String(item.id), label: String(item.name)})),

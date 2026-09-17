@@ -1,7 +1,7 @@
 import React, {useEffect, useMemo, useRef, useState} from "react";
 import {App, Form, InputNumber, Tooltip, Typography} from "antd";
-import {Body, ProModal, ProModalRef, Title} from "sinking-antd";
-import Table, {TableProps, TableRef} from "@/components/table";
+import {Body, PageTable, ProModal, Title} from "sinking-antd";
+import type {PageTableProps, PageTableRef, ProModalRef} from "sinking-antd";
 import {getLog} from "@/service/api/system";
 import useEnum from "@/utils/enum";
 import {getParams} from "@/utils/page";
@@ -23,7 +23,7 @@ export default (): React.ReactNode => {
     const {styles} = useStyles();
     const {message} = App.useApp();
     const [enumData, enumLoading]: any = useEnum("log");
-    const tableRef = useRef<TableRef<LogRecord> | null>(null);
+    const tableRef = useRef<PageTableRef<LogRecord> | null>(null);
     const clearRef = useRef<ProModalRef | null>(null);
     const requestRef = useRef(0);
     const submittingRef = useRef(false);
@@ -35,7 +35,7 @@ export default (): React.ReactNode => {
         requestRef.current += 1;
     }, []);
 
-    const columns = useMemo<TableProps<LogRecord>["columns"]>(() => [
+    const columns = useMemo<PageTableProps<LogRecord>["columns"]>(() => [
         {
             title: "操作IP",
             dataIndex: "ip",
@@ -127,7 +127,7 @@ export default (): React.ReactNode => {
 
     return (
         <Body loading={enumLoading}>
-            <Table<LogRecord>
+            <PageTable<LogRecord>
                 ref={tableRef}
                 ariaLabel="操作日志"
                 className={styles.logTable}

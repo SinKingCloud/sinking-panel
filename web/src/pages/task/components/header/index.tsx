@@ -1,5 +1,5 @@
 import React from "react";
-import type {TableProps} from "@/components/table";
+import type {PageTableProps} from "sinking-antd";
 
 const useTaskHeader = ({
     keyword,
@@ -19,7 +19,7 @@ const useTaskHeader = ({
     onStatusChange,
     onRefresh,
     onCreate,
-}: any): Pick<TableProps, "hero" | "toolbar"> => {
+}: any): Pick<PageTableProps, "hero" | "toolbar"> => {
     const typeOptions = React.useMemo(() => [
         {label: "全部分类", value: "0"},
         ...(typeItems

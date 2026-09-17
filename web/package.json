@@ -10,20 +10,20 @@
   },
   "dependencies": {
     "@ant-design/charts": "^2.6.7",
-    "@umijs/plugins": "^4.7.5",
+    "@umijs/plugins": "^4.7.18",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/xterm": "^6.0.0",
-    "antd": "^6.6.0",
+    "antd": "^6.6.4",
     "antd-style": "^4.1.0",
-    "dayjs": "^1.11.19",
+    "dayjs": "^1.11.23",
     "go-captcha-react": "^1.0.5",
-    "sinking-antd": "^1.1.7",
-    "umi": "^4.7.5",
+    "sinking-antd": "^1.1.8",
+    "umi": "^4.7.18",
     "umi-request": "^1.4.0"
   },
   "devDependencies": {
-    "@types/react": "^19.2.18",
-    "@types/react-dom": "^19.2.4",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
     "typescript": "^7.0.2"
   }
 }

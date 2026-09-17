@@ -18,10 +18,9 @@ import {
 } from "antd";
 import {createStyles} from "antd-style";
 import dayjs from "dayjs";
-import {Icon, ProModal, Title, useTheme} from "sinking-antd";
+import {Icon, ModalTable, ProModal, Title, useTheme} from "sinking-antd";
+import type {ModalTableRef} from "sinking-antd";
 import Dropdown from "@/pages/components/stable-dropdown";
-import ModalTable from "@/components/modal-table";
-import type {ModalTableRef} from "@/components/modal-table";
 import {
     createCert,
     deleteCert,

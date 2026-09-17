@@ -10,9 +10,8 @@ import {
 } from "react";
 import {App, Button, Grid, Space, Tooltip} from "antd";
 import type {TableColumnsType} from "antd";
-import {Icon, Title, useTheme} from "sinking-antd";
-import ModalTable from "@/components/modal-table";
-import type {ModalTableRef, TableRequestParams} from "@/components/modal-table";
+import {Icon, ModalTable, Title, useTheme} from "sinking-antd";
+import type {ModalTableProps, ModalTableRef} from "sinking-antd";
 import Dropdown from "@/pages/components/stable-dropdown";
 import {
     clearRecycle,
@@ -262,8 +261,8 @@ const FileRecycleBin = memo(forwardRef<FileRecycleBinRef, FileRecycleBinProps>((
         },
     ], [confirmDelete, confirmRestore]);
 
-    const request = useCallback(
-        (params: TableRequestParams) => getData(params, recycleSort, getRecycleList),
+    const request = useCallback<NonNullable<ModalTableProps["request"]>>(
+        (params) => getData(params, recycleSort, getRecycleList),
         [],
     );
 

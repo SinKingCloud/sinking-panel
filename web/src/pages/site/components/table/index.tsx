@@ -1,7 +1,7 @@
 import {useMemo, useState} from "react";
 import {Button, Tooltip} from "antd";
 import Dropdown from "@/pages/components/stable-dropdown";
-import type {DataTableProps} from "@/components/table";
+import type {PageTableProps} from "sinking-antd";
 import {getFullPathByName, historyPush} from "@/utils/route";
 import {ago} from "@/utils/time";
 
@@ -18,7 +18,7 @@ const useSiteTable = ({
     onSortChange,
     onSettings,
     onAction,
-}: any): DataTableProps<any> => {
+}: any): PageTableProps<any> => {
     const [openRowId, setOpenRowId] = useState("");
 
     const columns = useMemo<any[]>(() => [

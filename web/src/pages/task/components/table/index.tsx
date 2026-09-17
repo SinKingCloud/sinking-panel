@@ -1,7 +1,7 @@
 import React, {useMemo, useState} from "react";
 import {Button, Tooltip} from "antd";
 import Dropdown from "@/pages/components/stable-dropdown";
-import type {DataTableProps} from "@/components/table";
+import type {PageTableProps} from "sinking-antd";
 import {ago} from "@/utils/time";
 import {describeTaskSchedule} from "../../utils";
 
@@ -24,7 +24,7 @@ const useTaskTable = ({
     onAction,
     onEdit,
     onLog,
-}: any): DataTableProps<any> => {
+}: any): PageTableProps<any> => {
     const [openRowId, setOpenRowId] = useState("");
 
     const columns = useMemo<any[]>(() => [

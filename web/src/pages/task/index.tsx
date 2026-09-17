@@ -1,7 +1,6 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from "react";
-import {Body} from "sinking-antd";
+import {Body, PageTable} from "sinking-antd";
 import useEnum from "@/utils/enum";
-import Table from "@/components/table";
 import TypeManager, {TypeManagerRef} from "@/pages/components/type-manager";
 import {getAllTypes} from "@/service/api/type";
 import Form, {FormRef} from "./components/form";
@@ -98,7 +97,7 @@ export default (): React.ReactNode => {
 
     return (
         <Body loading={enumLoading}>
-            <Table
+            <PageTable
                 {...header}
                 {...table}
                 ariaLabel="计划任务"

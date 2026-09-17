@@ -1,9 +1,8 @@
 import {forwardRef, memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState} from "react";
 import {App, Button, Empty, Grid, Tooltip} from "antd";
 import {createStyles} from "antd-style";
-import {Title, useTheme} from "sinking-antd";
-import ModalTable from "@/components/modal-table";
-import type {ModalTableRef, TableRequestParams} from "@/components/modal-table";
+import {ModalTable, Title, useTheme} from "sinking-antd";
+import type {ModalTableProps, ModalTableRef} from "sinking-antd";
 import Dropdown from "@/pages/components/stable-dropdown";
 import {deleteSecret, getSecretList} from "@/service/api/secret";
 import type {SecretRecord} from "@/service/api/secret";
@@ -148,7 +147,7 @@ const SecretManager = forwardRef<SecretManagerRef, SecretManagerProps>(({zIndex 
         };
     }, []);
 
-    const request = useCallback(async ({current, pageSize, keyword, provider}: TableRequestParams) => {
+    const request = useCallback<NonNullable<ModalTableProps<SecretRecord>["request"]>>(async ({current, pageSize, keyword, provider}) => {
         const response = await getSecretList({body: {
             page: current,
             page_size: pageSize,

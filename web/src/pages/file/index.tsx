@@ -1,7 +1,6 @@
 import React, {useCallback, useLayoutEffect, useRef, useState} from "react";
 import {App, Button, Empty} from "antd";
-import {Body, Icon} from "sinking-antd";
-import Table from "@/components/table";
+import {Body, Icon, PageTable} from "sinking-antd";
 import FileDialogHost from "./components/dialog-host";
 import type {FileDialogHostRef} from "./components/dialog-host";
 import FilePathBar from "./components/path-bar";
@@ -179,7 +178,7 @@ export default (): React.ReactNode => {
 
     return (
         <Body>
-            <Table
+            <PageTable
                 {...fileTable}
                 ariaLabel="文件管理"
                 paginationAffix={{offsetBottom: 15}}

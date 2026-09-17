@@ -1,7 +1,6 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react";
-import {Body} from "sinking-antd";
+import {Body, PageTable} from "sinking-antd";
 import TypeManager, {TypeManagerRef} from "@/pages/components/type-manager";
-import Table from "@/components/table";
 import {getAllTypes} from "@/service/api/type";
 import useEnum from "@/utils/enum";
 import useSiteHeader from "./components/header";
@@ -107,7 +106,7 @@ export default (): React.ReactNode => {
 
     return (
         <Body loading={enumLoading}>
-            <Table
+            <PageTable
                 {...header}
                 {...table}
                 ariaLabel="网站管理"
