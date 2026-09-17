@@ -239,7 +239,7 @@ sinking-panel/
 
 ## 当前范围
 
-Sinking Panel 当前是单机服务器管理面板，不包含集群、多节点集中管理、告警通知、软件商店或网站管理页面。`server/app/util/container` 和 `server/app/util/server` 中的代码是后续业务能力储备，不代表相关功能已经可以从面板使用。
+Sinking Panel 当前是单机服务器管理面板，不包含集群、多节点集中管理、告警通知、软件商店或网站管理页面。`server/app/util/container` 和 `server/app/util/caddy` 中的代码是后续业务能力储备，不代表相关功能已经可以从面板使用。
 
 ## 反馈
 

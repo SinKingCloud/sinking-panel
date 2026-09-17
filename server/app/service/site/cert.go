@@ -22,8 +22,8 @@ import (
 	"server/app/model"
 	repositoryCert "server/app/repository/cert"
 	serviceSecret "server/app/service/secret"
+	"server/app/util/caddy"
 	"server/app/util/page"
-	webServer "server/app/util/server"
 	"server/app/util/str"
 	"sort"
 	"strings"
@@ -108,7 +108,7 @@ func (s *service) UpdateCert(id int64, data *repositoryCert.UpdateCert) error {
 		if data.Type != nil || data.Challenge != nil || data.SecretId != nil || (data.AutoRenew != nil && candidate.AutoRenew != cert_auto_renew.Disabled) {
 			request := CertificateRequest{Type: data.Type, SecretId: data.SecretId, AutoRenew: data.AutoRenew}
 			if data.Challenge != nil {
-				request.Challenge = webServer.CertificateChallenge(*data.Challenge)
+				request.Challenge = caddy.CertificateChallenge(*data.Challenge)
 			}
 			if _, err = s.prepareCertificateRequest(&candidate, &request, tx); err != nil {
 				return err
@@ -264,7 +264,7 @@ func (s *service) ObtainCert(ctx context.Context, name string, request Certifica
 	if err != nil {
 		return nil, err
 	}
-	var issued *webServer.Certificate
+	var issued *caddy.Certificate
 	if manual {
 		if request.order == nil {
 			return nil, errors.New("请先获取手动验证信息，再提交验证")
@@ -405,7 +405,7 @@ func (s *service) RenewCert(ctx context.Context, id int64, request CertificateRe
 			return nil, errors.New("证书在验证期间已修改，请重新续签")
 		}
 	}
-	var issued *webServer.Certificate
+	var issued *caddy.Certificate
 	if manual {
 		issued, err = request.order.Acme.Submit(ctx)
 	} else {
@@ -644,7 +644,7 @@ func (s *service) ManualCert(ctx context.Context, id int64, name string, request
 	defer cancel()
 	client := request.acme
 	if client == nil {
-		client = webServer.NewAcme()
+		client = caddy.NewAcme()
 	}
 	var challenges []acmeTypes.Challenge
 	if id > 0 {
@@ -709,8 +709,8 @@ func (s *service) ManualCert(ctx context.Context, id int64, name string, request
 }
 
 // prepareCertificateRequest 合并证书申请设置，并从关联密钥读取 DNS 凭据。
-func (s *service) prepareCertificateRequest(data *model.Cert, request *CertificateRequest, tx ...*gorm.DB) (webServer.CertificateRequest, error) {
-	acme := webServer.CertificateRequest{
+func (s *service) prepareCertificateRequest(data *model.Cert, request *CertificateRequest, tx ...*gorm.DB) (caddy.CertificateRequest, error) {
+	acme := caddy.CertificateRequest{
 		Domain: request.Domain,
 		CA:     request.CA,
 	}
@@ -723,7 +723,7 @@ func (s *service) prepareCertificateRequest(data *model.Cert, request *Certifica
 		key := fmt.Sprintf("renewals/%d/%x.json", data.Id, sha256.Sum256([]byte(strings.TrimSpace(data.Certificate))))
 		encoded, err := storage.Load(context.Background(), key)
 		if err == nil {
-			request.acme = webServer.NewAcme()
+			request.acme = caddy.NewAcme()
 			if err = json.Unmarshal(encoded, request.acme); err != nil {
 				return acme, fmt.Errorf("读取证书续签信息失败: %w", err)
 			}
@@ -736,9 +736,9 @@ func (s *service) prepareCertificateRequest(data *model.Cert, request *Certifica
 			resource := certmagic.CertificateResource{SANs: append([]string(nil), names...)}
 			names = append(names, request.Domain, resource.NamesKey())
 			fallbackCtx := context.Background()
-			for _, caName := range []webServer.CertificateCA{webServer.CertificateCAProd, webServer.CertificateCAStaging} {
+			for _, caName := range []caddy.CertificateCA{caddy.CertificateCAProd, caddy.CertificateCAStaging} {
 				caURL := certmagic.LetsEncryptProductionCA
-				if caName == webServer.CertificateCAStaging {
+				if caName == caddy.CertificateCAStaging {
 					caURL = certmagic.LetsEncryptStagingCA
 				}
 				issuerKey := (&certmagic.ACMEIssuer{CA: caURL}).IssuerKey()
@@ -801,7 +801,7 @@ func (s *service) prepareCertificateRequest(data *model.Cert, request *Certifica
 						if len(account.Contact) > 0 {
 							email = strings.TrimPrefix(account.Contact[0], "mailto:")
 						}
-						request.acme = &webServer.Acme{
+						request.acme = &caddy.Acme{
 							Domain: request.Domain, CA: caName, Email: email,
 							AccountURL: account.Location, AccountPrivateKeyPEM: accountPrivateKeyPEM,
 							CertificatePEM: []byte(data.Certificate), PrivateKeyPEM: []byte(data.PrivateKey),
@@ -830,7 +830,7 @@ func (s *service) prepareCertificateRequest(data *model.Cert, request *Certifica
 		}
 	}
 	if acme.CA == "" {
-		acme.CA = webServer.CertificateCAProd
+		acme.CA = caddy.CertificateCAProd
 	}
 	if acme.Email == "" && request.acme == nil {
 		acme.Email = strings.TrimSpace(options.ACMEEmail)
@@ -869,18 +869,18 @@ func (s *service) prepareCertificateRequest(data *model.Cert, request *Certifica
 		return acme, nil
 	}
 	if data.Challenge == "" {
-		data.Challenge = string(webServer.CertificateChallengeHTTP)
+		data.Challenge = string(caddy.CertificateChallengeHTTP)
 	}
 	switch data.Type {
 	case cert_type.Manual:
-		acme.Action = webServer.CertificateActionManual
+		acme.Action = caddy.CertificateActionManual
 	case cert_type.Auto:
-		acme.Action = webServer.CertificateActionAuto
+		acme.Action = caddy.CertificateActionAuto
 	default:
 		return acme, errors.New("证书申请类型只支持手动申请或自动申请")
 	}
-	acme.Challenge = webServer.CertificateChallenge(data.Challenge)
-	if acme.Challenge != webServer.CertificateChallengeHTTP && acme.Challenge != webServer.CertificateChallengeDNS {
+	acme.Challenge = caddy.CertificateChallenge(data.Challenge)
+	if acme.Challenge != caddy.CertificateChallengeHTTP && acme.Challenge != caddy.CertificateChallengeDNS {
 		return acme, errors.New("证书验证方式只支持 http 或 dns")
 	}
 	domains := []string{request.Domain}
@@ -890,10 +890,10 @@ func (s *service) prepareCertificateRequest(data *model.Cert, request *Certifica
 		}
 	}
 	for _, domain := range domains {
-		if net.ParseIP(domain) != nil && acme.Challenge != webServer.CertificateChallengeHTTP {
+		if net.ParseIP(domain) != nil && acme.Challenge != caddy.CertificateChallengeHTTP {
 			return acme, errors.New("IP 地址证书必须使用 HTTP 验证")
 		}
-		if strings.HasPrefix(domain, "*.") && acme.Challenge != webServer.CertificateChallengeDNS {
+		if strings.HasPrefix(domain, "*.") && acme.Challenge != caddy.CertificateChallengeDNS {
 			return acme, errors.New("通配符证书必须使用 DNS 验证")
 		}
 	}
@@ -909,12 +909,12 @@ func (s *service) prepareCertificateRequest(data *model.Cert, request *Certifica
 		return acme, nil
 	}
 	switch acme.Challenge {
-	case webServer.CertificateChallengeHTTP:
+	case caddy.CertificateChallengeHTTP:
 		if request.SecretId != nil && *request.SecretId != 0 {
 			return acme, errors.New("HTTP 验证不需要关联 DNS 密钥")
 		}
 		data.SecretId = 0
-	case webServer.CertificateChallengeDNS:
+	case caddy.CertificateChallengeDNS:
 		if data.SecretId == 0 {
 			// 申请和续签必须关联密钥，编辑证书设置时仍可解除关联。
 			if request.Domain != "" {
@@ -932,35 +932,35 @@ func (s *service) prepareCertificateRequest(data *model.Cert, request *Certifica
 			}
 			return acme, fmt.Errorf("读取 DNS 密钥失败: %w", err)
 		}
-		var credentials webServer.DNSCredentials
-		var provider webServer.DNSProvider
+		var credentials caddy.DNSCredentials
+		var provider caddy.DNSProvider
 		switch secret.Provider {
 		case secret_provider.TencentCloud:
-			provider = webServer.DNSProviderTencentCloud
+			provider = caddy.DNSProviderTencentCloud
 			var values serviceSecret.TencentCloud
 			err = json.Unmarshal([]byte(secret.Data), &values)
 			credentials.TencentSecretID = values.SecretId
 			credentials.TencentSecretKey = values.SecretKey
 		case secret_provider.Aliyun:
-			provider = webServer.DNSProviderAliDNS
+			provider = caddy.DNSProviderAliDNS
 			var values serviceSecret.Aliyun
 			err = json.Unmarshal([]byte(secret.Data), &values)
 			credentials.AliyunAccessKeyID = values.AccessKeyId
 			credentials.AliyunAccessKeySecret = values.AccessKeySecret
 		case secret_provider.HuaweiCloud:
-			provider = webServer.DNSProviderHuaweiCloud
+			provider = caddy.DNSProviderHuaweiCloud
 			var values serviceSecret.HuaweiCloud
 			err = json.Unmarshal([]byte(secret.Data), &values)
 			credentials.HuaweiAccessKeyID = values.AccessKeyId
 			credentials.HuaweiSecretAccessKey = values.SecretAccessKey
 		case secret_provider.Volcengine:
-			provider = webServer.DNSProviderVolcengine
+			provider = caddy.DNSProviderVolcengine
 			var values serviceSecret.Volcengine
 			err = json.Unmarshal([]byte(secret.Data), &values)
 			credentials.VolcengineAccessKeyID = values.AccessKeyId
 			credentials.VolcengineAccessKeySecret = values.AccessKeySecret
 		case secret_provider.BaiduCloud:
-			provider = webServer.DNSProviderBaiduCloud
+			provider = caddy.DNSProviderBaiduCloud
 			var values serviceSecret.BaiduCloud
 			err = json.Unmarshal([]byte(secret.Data), &values)
 			credentials.BaiduAccessKeyID = values.AccessKeyId
@@ -984,7 +984,7 @@ func (s *service) prepareCertificateRequest(data *model.Cert, request *Certifica
 }
 
 // checkCertificateSave 确认订单归属和关联密钥，保存签发进度及供下次续签使用的信息。
-func (s *service) checkCertificateSave(data *model.Cert, request webServer.CertificateRequest, tx *gorm.DB, order *certificateOrder) error {
+func (s *service) checkCertificateSave(data *model.Cert, request caddy.CertificateRequest, tx *gorm.DB, order *certificateOrder) error {
 	if order != nil {
 		key := constant.CacheNameWithCertOrder + order.SessionId
 		if s.cache.Get(key+":cancel") != nil || s.cache.Get(key) == nil || !s.cache.IsLock(key+":submit") || !order.ExpiresAt.After(time.Now()) {
@@ -1008,7 +1008,7 @@ func (s *service) checkCertificateSave(data *model.Cert, request webServer.Certi
 		}
 	}
 	settings := &CertificateRequest{Domain: request.Domain, CA: request.CA, order: order}
-	if data.Type == cert_type.Auto && data.Challenge == string(webServer.CertificateChallengeDNS) && data.SecretId == 0 {
+	if data.Type == cert_type.Auto && data.Challenge == string(caddy.CertificateChallengeDNS) && data.SecretId == 0 {
 		// 密钥在续签期间被删除时，保留解除关联的结果，仍可保存已签发的证书。
 		settings.Domain = ""
 	}
@@ -1024,7 +1024,7 @@ func (s *service) checkCertificateSave(data *model.Cert, request webServer.Certi
 		renewal = order.Acme
 	}
 	if renewal == nil {
-		renewal = &webServer.Acme{Domain: request.Domain, CA: request.CA, Email: request.Email}
+		renewal = &caddy.Acme{Domain: request.Domain, CA: request.CA, Email: request.Email}
 	}
 	encoded, err := json.Marshal(renewal)
 	if err != nil {

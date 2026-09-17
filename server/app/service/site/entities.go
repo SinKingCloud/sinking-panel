@@ -4,23 +4,23 @@ import (
 	"time"
 
 	"server/app/model"
-	webServer "server/app/util/server"
+	"server/app/util/caddy"
 	"server/app/util/str"
 )
 
 // CertificateRequest 证书申请设置，HTTP 和 DNS 验证均支持手动操作。
 type CertificateRequest struct {
-	Action    string                         `json:"action"`     // 请求步骤：start、submit、cancel
-	SessionId string                         `json:"session_id"` // 手动验证的缓存订单标识
-	Domain    string                         `json:"domain"`     // 申请证书的域名或公网 IP 地址
-	CA        webServer.CertificateCA        `json:"ca"`         // 证书签发环境
-	Type      *int                           `json:"type"`       // 手动或自动申请，未传入时继承当前设置
-	Challenge webServer.CertificateChallenge `json:"challenge"`  // 所有权验证方式
-	SecretId  *int64                         `json:"secret_id"`  // 自动 DNS 验证关联的密钥 ID
-	AutoRenew *int                           `json:"auto_renew"` // 是否自动续签：0 关闭，1 开启
+	Action    string                     `json:"action"`     // 请求步骤：start、submit、cancel
+	SessionId string                     `json:"session_id"` // 手动验证的缓存订单标识
+	Domain    string                     `json:"domain"`     // 申请证书的域名或公网 IP 地址
+	CA        caddy.CertificateCA        `json:"ca"`         // 证书签发环境
+	Type      *int                       `json:"type"`       // 手动或自动申请，未传入时继承当前设置
+	Challenge caddy.CertificateChallenge `json:"challenge"`  // 所有权验证方式
+	SecretId  *int64                     `json:"secret_id"`  // 自动 DNS 验证关联的密钥 ID
+	AutoRenew *int                       `json:"auto_renew"` // 是否自动续签：0 关闭，1 开启
 
 	order *certificateOrder // 当前手动验证订单，仅在服务内部使用
-	acme  *webServer.Acme   // 从 ACME 数据目录恢复的上次签发信息
+	acme  *caddy.Acme       // 从 ACME 数据目录恢复的上次签发信息
 }
 
 // certificateOrder 缓存手动验证所需的订单、原始参数和签发结果。
@@ -31,22 +31,22 @@ type certificateOrder struct {
 	Name          string             `json:"name"`
 	Request       CertificateRequest `json:"request"`
 	Previous      *model.Cert        `json:"previous,omitempty"`
-	Acme          *webServer.Acme    `json:"acme"`
+	Acme          *caddy.Acme        `json:"acme"`
 	ExpiresAt     time.Time          `json:"expires_at"`
 	Result        *model.Cert        `json:"result,omitempty"`
 }
 
 // HTTPConfig 是四类网站共享的 HTTP 配置。
 type HTTPConfig struct {
-	Redirects    []RedirectConfig              `json:"redirects"`     // 重定向规则
-	Routes       []RouteConfig                 `json:"routes"`        // 自定义路由
-	Headers      webServer.HeaderOptions       `json:"headers"`       // 请求和响应头
-	Compression  webServer.CompressionOptions  `json:"compression"`   // 响应压缩
-	TLS          TLSConfig                     `json:"tls"`           // HTTPS 策略
-	WAF          webServer.WAFOptions          `json:"waf"`           // Web 应用防火墙
-	Cache        webServer.CacheOptions        `json:"cache"`         // 响应缓存
-	RateLimit    webServer.RateLimitOptions    `json:"rate_limit"`    // 请求频率限制
-	TrafficLimit webServer.TrafficLimitOptions `json:"traffic_limit"` // 并发和响应速度限制
+	Redirects    []RedirectConfig          `json:"redirects"`     // 重定向规则
+	Routes       []RouteConfig             `json:"routes"`        // 自定义路由
+	Headers      caddy.HeaderOptions       `json:"headers"`       // 请求和响应头
+	Compression  caddy.CompressionOptions  `json:"compression"`   // 响应压缩
+	TLS          TLSConfig                 `json:"tls"`           // HTTPS 策略
+	WAF          caddy.WAFOptions          `json:"waf"`           // Web 应用防火墙
+	Cache        caddy.CacheOptions        `json:"cache"`         // 响应缓存
+	RateLimit    caddy.RateLimitOptions    `json:"rate_limit"`    // 请求频率限制
+	TrafficLimit caddy.TrafficLimitOptions `json:"traffic_limit"` // 并发和响应速度限制
 }
 
 // RedirectConfig 定义前端可维护的站点重定向规则。
@@ -62,19 +62,19 @@ type RedirectConfig struct {
 
 // RouteConfig 定义前端可维护的站点路由，不暴露底层原始处理器配置。
 type RouteConfig struct {
-	Name          string                     `json:"name"`          // 路由名称
-	Paths         []string                   `json:"paths"`         // 匹配的请求路径
-	Methods       []string                   `json:"methods"`       // 匹配的 HTTP 请求方法
-	StripPrefix   string                     `json:"strip_prefix"`  // 转发前移除的路径前缀
-	Rewrite       string                     `json:"rewrite"`       // 重写后的请求 URI
-	Root          string                     `json:"root"`          // 路由静态文件根目录
-	Index         []string                   `json:"index"`         // 默认首页文件
-	Browse        bool                       `json:"browse"`        // 是否开启目录浏览
-	TryFiles      []string                   `json:"try_files"`     // 静态文件匹配顺序
-	Hide          []string                   `json:"hide"`          // 禁止访问的文件或路径
-	Precompressed []string                   `json:"precompressed"` // 预压缩文件格式
-	Proxy         *webServer.ProxyOptions    `json:"proxy"`         // 路由反向代理配置
-	Response      *webServer.ResponseOptions `json:"response"`      // 固定响应或跳转配置
+	Name          string                 `json:"name"`          // 路由名称
+	Paths         []string               `json:"paths"`         // 匹配的请求路径
+	Methods       []string               `json:"methods"`       // 匹配的 HTTP 请求方法
+	StripPrefix   string                 `json:"strip_prefix"`  // 转发前移除的路径前缀
+	Rewrite       string                 `json:"rewrite"`       // 重写后的请求 URI
+	Root          string                 `json:"root"`          // 路由静态文件根目录
+	Index         []string               `json:"index"`         // 默认首页文件
+	Browse        bool                   `json:"browse"`        // 是否开启目录浏览
+	TryFiles      []string               `json:"try_files"`     // 静态文件匹配顺序
+	Hide          []string               `json:"hide"`          // 禁止访问的文件或路径
+	Precompressed []string               `json:"precompressed"` // 预压缩文件格式
+	Proxy         *caddy.ProxyOptions    `json:"proxy"`         // 路由反向代理配置
+	Response      *caddy.ResponseOptions `json:"response"`      // 固定响应或跳转配置
 }
 
 // TLSConfig 保存站点级 TLS 策略，证书由网站域名表的 cert_id 关联。
@@ -154,14 +154,14 @@ type OWASPUpdate struct {
 
 // WAFUpdate 部分更新网站 WAF 设置，nil 字段保持原值。
 type WAFUpdate struct {
-	Enabled          *bool                `json:"enabled"`            // 是否启用 WAF
-	Mode             *webServer.WAFMode   `json:"mode"`               // WAF 检测或拦截模式
-	BlockPage        *string              `json:"block_page"`         // 自定义拦截 HTML，留空使用默认页面
-	OWASP            *OWASPUpdate         `json:"owasp"`              // OWASP CRS 设置
-	AuditLog         *bool                `json:"audit_log"`          // 是否记录 WAF 审计日志
-	RequestBodyLimit *int64               `json:"request_body_limit"` // 可检查的请求体最大字节数
-	Directives       *[]string            `json:"directives"`         // 自定义 Coraza 指令
-	Rules            *[]webServer.WAFRule `json:"rules"`              // 自定义 WAF 规则
+	Enabled          *bool            `json:"enabled"`            // 是否启用 WAF
+	Mode             *caddy.WAFMode   `json:"mode"`               // WAF 检测或拦截模式
+	BlockPage        *string          `json:"block_page"`         // 自定义拦截 HTML，留空使用默认页面
+	OWASP            *OWASPUpdate     `json:"owasp"`              // OWASP CRS 设置
+	AuditLog         *bool            `json:"audit_log"`          // 是否记录 WAF 审计日志
+	RequestBodyLimit *int64           `json:"request_body_limit"` // 可检查的请求体最大字节数
+	Directives       *[]string        `json:"directives"`         // 自定义 Coraza 指令
+	Rules            *[]caddy.WAFRule `json:"rules"`              // 自定义 WAF 规则
 }
 
 // CacheUpdate 部分更新网站缓存设置，nil 字段保持原值。
@@ -223,55 +223,55 @@ type StaticUpdate struct {
 
 // ProxyUpdate 部分更新 HTTP 反向代理设置，nil 字段保持原值。
 type ProxyUpdate struct {
-	Upstreams             *[]webServer.Upstream  `json:"upstreams"`                // 上游服务地址
-	Scheme                *webServer.ProxyScheme `json:"scheme"`                   // HTTP 上游协议
-	Policy                *string                `json:"policy"`                   // 上游负载均衡策略
-	Retries               *int                   `json:"retries"`                  // 选择可用上游的重试次数
-	TryDuration           *time.Duration         `json:"try_duration"`             // 选择可用上游的最长时间
-	TryInterval           *time.Duration         `json:"try_interval"`             // 上游重试间隔
-	DialTimeout           *time.Duration         `json:"dial_timeout"`             // 建立上游连接的超时时间
-	ReadTimeout           *time.Duration         `json:"read_timeout"`             // 读取上游响应的超时时间
-	WriteTimeout          *time.Duration         `json:"write_timeout"`            // 写入上游请求的超时时间
-	ResponseHeaderTimeout *time.Duration         `json:"response_header_timeout"`  // 等待上游响应头的超时时间
-	FlushInterval         *time.Duration         `json:"flush_interval"`           // 向客户端刷新响应的间隔
-	StreamTimeout         *time.Duration         `json:"stream_timeout"`           // 流式响应的最长持续时间
-	StreamCloseDelay      *time.Duration         `json:"stream_close_delay"`       // 配置重载时关闭流连接的延迟
-	Versions              *[]string              `json:"versions"`                 // 允许使用的上游 HTTP 版本
-	TLSServerName         *string                `json:"tls_server_name"`          // 上游 TLS SNI 服务器名称
-	TLSInsecureSkipVerify *bool                  `json:"tls_insecure_skip_verify"` // 是否跳过上游证书校验
-	HealthURI             *string                `json:"health_uri"`               // 主动健康检查请求路径
-	HealthInterval        *time.Duration         `json:"health_interval"`          // 主动健康检查间隔
-	HealthTimeout         *time.Duration         `json:"health_timeout"`           // 单次健康检查超时时间
-	HealthStatus          *int                   `json:"health_status"`            // 健康检查期望状态码
-	Headers               *HeaderUpdate          `json:"headers"`                  // 代理请求和响应头操作
+	Upstreams             *[]caddy.Upstream  `json:"upstreams"`                // 上游服务地址
+	Scheme                *caddy.ProxyScheme `json:"scheme"`                   // HTTP 上游协议
+	Policy                *string            `json:"policy"`                   // 上游负载均衡策略
+	Retries               *int               `json:"retries"`                  // 选择可用上游的重试次数
+	TryDuration           *time.Duration     `json:"try_duration"`             // 选择可用上游的最长时间
+	TryInterval           *time.Duration     `json:"try_interval"`             // 上游重试间隔
+	DialTimeout           *time.Duration     `json:"dial_timeout"`             // 建立上游连接的超时时间
+	ReadTimeout           *time.Duration     `json:"read_timeout"`             // 读取上游响应的超时时间
+	WriteTimeout          *time.Duration     `json:"write_timeout"`            // 写入上游请求的超时时间
+	ResponseHeaderTimeout *time.Duration     `json:"response_header_timeout"`  // 等待上游响应头的超时时间
+	FlushInterval         *time.Duration     `json:"flush_interval"`           // 向客户端刷新响应的间隔
+	StreamTimeout         *time.Duration     `json:"stream_timeout"`           // 流式响应的最长持续时间
+	StreamCloseDelay      *time.Duration     `json:"stream_close_delay"`       // 配置重载时关闭流连接的延迟
+	Versions              *[]string          `json:"versions"`                 // 允许使用的上游 HTTP 版本
+	TLSServerName         *string            `json:"tls_server_name"`          // 上游 TLS SNI 服务器名称
+	TLSInsecureSkipVerify *bool              `json:"tls_insecure_skip_verify"` // 是否跳过上游证书校验
+	HealthURI             *string            `json:"health_uri"`               // 主动健康检查请求路径
+	HealthInterval        *time.Duration     `json:"health_interval"`          // 主动健康检查间隔
+	HealthTimeout         *time.Duration     `json:"health_timeout"`           // 单次健康检查超时时间
+	HealthStatus          *int               `json:"health_status"`            // 健康检查期望状态码
+	Headers               *HeaderUpdate      `json:"headers"`                  // 代理请求和响应头操作
 }
 
 // FastCGIUpdate 部分更新 PHP-FPM FastCGI 设置，nil 字段保持原值。
 type FastCGIUpdate struct {
-	Upstreams          *[]webServer.Upstream `json:"upstreams"`            // PHP-FPM 上游服务地址
-	Policy             *string               `json:"policy"`               // 上游负载均衡策略
-	Retries            *int                  `json:"retries"`              // 选择可用上游的重试次数
-	TryDuration        *time.Duration        `json:"try_duration"`         // 选择可用上游的最长时间
-	TryInterval        *time.Duration        `json:"try_interval"`         // 上游重试间隔
-	DialTimeout        *time.Duration        `json:"dial_timeout"`         // 建立上游连接的超时时间
-	ReadTimeout        *time.Duration        `json:"read_timeout"`         // 读取上游响应的超时时间
-	WriteTimeout       *time.Duration        `json:"write_timeout"`        // 写入上游请求的超时时间
-	FlushInterval      *time.Duration        `json:"flush_interval"`       // 向客户端刷新响应的间隔
-	StreamTimeout      *time.Duration        `json:"stream_timeout"`       // 流式响应的最长持续时间
-	StreamCloseDelay   *time.Duration        `json:"stream_close_delay"`   // 配置重载时关闭流连接的延迟
-	HealthURI          *string               `json:"health_uri"`           // 主动健康检查请求路径
-	HealthInterval     *time.Duration        `json:"health_interval"`      // 主动健康检查间隔
-	HealthTimeout      *time.Duration        `json:"health_timeout"`       // 单次健康检查超时时间
-	HealthStatus       *int                  `json:"health_status"`        // 健康检查期望状态码
-	SplitPath          *[]string             `json:"split_path"`           // FastCGI 脚本路径分割扩展名
-	Index              *string               `json:"index"`                // FastCGI 默认入口文件
-	TryFiles           *[]string             `json:"try_files"`            // FastCGI 文件匹配顺序
-	TryPolicy          *string               `json:"try_policy"`           // FastCGI 文件匹配策略
-	ResolveRootSymlink *bool                 `json:"resolve_root_symlink"` // 是否解析 FastCGI 根目录符号链接
-	Hide               *[]string             `json:"hide"`                 // FastCGI 静态文件隐藏规则
-	Env                *map[string]string    `json:"env"`                  // FastCGI 环境变量
-	CaptureStderr      *bool                 `json:"capture_stderr"`       // 是否记录 FastCGI 标准错误输出
-	Headers            *HeaderUpdate         `json:"headers"`              // 代理请求和响应头操作
+	Upstreams          *[]caddy.Upstream  `json:"upstreams"`            // PHP-FPM 上游服务地址
+	Policy             *string            `json:"policy"`               // 上游负载均衡策略
+	Retries            *int               `json:"retries"`              // 选择可用上游的重试次数
+	TryDuration        *time.Duration     `json:"try_duration"`         // 选择可用上游的最长时间
+	TryInterval        *time.Duration     `json:"try_interval"`         // 上游重试间隔
+	DialTimeout        *time.Duration     `json:"dial_timeout"`         // 建立上游连接的超时时间
+	ReadTimeout        *time.Duration     `json:"read_timeout"`         // 读取上游响应的超时时间
+	WriteTimeout       *time.Duration     `json:"write_timeout"`        // 写入上游请求的超时时间
+	FlushInterval      *time.Duration     `json:"flush_interval"`       // 向客户端刷新响应的间隔
+	StreamTimeout      *time.Duration     `json:"stream_timeout"`       // 流式响应的最长持续时间
+	StreamCloseDelay   *time.Duration     `json:"stream_close_delay"`   // 配置重载时关闭流连接的延迟
+	HealthURI          *string            `json:"health_uri"`           // 主动健康检查请求路径
+	HealthInterval     *time.Duration     `json:"health_interval"`      // 主动健康检查间隔
+	HealthTimeout      *time.Duration     `json:"health_timeout"`       // 单次健康检查超时时间
+	HealthStatus       *int               `json:"health_status"`        // 健康检查期望状态码
+	SplitPath          *[]string          `json:"split_path"`           // FastCGI 脚本路径分割扩展名
+	Index              *string            `json:"index"`                // FastCGI 默认入口文件
+	TryFiles           *[]string          `json:"try_files"`            // FastCGI 文件匹配顺序
+	TryPolicy          *string            `json:"try_policy"`           // FastCGI 文件匹配策略
+	ResolveRootSymlink *bool              `json:"resolve_root_symlink"` // 是否解析 FastCGI 根目录符号链接
+	Hide               *[]string          `json:"hide"`                 // FastCGI 静态文件隐藏规则
+	Env                *map[string]string `json:"env"`                  // FastCGI 环境变量
+	CaptureStderr      *bool              `json:"capture_stderr"`       // 是否记录 FastCGI 标准错误输出
+	Headers            *HeaderUpdate      `json:"headers"`              // 代理请求和响应头操作
 }
 
 // ProcessUpdate 部分更新通用网站进程保活设置，nil 字段保持原值。
@@ -296,20 +296,20 @@ type StaticConfig struct {
 // ProxyConfig 反向代理网站配置。
 type ProxyConfig struct {
 	HTTPConfig
-	Proxy webServer.ProxyOptions `json:"proxy"` // HTTP 上游配置
+	Proxy caddy.ProxyOptions `json:"proxy"` // HTTP 上游配置
 }
 
 // PHPConfig PHP 网站配置。
 type PHPConfig struct {
 	HTTPConfig
-	FastCGI webServer.ProxyOptions `json:"fastcgi"` // PHP-FPM FastCGI 配置
+	FastCGI caddy.ProxyOptions `json:"fastcgi"` // PHP-FPM FastCGI 配置
 }
 
 // GeneralConfig 通用网站配置。
 type GeneralConfig struct {
 	HTTPConfig
-	Proxy   webServer.ProxyOptions `json:"proxy"`   // 本地进程的 HTTP 上游配置
-	Process ProcessConfig          `json:"process"` // 进程保活配置
+	Proxy   caddy.ProxyOptions `json:"proxy"`   // 本地进程的 HTTP 上游配置
+	Process ProcessConfig      `json:"process"` // 进程保活配置
 }
 
 // ProcessConfig 定义通用网站的启动命令。
@@ -329,17 +329,17 @@ type SiteDomain struct {
 
 // CreateSite 创建网站参数。
 type CreateSite struct {
-	Name    string                  `json:"name"`     // 网站名称
-	TypeId  int64                   `json:"type_id"`  // 网站分类 ID
-	Type    int                     `json:"type"`     // 网站类型
-	Status  int                     `json:"status"`   // 网站状态
-	Root    string                  `json:"root"`     // 网站根目录
-	RunPath string                  `json:"run_path"` // 相对网站根目录的运行目录
-	Domains []string                `json:"domains"`  // 网站绑定的域名
-	Static  *StaticOptions          `json:"static"`   // 静态网站配置
-	Proxy   *webServer.ProxyOptions `json:"proxy"`    // 反向代理网站配置
-	FastCGI *webServer.ProxyOptions `json:"fastcgi"`  // PHP 网站 FastCGI 配置
-	Process *ProcessConfig          `json:"process"`  // 通用网站进程配置
+	Name    string              `json:"name"`     // 网站名称
+	TypeId  int64               `json:"type_id"`  // 网站分类 ID
+	Type    int                 `json:"type"`     // 网站类型
+	Status  int                 `json:"status"`   // 网站状态
+	Root    string              `json:"root"`     // 网站根目录
+	RunPath string              `json:"run_path"` // 相对网站根目录的运行目录
+	Domains []string            `json:"domains"`  // 网站绑定的域名
+	Static  *StaticOptions      `json:"static"`   // 静态网站配置
+	Proxy   *caddy.ProxyOptions `json:"proxy"`    // 反向代理网站配置
+	FastCGI *caddy.ProxyOptions `json:"fastcgi"`  // PHP 网站 FastCGI 配置
+	Process *ProcessConfig      `json:"process"`  // 通用网站进程配置
 }
 
 // UpdateSite 更新网站参数，nil 字段保持原值。
@@ -365,8 +365,8 @@ type Site struct {
 
 // Options 配置网站 HTTP 运行目录和全局监听参数。
 type Options struct {
-	Root string            // 网站服务数据目录
-	HTTP webServer.Options // HTTP Manager 全局配置
+	Root string        // 网站服务数据目录
+	HTTP caddy.Options // HTTP Manager 全局配置
 }
 
 // HTTPPageUpdate 部分更新 HTTP 固定页面，nil 字段保持原值。

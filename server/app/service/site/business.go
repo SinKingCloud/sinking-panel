@@ -11,9 +11,9 @@ import (
 	"server/app/enum/site_type"
 	"server/app/model"
 	repositorySite "server/app/repository/site"
+	"server/app/util/caddy"
 	fileLog "server/app/util/log"
 	"server/app/util/page"
-	webServer "server/app/util/server"
 	"server/app/util/str"
 	"strconv"
 	"strings"
@@ -528,7 +528,7 @@ func (s *service) Delete(id int64, deleteRoot bool) error {
 		}
 	}
 	logPaths := make([]string, 0, 3)
-	for _, logType := range []webServer.LogType{webServer.LogAccess, webServer.LogWAF, webServer.LogProcess} {
+	for _, logType := range []caddy.LogType{caddy.LogAccess, caddy.LogWAF, caddy.LogProcess} {
 		path, pathErr := s.http.LogPath(strconv.FormatInt(id, 10), logType)
 		if pathErr != nil {
 			return fmt.Errorf("解析网站日志路径失败: %w", pathErr)

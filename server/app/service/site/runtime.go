@@ -9,8 +9,8 @@ import (
 	"server/app/enum/site_status"
 	"server/app/enum/site_type"
 	"server/app/model"
+	"server/app/util/caddy"
 	processManager "server/app/util/process"
-	webServer "server/app/util/server"
 	"sort"
 	"strconv"
 	"strings"
@@ -101,7 +101,7 @@ func (s *service) Restart() error {
 		previousProcesses[index].Env = append([]string(nil), config.Env...)
 	}
 	loadedSites := s.http.Sites()
-	previousSites := make([]webServer.Site, 0, len(loadedSites))
+	previousSites := make([]caddy.Site, 0, len(loadedSites))
 	for _, site := range loadedSites {
 		if site != nil {
 			previousSites = append(previousSites, *site)
@@ -226,7 +226,7 @@ func (s *service) syncLocked() error {
 	return nil
 }
 
-func (s *service) runtime() ([]webServer.Site, []processManager.Config, error) {
+func (s *service) runtime() ([]caddy.Site, []processManager.Config, error) {
 	var records []*model.Site
 	var domains []*model.SiteDomain
 	var certificates []*model.Cert
@@ -272,7 +272,7 @@ func (s *service) runtime() ([]webServer.Site, []processManager.Config, error) {
 		certById[certificate.Id] = certificate
 	}
 
-	result := make([]webServer.Site, 0, len(records))
+	result := make([]caddy.Site, 0, len(records))
 	processes := make([]processManager.Config, 0)
 	for _, record := range records {
 		var config interface{}
@@ -296,11 +296,11 @@ func (s *service) runtime() ([]webServer.Site, []processManager.Config, error) {
 	return result, processes, nil
 }
 
-func (s *service) runtimeSite(record *model.Site, domains []*model.SiteDomain, certificates map[int64]*model.Cert, config interface{}) (webServer.Site, *processManager.Config, error) {
+func (s *service) runtimeSite(record *model.Site, domains []*model.SiteDomain, certificates map[int64]*model.Cert, config interface{}) (caddy.Site, *processManager.Config, error) {
 	if len(domains) == 0 && record.Type != site_type.General {
-		return webServer.Site{}, nil, fmt.Errorf("网站 %s 没有绑定域名", record.Name)
+		return caddy.Site{}, nil, fmt.Errorf("网站 %s 没有绑定域名", record.Name)
 	}
-	runtimeSite := webServer.Site{
+	runtimeSite := caddy.Site{
 		ID:      strconv.FormatInt(record.Id, 10),
 		Name:    record.Name,
 		Enabled: record.Status == site_status.Enabled,
@@ -312,7 +312,7 @@ func (s *service) runtimeSite(record *model.Site, domains []*model.SiteDomain, c
 		}
 		value, ok := config.(GeneralConfig)
 		if !ok {
-			return webServer.Site{}, nil, fmt.Errorf("网站 %s 配置类型错误", record.Name)
+			return caddy.Site{}, nil, fmt.Errorf("网站 %s 配置类型错误", record.Name)
 		}
 		runtimeProcess, err := s.runtimeProcess(record, &value.Process)
 		return runtimeSite, runtimeProcess, err
@@ -332,9 +332,9 @@ func (s *service) runtimeSite(record *model.Site, domains []*model.SiteDomain, c
 	for _, id := range ids {
 		certificate := certificates[id]
 		if certificate == nil {
-			return webServer.Site{}, nil, fmt.Errorf("网站 %s 使用的证书 %d 不存在", record.Name, id)
+			return caddy.Site{}, nil, fmt.Errorf("网站 %s 使用的证书 %d 不存在", record.Name, id)
 		}
-		runtimeSite.TLS.Certificates = append(runtimeSite.TLS.Certificates, webServer.CertificatePair{
+		runtimeSite.TLS.Certificates = append(runtimeSite.TLS.Certificates, caddy.CertificatePair{
 			CertificatePEM: certificate.Certificate,
 			PrivateKeyPEM:  certificate.PrivateKey,
 			Domains:        certDomains[id],
@@ -349,7 +349,7 @@ func (s *service) runtimeSite(record *model.Site, domains []*model.SiteDomain, c
 		var err error
 		runRoot, err = s.runRoot(record)
 		if err != nil {
-			return webServer.Site{}, nil, fmt.Errorf("网站 %s 运行目录无效: %w", record.Name, err)
+			return caddy.Site{}, nil, fmt.Errorf("网站 %s 运行目录无效: %w", record.Name, err)
 		}
 	}
 	var common HTTPConfig
@@ -379,14 +379,14 @@ func (s *service) runtimeSite(record *model.Site, domains []*model.SiteDomain, c
 		var err error
 		runtimeProcess, err = s.runtimeProcess(record, &value.Process)
 		if err != nil {
-			return webServer.Site{}, nil, err
+			return caddy.Site{}, nil, err
 		}
 	default:
-		return webServer.Site{}, nil, fmt.Errorf("网站 %s 配置类型错误", record.Name)
+		return caddy.Site{}, nil, fmt.Errorf("网站 %s 配置类型错误", record.Name)
 	}
-	runtimeSite.Redirects = make([]webServer.RedirectOptions, 0, len(common.Redirects))
+	runtimeSite.Redirects = make([]caddy.RedirectOptions, 0, len(common.Redirects))
 	for _, redirect := range common.Redirects {
-		runtimeSite.Redirects = append(runtimeSite.Redirects, webServer.RedirectOptions{
+		runtimeSite.Redirects = append(runtimeSite.Redirects, caddy.RedirectOptions{
 			Name:        redirect.Name,
 			Enabled:     redirect.Enabled,
 			Domains:     append([]string(nil), redirect.Domains...),
@@ -396,9 +396,9 @@ func (s *service) runtimeSite(record *model.Site, domains []*model.SiteDomain, c
 			PreserveURI: redirect.PreserveURI,
 		})
 	}
-	runtimeSite.Routes = make([]webServer.Route, 0, len(common.Routes))
+	runtimeSite.Routes = make([]caddy.Route, 0, len(common.Routes))
 	for _, route := range common.Routes {
-		runtimeRoute := webServer.Route{
+		runtimeRoute := caddy.Route{
 			Name:          route.Name,
 			Paths:         append([]string(nil), route.Paths...),
 			Methods:       append([]string(nil), route.Methods...),
@@ -432,7 +432,7 @@ func (s *service) runtimeSite(record *model.Site, domains []*model.SiteDomain, c
 	runtimeSite.TLS.MaxVersion = common.TLS.MaxVersion
 
 	if !runtimeSite.TLS.Enabled && runtimeSite.TLS.RedirectHTTP {
-		return webServer.Site{}, nil, fmt.Errorf("网站 %s 未绑定证书，不能开启 HTTPS 跳转", record.Name)
+		return caddy.Site{}, nil, fmt.Errorf("网站 %s 未绑定证书，不能开启 HTTPS 跳转", record.Name)
 	}
 	return runtimeSite, runtimeProcess, nil
 }
@@ -443,7 +443,7 @@ func (s *service) runtimeProcess(record *model.Site, config *ProcessConfig) (*pr
 		return nil, fmt.Errorf("网站 %s 运行目录无效: %w", record.Name, err)
 	}
 	id := strconv.FormatInt(record.Id, 10)
-	processLogPath, err := s.http.LogPath(id, webServer.LogProcess)
+	processLogPath, err := s.http.LogPath(id, caddy.LogProcess)
 	if err != nil {
 		return nil, fmt.Errorf("网站 %s 进程日志路径无效: %w", record.Name, err)
 	}

@@ -8,8 +8,8 @@ import (
 	"server/app/model"
 	"server/app/service"
 	serviceSite "server/app/service/site"
+	"server/app/util/caddy"
 	"server/app/util/context"
-	webServer "server/app/util/server"
 	"strconv"
 	"time"
 )
@@ -48,13 +48,13 @@ func Obtain(c *context.Context) {
 		Action:    form.Action,
 		SessionId: form.SessionId,
 		Domain:    form.Domain,
-		CA:        webServer.CertificateCA(form.CA),
+		CA:        caddy.CertificateCA(form.CA),
 		Type:      &form.Type,
-		Challenge: webServer.CertificateChallenge(form.Challenge),
+		Challenge: caddy.CertificateChallenge(form.Challenge),
 		SecretId:  form.SecretId,
 		AutoRenew: form.AutoRenew,
 	}
-	timeout := webServer.CertificateRequestTimeout
+	timeout := caddy.CertificateRequestTimeout
 	writeTimeout := timeout + 5*time.Second
 	if manual {
 		timeout = serviceSite.CertificateRequestTimeout
@@ -82,7 +82,7 @@ func Obtain(c *context.Context) {
 		service.Log.Create(c.GetRequestIp(), log_type.EventCreate, "申请网站证书", "申请网站证书["+certificate.Name+"]")
 		msg = "申请成功"
 		if manual {
-			if certificate.Challenge == string(webServer.CertificateChallengeDNS) {
+			if certificate.Challenge == string(caddy.CertificateChallengeDNS) {
 				msg += "，可以删除本次验证的 TXT 记录"
 			} else {
 				msg += "，可以删除本次验证文件"
@@ -126,13 +126,13 @@ func Renew(c *context.Context) {
 		Action:    form.Action,
 		SessionId: form.SessionId,
 		Domain:    form.Domain,
-		CA:        webServer.CertificateCA(form.CA),
+		CA:        caddy.CertificateCA(form.CA),
 		Type:      &form.Type,
-		Challenge: webServer.CertificateChallenge(form.Challenge),
+		Challenge: caddy.CertificateChallenge(form.Challenge),
 		SecretId:  form.SecretId,
 		AutoRenew: form.AutoRenew,
 	}
-	timeout := webServer.CertificateRequestTimeout
+	timeout := caddy.CertificateRequestTimeout
 	writeTimeout := timeout + 5*time.Second
 	if manual {
 		timeout = serviceSite.CertificateRequestTimeout
@@ -160,7 +160,7 @@ func Renew(c *context.Context) {
 		service.Log.Create(c.GetRequestIp(), log_type.EventUpdate, "续签网站证书", "续签网站证书["+strconv.FormatInt(form.Id, 10)+"]")
 		msg = "续签成功"
 		if manual {
-			if certificate.Challenge == string(webServer.CertificateChallengeDNS) {
+			if certificate.Challenge == string(caddy.CertificateChallengeDNS) {
 				msg += "，可以删除本次验证的 TXT 记录"
 			} else {
 				msg += "，可以删除本次验证文件"

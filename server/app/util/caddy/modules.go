@@ -1,10 +1,10 @@
-package server
+package caddy
 
 import (
-	_ "server/app/util/server/cache"
-	_ "server/app/util/server/dns/baidu"
-	_ "server/app/util/server/traffic"
-	_ "server/app/util/server/waf"
+	_ "server/app/util/caddy/cache"
+	_ "server/app/util/caddy/dns/baidu"
+	_ "server/app/util/caddy/traffic"
+	_ "server/app/util/caddy/waf"
 
 	_ "github.com/caddy-dns/alidns"
 	_ "github.com/caddy-dns/huaweicloud"

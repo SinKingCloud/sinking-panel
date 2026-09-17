@@ -22,10 +22,10 @@ import (
 	serviceTask "server/app/service/task"
 	serviceTypes "server/app/service/types"
 	"server/app/util/cache"
+	"server/app/util/caddy"
 	"server/app/util/database"
 	"server/app/util/page"
 	processManager "server/app/util/process"
-	webServer "server/app/util/server"
 )
 
 // Service 网站管理服务接口。
@@ -36,29 +36,29 @@ type Service interface {
 	Restart() error
 	Running() bool
 	Sync() error
-	GetHTTP() webServer.Options
+	GetHTTP() caddy.Options
 	UpdateHTTP(config *HTTPUpdate) error
 	ReadServerLog(after int64, before int64, pageSize int) (map[string]interface{}, error)
 	ClearServerLog() error
-	ReadLog(id int64, logType webServer.LogType, after int64, before int64, pageSize int) (map[string]interface{}, error)
-	ClearLog(id int64, logType webServer.LogType) error
+	ReadLog(id int64, logType caddy.LogType, after int64, before int64, pageSize int) (map[string]interface{}, error)
+	ClearLog(id int64, logType caddy.LogType) error
 	Create(data *CreateSite) (*Site, error)
 	Update(id int64, data *UpdateSite) error
 	GetDomains(id int64) ([]*model.SiteDomain, error)
 	UpdateDomains(id int64, domains []string) error
 	GetSSL(id int64) (*SSLSettings, error)
 	UpdateSSL(id int64, config *TLSUpdate, bindings []SiteDomainCertificate) error
-	GetWAF(id int64) (*webServer.WAFOptions, error)
+	GetWAF(id int64) (*caddy.WAFOptions, error)
 	UpdateWAF(id int64, config *WAFUpdate) error
 	GetCache(id int64) (*CacheConfig, error)
 	UpdateCache(id int64, config *CacheUpdate) error
-	GetRateLimit(id int64) (*webServer.RateLimitOptions, error)
+	GetRateLimit(id int64) (*caddy.RateLimitOptions, error)
 	UpdateRateLimit(id int64, config *RateLimitUpdate) error
-	GetTrafficLimit(id int64) (*webServer.TrafficLimitOptions, error)
+	GetTrafficLimit(id int64) (*caddy.TrafficLimitOptions, error)
 	UpdateTrafficLimit(id int64, config *TrafficLimitUpdate) error
-	GetHeaders(id int64) (*webServer.HeaderOptions, error)
+	GetHeaders(id int64) (*caddy.HeaderOptions, error)
 	UpdateHeaders(id int64, config *HeaderUpdate) error
-	GetCompression(id int64) (*webServer.CompressionOptions, error)
+	GetCompression(id int64) (*caddy.CompressionOptions, error)
 	UpdateCompression(id int64, config *CompressionUpdate) error
 	GetRedirects(id int64) ([]RedirectConfig, error)
 	UpdateRedirects(id int64, redirects []RedirectConfig) error
@@ -66,9 +66,9 @@ type Service interface {
 	UpdateRoutes(id int64, routes []RouteConfig) error
 	GetStatic(id int64) (*StaticOptions, error)
 	UpdateStatic(id int64, config *StaticUpdate) error
-	GetProxy(id int64) (*webServer.ProxyOptions, error)
+	GetProxy(id int64) (*caddy.ProxyOptions, error)
 	UpdateProxy(id int64, config *ProxyUpdate) error
-	GetFastCGI(id int64) (*webServer.ProxyOptions, error)
+	GetFastCGI(id int64) (*caddy.ProxyOptions, error)
 	UpdateFastCGI(id int64, config *FastCGIUpdate) error
 	GetProcess(id int64) (*ProcessConfig, error)
 	UpdateProcess(id int64, config *ProcessUpdate) error
@@ -103,7 +103,7 @@ type service struct {
 	taskService          serviceTask.Service
 	cache                cache.Interface
 	database             *database.Database
-	http                 *webServer.Manager
+	http                 *caddy.Manager
 	process              *processManager.Manager
 	processes            []processManager.Config
 	root                 string
@@ -139,7 +139,7 @@ func NewService(repositorySite repositorySite.Interface, repositorySiteDomain re
 	if err != nil {
 		return nil, fmt.Errorf("解析网站服务目录失败: %w", err)
 	}
-	defaultHTTP := webServer.Options{}
+	defaultHTTP := caddy.Options{}
 	for _, item := range []struct {
 		target *string
 		path   string
@@ -202,12 +202,12 @@ func NewService(repositorySite repositorySite.Interface, repositorySiteDomain re
 			*target = value
 		}
 	}
-	httpManager, err := webServer.NewManager(root, effectiveHTTP)
+	httpManager, err := caddy.NewManager(root, effectiveHTTP)
 	if err != nil {
 		log.Printf("网站 HTTP 配置无法加载，已使用默认配置启动: %v", err)
 		fallbackHTTP := defaultHTTP
 		fallbackHTTP.ConfigPath = ""
-		httpManager, err = webServer.NewManager(root, fallbackHTTP)
+		httpManager, err = caddy.NewManager(root, fallbackHTTP)
 	}
 	if err != nil {
 		return nil, err

@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"server/app/model"
-	webServer "server/app/util/server"
+	"server/app/util/caddy"
 
 	"gorm.io/gorm"
 )
@@ -63,13 +63,13 @@ func (s *service) GetSSL(id int64) (*SSLSettings, error) {
 }
 
 // GetWAF 读取网站 WAF 设置。
-func (s *service) GetWAF(id int64) (*webServer.WAFOptions, error) {
+func (s *service) GetWAF(id int64) (*caddy.WAFOptions, error) {
 	config, err := s.getHTTPConfig(id)
 	if err != nil {
 		return nil, err
 	}
 	if strings.TrimSpace(config.WAF.BlockPage) == "" {
-		config.WAF.BlockPage = webServer.DefaultWAFBlockPage
+		config.WAF.BlockPage = caddy.DefaultWAFBlockPage
 	}
 	return &config.WAF, nil
 }
@@ -92,7 +92,7 @@ func (s *service) GetCache(id int64) (*CacheConfig, error) {
 }
 
 // GetRateLimit 读取网站访问频率限制。
-func (s *service) GetRateLimit(id int64) (*webServer.RateLimitOptions, error) {
+func (s *service) GetRateLimit(id int64) (*caddy.RateLimitOptions, error) {
 	config, err := s.getHTTPConfig(id)
 	if err != nil {
 		return nil, err
@@ -101,7 +101,7 @@ func (s *service) GetRateLimit(id int64) (*webServer.RateLimitOptions, error) {
 }
 
 // GetTrafficLimit 读取网站并发和响应速度限制。
-func (s *service) GetTrafficLimit(id int64) (*webServer.TrafficLimitOptions, error) {
+func (s *service) GetTrafficLimit(id int64) (*caddy.TrafficLimitOptions, error) {
 	config, err := s.getHTTPConfig(id)
 	if err != nil {
 		return nil, err
@@ -110,7 +110,7 @@ func (s *service) GetTrafficLimit(id int64) (*webServer.TrafficLimitOptions, err
 }
 
 // GetHeaders 读取网站请求和响应头设置。
-func (s *service) GetHeaders(id int64) (*webServer.HeaderOptions, error) {
+func (s *service) GetHeaders(id int64) (*caddy.HeaderOptions, error) {
 	config, err := s.getHTTPConfig(id)
 	if err != nil {
 		return nil, err
@@ -119,7 +119,7 @@ func (s *service) GetHeaders(id int64) (*webServer.HeaderOptions, error) {
 }
 
 // GetCompression 读取网站响应压缩设置。
-func (s *service) GetCompression(id int64) (*webServer.CompressionOptions, error) {
+func (s *service) GetCompression(id int64) (*caddy.CompressionOptions, error) {
 	config, err := s.getHTTPConfig(id)
 	if err != nil {
 		return nil, err
@@ -167,7 +167,7 @@ func (s *service) GetStatic(id int64) (*StaticOptions, error) {
 }
 
 // GetProxy 读取反向代理或通用网站的上游设置。
-func (s *service) GetProxy(id int64) (*webServer.ProxyOptions, error) {
+func (s *service) GetProxy(id int64) (*caddy.ProxyOptions, error) {
 	s.operationMu.Lock()
 	defer s.operationMu.Unlock()
 	value, err := s.loadConfigLocked(id)
@@ -185,7 +185,7 @@ func (s *service) GetProxy(id int64) (*webServer.ProxyOptions, error) {
 }
 
 // GetFastCGI 读取 PHP 网站 FastCGI 设置。
-func (s *service) GetFastCGI(id int64) (*webServer.ProxyOptions, error) {
+func (s *service) GetFastCGI(id int64) (*caddy.ProxyOptions, error) {
 	s.operationMu.Lock()
 	defer s.operationMu.Unlock()
 	value, err := s.loadConfigLocked(id)

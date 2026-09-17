@@ -5,8 +5,8 @@ import (
 
 	"server/app/enum/log_type"
 	"server/app/service"
+	"server/app/util/caddy"
 	"server/app/util/context"
-	webServer "server/app/util/server"
 )
 
 // Log 读取或清理网站访问、WAF 和进程日志。
@@ -23,11 +23,11 @@ func Log(c *context.Context) {
 		c.Error(msg)
 		return
 	}
-	logType := webServer.LogType(form.Type)
-	typeName := map[webServer.LogType]string{
-		webServer.LogAccess:  "访问",
-		webServer.LogWAF:     "WAF",
-		webServer.LogProcess: "进程",
+	logType := caddy.LogType(form.Type)
+	typeName := map[caddy.LogType]string{
+		caddy.LogAccess:  "访问",
+		caddy.LogWAF:     "WAF",
+		caddy.LogProcess: "进程",
 	}[logType]
 	if form.Action == "clear" {
 		err := service.Site.ClearLog(form.Id, logType)

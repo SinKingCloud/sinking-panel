@@ -4,8 +4,8 @@ import (
 	"server/app/enum/log_type"
 	"server/app/service"
 	serviceSite "server/app/service/site"
+	"server/app/util/caddy"
 	"server/app/util/context"
-	webServer "server/app/util/server"
 )
 
 // Create 创建网站。
@@ -19,8 +19,8 @@ func Create(c *context.Context) {
 		RunPath string                     `json:"run_path" default:"" validate:"omitempty,max=4096" label:"网站运行目录"`
 		Domains []string                   `json:"domains" default:"" validate:"max=1000,unique,dive,required,max=253" label:"网站域名"`
 		Static  *serviceSite.StaticOptions `json:"static" label:"静态网站配置"`
-		Proxy   *webServer.ProxyOptions    `json:"proxy" label:"反向代理配置"`
-		FastCGI *webServer.ProxyOptions    `json:"fastcgi" label:"FastCGI 配置"`
+		Proxy   *caddy.ProxyOptions        `json:"proxy" label:"反向代理配置"`
+		FastCGI *caddy.ProxyOptions        `json:"fastcgi" label:"FastCGI 配置"`
 		Process *serviceSite.ProcessConfig `json:"process" label:"进程配置"`
 	}
 	if ok, msg := c.ValidatorAll(&form); !ok {

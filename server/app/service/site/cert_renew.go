@@ -8,7 +8,7 @@ import (
 	"server/app/constant"
 	"server/app/enum/cert_auto_renew"
 	"server/app/enum/cert_type"
-	webServer "server/app/util/server"
+	"server/app/util/caddy"
 	"strings"
 	"time"
 )
@@ -64,7 +64,7 @@ func (s *service) autoRenewCerts(ctx context.Context) {
 		}
 		writeLog("开始续签证书 #%d [%s]，原到期时间：%s", certificate.Id, strings.Join(domains, ", "), time.Time(certificate.ExpireTime).Format("2006-01-02 15:04:05"))
 		// 复用续签业务，继承验证方式、关联密钥和原 CA，保存后更新已部署的网站。
-		renewContext, cancel := context.WithTimeout(ctx, webServer.CertificateRequestTimeout)
+		renewContext, cancel := context.WithTimeout(ctx, caddy.CertificateRequestTimeout)
 		result, renewErr := s.RenewCert(renewContext, certificate.Id, CertificateRequest{Domain: domains[0]})
 		cancel()
 		if renewErr != nil {

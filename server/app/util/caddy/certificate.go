@@ -1,4 +1,4 @@
-package server
+package caddy
 
 import (
 	"context"
@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"net"
 	"net/mail"
-	baiduDNS "server/app/util/server/dns/baidu"
+	baiduDNS "server/app/util/caddy/dns/baidu"
 	"strings"
 	"time"
 

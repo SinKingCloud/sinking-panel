@@ -1,4 +1,4 @@
-package server
+package caddy
 
 // Module 表示 HTTP 处理器模块名称。
 type Module string

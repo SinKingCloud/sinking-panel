@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	webServer "server/app/util/server"
+	"server/app/util/caddy"
 
 	"gorm.io/gorm"
 )
@@ -405,7 +405,7 @@ func (s *service) UpdateProxy(id int64, config *ProxyUpdate) error {
 	if err != nil {
 		return err
 	}
-	var proxy *webServer.ProxyOptions
+	var proxy *caddy.ProxyOptions
 	switch current := value.(type) {
 	case ProxyConfig:
 		proxy = &current.Proxy

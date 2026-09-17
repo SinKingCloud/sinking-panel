@@ -1,4 +1,4 @@
-package server
+package caddy
 
 import (
 	"bytes"
@@ -9,7 +9,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	serverCache "server/app/util/server/cache"
+	caddyCache "server/app/util/caddy/cache"
 	"sort"
 	"strings"
 
@@ -140,7 +140,7 @@ func (m *Manager) Start(sites ...Site) error {
 		return errors.New("http 运行时已由另一个 Manager 持有")
 	}
 	if err = caddy.Load(config, false); err != nil {
-		return fmt.Errorf("启动 http 失败: %w", errors.Join(err, serverCache.Registry.CloseAll()))
+		return fmt.Errorf("启动 http 失败: %w", errors.Join(err, caddyCache.Registry.CloseAll()))
 	}
 	httpRuntime.owner = m
 	if err = m.persistConfig(config); err != nil {
@@ -154,7 +154,7 @@ func (m *Manager) Start(sites ...Site) error {
 			return fmt.Errorf("http 已启动，但保存配置和回滚均失败: %w", errors.Join(err, stopErr))
 		}
 		httpRuntime.owner = nil
-		return fmt.Errorf("保存配置失败，http 启动已回滚: %w", errors.Join(err, serverCache.Registry.CloseAll()))
+		return fmt.Errorf("保存配置失败，http 启动已回滚: %w", errors.Join(err, caddyCache.Registry.CloseAll()))
 	}
 	m.mu.Lock()
 	m.sites = candidate
@@ -188,7 +188,7 @@ func (m *Manager) Stop() error {
 	m.running = false
 	m.mu.Unlock()
 	httpRuntime.owner = nil
-	if err := serverCache.Registry.CloseAll(); err != nil {
+	if err := caddyCache.Registry.CloseAll(); err != nil {
 		return fmt.Errorf("http 已停止，但关闭缓存失败: %w", err)
 	}
 	return nil
@@ -470,7 +470,7 @@ func (m *Manager) ClearSiteCache(id string) error {
 	if err != nil {
 		return err
 	}
-	if err = serverCache.Registry.PurgeTree(m.cachePath, target); err != nil {
+	if err = caddyCache.Registry.PurgeTree(m.cachePath, target); err != nil {
 		return fmt.Errorf("清空站点缓存失败: %w", err)
 	}
 	return nil

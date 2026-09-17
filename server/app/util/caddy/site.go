@@ -1,4 +1,4 @@
-package server
+package caddy
 
 import (
 	"crypto/tls"
@@ -13,7 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	serverCache "server/app/util/server/cache"
+	caddyCache "server/app/util/caddy/cache"
 	"slices"
 	"sort"
 	"strconv"
@@ -1597,7 +1597,7 @@ func (m *Manager) removeSiteCache(id string) error {
 	if err != nil {
 		return err
 	}
-	return serverCache.Registry.RemoveTree(m.cachePath, target)
+	return caddyCache.Registry.RemoveTree(m.cachePath, target)
 }
 
 func (m *Manager) siteCachePath(id string) (string, error) {

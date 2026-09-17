@@ -12,11 +12,11 @@ import (
 
 	"server/app/constant"
 	"server/app/enum/site_status"
-	webServer "server/app/util/server"
+	"server/app/util/caddy"
 )
 
 // GetHTTP 返回当前实际生效的 HTTP 服务全局参数。
-func (s *service) GetHTTP() webServer.Options {
+func (s *service) GetHTTP() caddy.Options {
 	s.operationMu.Lock()
 	defer s.operationMu.Unlock()
 	return s.http.Options()
@@ -69,7 +69,7 @@ func (s *service) updateHTTPLocked(config *HTTPUpdate) error {
 		}
 	}
 	for _, page := range []struct {
-		target *webServer.ResponseOptions
+		target *caddy.ResponseOptions
 		update *HTTPPageUpdate
 	}{
 		{&candidate.NotFoundPage, config.NotFoundPage},
@@ -242,9 +242,9 @@ func (s *service) updateHTTPLocked(config *HTTPUpdate) error {
 }
 
 // loadHTTP 读取并合并已保存的 HTTP 服务全局参数。
-func (s *service) loadHTTP() (webServer.Options, bool, error) {
+func (s *service) loadHTTP() (caddy.Options, bool, error) {
 	values := s.configService.Group(constant.SiteGroup)
-	config := webServer.Options{}
+	config := caddy.Options{}
 	exists := false
 	fields := []struct {
 		key    string
@@ -284,13 +284,13 @@ func (s *service) loadHTTP() (webServer.Options, bool, error) {
 		decoder := json.NewDecoder(strings.NewReader(raw))
 		decoder.DisallowUnknownFields()
 		if err := decoder.Decode(item.target); err != nil {
-			return webServer.Options{}, false, fmt.Errorf("HTTP 配置 %s 格式错误: %w", item.key, err)
+			return caddy.Options{}, false, fmt.Errorf("HTTP 配置 %s 格式错误: %w", item.key, err)
 		}
 		if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
 			if err == nil {
-				return webServer.Options{}, false, fmt.Errorf("HTTP 配置 %s 只能包含一个 JSON 值", item.key)
+				return caddy.Options{}, false, fmt.Errorf("HTTP 配置 %s 只能包含一个 JSON 值", item.key)
 			}
-			return webServer.Options{}, false, fmt.Errorf("HTTP 配置 %s 包含多余内容: %w", item.key, err)
+			return caddy.Options{}, false, fmt.Errorf("HTTP 配置 %s 包含多余内容: %w", item.key, err)
 		}
 		exists = true
 	}

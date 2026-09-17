@@ -1,4 +1,4 @@
-package server
+package caddy
 
 import (
 	"context"

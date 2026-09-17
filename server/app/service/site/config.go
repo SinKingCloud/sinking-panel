@@ -8,8 +8,8 @@ import (
 	"net"
 	"net/url"
 	"server/app/enum/site_type"
+	"server/app/util/caddy"
 	processManager "server/app/util/process"
-	webServer "server/app/util/server"
 	"strings"
 	"time"
 )
@@ -155,17 +155,17 @@ func (s *service) checkConfig(raw string, siteType int) (string, interface{}, er
 		if len(config.Proxy.Upstreams) == 0 {
 			return "", nil, errors.New("反向代理至少需要一个上游")
 		}
-		if config.Proxy.Transport != "" && config.Proxy.Transport != webServer.ProxyTransportHTTP {
+		if config.Proxy.Transport != "" && config.Proxy.Transport != caddy.ProxyTransportHTTP {
 			return "", nil, errors.New("反向代理网站只支持 HTTP 传输")
 		}
-		config.Proxy.Transport = webServer.ProxyTransportHTTP
+		config.Proxy.Transport = caddy.ProxyTransportHTTP
 		value = config
 	case PHPConfig:
 		normalizeHTTP(&config.HTTPConfig)
 		if len(config.FastCGI.Upstreams) == 0 {
 			return "", nil, errors.New("PHP 网站至少需要一个 PHP-FPM 上游")
 		}
-		config.FastCGI.Transport = webServer.ProxyTransportFastCGI
+		config.FastCGI.Transport = caddy.ProxyTransportFastCGI
 		config.FastCGI.Scheme = ""
 		config.FastCGI.Root = ""
 		config.FastCGI.TLSServerName = ""
@@ -184,10 +184,10 @@ func (s *service) checkConfig(raw string, siteType int) (string, interface{}, er
 		if len(config.Proxy.Upstreams) == 0 {
 			return "", nil, errors.New("通用网站至少需要一个本地 HTTP 上游")
 		}
-		if config.Proxy.Transport != "" && config.Proxy.Transport != webServer.ProxyTransportHTTP {
+		if config.Proxy.Transport != "" && config.Proxy.Transport != caddy.ProxyTransportHTTP {
 			return "", nil, errors.New("通用网站只支持 HTTP 传输")
 		}
-		if config.Proxy.Scheme != "" && config.Proxy.Scheme != webServer.ProxySchemeHTTP {
+		if config.Proxy.Scheme != "" && config.Proxy.Scheme != caddy.ProxySchemeHTTP {
 			return "", nil, errors.New("通用网站只支持本机 HTTP 上游")
 		}
 		for _, upstream := range config.Proxy.Upstreams {
@@ -198,7 +198,7 @@ func (s *service) checkConfig(raw string, siteType int) (string, interface{}, er
 			host := ""
 			if strings.Contains(address, "://") {
 				parsed, parseErr := url.Parse(address)
-				if parseErr != nil || parsed == nil || !strings.EqualFold(parsed.Scheme, string(webServer.ProxySchemeHTTP)) {
+				if parseErr != nil || parsed == nil || !strings.EqualFold(parsed.Scheme, string(caddy.ProxySchemeHTTP)) {
 					return "", nil, fmt.Errorf("通用网站上游必须使用本机 HTTP: %s", address)
 				}
 				host = parsed.Hostname()
@@ -247,8 +247,8 @@ func (s *service) checkConfig(raw string, siteType int) (string, interface{}, er
 			environment[name] = content
 		}
 		config.Process.Environment = environment
-		config.Proxy.Transport = webServer.ProxyTransportHTTP
-		config.Proxy.Scheme = webServer.ProxySchemeHTTP
+		config.Proxy.Transport = caddy.ProxyTransportHTTP
+		config.Proxy.Scheme = caddy.ProxySchemeHTTP
 		value = config
 	}
 	encoded, err := json.Marshal(value)
