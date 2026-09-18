@@ -54,7 +54,7 @@ type ResourceLimits struct {
 type RunOptions struct {
 	ID          string
 	Name        string
-	ImageID     string
+	ImageID     string // 镜像 ID、名称、标签或本机归档绝对路径；Run 解析后保存镜像 ID
 	Mounts      []Mount
 	Env         []string
 	Command     []string
@@ -101,22 +101,25 @@ type Stats struct {
 
 // Image 保存导入镜像的元数据。
 type Image struct {
-	ID              string   `json:"id"`
-	Name            string   `json:"name"`
-	Tags            []string `json:"tags"`
-	Rootfs          string   `json:"rootfs"`
-	OS              string   `json:"os"`
-	Architecture    string   `json:"architecture"`
-	User            string   `json:"user,omitempty"`
-	Entrypoint      []string `json:"entrypoint"`
-	Command         []string `json:"command"`
-	Env             []string `json:"env"`
-	WorkingDir      string   `json:"working_dir"`
-	CreatedAt       int64    `json:"created_at"`
-	SecurityVersion int      `json:"security_version"`
-	UIDMapStart     int64    `json:"uid_map_start"`
-	GIDMapStart     int64    `json:"gid_map_start"`
-	IDMapSize       int64    `json:"id_map_size"`
+	ID              string            `json:"id"`
+	Name            string            `json:"name"`
+	Tags            []string          `json:"tags"`
+	Rootfs          string            `json:"rootfs"`
+	OS              string            `json:"os"`
+	Architecture    string            `json:"architecture"`
+	User            string            `json:"user,omitempty"`
+	Entrypoint      []string          `json:"entrypoint"`
+	Command         []string          `json:"command"`
+	Env             []string          `json:"env"`
+	WorkingDir      string            `json:"working_dir"`
+	Labels          map[string]string `json:"labels,omitempty"`
+	Volumes         []string          `json:"volumes,omitempty"`
+	ExposedPorts    []string          `json:"exposed_ports,omitempty"`
+	CreatedAt       int64             `json:"created_at"`
+	SecurityVersion int               `json:"security_version"`
+	UIDMapStart     int64             `json:"uid_map_start"`
+	GIDMapStart     int64             `json:"gid_map_start"`
+	IDMapSize       int64             `json:"id_map_size"`
 }
 
 // Instance 保存实例配置和运行状态。

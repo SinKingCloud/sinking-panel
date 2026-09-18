@@ -9,10 +9,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"path/filepath"
 	"reflect"
 	"runtime"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -29,23 +31,33 @@ type dockerConfig struct {
 	OS           string `json:"os"`
 	Created      string `json:"created"`
 	Config       struct {
-		Env        []string `json:"Env"`
-		Entrypoint []string `json:"Entrypoint"`
-		Cmd        []string `json:"Cmd"`
-		WorkingDir string   `json:"WorkingDir"`
-		User       string   `json:"User"`
+		Env          []string            `json:"Env,omitempty"`
+		Entrypoint   []string            `json:"Entrypoint,omitempty"`
+		Cmd          []string            `json:"Cmd,omitempty"`
+		WorkingDir   string              `json:"WorkingDir,omitempty"`
+		User         string              `json:"User,omitempty"`
+		Labels       map[string]string   `json:"Labels,omitempty"`
+		Volumes      map[string]struct{} `json:"Volumes,omitempty"`
+		ExposedPorts map[string]struct{} `json:"ExposedPorts,omitempty"`
 	} `json:"config"`
+	Rootfs struct {
+		Type    string   `json:"type"`
+		DiffIDs []string `json:"diff_ids"`
+	} `json:"rootfs"`
 }
 
 type dockerLayerMetadata struct {
 	ID      string `json:"id"`
 	Created string `json:"created"`
 	Config  struct {
-		Env        []string `json:"Env,omitempty"`
-		Entrypoint []string `json:"Entrypoint,omitempty"`
-		Cmd        []string `json:"Cmd,omitempty"`
-		WorkingDir string   `json:"WorkingDir,omitempty"`
-		User       string   `json:"User,omitempty"`
+		Env          []string            `json:"Env,omitempty"`
+		Entrypoint   []string            `json:"Entrypoint,omitempty"`
+		Cmd          []string            `json:"Cmd,omitempty"`
+		WorkingDir   string              `json:"WorkingDir,omitempty"`
+		User         string              `json:"User,omitempty"`
+		Labels       map[string]string   `json:"Labels,omitempty"`
+		Volumes      map[string]struct{} `json:"Volumes,omitempty"`
+		ExposedPorts map[string]struct{} `json:"ExposedPorts,omitempty"`
 	} `json:"config"`
 }
 
@@ -102,6 +114,16 @@ func (m *Manager) importSave(source string) (*Image, error) {
 		return nil, errors.New("镜像 manifest.json 无效")
 	}
 	manifest := manifests[0]
+	for _, item := range manifests[1:] {
+		if item.Config != manifest.Config || !slices.Equal(item.Layers, manifest.Layers) {
+			return nil, errors.New("镜像归档包含多个不同镜像，请单独导出需要使用的镜像")
+		}
+		for _, tag := range item.RepoTags {
+			if !slices.Contains(manifest.RepoTags, tag) {
+				manifest.RepoTags = append(manifest.RepoTags, tag)
+			}
+		}
+	}
 	if manifest.Config == "" || len(manifest.Layers) == 0 {
 		return nil, errors.New("镜像没有可运行的配置或文件层")
 	}
@@ -166,6 +188,9 @@ func (m *Manager) importSave(source string) (*Image, error) {
 		Command:         append([]string(nil), config.Config.Cmd...),
 		Env:             append([]string(nil), config.Config.Env...),
 		WorkingDir:      config.Config.WorkingDir,
+		Labels:          config.Config.Labels,
+		Volumes:         slices.Sorted(maps.Keys(config.Config.Volumes)),
+		ExposedPorts:    slices.Sorted(maps.Keys(config.Config.ExposedPorts)),
 		CreatedAt:       createdAt,
 		SecurityVersion: m.security.Version,
 		UIDMapStart:     m.security.UIDMapStart,
@@ -694,40 +719,27 @@ func (m *Manager) exportImage(image *Image, destination string) error {
 		return fmt.Errorf("计算镜像层摘要失败: %w", err)
 	}
 
-	configData, err := json.Marshal(struct {
-		Architecture string `json:"architecture"`
-		OS           string `json:"os"`
-		Created      string `json:"created"`
-		Config       struct {
-			Env        []string `json:"Env,omitempty"`
-			Entrypoint []string `json:"Entrypoint,omitempty"`
-			Cmd        []string `json:"Cmd,omitempty"`
-			WorkingDir string   `json:"WorkingDir,omitempty"`
-			User       string   `json:"User,omitempty"`
-		} `json:"config"`
-		Rootfs struct {
-			Type    string   `json:"type"`
-			DiffIDs []string `json:"diff_ids"`
-		} `json:"rootfs"`
-	}{
-		Architecture: image.Architecture,
-		OS:           image.OS,
-		Created:      time.Unix(image.CreatedAt, 0).UTC().Format(time.RFC3339Nano),
-		Config: struct {
-			Env        []string `json:"Env,omitempty"`
-			Entrypoint []string `json:"Entrypoint,omitempty"`
-			Cmd        []string `json:"Cmd,omitempty"`
-			WorkingDir string   `json:"WorkingDir,omitempty"`
-			User       string   `json:"User,omitempty"`
-		}{
-			Env: image.Env, Entrypoint: image.Entrypoint, Cmd: image.Command,
-			WorkingDir: image.WorkingDir, User: image.User,
-		},
-		Rootfs: struct {
-			Type    string   `json:"type"`
-			DiffIDs []string `json:"diff_ids"`
-		}{Type: "layers", DiffIDs: []string{"sha256:" + layerDigest}},
-	})
+	var config dockerConfig
+	config.Architecture = image.Architecture
+	config.OS = image.OS
+	config.Created = time.Unix(image.CreatedAt, 0).UTC().Format(time.RFC3339Nano)
+	config.Config.Env = image.Env
+	config.Config.Entrypoint = image.Entrypoint
+	config.Config.Cmd = image.Command
+	config.Config.WorkingDir = image.WorkingDir
+	config.Config.User = image.User
+	config.Config.Labels = image.Labels
+	config.Config.Volumes = make(map[string]struct{}, len(image.Volumes))
+	for _, volume := range image.Volumes {
+		config.Config.Volumes[volume] = struct{}{}
+	}
+	config.Config.ExposedPorts = make(map[string]struct{}, len(image.ExposedPorts))
+	for _, port := range image.ExposedPorts {
+		config.Config.ExposedPorts[port] = struct{}{}
+	}
+	config.Rootfs.Type = "layers"
+	config.Rootfs.DiffIDs = []string{"sha256:" + layerDigest}
+	configData, err := json.Marshal(config)
 	if err != nil {
 		return fmt.Errorf("生成镜像配置失败: %w", err)
 	}
@@ -770,17 +782,8 @@ func (m *Manager) exportImage(image *Image, destination string) error {
 	}
 	layerMetadata, err := json.Marshal(dockerLayerMetadata{
 		ID:      layerDigest,
-		Created: time.Unix(image.CreatedAt, 0).UTC().Format(time.RFC3339Nano),
-		Config: struct {
-			Env        []string `json:"Env,omitempty"`
-			Entrypoint []string `json:"Entrypoint,omitempty"`
-			Cmd        []string `json:"Cmd,omitempty"`
-			WorkingDir string   `json:"WorkingDir,omitempty"`
-			User       string   `json:"User,omitempty"`
-		}{
-			Env: image.Env, Entrypoint: image.Entrypoint, Cmd: image.Command,
-			WorkingDir: image.WorkingDir, User: image.User,
-		},
+		Created: config.Created,
+		Config:  config.Config,
 	})
 	if err != nil {
 		return fmt.Errorf("生成镜像层元数据失败: %w", err)
@@ -886,6 +889,9 @@ func (m *Manager) commitInstance(instance *Instance, name string, tags []string)
 		Command:         append([]string(nil), base.Command...),
 		Env:             append([]string(nil), base.Env...),
 		WorkingDir:      base.WorkingDir,
+		Labels:          maps.Clone(base.Labels),
+		Volumes:         append([]string(nil), base.Volumes...),
+		ExposedPorts:    append([]string(nil), base.ExposedPorts...),
 		CreatedAt:       time.Now().Unix(),
 		SecurityVersion: m.security.Version,
 		UIDMapStart:     m.security.UIDMapStart,
@@ -908,20 +914,24 @@ func (m *Manager) commitInstance(instance *Instance, name string, tags []string)
 		image.Tags = []string{name}
 	}
 	configData, err := json.Marshal(struct {
-		Name         string   `json:"name"`
-		Tags         []string `json:"tags"`
-		OS           string   `json:"os"`
-		Architecture string   `json:"architecture"`
-		User         string   `json:"user"`
-		Entrypoint   []string `json:"entrypoint"`
-		Command      []string `json:"command"`
-		Env          []string `json:"env"`
-		WorkingDir   string   `json:"working_dir"`
-		CreatedAt    int64    `json:"created_at"`
+		Name         string            `json:"name"`
+		Tags         []string          `json:"tags"`
+		OS           string            `json:"os"`
+		Architecture string            `json:"architecture"`
+		User         string            `json:"user"`
+		Entrypoint   []string          `json:"entrypoint"`
+		Command      []string          `json:"command"`
+		Env          []string          `json:"env"`
+		WorkingDir   string            `json:"working_dir"`
+		Labels       map[string]string `json:"labels"`
+		Volumes      []string          `json:"volumes"`
+		ExposedPorts []string          `json:"exposed_ports"`
+		CreatedAt    int64             `json:"created_at"`
 	}{
 		Name: image.Name, Tags: image.Tags, OS: image.OS, Architecture: image.Architecture,
 		User: image.User, Entrypoint: image.Entrypoint, Command: image.Command,
 		Env: image.Env, WorkingDir: image.WorkingDir, CreatedAt: image.CreatedAt,
+		Labels: image.Labels, Volumes: image.Volumes, ExposedPorts: image.ExposedPorts,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("生成镜像摘要输入失败: %w", err)

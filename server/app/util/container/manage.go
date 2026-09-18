@@ -318,10 +318,14 @@ func (m *Manager) Images() []*Image {
 	return result
 }
 
-// Image 返回一个镜像的完整元数据。
-func (m *Manager) Image(id string) (*Image, error) {
+// Image 解析本机绝对路径的镜像归档，或按 ID、名称、标签返回已导入镜像的完整元数据。
+func (m *Manager) Image(source string) (*Image, error) {
+	source = strings.TrimSpace(source)
+	if filepath.IsAbs(source) {
+		return m.Import(source)
+	}
 	m.mu.RLock()
-	image, err := m.resolveImage(id)
+	image, err := m.resolveImage(source)
 	if err == nil {
 		image = m.cloneImage(image)
 	}
@@ -406,7 +410,8 @@ func (m *Manager) RemoveImage(id string) error {
 	return nil
 }
 
-// Run 自动准备可写挂载的 UID/GID 所有权并启动容器，已映射的文件保留原属主。
+// Run 自动解析镜像路径、ID 或标签，继承镜像的启动参数并准备可写挂载后启动容器。
+// 实例保存固定镜像 ID；已映射的挂载文件保留原属主。
 func (m *Manager) Run(options RunOptions) (*Instance, error) {
 	release, err := m.lockOpen()
 	if err != nil {
@@ -419,6 +424,12 @@ func (m *Manager) Run(options RunOptions) (*Instance, error) {
 	if err = m.normalizeRunOptions(&options); err != nil {
 		return nil, err
 	}
+	// 导入需要镜像写锁，在启动流程获取镜像读锁前解析，并固定实例使用的镜像 ID。
+	image, err := m.Image(options.ImageID)
+	if err != nil {
+		return nil, err
+	}
+	options.ImageID = image.ID
 	unlock := m.lockInstance(options.ID)
 	defer unlock()
 	m.cancelAutoRestart(options.ID)

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path"
 	"path/filepath"
@@ -431,6 +432,9 @@ func (m *Manager) cloneImage(image *Image) *Image {
 	copyImage.Entrypoint = append([]string(nil), image.Entrypoint...)
 	copyImage.Command = append([]string(nil), image.Command...)
 	copyImage.Env = append([]string(nil), image.Env...)
+	copyImage.Labels = maps.Clone(image.Labels)
+	copyImage.Volumes = append([]string(nil), image.Volumes...)
+	copyImage.ExposedPorts = append([]string(nil), image.ExposedPorts...)
 	return &copyImage
 }
 
