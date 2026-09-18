@@ -254,7 +254,7 @@ func (m *Manager) resolveMountSource(source string) (string, error) {
 
 func (m *Manager) validateMount(mount Mount) error {
 	if strings.TrimSpace(mount.DirectoryMode) != "" || strings.TrimSpace(mount.FileMode) != "" {
-		return errors.New("挂载权限自动修改已停用，请在 PrepareMount 前由业务层设置目录和文件权限")
+		return errors.New("挂载权限参数已停用，请在 Run 前由业务层设置目录和文件权限")
 	}
 	if !filepath.IsAbs(mount.Source) || !path.IsAbs(mount.Destination) {
 		return errors.New("挂载路径必须是绝对路径")

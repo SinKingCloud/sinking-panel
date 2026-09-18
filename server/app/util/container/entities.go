@@ -71,6 +71,7 @@ type ExecOptions struct {
 	Command    []string
 	Env        []string
 	Stdin      io.Reader // 可通过标准输入传入敏感参数，避免出现在进程命令行
+	Stderr     io.Writer // 非 nil 时单独接收错误输出；默认与标准输出合并
 	WorkingDir string
 	Timeout    time.Duration
 	MaxOutput  int64

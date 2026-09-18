@@ -329,13 +329,13 @@ func (m *Manager) runLocked(options RunOptions) (*Instance, error) {
 			continue
 		}
 		for _, activeMount := range instance.Mounts {
-			if activeMount.ReadOnly {
-				continue
-			}
 			for _, mount := range options.Mounts {
+				if activeMount.ReadOnly && mount.ReadOnly {
+					continue
+				}
 				if m.ensureInside(activeMount.Source, mount.Source) == nil || m.ensureInside(mount.Source, activeMount.Source) == nil {
 					m.mu.RUnlock()
-					return nil, fmt.Errorf("挂载源与运行实例 %s 的可写目录重叠", id)
+					return nil, fmt.Errorf("挂载源与运行实例 %s 重叠，只允许共享只读挂载", id)
 				}
 			}
 		}

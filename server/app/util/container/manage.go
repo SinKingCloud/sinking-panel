@@ -291,51 +291,6 @@ func (m *Manager) HostID(uid, gid int) (int, int, error) {
 	return m.mapOwnership(uid, gid)
 }
 
-// PrepareMount 将受管目录内的全部文件转换为容器 UID/GID，并移除宿主可利用的提权位。
-// 可选 RunOptions 的 ImageID/User 指定目录树属主；User 为空时使用镜像默认用户。
-// 不传 options 保留各文件原有容器 UID/GID；只应在首次挂载可写业务目录前调用。
-func (m *Manager) PrepareMount(source string, options ...RunOptions) error {
-	if len(options) > 1 {
-		return errors.New("准备挂载最多接受一个运行选项")
-	}
-	if len(options) == 1 && strings.TrimSpace(options[0].ImageID) == "" {
-		return errors.New("指定挂载属主时必须提供镜像 ImageID")
-	}
-	m.mountMu.Lock()
-	defer m.mountMu.Unlock()
-	if len(options) == 1 {
-		m.imageMu.RLock()
-		defer m.imageMu.RUnlock()
-	}
-	resolved, err := m.resolveMountSource(source)
-	if err != nil {
-		return err
-	}
-	if err := m.validateMount(Mount{Source: resolved, Destination: "/volume"}); err != nil {
-		return err
-	}
-	for _, root := range m.mountRoots {
-		if resolved == root {
-			return errors.New("请在挂载根目录下创建业务子目录后再准备可写挂载")
-		}
-	}
-	m.mu.RLock()
-	for id, instance := range m.instances {
-		_, hasRuntime := m.runtime[id]
-		if !m.isActiveStatus(instance.Status) && instance.PID <= 0 && !hasRuntime {
-			continue
-		}
-		for _, mount := range instance.Mounts {
-			if m.ensureInside(mount.Source, resolved) == nil || m.ensureInside(resolved, mount.Source) == nil {
-				m.mu.RUnlock()
-				return fmt.Errorf("挂载目录正被运行实例 %s 使用", id)
-			}
-		}
-	}
-	m.mu.RUnlock()
-	return m.preparePlatformMountOwnership(resolved, options...)
-}
-
 func (m *Manager) Import(source string) (*Image, error) {
 	m.importMu.Lock()
 	defer m.importMu.Unlock()
@@ -451,6 +406,7 @@ func (m *Manager) RemoveImage(id string) error {
 	return nil
 }
 
+// Run 自动准备可写挂载的 UID/GID 所有权并启动容器，已映射的文件保留原属主。
 func (m *Manager) Run(options RunOptions) (*Instance, error) {
 	release, err := m.lockOpen()
 	if err != nil {

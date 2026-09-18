@@ -306,13 +306,13 @@ func (m *Manager) openPlatformMount(source string) (*os.File, error) {
 	return os.NewFile(uintptr(sourceFD), source), nil
 }
 
-func (m *Manager) scanPlatformMount(root string, prepare, requireMapped bool, owner ...[2]int) error {
+func (m *Manager) scanPlatformMount(root string, requireMapped bool) error {
 	source, err := m.openPlatformMount(root)
 	if err != nil {
 		return err
 	}
 	defer source.Close()
-	return m.scanPlatformMountHandle(root, source, prepare, requireMapped, owner...)
+	return m.scanPlatformMountHandle(root, source, false, requireMapped)
 }
 
 func (m *Manager) scanPlatformMountHandle(root string, source *os.File, prepare, requireMapped bool, owner ...[2]int) error {
@@ -413,22 +413,25 @@ func (m *Manager) scanPlatformMountHandle(root string, source *os.File, prepare,
 				}
 				seen[relative] = struct{}{}
 			}
-			var mappedUID, mappedGID int
-			if len(owner) > 0 {
-				mappedUID, mappedGID = owner[0][0], owner[0][1]
-			} else {
-				var uidErr, gidErr error
-				mappedUID, uidErr = mapID(pathStat.Uid, m.security.UIDMapStart, currentPath, "UID")
-				mappedGID, gidErr = mapID(pathStat.Gid, m.security.GIDMapStart, currentPath, "GID")
-				if prepare && (uidErr != nil || gidErr != nil) {
-					_ = unix.Close(pathFD)
-					return errors.Join(uidErr, gidErr)
+			mappedUID, uidErr := mapID(pathStat.Uid, m.security.UIDMapStart, currentPath, "UID")
+			mappedGID, gidErr := mapID(pathStat.Gid, m.security.GIDMapStart, currentPath, "GID")
+			if prepare && (uidErr != nil || gidErr != nil) {
+				_ = unix.Close(pathFD)
+				return errors.Join(uidErr, gidErr)
+			}
+			if prepare && len(owner) > 0 {
+				// 首次挂载使用容器运行用户；重启时保留程序自行设置的已映射属主。
+				if int(pathStat.Uid) != mappedUID {
+					mappedUID = owner[0][0]
+				}
+				if int(pathStat.Gid) != mappedGID {
+					mappedGID = owner[0][1]
 				}
 			}
 			if requireMapped && (int64(pathStat.Uid) < m.security.UIDMapStart || int64(pathStat.Uid) >= m.security.UIDMapStart+m.security.IDMapSize ||
 				int64(pathStat.Gid) < m.security.GIDMapStart || int64(pathStat.Gid) >= m.security.GIDMapStart+m.security.IDMapSize) {
 				_ = unix.Close(pathFD)
-				return fmt.Errorf("可写挂载路径未准备 User Namespace 所有权: %s，请先调用 PrepareMount", currentPath)
+				return fmt.Errorf("可写挂载路径的 User Namespace 所有权无效: %s", currentPath)
 			}
 			if kind == unix.S_IFLNK {
 				if mutate && (int(pathStat.Uid) != mappedUID || int(pathStat.Gid) != mappedGID) {
@@ -509,43 +512,12 @@ func (m *Manager) scanPlatformMountHandle(root string, source *os.File, prepare,
 	return walk(false, false)
 }
 
-func (m *Manager) preparePlatformMountOwnership(root string, options ...RunOptions) error {
-	var owner [][2]int
-	if len(options) > 0 {
-		image, err := m.Image(options[0].ImageID)
-		if err != nil {
-			return err
-		}
-		if err := m.validateImageSecurity(image); err != nil {
-			return err
-		}
-		user := options[0].User
-		if user == "" {
-			user = image.User
-		}
-		uid, gid, _, err := m.resolveUser(image.Rootfs, user)
-		if err != nil {
-			return fmt.Errorf("解析挂载镜像用户失败: %w", err)
-		}
-		uid, gid, err = m.mapOwnership(uid, gid)
-		if err != nil {
-			return err
-		}
-		owner = append(owner, [2]int{uid, gid})
-	}
-	unlock, err := m.lockPlatformMountStaging()
-	if err != nil {
-		return err
-	}
-	return errors.Join(m.scanPlatformMount(root, true, false, owner...), unlock())
-}
-
 func (m *Manager) validatePlatformMountOwnership(root string) error {
-	return m.scanPlatformMount(root, false, true)
+	return m.scanPlatformMount(root, true)
 }
 
 func (m *Manager) validatePlatformMountContent(root string) error {
-	return m.scanPlatformMount(root, false, false)
+	return m.scanPlatformMount(root, false)
 }
 
 func (m *Manager) lockPlatformMountStaging() (func() error, error) {
@@ -692,7 +664,7 @@ func (m *Manager) cleanupPlatformMountStagingLocked() error {
 	return result
 }
 
-func (m *Manager) stagePlatformMounts(mounts []Mount) ([]string, func() error, error) {
+func (m *Manager) stagePlatformMounts(mounts []Mount, owner [2]int) ([]string, func() error, error) {
 	if len(mounts) == 0 {
 		return nil, func() error { return nil }, nil
 	}
@@ -782,7 +754,8 @@ func (m *Manager) stagePlatformMounts(mounts []Mount) ([]string, func() error, e
 		if err != nil {
 			return fail(err)
 		}
-		if err := m.scanPlatformMountHandle(mount.Source, source, false, !mount.ReadOnly); err != nil {
+		// 权限准备与固定挂载源共用同一个句柄和锁，避免额外扫描及路径替换。
+		if err := m.scanPlatformMountHandle(mount.Source, source, !mount.ReadOnly, false, owner); err != nil {
 			_ = source.Close()
 			return fail(err)
 		}

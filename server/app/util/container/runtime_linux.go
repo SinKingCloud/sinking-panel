@@ -52,6 +52,44 @@ func (m *Manager) startPlatformRuntime(instance *Instance, image *Image, options
 	if _, err := os.Stat(image.Rootfs); err != nil {
 		return fmt.Errorf("镜像 rootfs 不存在: %w", err)
 	}
+	// cgroups 会缓存根目录句柄，必须在宿主 namespace 中初始化，供后续启停复用。
+	// cgroup v1 根目录没有 cgroup.procs，读取失败不影响句柄初始化。
+	_, _ = cgroups.ReadFile("/sys/fs/cgroup", "cgroup.procs")
+	standardRuntime.LockOSThread()
+	originalNamespace, err := os.Open("/proc/thread-self/ns/mnt")
+	if err != nil {
+		standardRuntime.UnlockOSThread()
+		return fmt.Errorf("打开当前 mount namespace 失败: %w", err)
+	}
+	if err := unix.Unshare(unix.CLONE_NEWNS); err != nil {
+		_ = originalNamespace.Close()
+		standardRuntime.UnlockOSThread()
+		return fmt.Errorf("创建容器 mount namespace 失败: %w", err)
+	}
+	namespaceActive := true
+	restoreNamespace := func() error {
+		if !namespaceActive {
+			return nil
+		}
+		if err := unix.Setns(int(originalNamespace.Fd()), unix.CLONE_NEWNS); err != nil {
+			return fmt.Errorf("恢复 mount namespace 失败: %w", err)
+		}
+		namespaceActive = false
+		return nil
+	}
+	defer func() {
+		err := restoreNamespace()
+		_ = originalNamespace.Close()
+		if err != nil {
+			// 恢复失败的线程不能归还 Go 线程池，协程退出时由 runtime 回收。
+			returnErr = errors.Join(returnErr, err)
+			return
+		}
+		standardRuntime.UnlockOSThread()
+	}()
+	if err := unix.Mount("", "/", "", unix.MS_PRIVATE|unix.MS_REC, ""); err != nil {
+		return fmt.Errorf("隔离挂载传播失败: %w", err)
+	}
 	rootfs := instance.Rootfs
 	if rootfs == "" {
 		rootfs = image.Rootfs
@@ -61,7 +99,24 @@ func (m *Manager) startPlatformRuntime(instance *Instance, image *Image, options
 			return err
 		}
 	}
-	stagedSources, cleanupStaging, err := m.stagePlatformMounts(options.Mounts)
+	user := options.User
+	if user == "" {
+		user = image.User
+	}
+	uid, gid, groups, err := m.resolveUser(rootfs, user)
+	if err != nil {
+		return fmt.Errorf("解析容器运行用户失败: %w", err)
+	}
+	hostUID, hostGID, err := m.mapOwnership(uid, gid)
+	if err != nil {
+		return fmt.Errorf("容器运行用户超出 User Namespace 映射范围: %w", err)
+	}
+	for _, group := range groups {
+		if _, _, err := m.mapOwnership(0, group); err != nil {
+			return fmt.Errorf("镜像附加用户组超出 User Namespace 映射范围: %w", err)
+		}
+	}
+	stagedSources, cleanupStaging, err := m.stagePlatformMounts(options.Mounts, [2]int{hostUID, hostGID})
 	if err != nil {
 		return err
 	}
@@ -78,6 +133,34 @@ func (m *Manager) startPlatformRuntime(instance *Instance, image *Image, options
 	if err := m.prepareMountTargets(rootfs, runtimeMounts, instance.WritableLayer); err != nil {
 		return err
 	}
+	// 容器 root 映射到普通宿主 UID，无法遍历受管目录的 0700 父路径。
+	// 只在私有 namespace 中提供可访问的 rootfs 入口，不放宽真实目录权限。
+	// 固定使用 /tmp，避免 TMPDIR 本身位于 /root 等私有目录下。
+	initRootfs, err := os.MkdirTemp("/tmp", "sinking-rootfs-")
+	if err != nil {
+		return fmt.Errorf("创建容器 rootfs 入口失败: %w", err)
+	}
+	rootfsMounted, rootfsRemoved := false, false
+	cleanupRootfs := func() error {
+		if rootfsMounted {
+			if err := unix.Unmount(initRootfs, unix.MNT_DETACH); err != nil {
+				return fmt.Errorf("卸载容器 rootfs 入口失败: %w", err)
+			}
+			rootfsMounted = false
+		}
+		if !rootfsRemoved {
+			if err := os.Remove(initRootfs); err != nil {
+				return fmt.Errorf("清理容器 rootfs 入口失败: %w", err)
+			}
+			rootfsRemoved = true
+		}
+		return nil
+	}
+	defer func() { returnErr = errors.Join(returnErr, cleanupRootfs()) }()
+	if err := unix.Mount(rootfs, initRootfs, "", unix.MS_BIND|unix.MS_REC, ""); err != nil {
+		return fmt.Errorf("挂载容器 rootfs 入口失败: %w", err)
+	}
+	rootfsMounted = true
 	config, err := m.buildConfig(instance, image, options, true)
 	if err != nil {
 		return err
@@ -85,6 +168,7 @@ func (m *Manager) startPlatformRuntime(instance *Instance, image *Image, options
 	for index, source := range stagedSources {
 		config.Mounts[len(config.Mounts)-len(stagedSources)+index].Source = source
 	}
+	config.Rootfs = initRootfs
 	container, err := libcontainer.Create(m.runtimeRoot, instance.ID, config)
 	if err != nil {
 		return fmt.Errorf("创建容器失败: %w", err)
@@ -116,25 +200,6 @@ func (m *Manager) startPlatformRuntime(instance *Instance, image *Image, options
 	if workingDir == "" {
 		workingDir = "/"
 	}
-	user := options.User
-	if user == "" {
-		user = image.User
-	}
-	uid, gid, groups, err := m.resolveUser(rootfs, user)
-	if err != nil {
-		failure := fmt.Errorf("解析容器运行用户失败: %w", err)
-		return errors.Join(failure, m.abortPlatformStart(instance, container, nil, logFile, failure))
-	}
-	if _, _, err := m.mapOwnership(uid, gid); err != nil {
-		failure := fmt.Errorf("容器运行用户超出 User Namespace 映射范围: %w", err)
-		return errors.Join(failure, m.abortPlatformStart(instance, container, nil, logFile, failure))
-	}
-	for _, group := range groups {
-		if _, _, err := m.mapOwnership(0, group); err != nil {
-			failure := fmt.Errorf("镜像附加用户组超出 User Namespace 映射范围: %w", err)
-			return errors.Join(failure, m.abortPlatformStart(instance, container, nil, logFile, failure))
-		}
-	}
 	process := &libcontainer.Process{
 		Args:             args,
 		Env:              env,
@@ -147,8 +212,19 @@ func (m *Manager) startPlatformRuntime(instance *Instance, image *Image, options
 		Stderr:           logFile,
 		Init:             true,
 	}
-	if err := container.Run(process); err != nil {
+	if err := container.Start(process); err != nil {
 		failure := fmt.Errorf("启动容器进程失败: %w", err)
+		return errors.Join(failure, m.abortPlatformStart(instance, container, process, logFile, failure))
+	}
+	// init 已进入容器、尚未执行应用；恢复并保存真实路径，供 Exec/终端和恢复使用。
+	runningConfig := container.Config()
+	runningConfig.Rootfs = rootfs
+	if err := container.Set(runningConfig); err != nil {
+		failure := fmt.Errorf("保存容器运行配置失败: %w", err)
+		return errors.Join(failure, m.abortPlatformStart(instance, container, process, logFile, failure))
+	}
+	if err := container.Exec(); err != nil {
+		failure := fmt.Errorf("执行容器入口失败: %w", err)
 		return errors.Join(failure, m.abortPlatformStart(instance, container, process, logFile, failure))
 	}
 	cleanupErr := cleanupStaging()
@@ -156,6 +232,12 @@ func (m *Manager) startPlatformRuntime(instance *Instance, image *Image, options
 	if cleanupErr != nil {
 		failure := fmt.Errorf("清理临时挂载源失败: %w", cleanupErr)
 		return errors.Join(failure, m.abortPlatformStart(instance, container, process, logFile, failure))
+	}
+	if err := cleanupRootfs(); err != nil {
+		return errors.Join(err, m.abortPlatformStart(instance, container, process, logFile, err))
+	}
+	if err := restoreNamespace(); err != nil {
+		return errors.Join(err, m.abortPlatformStart(instance, container, process, logFile, err))
 	}
 	pid, err := process.Pid()
 	if err != nil || pid <= 0 {
@@ -685,6 +767,9 @@ func (m *Manager) execPlatformCommand(id string, options ExecOptions) (*ExecResu
 		Stdout:           outputWriter,
 		Stderr:           outputWriter,
 	}
+	if options.Stderr != nil {
+		process.Stderr = options.Stderr
+	}
 	if err := container.Run(process); err != nil {
 		_ = outputReader.Close()
 		_ = outputWriter.Close()
@@ -1164,7 +1249,8 @@ func (m *Manager) buildConfig(instance *Instance, image *Image, options RunOptio
 			Source:      "/sys",
 			Destination: "/sys",
 			Device:      "bind",
-			Flags:       unix.MS_BIND | unix.MS_NOEXEC | unix.MS_NOSUID | unix.MS_NODEV | unix.MS_RDONLY,
+			// User Namespace 会锁定继承的子挂载，必须一并绑定，不能剥离 cgroup 等子挂载。
+			Flags: unix.MS_BIND | unix.MS_REC | unix.MS_NOEXEC | unix.MS_NOSUID | unix.MS_NODEV | unix.MS_RDONLY,
 		},
 	}
 	for _, mount := range options.Mounts {
