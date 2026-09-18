@@ -290,6 +290,7 @@ func (m *Manager) Options() Options {
 		}
 		return result
 	}
+	options.InitialPage.Headers = cloneHeaders(options.InitialPage.Headers)
 	options.NotFoundPage.Headers = cloneHeaders(options.NotFoundPage.Headers)
 	options.SiteNotFoundPage.Headers = cloneHeaders(options.SiteNotFoundPage.Headers)
 	options.SiteDisabledPage.Headers = cloneHeaders(options.SiteDisabledPage.Headers)

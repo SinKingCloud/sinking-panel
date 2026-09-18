@@ -80,13 +80,13 @@ type Service interface {
 	GetIdNameMap(refresh bool) (map[int64]string, error)
 	Select(where *repositorySite.SelectSite, queryPage *page.Query) (*page.Result[*repositorySite.Site], error)
 	ClearCache(id int64) error
-	CreateCert(data *model.Cert) error
+	CreateCert(data *model.Cert) (*Cert, error)
 	UpdateCert(id int64, data *repositoryCert.UpdateCert) error
 	DeleteCert(id int64) error
-	FindCert(id int64) (*model.Cert, error)
-	SelectCert(where *repositoryCert.SelectCert, queryPage *page.Query) (*page.Result[*repositoryCert.Cert], error)
-	ObtainCert(ctx context.Context, name string, request CertificateRequest) (*model.Cert, error)
-	RenewCert(ctx context.Context, id int64, request CertificateRequest) (*model.Cert, error)
+	FindCert(id int64) (*Cert, error)
+	SelectCert(where *repositoryCert.SelectCert, queryPage *page.Query) (*page.Result[*CertListItem], error)
+	ObtainCert(ctx context.Context, name string, request CertificateRequest) (*Cert, error)
+	RenewCert(ctx context.Context, id int64, request CertificateRequest) (*Cert, error)
 	ReadCertLog(after int64, before int64, pageSize int) (map[string]interface{}, error)
 	ClearCertLog() error
 	ManualCert(ctx context.Context, id int64, name string, request CertificateRequest) (interface{}, error)

@@ -15,6 +15,7 @@ type Options struct {
 	HTTPSListen          []string        `json:"https_listen"`           // HTTPS 监听地址，nil 默认 :443，空切片关闭监听
 	Protocols            []string        `json:"protocols"`              // 启用的 HTTP 协议，nil 默认 h1、h2、h3
 	DefaultSite          string          `json:"default_site"`           // 默认站点 ID，空表示未知域名显示网站不存在页
+	InitialPage          ResponseOptions `json:"initial_page"`           // 网站尚未部署首页时显示的页面
 	NotFoundPage         ResponseOptions `json:"not_found_page"`         // 站点内资源不存在页面
 	SiteNotFoundPage     ResponseOptions `json:"site_not_found_page"`    // 请求域名未绑定网站时显示的页面
 	SiteDisabledPage     ResponseOptions `json:"site_disabled_page"`     // 请求域名所属网站已停用时显示的页面

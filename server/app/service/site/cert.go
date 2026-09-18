@@ -40,9 +40,9 @@ import (
 const CertificateRequestTimeout = constant.CacheTimeWithCertOrder
 
 // CreateCert 导入并保存一组证书和私钥，允许导入已过期的证书。
-func (s *service) CreateCert(data *model.Cert) error {
+func (s *service) CreateCert(data *model.Cert) (*Cert, error) {
 	if data == nil {
-		return errors.New("证书数据不能为空")
+		return nil, errors.New("证书数据不能为空")
 	}
 	candidate := *data
 	candidate.Type = cert_type.Import
@@ -50,7 +50,7 @@ func (s *service) CreateCert(data *model.Cert) error {
 	candidate.SecretId = 0
 	candidate.AutoRenew = cert_auto_renew.Disabled
 	if err := s.prepareCertificate(&candidate, true); err != nil {
-		return err
+		return nil, err
 	}
 	candidate.Id = str.GetSnowWorkIns().GetId()
 
@@ -59,10 +59,10 @@ func (s *service) CreateCert(data *model.Cert) error {
 	if err := s.database.Transaction(func(tx *gorm.DB) error {
 		return s.repositoryCert.Create(&candidate, tx)
 	}); err != nil {
-		return fmt.Errorf("创建证书失败: %w", err)
+		return nil, fmt.Errorf("创建证书失败: %w", err)
 	}
 	*data = candidate
-	return nil
+	return &Cert{Cert: data, StartTime: time.Time(data.StartTime), ExpireTime: time.Time(data.ExpireTime)}, nil
 }
 
 // UpdateCert 更新证书。域名和有效期始终从实际证书内容重新提取。
@@ -182,7 +182,7 @@ func (s *service) DeleteCert(id int64) error {
 }
 
 // FindCert 查询证书详情。
-func (s *service) FindCert(id int64) (*model.Cert, error) {
+func (s *service) FindCert(id int64) (*Cert, error) {
 	if id <= 0 {
 		return nil, errors.New("证书 ID 不合法")
 	}
@@ -193,11 +193,11 @@ func (s *service) FindCert(id int64) (*model.Cert, error) {
 		}
 		return nil, fmt.Errorf("查询证书失败: %w", err)
 	}
-	return result, nil
+	return &Cert{Cert: result, StartTime: time.Time(result.StartTime), ExpireTime: time.Time(result.ExpireTime)}, nil
 }
 
 // SelectCert 分页查询证书。
-func (s *service) SelectCert(where *repositoryCert.SelectCert, queryPage *page.Query) (*page.Result[*repositoryCert.Cert], error) {
+func (s *service) SelectCert(where *repositoryCert.SelectCert, queryPage *page.Query) (*page.Result[*CertListItem], error) {
 	var filter *repositoryCert.SelectCert
 	if where != nil {
 		value := *where
@@ -236,11 +236,18 @@ func (s *service) SelectCert(where *repositoryCert.SelectCert, queryPage *page.Q
 	if err != nil {
 		return nil, fmt.Errorf("查询证书列表失败: %w", err)
 	}
-	return result, nil
+	list := make([]*CertListItem, len(result.List))
+	for i, item := range result.List {
+		list[i] = &CertListItem{Cert: item, StartTime: time.Time(item.StartTime), ExpireTime: time.Time(item.ExpireTime)}
+	}
+	return &page.Result[*CertListItem]{
+		Total: result.Total, Page: result.Page, PageSize: result.PageSize, List: list,
+		HasMore: result.HasMore, NextCursorId: result.NextCursorId, NextCursorLastId: result.NextCursorLastId,
+	}, nil
 }
 
 // ObtainCert 通过 ACME 申请证书并保存。
-func (s *service) ObtainCert(ctx context.Context, name string, request CertificateRequest) (*model.Cert, error) {
+func (s *service) ObtainCert(ctx context.Context, name string, request CertificateRequest) (*Cert, error) {
 	if ctx == nil {
 		return nil, errors.New("证书申请上下文不能为空")
 	}
@@ -326,11 +333,11 @@ func (s *service) ObtainCert(ctx context.Context, name string, request Certifica
 	}); err != nil {
 		return nil, err
 	}
-	return candidate, nil
+	return &Cert{Cert: candidate, StartTime: time.Time(candidate.StartTime), ExpireTime: time.Time(candidate.ExpireTime)}, nil
 }
 
 // RenewCert 续签 ACME 证书并更新现有记录。
-func (s *service) RenewCert(ctx context.Context, id int64, request CertificateRequest) (*model.Cert, error) {
+func (s *service) RenewCert(ctx context.Context, id int64, request CertificateRequest) (*Cert, error) {
 	if ctx == nil {
 		return nil, errors.New("证书续签上下文不能为空")
 	}
@@ -372,7 +379,7 @@ func (s *service) RenewCert(ctx context.Context, id int64, request CertificateRe
 		if err = s.syncCertificateLocked(id, "部署续签证书", func() error { return nil }); err != nil {
 			return nil, err
 		}
-		return current, nil
+		return &Cert{Cert: current, StartTime: time.Time(current.StartTime), ExpireTime: time.Time(current.ExpireTime)}, nil
 	}
 	var domains []string
 	if err = json.Unmarshal([]byte(current.Domains), &domains); err != nil {
@@ -472,7 +479,7 @@ func (s *service) RenewCert(ctx context.Context, id int64, request CertificateRe
 	if err != nil {
 		return nil, fmt.Errorf("读取续签证书失败: %w", err)
 	}
-	return result, nil
+	return &Cert{Cert: result, StartTime: time.Time(result.StartTime), ExpireTime: time.Time(result.ExpireTime)}, nil
 }
 
 // ManualCert 通过普通 HTTP 分步申请证书，使用缓存锁保护共享的 JSON 订单。
@@ -537,7 +544,7 @@ func (s *service) ManualCert(ctx context.Context, id int64, name string, request
 			return nil, errors.New("手动验证订单已过期或取消，请重新申请")
 		}
 		if order.Result != nil {
-			return order.Result, nil
+			return &Cert{Cert: order.Result, StartTime: time.Time(order.Result.StartTime), ExpireTime: time.Time(order.Result.ExpireTime)}, nil
 		}
 		ctx, cancel := context.WithDeadline(ctx, order.ExpiresAt)
 		defer cancel()
@@ -559,7 +566,7 @@ func (s *service) ManualCert(ctx context.Context, id int64, name string, request
 		}()
 		request = order.Request
 		request.order = &order
-		var data *model.Cert
+		var data *Cert
 		var issueErr error
 		if id > 0 {
 			data, issueErr = s.RenewCert(ctx, id, request)
@@ -570,7 +577,9 @@ func (s *service) ManualCert(ctx context.Context, id int64, name string, request
 			s.cache.Delete(key)
 			return nil, errors.Join(issueErr, errors.New("手动验证订单已过期或取消，请重新申请"))
 		}
-		order.Result = data
+		if data != nil {
+			order.Result = data.Cert
+		}
 		encoded, err := json.Marshal(&order)
 		if err != nil {
 			return nil, errors.Join(issueErr, err)
@@ -1081,6 +1090,7 @@ func (s *service) prepareCertificate(data *model.Cert, allowExpired bool) error 
 	data.Certificate = certificate + "\n"
 	data.PrivateKey = privateKey + "\n"
 	data.Domains = string(encodedDomains)
+	// X.509 有效期为 UTC，入库统一使用服务器本地时间。
 	data.StartTime = str.DateTime(leaf.NotBefore.Local())
 	data.ExpireTime = str.DateTime(leaf.NotAfter.Local())
 	return nil

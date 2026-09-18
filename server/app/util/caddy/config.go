@@ -96,6 +96,7 @@ func (m *Manager) setOptions(options Options) error {
 		status int
 		body   string
 	}{
+		{value: &options.InitialPage, status: 200, body: DefaultInitialPage},
 		{value: &options.NotFoundPage, status: 404, body: DefaultNotFoundPage},
 		{value: &options.SiteNotFoundPage, status: 404, body: DefaultSiteNotFoundPage},
 		{value: &options.SiteDisabledPage, status: 503, body: DefaultSiteDisabledPage},
@@ -1005,7 +1006,7 @@ func (m *Manager) buildHTTPServer(listen []string, routes []interface{}, tlsPoli
 	if defaultLoggerName != "" {
 		logOptions["default_logger_name"] = defaultLoggerName
 	}
-	errorRoutes := make([]interface{}, 0, len(sites)+1)
+	errorRoutes := make([]interface{}, 0, len(sites)+2)
 	for _, site := range sites {
 		if !site.WAF.Enabled {
 			continue
@@ -1033,6 +1034,13 @@ func (m *Manager) buildHTTPServer(listen []string, routes []interface{}, tlsPoli
 		})
 	}
 	errorRoutes = append(errorRoutes, map[string]interface{}{
+		"match": []interface{}{map[string]interface{}{
+			"expression": "{http.error.status_code} == 404",
+			"vars":       map[string][]string{"initial_page": {"true"}},
+		}},
+		"handle":   []interface{}{m.buildResponseHandler(m.options.InitialPage)},
+		"terminal": true,
+	}, map[string]interface{}{
 		"match": []interface{}{map[string]interface{}{
 			"expression": "{http.error.status_code} == 404",
 		}},

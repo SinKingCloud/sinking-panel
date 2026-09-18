@@ -170,7 +170,7 @@ func (s *Server) install() error {
 	if err != nil {
 		return err
 	}
-	password, err := s.readNewPassword("请输入登录密码: ", "请再次输入登录密码: ")
+	password, err := s.readNewPassword("请输入登录密码: ", "请再次输入登录密码: ", true)
 	if err != nil {
 		return err
 	}

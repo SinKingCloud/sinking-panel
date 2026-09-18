@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"server/app/enum/cert_type"
 	"server/app/enum/log_type"
-	"server/app/model"
 	"server/app/service"
 	serviceSite "server/app/service/site"
 	"server/app/util/caddy"
@@ -78,7 +77,7 @@ func Obtain(c *context.Context) {
 	if form.Action == "cancel" {
 		msg = "已取消验证"
 	}
-	if certificate, ok := data.(*model.Cert); ok && certificate != nil {
+	if certificate, ok := data.(*serviceSite.Cert); ok && certificate != nil {
 		service.Log.Create(c.GetRequestIp(), log_type.EventCreate, "申请网站证书", "申请网站证书["+certificate.Name+"]")
 		msg = "申请成功"
 		if manual {
@@ -156,7 +155,7 @@ func Renew(c *context.Context) {
 	if form.Action == "cancel" {
 		msg = "已取消验证"
 	}
-	if certificate, ok := data.(*model.Cert); ok && certificate != nil {
+	if certificate, ok := data.(*serviceSite.Cert); ok && certificate != nil {
 		service.Log.Create(c.GetRequestIp(), log_type.EventUpdate, "续签网站证书", "续签网站证书["+strconv.FormatInt(form.Id, 10)+"]")
 		msg = "续签成功"
 		if manual {

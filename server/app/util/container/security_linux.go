@@ -16,7 +16,6 @@ import (
 	pathrs "github.com/cyphar/filepath-securejoin/pathrs-lite"
 	mobySeccomp "github.com/moby/profiles/seccomp"
 	"github.com/moby/sys/mountinfo"
-	userUtil "github.com/moby/sys/user"
 	"github.com/opencontainers/runc/libcontainer/configs"
 	"github.com/opencontainers/runc/libcontainer/seccomp"
 	"github.com/opencontainers/runc/libcontainer/specconv"
@@ -142,25 +141,14 @@ func (m *Manager) configurePlatformSecurity(root string) error {
 			IDMapSize:   options.IDMapSize,
 		}
 		if metadata.UIDMapStart == 0 {
-			uids, uidErr := userUtil.CurrentUserSubUIDs()
-			gids, gidErr := userUtil.CurrentUserSubGIDs()
-			if uidErr != nil || gidErr != nil {
-				return fmt.Errorf("读取 /etc/subuid 或 /etc/subgid 失败: %w", errors.Join(uidErr, gidErr))
+			var err error
+			metadata.UIDMapStart, err = m.allocateIDMap("/etc/subuid", metadata.IDMapSize)
+			if err != nil {
+				return fmt.Errorf("自动配置容器 UID 映射失败: %w", err)
 			}
-			for _, value := range uids {
-				if value.Count >= metadata.IDMapSize {
-					metadata.UIDMapStart = value.SubID
-					break
-				}
-			}
-			for _, value := range gids {
-				if value.Count >= metadata.IDMapSize {
-					metadata.GIDMapStart = value.SubID
-					break
-				}
-			}
-			if metadata.UIDMapStart == 0 || metadata.GIDMapStart == 0 {
-				return errors.New("当前用户缺少至少 65536 个连续的 subuid/subgid，请配置 /etc/subuid、/etc/subgid 或显式传入映射")
+			metadata.GIDMapStart, err = m.allocateIDMap("/etc/subgid", metadata.IDMapSize)
+			if err != nil {
+				return fmt.Errorf("自动配置容器 GID 映射失败: %w", err)
 			}
 		}
 		if err := validate(metadata); err != nil {

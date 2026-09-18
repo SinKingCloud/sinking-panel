@@ -22,7 +22,7 @@ func (t *DateTime) UnmarshalJSON(data []byte) error {
 	var err error
 	str := string(data)
 	timeStr := strings.Trim(str, "\"")
-	t1, err := time.Parse("2006-01-02 15:04:05", timeStr)
+	t1, err := time.ParseInLocation("2006-01-02 15:04:05", timeStr, time.Local)
 	*t = DateTime(t1)
 	return err
 }
@@ -33,15 +33,26 @@ func (t DateTime) Value() (driver.Value, error) {
 }
 
 func (t *DateTime) Scan(v interface{}) error {
+	var value string
 	switch vt := v.(type) {
 	case time.Time:
-		*t = DateTime(vt)
+		// 数据库存的是无时区的本地时间，保留驱动返回的年月日时分秒。
+		value = vt.Format("2006-01-02 15:04:05")
 	case string:
-		parsedTime, _ := time.Parse("2006-01-02 15:04:05", vt)
-		*t = DateTime(parsedTime)
+		value = vt
+	case []byte:
+		value = string(vt)
+	case nil:
+		*t = DateTime{}
+		return nil
 	default:
 		return errors.New("类型处理错误")
 	}
+	parsedTime, err := time.ParseInLocation("2006-01-02 15:04:05", value, time.Local)
+	if err != nil {
+		return err
+	}
+	*t = DateTime(parsedTime)
 	return nil
 }
 

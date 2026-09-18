@@ -25,10 +25,10 @@ func Create(c *context.Context) {
 		Certificate: form.Certificate,
 		PrivateKey:  form.PrivateKey,
 	}
-	err := service.Site.CreateCert(data)
+	result, err := service.Site.CreateCert(data)
 	if err == nil {
 		service.Log.Create(c.GetRequestIp(), log_type.EventCreate, "导入网站证书", "导入网站证书["+data.Name+"]")
-		c.SuccessWithData("导入成功", data)
+		c.SuccessWithData("导入成功", result)
 	} else {
 		c.Error(err.Error())
 	}

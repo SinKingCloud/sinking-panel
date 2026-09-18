@@ -46,7 +46,7 @@ func (s *Server) pwd() error {
 	if err := s.requireInteractive("pwd"); err != nil {
 		return err
 	}
-	password, err := s.readNewPassword("请输入新密码: ", "请再次输入新密码: ")
+	password, err := s.readNewPassword("请输入新密码: ", "请再次输入新密码: ", false)
 	if err != nil {
 		return err
 	}
@@ -90,12 +90,16 @@ func (s *Server) readAccount(prompt string) (string, error) {
 	return form.Account, nil
 }
 
-func (s *Server) readNewPassword(prompt string, confirmPrompt string) ([]byte, error) {
-	password, err := s.readPassword(prompt)
+func (s *Server) readNewPassword(prompt string, confirmPrompt string, visible bool) ([]byte, error) {
+	var input *bufio.Reader
+	if visible {
+		input = bufio.NewReader(os.Stdin)
+	}
+	password, err := s.readPassword(prompt, input)
 	if err != nil {
 		return nil, err
 	}
-	confirm, err := s.readPassword(confirmPrompt)
+	confirm, err := s.readPassword(confirmPrompt, input)
 	if err != nil {
 		clear(password)
 		return nil, err
@@ -121,10 +125,22 @@ func (s *Server) readNewPassword(prompt string, confirmPrompt string) ([]byte, e
 	return password, nil
 }
 
-func (s *Server) readPassword(prompt string) ([]byte, error) {
+// readPassword 传入 input 时正常回显输入；nil 使用终端的隐藏密码输入。
+func (s *Server) readPassword(prompt string, input *bufio.Reader) ([]byte, error) {
 	fmt.Fprint(os.Stderr, prompt)
-	password, err := term.ReadPassword(int(os.Stdin.Fd()))
-	fmt.Fprintln(os.Stderr)
+	var password []byte
+	var err error
+	if input != nil {
+		password, err = input.ReadBytes('\n')
+		if errors.Is(err, io.EOF) && len(password) > 0 {
+			err = nil
+		}
+		// 只去掉行结束符，保留密码本身的首尾空格。
+		password = bytes.TrimSuffix(bytes.TrimSuffix(password, []byte{'\n'}), []byte{'\r'})
+	} else {
+		password, err = term.ReadPassword(int(os.Stdin.Fd()))
+		fmt.Fprintln(os.Stderr)
+	}
 	if err != nil {
 		clear(password)
 		return nil, fmt.Errorf("读取密码失败: %w", err)

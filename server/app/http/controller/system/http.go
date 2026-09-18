@@ -1,8 +1,6 @@
 package system
 
 import (
-	"net/http"
-
 	"server/app/enum/log_type"
 	"server/app/service"
 	serviceSite "server/app/service/site"
@@ -33,10 +31,6 @@ func HTTP(c *context.Context) {
 		return
 	case "log":
 		if form.LogAction == "clear" {
-			if c.Request.Method != http.MethodPost {
-				c.Error("清理日志仅支持 POST 请求")
-				return
-			}
 			err = service.Site.ClearServerLog()
 			if err != nil {
 				c.Error(err.Error())

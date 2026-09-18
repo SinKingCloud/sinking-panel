@@ -752,30 +752,39 @@ func (m *Manager) buildStaticHandler(root string, index []string, browse bool, t
 		fileServer["precompressed"] = encodings
 		fileServer["precompressed_order"] = append([]string(nil), precompressed...)
 	}
-	if len(tryFiles) == 0 {
+	if browse {
 		return fileServer
 	}
-	return map[string]interface{}{
-		"handler": HandlerSubroute,
-		"routes": []interface{}{
-			map[string]interface{}{
-				"match": []interface{}{map[string]interface{}{
-					"file": map[string]interface{}{
-						"root":      root,
-						"try_files": append([]string(nil), tryFiles...),
-					},
-				}},
-				"handle": []interface{}{map[string]interface{}{
-					"handler": HandlerRewrite,
-					"uri":     "{http.matchers.file.relative}",
-				}},
-			},
-			map[string]interface{}{
-				"handle":   []interface{}{fileServer},
-				"terminal": true,
-			},
-		},
+	routes := make([]interface{}, 0, 3)
+	if len(tryFiles) > 0 {
+		routes = append(routes, map[string]interface{}{
+			"match": []interface{}{map[string]interface{}{
+				"file": map[string]interface{}{
+					"root":      root,
+					"try_files": append([]string(nil), tryFiles...),
+				},
+			}},
+			"handle": []interface{}{map[string]interface{}{
+				"handler": HandlerRewrite,
+				"uri":     "{http.matchers.file.relative}",
+			}},
+		})
 	}
+	// 仅首页的静态文件 404 使用初始页面，真实首页、PHP 和其他路径照常处理。
+	routes = append(routes, map[string]interface{}{
+		"match": []interface{}{map[string]interface{}{
+			"method":     []string{"GET", "HEAD"},
+			"expression": "{http.request.orig_uri.path} == '/'",
+		}},
+		"handle": []interface{}{map[string]interface{}{
+			"handler":      HandlerVars,
+			"initial_page": "true",
+		}},
+	}, map[string]interface{}{
+		"handle":   []interface{}{fileServer},
+		"terminal": true,
+	})
+	return map[string]interface{}{"handler": HandlerSubroute, "routes": routes}
 }
 
 func (m *Manager) buildProxyHandler(options *ProxyOptions) (map[string]interface{}, error) {

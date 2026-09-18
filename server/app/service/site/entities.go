@@ -4,9 +4,24 @@ import (
 	"time"
 
 	"server/app/model"
+	repositoryCert "server/app/repository/cert"
 	"server/app/util/caddy"
 	"server/app/util/str"
 )
+
+// Cert 证书详情，有效期保留服务器时区，数据库与缓存仍使用原始模型。
+type Cert struct {
+	*model.Cert
+	StartTime  time.Time `json:"start_time"`
+	ExpireTime time.Time `json:"expire_time"`
+}
+
+// CertListItem 证书列表数据，不包含证书和私钥正文。
+type CertListItem struct {
+	*repositoryCert.Cert
+	StartTime  time.Time `json:"start_time"`
+	ExpireTime time.Time `json:"expire_time"`
+}
 
 // CertificateRequest 证书申请设置，HTTP 和 DNS 验证均支持手动操作。
 type CertificateRequest struct {
@@ -382,6 +397,7 @@ type HTTPUpdate struct {
 	HTTPSListen          *[]string       `json:"https_listen"`           // HTTPS 监听地址
 	Protocols            *[]string       `json:"protocols"`              // 启用的 HTTP 协议
 	DefaultSite          *string         `json:"default_site"`           // 默认站点 ID
+	InitialPage          *HTTPPageUpdate `json:"initial_page"`           // 网站尚未部署首页时显示的页面
 	NotFoundPage         *HTTPPageUpdate `json:"not_found_page"`         // 站点内资源不存在页面
 	SiteNotFoundPage     *HTTPPageUpdate `json:"site_not_found_page"`    // 请求域名未绑定网站时显示的页面
 	SiteDisabledPage     *HTTPPageUpdate `json:"site_disabled_page"`     // 请求域名所属网站已停用时显示的页面

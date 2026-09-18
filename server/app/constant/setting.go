@@ -45,6 +45,7 @@ const (
 	SiteHTTPSListen              = SiteHTTPGroup + ".https_listen"           //HTTPS 监听地址
 	SiteHTTPProtocols            = SiteHTTPGroup + ".protocols"              //HTTP 协议
 	SiteHTTPDefaultSite          = SiteHTTPGroup + ".default_site"           //默认网站
+	SiteHTTPInitialPage          = SiteHTTPGroup + ".initial_page"           //网站初始页面
 	SiteHTTPNotFoundPage         = SiteHTTPGroup + ".not_found_page"         //资源不存在页面
 	SiteHTTPSiteNotFoundPage     = SiteHTTPGroup + ".site_not_found_page"    //网站不存在页面
 	SiteHTTPSiteDisabledPage     = SiteHTTPGroup + ".site_disabled_page"     //网站停用页面

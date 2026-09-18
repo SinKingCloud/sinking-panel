@@ -27,8 +27,8 @@ type ManagerOptions struct {
 	TerminalConsoleTimeout time.Duration // 等待容器返回 PTY 主端的最长时间，默认 5 秒
 	TerminalCleanupTimeout time.Duration // 终端启动失败时等待 shell 退出的最长时间，默认 5 秒
 	DefaultPidsLimit       int64         // 实例未设置进程数限制时使用的上限，默认 512；-1 表示不限制
-	UIDMapStart            int64         // 容器 UID 0 对应的宿主 UID；0 表示从 /etc/subuid 自动读取
-	GIDMapStart            int64         // 容器 GID 0 对应的宿主 GID；0 表示从 /etc/subgid 自动读取
+	UIDMapStart            int64         // 容器 UID 0 对应的宿主 UID；0 表示自动读取或分配 /etc/subuid 映射
+	GIDMapStart            int64         // 容器 GID 0 对应的宿主 GID；0 表示自动读取或分配 /etc/subgid 映射
 	IDMapSize              int64         // User Namespace 映射数量，默认 65536，不能小于 65536
 	MountRoots             []string      // 允许 bind mount 的宿主根目录；默认仅允许数据目录下的 volumes
 }

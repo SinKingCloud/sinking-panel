@@ -21,10 +21,6 @@ func Process(c *context.Context) {
 		return
 	}
 	if form.Action == "status" || form.Action == "start" || form.Action == "stop" || form.Action == "restart" {
-		if form.Action != "status" && c.Request.Method != "POST" {
-			c.Error("进程控制请使用 POST 请求")
-			return
-		}
 		data, err := service.Site.Process(form.Id, form.Action)
 		if err != nil {
 			c.Error(err.Error())

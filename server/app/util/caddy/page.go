@@ -118,7 +118,25 @@ const defaultPageStyle = `<style>
     </style>` // 默认页面样式
 
 var (
-	pageYear            = strconv.Itoa(time.Now().Year())
+	pageYear           = strconv.Itoa(time.Now().Year())
+	DefaultInitialPage = `<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="noindex, nofollow">
+    <title>网站创建成功</title>` + defaultPageStyle + `
+</head>
+<body>
+    <main class="stage">
+        <section class="content" aria-labelledby="page-title">
+            <h1 class="title" id="page-title">网站创建成功</h1>
+            <p class="description">网站已就绪，请上传网站文件后开始使用。</p>
+        </section>
+    </main>
+    <footer class="footer">© ` + pageYear + ` All Rights Reserved</footer>
+</body>
+</html>` // 网站尚未部署首页时显示的初始页面
 	DefaultNotFoundPage = `<!doctype html>
 <html lang="zh-CN">
 <head>

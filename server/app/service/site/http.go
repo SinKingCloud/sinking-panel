@@ -72,6 +72,7 @@ func (s *service) updateHTTPLocked(config *HTTPUpdate) error {
 		target *caddy.ResponseOptions
 		update *HTTPPageUpdate
 	}{
+		{&candidate.InitialPage, config.InitialPage},
 		{&candidate.NotFoundPage, config.NotFoundPage},
 		{&candidate.SiteNotFoundPage, config.SiteNotFoundPage},
 		{&candidate.SiteDisabledPage, config.SiteDisabledPage},
@@ -156,6 +157,7 @@ func (s *service) updateHTTPLocked(config *HTTPUpdate) error {
 		{constant.SiteHTTPSListen, config.HTTPSListen != nil, candidate.HTTPSListen},
 		{constant.SiteHTTPProtocols, config.Protocols != nil, candidate.Protocols},
 		{constant.SiteHTTPDefaultSite, config.DefaultSite != nil, candidate.DefaultSite},
+		{constant.SiteHTTPInitialPage, config.InitialPage != nil, candidate.InitialPage},
 		{constant.SiteHTTPNotFoundPage, config.NotFoundPage != nil, candidate.NotFoundPage},
 		{constant.SiteHTTPSiteNotFoundPage, config.SiteNotFoundPage != nil, candidate.SiteNotFoundPage},
 		{constant.SiteHTTPSiteDisabledPage, config.SiteDisabledPage != nil, candidate.SiteDisabledPage},
@@ -254,6 +256,7 @@ func (s *service) loadHTTP() (caddy.Options, bool, error) {
 		{constant.SiteHTTPSListen, &config.HTTPSListen},
 		{constant.SiteHTTPProtocols, &config.Protocols},
 		{constant.SiteHTTPDefaultSite, &config.DefaultSite},
+		{constant.SiteHTTPInitialPage, &config.InitialPage},
 		{constant.SiteHTTPNotFoundPage, &config.NotFoundPage},
 		{constant.SiteHTTPSiteNotFoundPage, &config.SiteNotFoundPage},
 		{constant.SiteHTTPSiteDisabledPage, &config.SiteDisabledPage},
