@@ -26,6 +26,8 @@ func NewManager(root string, options ...ManagerOptions) (_ *Manager, err error) 
 		return nil, fmt.Errorf("解析容器数据目录失败: %w", err)
 	}
 	rootExists := false
+	var anchorPath string
+	var anchorInfo os.FileInfo
 	if info, statErr := os.Lstat(absRoot); statErr == nil {
 		rootExists = true
 		if info.Mode()&os.ModeSymlink != 0 {
@@ -39,6 +41,7 @@ func NewManager(root string, options ...ManagerOptions) (_ *Manager, err error) 
 			return nil, fmt.Errorf("解析容器数据目录失败: %w", resolveErr)
 		}
 		absRoot = filepath.Clean(resolved)
+		anchorPath, anchorInfo = absRoot, info
 	} else if !errors.Is(statErr, os.ErrNotExist) {
 		return nil, fmt.Errorf("读取容器数据目录失败: %w", statErr)
 	} else {
@@ -50,6 +53,13 @@ func NewManager(root string, options ...ManagerOptions) (_ *Manager, err error) 
 				if !info.IsDir() && info.Mode()&os.ModeSymlink == 0 {
 					return nil, fmt.Errorf("容器数据目录父路径不是目录: %s", parent)
 				}
+				if info.Mode()&os.ModeSymlink != 0 {
+					info, parentErr = os.Stat(parent)
+					if parentErr != nil {
+						return nil, fmt.Errorf("读取容器数据目录父路径失败: %w", parentErr)
+					}
+				}
+				anchorInfo = info
 				break
 			}
 			if !errors.Is(parentErr, os.ErrNotExist) {
@@ -66,6 +76,7 @@ func NewManager(root string, options ...ManagerOptions) (_ *Manager, err error) 
 		if resolveErr != nil {
 			return nil, fmt.Errorf("解析容器数据目录父路径失败: %w", resolveErr)
 		}
+		anchorPath = filepath.Clean(resolved)
 		for index := len(missing) - 1; index >= 0; index-- {
 			resolved = filepath.Join(resolved, missing[index])
 		}
@@ -74,25 +85,64 @@ func NewManager(root string, options ...ManagerOptions) (_ *Manager, err error) 
 	if absRoot == filepath.Clean(filepath.VolumeName(absRoot)+string(filepath.Separator)) {
 		return nil, errors.New("容器数据目录不能是磁盘根目录")
 	}
-	validateLinuxAncestors := func(start string) error {
+	prepareLinuxDirectories := func(start string) error {
 		if standardRuntime.GOOS != "linux" {
 			return nil
 		}
+		if os.Geteuid() != 0 {
+			return errors.New("容器运行时必须由 root 启动")
+		}
+		// 路径解析可能经过尚未收紧的目录，先确认没有被重定向到其他目录。
+		info, err := os.Lstat(anchorPath)
+		if err != nil || !os.SameFile(anchorInfo, info) {
+			return fmt.Errorf("容器数据目录在路径解析期间发生变化: %s", anchorPath)
+		}
+		// 从上到下收紧权限，先保护父目录，再打开子目录，避免修复期间路径被替换。
+		ancestors := make([]string, 0, 8)
 		for current := filepath.Clean(start); ; current = filepath.Dir(current) {
+			ancestors = append(ancestors, current)
+			if current == filepath.Dir(current) {
+				break
+			}
+		}
+		for index := len(ancestors) - 1; index >= 0; index-- {
+			current := ancestors[index]
 			info, err := os.Lstat(current)
 			if err != nil {
 				return fmt.Errorf("读取容器数据目录祖先失败: %w", err)
 			}
-			uid, _, ownerOK := archiveOwnership(info)
-			writable := info.Mode().Perm()&0022 != 0
-			if !ownerOK || uid != 0 || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 ||
-				writable && (current == absRoot || info.Mode()&os.ModeSticky == 0) {
-				return fmt.Errorf("容器数据目录祖先可被非 root 替换: %s", current)
+			if current == anchorPath && !os.SameFile(anchorInfo, info) {
+				return fmt.Errorf("容器数据目录在权限准备期间发生变化: %s", current)
 			}
-			if current == filepath.Dir(current) {
-				return nil
+			uid, gid, ownerOK := archiveOwnership(info)
+			if !ownerOK || uid != 0 || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+				return fmt.Errorf("容器数据目录及其祖先必须由 root 持有且不能是符号链接: %s", current)
+			}
+			mode := info.Mode() &^ 0022
+			if current == absRoot {
+				if gid != 0 {
+					return fmt.Errorf("容器数据目录必须由 root:root 持有: %s", current)
+				}
+				mode = 0700
+			} else if info.Mode().Perm()&0022 == 0 || info.Mode()&os.ModeSticky != 0 {
+				// 保留 /tmp 等 sticky 目录的共享用途，其他祖先只移除组和其他用户的写权限。
+				continue
+			}
+			directory, err := os.Open(current)
+			if err != nil {
+				return fmt.Errorf("打开容器数据目录失败 %s: %w", current, err)
+			}
+			opened, err := directory.Stat()
+			if err != nil || !os.SameFile(info, opened) {
+				_ = directory.Close()
+				return fmt.Errorf("容器数据目录在权限准备期间发生变化: %s", current)
+			}
+			// 使用已核对的目录句柄修改权限，不跟随重新解析后的路径。
+			if err := errors.Join(directory.Chmod(mode), directory.Close()); err != nil {
+				return fmt.Errorf("收紧容器数据目录权限失败 %s: %w", current, err)
 			}
 		}
+		return nil
 	}
 	ancestor := absRoot
 	for {
@@ -107,29 +157,15 @@ func NewManager(root string, options ...ManagerOptions) (_ *Manager, err error) 
 		}
 		ancestor = next
 	}
-	if err := validateLinuxAncestors(ancestor); err != nil {
+	if err := prepareLinuxDirectories(ancestor); err != nil {
 		return nil, err
 	}
 	if rootExists {
-		if err := validateLinuxAncestors(absRoot); err != nil {
-			return nil, err
-		}
 		entries, readErr := os.ReadDir(absRoot)
 		if readErr != nil {
 			return nil, fmt.Errorf("读取容器数据目录失败: %w", readErr)
 		}
-		if len(entries) == 0 {
-			if standardRuntime.GOOS == "linux" {
-				info, statErr := os.Lstat(absRoot)
-				if statErr != nil {
-					return nil, fmt.Errorf("读取空的容器数据目录失败: %w", statErr)
-				}
-				uid, gid, ownerOK := archiveOwnership(info)
-				if !ownerOK || uid != 0 || gid != 0 || info.Mode().Perm()&0077 != 0 {
-					return nil, errors.New("空的容器数据目录必须预先由 root:root 持有且权限不高于 0700")
-				}
-			}
-		} else {
+		if len(entries) > 0 {
 			for _, name := range []string{"images", "instances", "runtime"} {
 				info, statErr := os.Lstat(filepath.Join(absRoot, name))
 				if statErr != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
@@ -183,7 +219,7 @@ func NewManager(root string, options ...ManagerOptions) (_ *Manager, err error) 
 	if err := m.ensureManagedDirectory(absRoot); err != nil {
 		return nil, err
 	}
-	if err := validateLinuxAncestors(absRoot); err != nil {
+	if err := prepareLinuxDirectories(absRoot); err != nil {
 		return nil, err
 	}
 	_, mountsRootErr := os.Lstat(m.mountsRoot)
