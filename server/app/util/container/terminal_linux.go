@@ -32,7 +32,12 @@ type linuxTerminalSession struct {
 }
 
 func (s *linuxTerminalSession) Read(payload []byte) (int, error) {
-	return s.console.Read(payload)
+	n, err := s.console.Read(payload)
+	if err != nil {
+		s.closeConsole()
+		s.release()
+	}
+	return n, err
 }
 
 func (s *linuxTerminalSession) Write(payload []byte) (int, error) {
@@ -230,14 +235,7 @@ func (m *Manager) openPlatformTerminal(id string, height, width int) (TerminalSe
 		_ = session.Close()
 		return nil, errors.New("容器管理器已关闭")
 	}
-	if !m.runBackground(func(context.Context) {
-		<-processDone
-		session.closeConsole()
-		session.release()
-	}) {
-		_ = session.Close()
-		return nil, errors.New("容器管理器已关闭")
-	}
+	// shell 退出后仍可能有未读取的输出，由 Read 排空后关闭 PTY，避免慢速连接丢失尾部数据。
 	return session, nil
 }
 
