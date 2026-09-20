@@ -481,7 +481,9 @@ func (m *Manager) Run(options RunOptions) (*Info, error) {
 	options.ImageID = image.ID
 	unlock := m.lockInstance(options.ID)
 	defer unlock()
-	m.cancelAutoRestart(options.ID)
+	if !options.CreateOnly {
+		m.cancelAutoRestart(options.ID)
+	}
 	return m.runLocked(options)
 }
 

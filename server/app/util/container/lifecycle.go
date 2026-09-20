@@ -347,6 +347,10 @@ func (m *Manager) runLocked(options RunOptions) (*Info, error) {
 	existing := m.cloneInstance(m.instances[options.ID])
 	_, hasRuntime := m.runtime[options.ID]
 	m.mu.RUnlock()
+	// 调用方已持有该实例的操作锁，并发创建同一标识也不能覆盖已有实例。
+	if options.CreateOnly && existing != nil {
+		return nil, errors.New("容器标识已存在，请更换")
+	}
 	hasRuntimeState, stateErr := m.hasRuntimeState(options.ID)
 	if stateErr != nil {
 		return nil, stateErr
