@@ -813,7 +813,7 @@ func (m *Manager) exportImage(image *Image, destination string) error {
 }
 
 // commitInstance 将实例当前 rootfs 复制到镜像存储，再写入新的镜像元数据。
-func (m *Manager) commitInstance(instance *Instance, name string, tags []string) (*Image, error) {
+func (m *Manager) commitInstance(instance *Info, name string, tags []string) (*Image, error) {
 	if instance == nil {
 		return nil, errors.New("实例不能为空")
 	}

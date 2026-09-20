@@ -61,7 +61,7 @@ instances:
 		if m.validateManagedNode(instanceDir, true, false) != nil || m.validateManagedNode(metadataPath, false, false) != nil {
 			continue
 		}
-		var instance Instance
+		var instance Info
 		if err := m.readJSON(metadataPath, &instance); err != nil {
 			continue
 		}
@@ -311,7 +311,7 @@ func (m *Manager) resolveImage(id string) (*Image, error) {
 	}
 	return nil, fmt.Errorf("镜像不存在: %s", id)
 }
-func (m *Manager) runLocked(options RunOptions) (*Instance, error) {
+func (m *Manager) runLocked(options RunOptions) (*Info, error) {
 	m.mu.RLock()
 	closing := m.closing
 	m.mu.RUnlock()
@@ -410,7 +410,7 @@ func (m *Manager) runLocked(options RunOptions) (*Instance, error) {
 			return nil, err
 		}
 	}
-	instance := &Instance{
+	instance := &Info{
 		ID:              options.ID,
 		Name:            strings.TrimSpace(options.Name),
 		ImageID:         image.ID,
@@ -692,7 +692,7 @@ func (m *Manager) markRuntimeCleanupLocked(id string, generation uint64, exitCod
 	return nil
 }
 
-func (m *Manager) refreshInstanceLocked(id string) (*Instance, error) {
+func (m *Manager) refreshInstanceLocked(id string) (*Info, error) {
 	m.mu.RLock()
 	instance := m.cloneInstance(m.instances[id])
 	_, hasRuntime := m.runtime[id]
@@ -702,7 +702,13 @@ func (m *Manager) refreshInstanceLocked(id string) (*Instance, error) {
 	}
 	hasRuntimeState, stateErr := m.hasRuntimeState(id)
 	if stateErr != nil {
-		return nil, stateErr
+		instance.Status, instance.Error = StatusUnknown, stateErr.Error()
+		m.mu.Lock()
+		if current := m.instances[id]; current != nil && current.Generation == instance.Generation {
+			m.instances[id] = m.cloneInstance(instance)
+		}
+		m.mu.Unlock()
+		return instance, stateErr
 	}
 	if !m.isActiveStatus(instance.Status) && instance.PID <= 0 && !hasRuntime && !hasRuntimeState {
 		return instance, nil
@@ -744,7 +750,7 @@ func (m *Manager) refreshInstanceLocked(id string) (*Instance, error) {
 	return m.cloneInstance(instance), err
 }
 
-func (m *Manager) failStart(instance *Instance, startErr error) error {
+func (m *Manager) failStart(instance *Info, startErr error) error {
 	m.setPlatformFailure(instance.ID, startErr)
 	m.mu.RLock()
 	_, hasRuntime := m.runtime[instance.ID]
@@ -763,7 +769,7 @@ func (m *Manager) failStart(instance *Instance, startErr error) error {
 	return errors.Join(result, persistErr)
 }
 
-func (m *Manager) optionsFromInstance(instance *Instance) RunOptions {
+func (m *Manager) optionsFromInstance(instance *Info) RunOptions {
 	return RunOptions{
 		ID:          instance.ID,
 		Name:        instance.Name,
@@ -874,11 +880,11 @@ func (m *Manager) nextGeneration() uint64 {
 	return generation
 }
 
-func (m *Manager) isActiveStatus(status Status) bool {
+func (m *Manager) isActiveStatus(status State) bool {
 	return status == StatusStarting || status == StatusRunning || status == StatusStopping || status == StatusUnknown
 }
 
-func (m *Manager) storeInstance(instance *Instance) {
+func (m *Manager) storeInstance(instance *Info) {
 	m.mu.Lock()
 	current := m.instances[instance.ID]
 	if current == nil || current.Generation <= instance.Generation {
@@ -933,7 +939,7 @@ func (m *Manager) cleanupOrphanInstanceStorage(id string) error {
 		return fmt.Errorf("读取孤立实例 rootfs 失败: %w", rootfsErr)
 	}
 	if rootfsErr == nil && rootfsInfo.IsDir() && rootfsInfo.Mode()&os.ModeSymlink == 0 {
-		instance := &Instance{
+		instance := &Info{
 			ID:            id,
 			WritableLayer: true,
 			Rootfs:        rootfs,

@@ -203,7 +203,7 @@ func NewManager(root string, options ...ManagerOptions) (_ *Manager, err error) 
 		options:           managerOptions,
 		requestedSecurity: requestedSecurity,
 		images:            make(map[string]*Image),
-		instances:         make(map[string]*Instance),
+		instances:         make(map[string]*Info),
 		runtime:           make(map[string]interface{}),
 		terminals:         make(map[TerminalSession]struct{}),
 		autoRestart:       make(map[string]uint64),
@@ -320,6 +320,17 @@ func NewManager(root string, options ...ManagerOptions) (_ *Manager, err error) 
 	}
 	ready = true
 	return m, nil
+}
+
+// VolumePath 返回实例在当前管理器下的数据卷目录，不创建目录，也不要求实例已存在。
+func (m *Manager) VolumePath(id string) (string, error) {
+	if m == nil || m.volumesRoot == "" {
+		return "", errors.New("容器管理器尚未初始化")
+	}
+	if err := m.validateID(id); err != nil {
+		return "", err
+	}
+	return filepath.Join(m.volumesRoot, id), nil
 }
 
 // HostID 将容器内 UID/GID 转换为宿主 ID，用于准备可写 bind mount 的所有权。
@@ -448,7 +459,7 @@ func (m *Manager) RemoveImage(id string) error {
 
 // Run 自动解析镜像路径、ID 或标签，继承镜像的启动参数并准备可写挂载后启动容器。
 // 实例保存固定镜像 ID；已映射的挂载文件保留原属主。
-func (m *Manager) Run(options RunOptions) (*Instance, error) {
+func (m *Manager) Run(options RunOptions) (*Info, error) {
 	release, err := m.lockOpen()
 	if err != nil {
 		return nil, err
@@ -472,7 +483,7 @@ func (m *Manager) Run(options RunOptions) (*Instance, error) {
 	return m.runLocked(options)
 }
 
-func (m *Manager) Start(id string) (*Instance, error) {
+func (m *Manager) Start(id string) (*Info, error) {
 	release, err := m.lockOpen()
 	if err != nil {
 		return nil, err
@@ -525,7 +536,7 @@ func (m *Manager) Stop(id string) error {
 	return m.stopLocked(id)
 }
 
-func (m *Manager) Restart(id string) (*Instance, error) {
+func (m *Manager) Restart(id string) (*Info, error) {
 	release, err := m.lockOpen()
 	if err != nil {
 		return nil, err
@@ -635,8 +646,8 @@ func (m *Manager) Remove(id string) error {
 	return nil
 }
 
-// Instances 返回全部实例，并同步平台运行状态。
-func (m *Manager) Instances() []*Instance {
+// List 同步容器状态并返回摘要，不包含环境变量、命令和挂载等详情。
+func (m *Manager) List() []*Instance {
 	m.mu.RLock()
 	ids := make([]string, 0, len(m.instances))
 	for id := range m.instances {
@@ -651,15 +662,28 @@ func (m *Manager) Instances() []*Instance {
 	m.mu.RLock()
 	result := make([]*Instance, 0, len(m.instances))
 	for _, instance := range m.instances {
-		result = append(result, m.cloneInstance(instance))
+		item := &Instance{
+			ID: instance.ID, Name: instance.Name, ImageID: instance.ImageID,
+			Status: instance.Status, CreatedAt: instance.CreatedAt,
+			AutoRestart: instance.AutoRestart, ManualStop: instance.ManualStop,
+		}
+		if image := m.images[instance.ImageID]; image != nil {
+			item.ImageName = image.Name
+		}
+		result = append(result, item)
 	}
 	m.mu.RUnlock()
-	sort.Slice(result, func(i, j int) bool { return result[i].CreatedAt > result[j].CreatedAt })
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].CreatedAt == result[j].CreatedAt {
+			return result[i].ID < result[j].ID
+		}
+		return result[i].CreatedAt > result[j].CreatedAt
+	})
 	return result
 }
 
-// Instance 返回一个实例的最新状态和完整配置。
-func (m *Manager) Instance(id string) (*Instance, error) {
+// Info 返回一个实例的最新状态和完整配置。
+func (m *Manager) Info(id string) (*Info, error) {
 	if err := m.validateID(id); err != nil {
 		return nil, err
 	}
@@ -668,21 +692,54 @@ func (m *Manager) Instance(id string) (*Instance, error) {
 	return m.refreshInstanceLocked(id)
 }
 
-// Stats 返回运行实例当前的 CPU、内存和进程数。
-func (m *Manager) Stats(id string) (*Stats, error) {
+// Status 返回容器生命周期和资源动态；停止或失败的实例也可查询。
+func (m *Manager) Status(id string) (*Status, error) {
 	if err := m.validateID(id); err != nil {
 		return nil, err
 	}
 	unlock := m.lockInstance(id)
 	defer unlock()
-	instance, err := m.refreshInstanceLocked(id)
-	if err != nil {
-		return nil, err
+	instance, refreshErr := m.refreshInstanceLocked(id)
+	if instance == nil {
+		return nil, refreshErr
 	}
-	if instance == nil || instance.Status != StatusRunning {
-		return nil, errors.New("实例未运行")
+	result := &Status{ReadTime: time.Now()}
+	if refreshErr == nil && instance.Status == StatusRunning {
+		resources, err := m.statusPlatform(id)
+		if err == nil {
+			result = resources
+			result.ResourcesAvailable = true
+		} else {
+			result.ResourceError = err.Error()
+			// 进程可能恰好在采样期间退出，重新确认生命周期，不把采样失败当作运行失败。
+			if current, err := m.refreshInstanceLocked(id); current != nil {
+				instance, refreshErr = current, err
+			} else if err != nil {
+				instance.Status, refreshErr = StatusUnknown, err
+			}
+			result.ReadTime = time.Now()
+		}
 	}
-	return m.statsPlatform(id)
+	result.ID, result.Status, result.PID = instance.ID, instance.Status, instance.PID
+	result.StartedAt, result.EndedAt = instance.StartedAt, instance.EndedAt
+	result.ExitCode, result.Error = instance.ExitCode, instance.Error
+	result.AutoRestart, result.ManualStop = instance.AutoRestart, instance.ManualStop
+	result.Generation = instance.Generation
+	if refreshErr != nil {
+		result.Error = refreshErr.Error()
+	}
+	if instance.StartedAt > 0 {
+		end := result.ReadTime.Unix()
+		if instance.EndedAt > 0 {
+			end = instance.EndedAt
+		}
+		result.Uptime = max(end-instance.StartedAt, 0)
+	}
+	m.mu.RLock()
+	generation, pending := m.autoRestart[id]
+	result.RestartPending = pending && generation == instance.Generation && instance.AutoRestart && !instance.ManualStop && !m.closing
+	m.mu.RUnlock()
+	return result, nil
 }
 
 // StopAll 停止全部容器并释放终端和后台任务，用于程序退出或初始化失败时清理。
@@ -763,8 +820,8 @@ func (m *Manager) Exec(id string, options ExecOptions) (*ExecResult, error) {
 	return m.execPlatform(id, options)
 }
 
-// OpenTerminal 在运行实例内启动交互式 shell。关闭会话不会停止容器主进程。
-func (m *Manager) OpenTerminal(id string, height, width int) (TerminalSession, error) {
+// Terminal 在运行实例内启动交互式 shell。关闭会话不会停止容器主进程。
+func (m *Manager) Terminal(id string, height, width int) (TerminalSession, error) {
 	release, err := m.lockOpen()
 	if err != nil {
 		return nil, err

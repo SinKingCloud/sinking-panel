@@ -39,7 +39,7 @@ type linuxRuntime struct {
 	failure   error
 }
 
-func (m *Manager) startPlatformRuntime(instance *Instance, image *Image, options RunOptions) (returnErr error) {
+func (m *Manager) startPlatformRuntime(instance *Info, image *Image, options RunOptions) (returnErr error) {
 	if image.OS != "" && image.OS != "linux" {
 		return fmt.Errorf("镜像操作系统不支持: %s", image.OS)
 	}
@@ -270,7 +270,7 @@ func (m *Manager) startPlatformRuntime(instance *Instance, image *Image, options
 }
 
 // preparePlatformRootfs 以镜像为只读 lower 层，为实例准备独立 overlay 写层。
-func (m *Manager) preparePlatformRootfs(instance *Instance, image *Image, writable bool) error {
+func (m *Manager) preparePlatformRootfs(instance *Info, image *Image, writable bool) error {
 	if !writable {
 		instance.Rootfs = image.Rootfs
 		instance.WritableLayer = false
@@ -314,7 +314,7 @@ func (m *Manager) preparePlatformRootfs(instance *Instance, image *Image, writab
 }
 
 // cleanupPlatformRootfs 只卸载 merged 目录，保留 upper 层供下次启动使用。
-func (m *Manager) cleanupPlatformRootfs(instance *Instance) error {
+func (m *Manager) cleanupPlatformRootfs(instance *Info) error {
 	if !instance.WritableLayer || instance.Rootfs == "" || instance.UpperDir == "" {
 		return nil
 	}
@@ -380,7 +380,7 @@ func (m *Manager) cleanupOrphanPlatformRuntime(id string) error {
 
 // recoverPlatformRuntime 从 libcontainer 状态目录恢复仍在运行的实例。
 // libcontainer 会校验进程启动时间，因此不会把复用的 PID 当成原容器。
-func (m *Manager) recoverPlatformRuntime(instance *Instance) (bool, error) {
+func (m *Manager) recoverPlatformRuntime(instance *Info) (bool, error) {
 	container, err := libcontainer.Load(m.runtimeRoot, instance.ID)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
@@ -460,7 +460,7 @@ func (m *Manager) recoverPlatformRuntime(instance *Instance) (bool, error) {
 }
 
 // refreshPlatformRuntime 根据 libcontainer 状态刷新实例 PID。
-func (m *Manager) refreshPlatformRuntime(instance *Instance) (bool, error) {
+func (m *Manager) refreshPlatformRuntime(instance *Info) (bool, error) {
 	m.mu.RLock()
 	runtime, ok := m.runtime[instance.ID].(*linuxRuntime)
 	m.mu.RUnlock()
@@ -644,7 +644,7 @@ func (m *Manager) rotateLogFile(path string) error {
 	return os.Truncate(path, 0)
 }
 
-func (m *Manager) statsPlatform(id string) (*Stats, error) {
+func (m *Manager) statusPlatform(id string) (*Status, error) {
 	m.mu.RLock()
 	runtime, _ := m.runtime[id].(*linuxRuntime)
 	m.mu.RUnlock()
@@ -665,17 +665,66 @@ func (m *Manager) statsPlatform(id string) (*Stats, error) {
 	if err != nil {
 		return nil, fmt.Errorf("读取容器资源统计失败: %w", err)
 	}
-	result := &Stats{}
-	if data.CgroupStats != nil {
-		result.CPUUsage = data.CgroupStats.CpuStats.CpuUsage.TotalUsage
-		result.MemoryUsage = data.CgroupStats.MemoryStats.Usage.Usage
-		// cgroup 未设置内存上限时，runc 使用 uint64 最大值表示无限制。
-		memoryLimit := data.CgroupStats.MemoryStats.Usage.Limit
-		if memoryLimit == ^uint64(0) {
-			memoryLimit = 0
+	if data == nil || data.CgroupStats == nil {
+		return nil, errors.New("容器未提供 cgroup 资源统计")
+	}
+	stats := data.CgroupStats
+	memory := stats.MemoryStats
+	result := &Status{
+		ReadTime:            time.Now(),
+		CPUUsage:            stats.CpuStats.CpuUsage.TotalUsage,
+		CPUUserUsage:        stats.CpuStats.CpuUsage.UsageInUsermode,
+		CPUSystemUsage:      stats.CpuStats.CpuUsage.UsageInKernelmode,
+		CPUPeriods:          stats.CpuStats.ThrottlingData.Periods,
+		CPUThrottledPeriods: stats.CpuStats.ThrottlingData.ThrottledPeriods,
+		CPUThrottledTime:    stats.CpuStats.ThrottlingData.ThrottledTime,
+		MemoryUsage:         memory.Usage.Usage,
+		MemoryLimit:         memory.Usage.Limit,
+		MemoryPeak:          memory.Usage.MaxUsage,
+		MemoryCache:         memory.Cache,
+		Pids:                stats.PidsStats.Current,
+		PidsLimit:           stats.PidsStats.Limit,
+	}
+	// v1 的无限内存上限是按页对齐的 MaxInt64，v2 则使用 MaxUint64。
+	if result.MemoryLimit >= uint64(1<<63)-uint64(os.Getpagesize()) {
+		result.MemoryLimit = 0
+	}
+	// v1 优先使用包含子 cgroup 的 total_*，v2 对应 file/anon/inactive_file。
+	if value, ok := memory.Stats["total_cache"]; ok {
+		result.MemoryCache = value
+	}
+	if value, ok := memory.Stats["total_rss"]; ok {
+		result.MemoryRSS = value
+	} else if value, ok := memory.Stats["rss"]; ok {
+		result.MemoryRSS = value
+	} else {
+		result.MemoryRSS = memory.Stats["anon"]
+	}
+	inactiveFile, ok := memory.Stats["total_inactive_file"]
+	if !ok {
+		inactiveFile = memory.Stats["inactive_file"]
+	}
+	result.MemoryWorkingSet = result.MemoryUsage - min(inactiveFile, result.MemoryUsage)
+	// runc 的 SwapUsage 同时包含内存和 Swap；未启用 Swap 统计时避免无符号下溢。
+	if memory.SwapUsage.Usage >= result.MemoryUsage {
+		result.SwapUsage = memory.SwapUsage.Usage - result.MemoryUsage
+	}
+	// 同一数组还可能包含 Total、Sync、Async，只累加 Read/Write 避免重复统计。
+	for _, entry := range stats.BlkioStats.IoServiceBytesRecursive {
+		switch entry.Op {
+		case "Read":
+			result.IOReadBytes += entry.Value
+		case "Write":
+			result.IOWriteBytes += entry.Value
 		}
-		result.MemoryLimit = memoryLimit
-		result.Pids = data.CgroupStats.PidsStats.Current
+	}
+	for _, entry := range stats.BlkioStats.IoServicedRecursive {
+		switch entry.Op {
+		case "Read":
+			result.IOReadOperations += entry.Value
+		case "Write":
+			result.IOWriteOperations += entry.Value
+		}
 	}
 	return result, nil
 }
@@ -944,7 +993,7 @@ func (m *Manager) clearPlatformLog(id, path string) error {
 	return errors.Join(clearErr, removeErr)
 }
 
-func (m *Manager) stopPlatformRuntime(instance *Instance) error {
+func (m *Manager) stopPlatformRuntime(instance *Info) error {
 	m.mu.RLock()
 	runtime, _ := m.runtime[instance.ID].(*linuxRuntime)
 	m.mu.RUnlock()
@@ -1043,7 +1092,7 @@ func (m *Manager) releasePlatformRuntime(id string, runtime *linuxRuntime, conta
 	return destroyErr
 }
 
-func (m *Manager) abortPlatformStart(instance *Instance, container *libcontainer.Container, process *libcontainer.Process, logFile *os.File, failure error) error {
+func (m *Manager) abortPlatformStart(instance *Info, container *libcontainer.Container, process *libcontainer.Process, logFile *os.File, failure error) error {
 	runtime := &linuxRuntime{container: container, process: process, logFile: logFile, logPath: instance.LogPath, exitCode: -1, failure: failure}
 	return m.releasePlatformRuntime(instance.ID, runtime, container)
 }
@@ -1198,7 +1247,7 @@ func (m *Manager) waitContainerStopped(container *libcontainer.Container, timeou
 	}
 }
 
-func (m *Manager) buildConfig(instance *Instance, image *Image, options RunOptions, mountsReady bool) (*configs.Config, error) {
+func (m *Manager) buildConfig(instance *Info, image *Image, options RunOptions, mountsReady bool) (*configs.Config, error) {
 	security, ok := m.platformSecurity.(*linuxSecurity)
 	if !ok || security == nil || security.capabilities == nil || security.seccomp == nil {
 		return nil, errors.New("容器安全配置未初始化")

@@ -24,19 +24,19 @@ func (m *Manager) validatePlatformMountContent(root string) error {
 	return errors.New("验证容器挂载需要启用 cgo")
 }
 
-func (m *Manager) startPlatformRuntime(instance *Instance, image *Image, options RunOptions) error {
+func (m *Manager) startPlatformRuntime(instance *Info, image *Image, options RunOptions) error {
 	return errors.New("libcontainer 运行需要启用 cgo")
 }
 
-func (m *Manager) stopPlatformRuntime(instance *Instance) error {
+func (m *Manager) stopPlatformRuntime(instance *Info) error {
 	return errors.New("libcontainer 运行需要启用 cgo")
 }
 
-func (m *Manager) preparePlatformRootfs(instance *Instance, image *Image, writable bool) error {
+func (m *Manager) preparePlatformRootfs(instance *Info, image *Image, writable bool) error {
 	return errors.New("libcontainer 运行需要启用 cgo")
 }
 
-func (m *Manager) cleanupPlatformRootfs(instance *Instance) error {
+func (m *Manager) cleanupPlatformRootfs(instance *Info) error {
 	return nil
 }
 
@@ -52,18 +52,18 @@ func (m *Manager) openPlatformTerminal(id string, height, width int) (TerminalSe
 	return nil, errors.New("libcontainer 运行需要启用 cgo")
 }
 
-func (m *Manager) recoverPlatformRuntime(instance *Instance) (bool, error) {
+func (m *Manager) recoverPlatformRuntime(instance *Info) (bool, error) {
 	if m.isActiveStatus(instance.Status) || instance.PID > 0 {
 		return false, errors.New("未启用 cgo，无法恢复容器运行状态")
 	}
 	return false, nil
 }
 
-func (m *Manager) refreshPlatformRuntime(instance *Instance) (bool, error) {
+func (m *Manager) refreshPlatformRuntime(instance *Info) (bool, error) {
 	return false, errors.New("未启用 cgo，无法读取容器运行状态")
 }
 
-func (m *Manager) statsPlatform(id string) (*Stats, error) {
+func (m *Manager) statusPlatform(id string) (*Status, error) {
 	return nil, errors.New("libcontainer 运行需要启用 cgo")
 }
 

@@ -372,7 +372,7 @@ func (m *Manager) validateImageSecurity(image *Image) error {
 	return nil
 }
 
-func (m *Manager) validateInstanceSecurity(instance *Instance) error {
+func (m *Manager) validateInstanceSecurity(instance *Info) error {
 	if m.security.Version == 0 {
 		return nil
 	}
@@ -438,7 +438,7 @@ func (m *Manager) cloneImage(image *Image) *Image {
 	return &copyImage
 }
 
-func (m *Manager) cloneInstance(instance *Instance) *Instance {
+func (m *Manager) cloneInstance(instance *Info) *Info {
 	if instance == nil {
 		return nil
 	}
