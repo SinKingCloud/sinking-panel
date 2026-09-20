@@ -338,6 +338,7 @@ func (m *Manager) HostID(uid, gid int) (int, int, error) {
 	return m.mapOwnership(uid, gid)
 }
 
+// Import 将本机 Docker save 归档导入镜像存储，并返回镜像信息。
 func (m *Manager) Import(source string) (*Image, error) {
 	m.importMu.Lock()
 	defer m.importMu.Unlock()
@@ -365,14 +366,10 @@ func (m *Manager) Images() []*Image {
 	return result
 }
 
-// Image 解析本机绝对路径的镜像归档，或按 ID、名称、标签返回已导入镜像的完整元数据。
-func (m *Manager) Image(source string) (*Image, error) {
-	source = strings.TrimSpace(source)
-	if filepath.IsAbs(source) {
-		return m.Import(source)
-	}
+// Image 按 ID、名称或标签查询已导入镜像的完整元数据。
+func (m *Manager) Image(id string) (*Image, error) {
 	m.mu.RLock()
-	image, err := m.resolveImage(source)
+	image, err := m.resolveImage(id)
 	if err == nil {
 		image = m.cloneImage(image)
 	}
@@ -472,7 +469,12 @@ func (m *Manager) Run(options RunOptions) (*Info, error) {
 		return nil, err
 	}
 	// 导入需要镜像写锁，在启动流程获取镜像读锁前解析，并固定实例使用的镜像 ID。
-	image, err := m.Image(options.ImageID)
+	var image *Image
+	if filepath.IsAbs(options.ImageID) {
+		image, err = m.Import(options.ImageID)
+	} else {
+		image, err = m.Image(options.ImageID)
+	}
 	if err != nil {
 		return nil, err
 	}

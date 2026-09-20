@@ -280,7 +280,7 @@ func (m *Manager) recoverInstances() error {
 	return nil
 }
 
-// Import 将 Docker save 归档导入本地镜像存储。
+// resolveImage 按 ID、名称或标签查找已导入的镜像。
 func (m *Manager) resolveImage(id string) (*Image, error) {
 	id = strings.TrimSpace(id)
 	if image := m.images[id]; image != nil {
