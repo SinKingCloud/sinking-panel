@@ -2,6 +2,7 @@ import React, {useCallback, useEffect, useMemo, useRef, useState} from "react";
 import {App, Button, Empty, Input, Spin, Tooltip} from "antd";
 import {Icon, Title} from "sinking-antd";
 import Dropdown from "@/pages/components/stable-dropdown";
+import ActionDropdown from "@/pages/components/action-dropdown";
 import TypeManager from "@/pages/components/type-manager";
 import type {TypeManagerRef} from "@/pages/components/type-manager";
 import {deleteScript, getScriptInfo} from "@/service/api/script";
@@ -396,11 +397,8 @@ const Scripts = ({styles, collapsed, connected, selectedId, onCollapsedChange, o
                                                     icon={<Icon type="EnterOutlined"/>}
                                                     onClick={() => void insert(record)}/>
                                             </Tooltip>
-                                            <Dropdown
-                                                classNames={{root: styles.serverMenu}}
-                                                trigger={["click"]}
+                                            <ActionDropdown
                                                 placement="bottomRight"
-                                                arrow={{pointAtCenter: true}}
                                                 menu={{
                                                     items: [
                                                         {key: "copy", label: "复制"},
@@ -424,7 +422,7 @@ const Scripts = ({styles, collapsed, connected, selectedId, onCollapsedChange, o
                                                     loading={deletingId === record.id}
                                                     aria-label={`管理脚本 ${record.name}`}
                                                     icon={<Icon type="MoreOutlined"/>}/>
-                                            </Dropdown>
+                                            </ActionDropdown>
                                             {copying && (
                                                 <div className="script-copying" role="status" aria-label={`正在复制脚本 ${record.name}`}>
                                                     <Spin size="small"/>

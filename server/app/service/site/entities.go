@@ -170,7 +170,7 @@ type OWASPUpdate struct {
 // WAFUpdate 部分更新网站 WAF 设置，nil 字段保持原值。
 type WAFUpdate struct {
 	Enabled          *bool            `json:"enabled"`            // 是否启用 WAF
-	Mode             *caddy.WAFMode   `json:"mode"`               // WAF 检测或拦截模式
+	Mode             *string          `json:"mode"`               // WAF 检测或拦截模式
 	BlockPage        *string          `json:"block_page"`         // 自定义拦截 HTML，留空使用默认页面
 	OWASP            *OWASPUpdate     `json:"owasp"`              // OWASP CRS 设置
 	AuditLog         *bool            `json:"audit_log"`          // 是否记录 WAF 审计日志
@@ -238,27 +238,27 @@ type StaticUpdate struct {
 
 // ProxyUpdate 部分更新 HTTP 反向代理设置，nil 字段保持原值。
 type ProxyUpdate struct {
-	Upstreams             *[]caddy.Upstream  `json:"upstreams"`                // 上游服务地址
-	Scheme                *caddy.ProxyScheme `json:"scheme"`                   // HTTP 上游协议
-	Policy                *string            `json:"policy"`                   // 上游负载均衡策略
-	Retries               *int               `json:"retries"`                  // 选择可用上游的重试次数
-	TryDuration           *time.Duration     `json:"try_duration"`             // 选择可用上游的最长时间
-	TryInterval           *time.Duration     `json:"try_interval"`             // 上游重试间隔
-	DialTimeout           *time.Duration     `json:"dial_timeout"`             // 建立上游连接的超时时间
-	ReadTimeout           *time.Duration     `json:"read_timeout"`             // 读取上游响应的超时时间
-	WriteTimeout          *time.Duration     `json:"write_timeout"`            // 写入上游请求的超时时间
-	ResponseHeaderTimeout *time.Duration     `json:"response_header_timeout"`  // 等待上游响应头的超时时间
-	FlushInterval         *time.Duration     `json:"flush_interval"`           // 向客户端刷新响应的间隔
-	StreamTimeout         *time.Duration     `json:"stream_timeout"`           // 流式响应的最长持续时间
-	StreamCloseDelay      *time.Duration     `json:"stream_close_delay"`       // 配置重载时关闭流连接的延迟
-	Versions              *[]string          `json:"versions"`                 // 允许使用的上游 HTTP 版本
-	TLSServerName         *string            `json:"tls_server_name"`          // 上游 TLS SNI 服务器名称
-	TLSInsecureSkipVerify *bool              `json:"tls_insecure_skip_verify"` // 是否跳过上游证书校验
-	HealthURI             *string            `json:"health_uri"`               // 主动健康检查请求路径
-	HealthInterval        *time.Duration     `json:"health_interval"`          // 主动健康检查间隔
-	HealthTimeout         *time.Duration     `json:"health_timeout"`           // 单次健康检查超时时间
-	HealthStatus          *int               `json:"health_status"`            // 健康检查期望状态码
-	Headers               *HeaderUpdate      `json:"headers"`                  // 代理请求和响应头操作
+	Upstreams             *[]caddy.Upstream `json:"upstreams"`                // 上游服务地址
+	Scheme                *string           `json:"scheme"`                   // HTTP 上游协议
+	Policy                *string           `json:"policy"`                   // 上游负载均衡策略
+	Retries               *int              `json:"retries"`                  // 选择可用上游的重试次数
+	TryDuration           *time.Duration    `json:"try_duration"`             // 选择可用上游的最长时间
+	TryInterval           *time.Duration    `json:"try_interval"`             // 上游重试间隔
+	DialTimeout           *time.Duration    `json:"dial_timeout"`             // 建立上游连接的超时时间
+	ReadTimeout           *time.Duration    `json:"read_timeout"`             // 读取上游响应的超时时间
+	WriteTimeout          *time.Duration    `json:"write_timeout"`            // 写入上游请求的超时时间
+	ResponseHeaderTimeout *time.Duration    `json:"response_header_timeout"`  // 等待上游响应头的超时时间
+	FlushInterval         *time.Duration    `json:"flush_interval"`           // 向客户端刷新响应的间隔
+	StreamTimeout         *time.Duration    `json:"stream_timeout"`           // 流式响应的最长持续时间
+	StreamCloseDelay      *time.Duration    `json:"stream_close_delay"`       // 配置重载时关闭流连接的延迟
+	Versions              *[]string         `json:"versions"`                 // 允许使用的上游 HTTP 版本
+	TLSServerName         *string           `json:"tls_server_name"`          // 上游 TLS SNI 服务器名称
+	TLSInsecureSkipVerify *bool             `json:"tls_insecure_skip_verify"` // 是否跳过上游证书校验
+	HealthURI             *string           `json:"health_uri"`               // 主动健康检查请求路径
+	HealthInterval        *time.Duration    `json:"health_interval"`          // 主动健康检查间隔
+	HealthTimeout         *time.Duration    `json:"health_timeout"`           // 单次健康检查超时时间
+	HealthStatus          *int              `json:"health_status"`            // 健康检查期望状态码
+	Headers               *HeaderUpdate     `json:"headers"`                  // 代理请求和响应头操作
 }
 
 // FastCGIUpdate 部分更新 PHP-FPM FastCGI 设置，nil 字段保持原值。

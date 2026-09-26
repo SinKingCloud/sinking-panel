@@ -1,8 +1,7 @@
 import React, {memo, useCallback, useEffect, useRef, useState} from "react";
-import {Grid, Spin} from "antd";
-import {createStyles} from "antd-style";
-import {Icon, ProModal, Title, useTheme} from "sinking-antd";
+import {useTheme} from "sinking-antd";
 import {getServerInfo} from "@/service/api/server";
+import TerminalModal, {terminalBackground} from "@/pages/components/terminal/modal";
 import ServerTerminal, {
     type ConnectionStatus,
     type TerminalRef,
@@ -20,105 +19,7 @@ interface FileTerminalProps {
     onClose: () => void;
 }
 
-const terminalBackground = "rgb(15, 15, 15)";
 const authTypeData: Record<string, string> = {};
-
-const useStyles = createStyles(({css, token}: any, props: {compact?: boolean} = {}) => {
-    const compact = Boolean(props.compact);
-    const headerPadding = compact ? "9px 14px" : "10px 16px";
-    const desktopHeight = compact ? "min(560px, calc(100dvh - 140px))" : "min(640px, calc(100dvh - 170px))";
-    const mobileHeight = compact ? "calc(100dvh - 88px)" : "calc(100dvh - 100px)";
-
-    return {
-    modal: css`
-        .ant-modal {
-            max-width: calc(100vw - 24px);
-        }
-
-        .ant-modal-container {
-            padding: 0;
-            overflow: hidden;
-            background: ${token.colorBgContainer};
-        }
-
-        .ant-modal-header {
-            margin: 0;
-            padding: ${headerPadding};
-            border-bottom: 1px solid ${token.colorSplit};
-            background: ${token.colorBgContainer};
-        }
-
-        .ant-modal-title {
-            min-width: 0;
-        }
-
-    `,
-    titleBar: css`
-        width: 100%;
-        min-width: 0;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 12px;
-    `,
-    closeButton: css`
-        width: 30px;
-        height: 30px;
-        flex: none;
-        padding: 0;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        border: 0;
-        border-radius: ${token.borderRadiusSM}px;
-        background: transparent;
-        color: ${token.colorTextTertiary};
-        cursor: pointer;
-
-        &:hover,
-        &:focus-visible {
-            background: ${token.colorFillTertiary};
-            color: ${token.colorText};
-        }
-
-        &:focus-visible {
-            outline: 2px solid ${token.colorPrimaryBg};
-            outline-offset: 1px;
-        }
-    `,
-    host: css`
-        height: ${desktopHeight};
-        padding: 0;
-        min-width: 0;
-        min-height: 0;
-        display: flex;
-        flex-direction: column;
-        overflow: hidden;
-        background: ${terminalBackground};
-        box-sizing: border-box;
-
-        > * {
-            min-height: 0;
-            flex: 1;
-            overflow: hidden;
-            border-radius: 0;
-        }
-
-        @media (max-width: 767px) {
-            height: ${mobileHeight};
-            padding: 0;
-        }
-    `,
-    loading: css`
-        width: 100%;
-        height: 100%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        background: ${terminalBackground};
-    `,
-    };
-});
 
 const shellQuote = (value: string) => `'${value.replace(/'/g, "'\\''")}'`;
 
@@ -136,8 +37,6 @@ const FileTerminal = ({path, open, onClose}: FileTerminalProps) => {
     const theme = useTheme();
     const compact = Boolean(theme?.isCompactTheme?.());
     const dark = Boolean(theme?.isDarkMode?.() || theme?.isDarkTheme?.());
-    const screens = Grid.useBreakpoint();
-    const {styles} = useStyles({compact});
     const {styles: serverStyles} = useServerStyles({
         isCompactMode: compact,
         isDarkMode: dark,
@@ -149,6 +48,7 @@ const FileTerminal = ({path, open, onClose}: FileTerminalProps) => {
     const requestRef = useRef(0);
     const [server, setServer] = useState(localServer);
     const [loading, setLoading] = useState(false);
+    const [toolbarContainer, setToolbarContainer] = useState<HTMLDivElement | null>(null);
     const [error, setError] = useState(false);
     const [status, setStatus] = useState<ConnectionStatus>("idle");
     const [resetKey, setResetKey] = useState(0);
@@ -257,60 +157,36 @@ const FileTerminal = ({path, open, onClose}: FileTerminalProps) => {
 
     return (
         <>
-            <ProModal
-                title={(
-                    <div className={styles.titleBar}>
-                        <Title size="small">本机终端</Title>
-                        <button
-                            className={styles.closeButton}
-                            type="button"
-                            aria-label="关闭本机终端"
-                            onClick={onClose}>
-                            <Icon type="CloseOutlined"/>
-                        </button>
-                    </div>
-                )}
-                width={compact ? "min(960px, calc(100vw - 24px))" : "min(1040px, calc(100vw - 24px))"}
-                onCancel={onClose}
-                modalProps={{
-                    open: open && Boolean(path),
-                    rootClassName: styles.modal,
-                    destroyOnHidden: false,
-                    style: {
-                        top: screens.md ? 100 : 24,
-                        paddingBottom: screens.md ? 100 : 24,
-                    },
-                    closable: false,
-                    footer: null,
-                    mask: {closable: true},
-                    styles: {
-                        container: {padding: 0},
-                        body: {padding: 0},
-                    },
-                }}>
-                <div className={styles.host}>
-                    {!path ? null : loading ? (
-                        <div className={styles.loading}>
-                            <Spin size="small"/>
-                        </div>
-                    ) : (
-                        <ServerTerminal
-                            ref={terminalRef}
-                            styles={serverStyles}
-                            server={server}
-                            active={open}
-                            initializing={false}
-                            unavailable={error}
-                            resetKey={resetKey}
-                            compact={compact}
-                            showHeader={false}
-                            terminalBackground={terminalBackground}
-                            terminalAccent={dark ? "#c3ccd6" : undefined}
-                            onEdit={openEdit}
-                            onStatusChange={handleStatusChange}/>
-                    )}
-                </div>
-            </ProModal>
+            <TerminalModal
+                title="本机终端"
+                open={open && Boolean(path)}
+                onClose={onClose}
+                closable={loading || !toolbarContainer}
+                toolbarRef={setToolbarContainer}
+                loading={Boolean(path) && loading}>
+                {path && <ServerTerminal
+                    ref={terminalRef}
+                    styles={serverStyles}
+                    server={server}
+                    active={open}
+                    initializing={false}
+                    unavailable={error}
+                    resetKey={resetKey}
+                    compact={compact}
+                    showHeader={false}
+                    toolbarContainer={toolbarContainer}
+                    showStatus={false}
+                    showConnect={false}
+                    showClear
+                    showReconnect
+                    showFullscreen
+                    showClose
+                    onClose={onClose}
+                    terminalBackground={terminalBackground}
+                    terminalAccent={dark ? "#c3ccd6" : undefined}
+                    onEdit={openEdit}
+                    onStatusChange={handleStatusChange}/>}
+            </TerminalModal>
             <ServerForm
                 ref={formRef}
                 authTypeData={authTypeData}

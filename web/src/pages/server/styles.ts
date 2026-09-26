@@ -662,32 +662,6 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
                 }
             }
         `,
-        serverMenu: css`
-            && {
-                min-width: ${compact ? 94 : 104}px;
-                padding: 0;
-                border-radius: ${token.borderRadius}px;
-            }
-
-            && .ant-dropdown-menu {
-                padding: 3px !important;
-                border-radius: ${token.borderRadius}px !important;
-                background: ${token.colorBgElevated};
-                box-shadow: ${token.boxShadowSecondary};
-            }
-
-            && .ant-dropdown-menu-item {
-                min-height: ${compact ? 28 : 30}px;
-                padding: 0 ${compact ? 7 : 8}px !important;
-                border-radius: ${token.borderRadiusSM}px !important;
-                color: ${token.colorTextSecondary};
-                font-size: ${compact ? 11 : 12}px;
-            }
-
-            && .ant-dropdown-menu-item-danger {
-                color: ${token.colorError};
-            }
-        `,
         serverFooter: css`
             flex: none;
             padding: ${compact ? "8px 9px 10px" : "9px 10px 11px"};

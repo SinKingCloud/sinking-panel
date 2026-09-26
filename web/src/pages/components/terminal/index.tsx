@@ -25,7 +25,7 @@ export interface TerminalSize {
 export interface TerminalRef {
     clear: () => void;
     reset: () => void;
-    write: (data: string | Uint8Array) => void;
+    write: (data: string | Uint8Array, callback?: () => void) => void;
     focus: () => void;
     fit: (focus?: boolean) => void;
     getSize: () => TerminalSize;
@@ -206,7 +206,7 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
     useImperativeHandle(ref, () => ({
         clear: () => terminalRef.current?.clear(),
         reset: () => terminalRef.current?.reset(),
-        write: (data) => terminalRef.current?.write(data),
+        write: (data, callback) => terminalRef.current?.write(data, callback),
         focus: () => terminalRef.current?.focus(),
         fit: scheduleFit,
         getSize: () => {

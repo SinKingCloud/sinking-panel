@@ -1,10 +1,12 @@
 import {forwardRef, memo, useState} from "react";
-import TerminalSession, {type ConnectionStatus, type TerminalRef} from "@/pages/components/terminal/session";
+import TerminalSession, {type ConnectionStatus, type TerminalProps as TerminalSessionProps, type TerminalRef} from "@/pages/components/terminal/session";
 import type {ServerRecord} from "../../hooks/servers";
 
 export type {ConnectionStatus, TerminalRef} from "@/pages/components/terminal/session";
 
-interface TerminalProps {
+interface TerminalProps extends Pick<TerminalSessionProps,
+    "showHeader" | "toolbarContainer" | "showStatus" | "showClear" | "showReconnect" |
+    "showConnect" | "showFullscreen" | "showClose" | "onClose"> {
     styles: any;
     server: ServerRecord;
     active: boolean;
@@ -12,7 +14,6 @@ interface TerminalProps {
     unavailable: boolean;
     resetKey: number;
     compact: boolean;
-    showHeader?: boolean;
     terminalBackground?: string;
     terminalAccent?: string;
     onStatusChange?: (serverId: number, status: ConnectionStatus) => void;

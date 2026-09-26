@@ -1,7 +1,7 @@
 import React, {useCallback, useEffect, useMemo, useState} from "react";
 import {Button, Empty, Input, Spin, Tooltip} from "antd";
 import {Icon, Title} from "sinking-antd";
-import Dropdown from "@/pages/components/stable-dropdown";
+import ActionDropdown from "@/pages/components/action-dropdown";
 import type {ConnectionStatus} from "../terminal";
 import type {ServerRecord} from "../../hooks/servers";
 
@@ -139,12 +139,8 @@ const Sidebar = ({
                     </span>
                 </button>
                 <div className="server-actions">
-                    <Dropdown
+                    <ActionDropdown
                         disabled={pending}
-                        trigger={["click"]}
-                        placement="bottom"
-                        arrow={{pointAtCenter: true}}
-                        classNames={{root: styles.serverMenu}}
                         menu={{items: menuItems}}>
                         <Button
                             className="server-action"
@@ -154,7 +150,7 @@ const Sidebar = ({
                             aria-label={`${server.name || endpoint}的更多操作`}>
                             <Icon type="MoreOutlined"/>
                         </Button>
-                    </Dropdown>
+                    </ActionDropdown>
                 </div>
             </div>
         );

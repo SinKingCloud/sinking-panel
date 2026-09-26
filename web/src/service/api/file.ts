@@ -103,7 +103,7 @@ export async function clearRecycle(params: API.RequestParams = {}) {
 }
 
 /** 文件上传请求 GET|POST /file/upload */
-export function requestFileUpload(
+export function requestFileUpload<T = any>(
     endpoint: string,
     action: "upload" | "check" | "merge" | "clear",
     signal: AbortSignal,
@@ -113,7 +113,7 @@ export function requestFileUpload(
         onProgress?: (loaded: number, total: number) => void;
     },
 ) {
-    return new Promise<API.Response<any>>((resolve, reject) => {
+    return new Promise<API.Response<T>>((resolve, reject) => {
         if (signal.aborted) {
             reject(new DOMException("上传已取消", "AbortError"));
             return;
@@ -122,9 +122,14 @@ export function requestFileUpload(
         const url = new URL(endpoint);
         url.searchParams.set("action", action);
         Object.entries(params.query || {}).forEach(([key, value]) => url.searchParams.set(key, value));
+        if (action === "check") {
+            // 同一上传任务每次检查都必须读取服务器当前的分片状态。
+            url.searchParams.set("_", `${Date.now()}-${Math.random().toString(36).slice(2)}`);
+        }
         const abortRequest = () => xhr.abort();
 
         xhr.open(params.body ? "POST" : "GET", url.toString());
+        xhr.timeout = 15 * 60 * 1000;
         Object.entries(getHeaders()).forEach(([key, value]) => xhr.setRequestHeader(key, value));
         xhr.upload.onprogress = (event) => params.onProgress?.(event.loaded, event.total);
         xhr.onload = () => {
@@ -134,7 +139,7 @@ export function requestFileUpload(
                 return;
             }
             try {
-                const response = JSON.parse(xhr.responseText) as API.Response<any>;
+                const response = JSON.parse(xhr.responseText) as API.Response<T>;
                 if (!response || typeof response.code !== "number") {
                     reject(createUploadError("FileUploadRequestError", "服务器返回的数据格式不正确"));
                     return;
