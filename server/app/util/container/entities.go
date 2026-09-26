@@ -63,6 +63,7 @@ type RunOptions struct {
 	Resources   ResourceLimits // 实例资源限制
 	AutoRestart bool           // 是否在管理器恢复或进程退出后自动启动；手动停止时暂停
 	ReadOnly    bool           // 是否禁用实例可写层；默认使用独立 overlay 写层保护镜像
+	CreateOnly  bool           // 仅创建新实例；同标识已存在时拒绝覆盖，默认保留 Run 的复用行为
 }
 
 // ExecOptions 定义在运行实例内执行的一次性命令。

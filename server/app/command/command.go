@@ -13,6 +13,7 @@ import (
 	"server/app/enum/log_type"
 	"server/app/service"
 	"server/app/util/daemon"
+	"server/app/util/platform"
 	"server/bootstrap"
 	"server/global"
 )
@@ -70,6 +71,7 @@ func NewServer() (*Server, error) {
 		return nil, fmt.Errorf("创建守护进程管理器失败: %w", err)
 	}
 	server.daemon = d.SetAutoStartOptions(daemon.AutoStartOptions{Name: serviceName})
+	global.App.Daemon = server.daemon
 	return server, nil
 }
 
@@ -117,6 +119,11 @@ func (s *Server) Execute(args []string) error {
 		if *port < 1 || *port > 65535 {
 			return errors.New("port 必须在 1 到 65535 之间")
 		}
+	}
+	if err := platform.CheckPrivilege(); err != nil {
+		return err
+	}
+	if startup {
 		bootstrap.LoadConf()
 		arguments := make([]string, 0, options.NFlag())
 		options.Visit(func(option *flag.Flag) {
@@ -124,10 +131,20 @@ func (s *Server) Execute(args []string) error {
 			arguments = append(arguments, "--"+option.Name+"="+option.Value.String())
 		})
 		s.daemon.SetChildArgs(append([]string{os.Args[0], "start"}, arguments...)...)
+		workingDirectory, err := os.Getwd()
+		if err != nil {
+			return fmt.Errorf("读取程序工作目录失败: %w", err)
+		}
 		s.daemon.SetAutoStartOptions(daemon.AutoStartOptions{
-			Name:      serviceName,
-			Arguments: append([]string{"run"}, arguments...),
+			Name:             serviceName,
+			WorkingDirectory: workingDirectory,
+			Arguments:        append([]string{"run"}, arguments...),
 		})
+		if (command == "start" || command == "restart") && !s.daemon.IsChildProcess() {
+			if err := s.daemon.SyncAutoStart(); err != nil {
+				return fmt.Errorf("同步系统启动配置失败: %w", err)
+			}
+		}
 	}
 	switch command {
 	case "run":

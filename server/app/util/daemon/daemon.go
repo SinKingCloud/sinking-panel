@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"runtime"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -20,6 +22,7 @@ type Daemon struct {
 	LogFileName string
 	StopTimeout time.Duration
 	childArgs   []string
+	restarting  atomic.Bool
 	autoStart   AutoStartOptions
 	Service     func(<-chan struct{})
 }
@@ -36,7 +39,10 @@ func (u *Daemon) SetAutoStartOptions(options AutoStartOptions) *Daemon {
 		Name:             options.Name,
 		Executable:       options.Executable,
 		WorkingDirectory: options.WorkingDirectory,
-		Arguments:        append([]string(nil), options.Arguments...),
+		Arguments:        options.Arguments,
+	}
+	if options.Arguments != nil {
+		u.autoStart.Arguments = append([]string{}, options.Arguments...)
 	}
 	return u
 }
@@ -58,9 +64,6 @@ func (u *Daemon) Uninstall() error {
 
 // IsChildProcess 是否为守护进程子进程。
 func (u *Daemon) IsChildProcess() bool {
-	if runtime.GOOS == "windows" {
-		return false
-	}
 	return daemon.WasReborn()
 }
 
@@ -82,6 +85,21 @@ func (u *Daemon) Run() error {
 	if runtime.GOOS == "windows" {
 		return u.runWindows()
 	}
+	// 系统服务直接运行时也需要 PID 锁，避免与手动启动的进程重复运行。
+	if !u.IsChildProcess() {
+		pidFile, err := daemon.OpenLockFile(u.PidFileName, 0640)
+		if err != nil {
+			return fmt.Errorf("打开服务 PID 文件失败: %w", err)
+		}
+		if err = pidFile.Lock(); err != nil {
+			_ = pidFile.Close()
+			return fmt.Errorf("服务已经运行: %w", err)
+		}
+		defer pidFile.Remove()
+		if err = pidFile.WritePid(); err != nil {
+			return fmt.Errorf("写入服务 PID 失败: %w", err)
+		}
+	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	u.Service(ctx.Done())
@@ -91,7 +109,13 @@ func (u *Daemon) Run() error {
 // Start 启动
 func (u *Daemon) Start() error {
 	if runtime.GOOS == "windows" {
+		if u.IsChildProcess() {
+			return u.Run()
+		}
 		return u.startWindows()
+	}
+	if !u.IsChildProcess() && u.systemdInstalled() {
+		return u.commandOutput("systemctl", "start", u.autoStart.Name+".service")
 	}
 	// 创建守护进程上下文
 	daemonCtx := &daemon.Context{
@@ -122,10 +146,22 @@ func (u *Daemon) Stop() error {
 	if runtime.GOOS == "windows" {
 		return u.stopWindows()
 	}
+	managed := u.systemdInstalled()
+	if managed {
+		if err := u.commandOutput("systemctl", "stop", u.autoStart.Name+".service"); err != nil {
+			return err
+		}
+	}
 	// 读取PID文件获取守护进程的PID
 	pid, err := u.readPidFile()
 	if err != nil {
+		if managed && errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
 		return fmt.Errorf("无法读取PID文件: %w", err)
+	}
+	if pid <= 1 {
+		return errors.New("服务 PID 无效")
 	}
 	process, err := os.FindProcess(pid)
 	if err != nil {
@@ -140,6 +176,10 @@ func (u *Daemon) Stop() error {
 	}
 	deadline := time.Now().Add(u.StopTimeout)
 	for {
+		// 服务会在资源清理完成后删除 PID 文件；不必等待 systemd 回收进程。
+		if _, statErr := os.Stat(u.PidFileName); errors.Is(statErr, os.ErrNotExist) {
+			return nil
+		}
 		err = process.Signal(syscall.Signal(0))
 		if err != nil {
 			if errors.Is(err, os.ErrProcessDone) || errors.Is(err, syscall.ESRCH) {
@@ -161,9 +201,32 @@ func (u *Daemon) Stop() error {
 
 // Reload 重启
 func (u *Daemon) Reload() error {
+	// 启动路径、日志和任务脚本先检查，避免停止服务后才发现无法重新启动。
+	options, err := u.normalizeOptions()
+	if err != nil {
+		return err
+	}
+	logPath := u.LogFileName
+	if !filepath.IsAbs(logPath) {
+		logPath = filepath.Join(options.WorkingDirectory, logPath)
+	}
+	file, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0640)
+	if err != nil {
+		return fmt.Errorf("打开服务日志失败: %w", err)
+	}
+	_ = file.Close()
+	if runtime.GOOS == "windows" && options.Name != "" {
+		if _, err := os.Stat(u.windowsTaskScriptPath(options)); err == nil {
+			if err = u.writeWindowsTaskScript(options); err != nil {
+				return err
+			}
+		} else if !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("检查 Windows 自启动脚本失败: %w", err)
+		}
+	}
 	// 先停止守护进程
 	if err := u.Stop(); err != nil {
-		if !errors.Is(err, os.ErrNotExist) && !errors.Is(err, os.ErrProcessDone) {
+		if !errors.Is(err, os.ErrNotExist) && !errors.Is(err, os.ErrProcessDone) && !errors.Is(err, syscall.ESRCH) {
 			return fmt.Errorf("无法停止守护进程: %w", err)
 		}
 	}

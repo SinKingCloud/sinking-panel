@@ -5,8 +5,8 @@ import (
 	"server/app/util/context"
 )
 
-// Status 获取系统状态信息（网卡流量和磁盘IO）
-func Status(c *context.Context) {
+// IO 获取网卡和磁盘的 I/O 统计及采样历史。
+func IO(c *context.Context) {
 	var form struct {
 		Interface string `json:"interface" default:"" validate:"omitempty" label:"网卡名称"`
 		Disk      string `json:"disk" default:"" validate:"omitempty" label:"磁盘名称"`
@@ -16,6 +16,5 @@ func Status(c *context.Context) {
 		c.Error(msg)
 		return
 	}
-	data := service.System.GetStatus(form.Interface, form.Disk, form.After)
-	c.SuccessWithData("获取系统状态成功", data)
+	c.SuccessWithData("获取系统 I/O 信息成功", service.System.GetIO(form.Interface, form.Disk, form.After))
 }

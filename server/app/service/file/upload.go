@@ -58,7 +58,7 @@ func (s *service) UploadChunk(fileHeader *multipart.FileHeader, meta UploadMeta,
 	}
 	unlock := s.lockUploadSession(meta.UploadID)
 	defer unlock()
-	if err := s.verifyUploadSession(meta); err != nil {
+	if err := s.ensureUploadSession(meta); err != nil {
 		return nil, false, err
 	}
 	s.touchUploadSession(meta.UploadID)
@@ -116,7 +116,7 @@ func (s *service) MergeUpload(ctx context.Context, meta UploadMeta) (*UploadedFi
 	}
 	unlock := s.lockUploadSession(meta.UploadID)
 	defer unlock()
-	if err := s.verifyUploadSession(meta); err != nil {
+	if err := s.ensureUploadSession(meta); err != nil {
 		return nil, false, err
 	}
 	s.touchUploadSession(meta.UploadID)
@@ -306,10 +306,8 @@ func (s *service) ensureUploadSession(meta UploadMeta) error {
 	}
 
 	sessionPath := filepath.Join(constant.UploadPath, meta.UploadID)
-	if err = os.RemoveAll(sessionPath); err != nil {
-		return err
-	}
-	if err = os.MkdirAll(filepath.Join(constant.UploadPath, meta.UploadID, "chunks"), 0755); err != nil {
+	// 任务元数据丢失时只补建元数据，已有分片保留并在合并时校验完整文件。
+	if err = os.MkdirAll(filepath.Join(sessionPath, "chunks"), 0755); err != nil {
 		return err
 	}
 	data, err := json.Marshal(meta)
@@ -332,20 +330,6 @@ func (s *service) ensureUploadSession(meta UploadMeta) error {
 		return err
 	}
 	return os.Rename(tempPath, filepath.Join(constant.UploadPath, meta.UploadID, "meta.json"))
-}
-
-func (s *service) verifyUploadSession(meta UploadMeta) error {
-	stored, err := s.readUploadMeta(meta.UploadID)
-	if os.IsNotExist(err) {
-		return fmt.Errorf("上传任务不存在，请重新检查")
-	}
-	if err != nil {
-		return fmt.Errorf("读取上传任务失败: %w", err)
-	}
-	if stored != meta {
-		return fmt.Errorf("上传任务信息不一致")
-	}
-	return nil
 }
 
 func (s *service) readUploadMeta(uploadID string) (UploadMeta, error) {
@@ -408,6 +392,9 @@ func (s *service) readCompletedUpload(meta UploadMeta) (*UploadedFile, bool, err
 		return nil, false, fmt.Errorf("上传完成记录不合法")
 	}
 	info, err := os.Stat(completed.Path)
+	if os.IsNotExist(err) {
+		return nil, false, fmt.Errorf("已上传文件不存在或不完整")
+	}
 	if err != nil {
 		return nil, false, fmt.Errorf("校验已上传文件失败: %w", err)
 	}
@@ -554,7 +541,7 @@ func (s *service) mergeUploadChunks(ctx context.Context, meta UploadMeta) (strin
 	}
 	if hex.EncodeToString(fileHash.Sum(nil)) != meta.FileHash {
 		_ = merged.Close()
-		_ = os.RemoveAll(sessionPath)
+		// 校验失败不能删除其他请求仍在使用的会话；客户端会以新任务重新上传。
 		return "", 0, fmt.Errorf("合并文件校验失败，请重新上传")
 	}
 	if err = merged.Sync(); err == nil {

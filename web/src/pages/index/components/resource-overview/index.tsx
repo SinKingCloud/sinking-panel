@@ -22,13 +22,13 @@ const useStyles = createStyles(({css, token}: any) => ({
     `,
 }));
 
-const ResourceOverview = React.memo(({info}: any) => {
+const ResourceOverview = React.memo(({statis}: any) => {
     const {styles} = useStyles();
     const {token} = antdTheme.useToken();
-    const disks: any[] = info?.disks || [];
-    const cpu = info?.cpu;
-    const memory = info?.memory;
-    const load = info?.load;
+    const disks: any[] = statis?.disks || [];
+    const cpu = statis?.cpu;
+    const memory = statis?.memory;
+    const load = statis?.load;
     const summaryDisks = useMemo<any[]>(() => Array.from(new Map(disks.map((item: any) => {
         const key = `${item.filesystem || item.path}-${numberValue(item?.size?.total)}`;
         return [key, item] as const;

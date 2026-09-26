@@ -2,7 +2,6 @@ package system
 
 import (
 	"runtime"
-	"server/app/constant"
 	"time"
 
 	"github.com/shirou/gopsutil/v4/cpu"
@@ -64,13 +63,9 @@ func (s *service) updateMonitor() {
 
 	memoryInfo := s.getMemoryInfo()
 	loadInfo := s.getLoadInfo(cpuUsage)
-	runtimeInfo := map[string]interface{}{
-		"go_version":    runtime.Version(),      // Go语言版本
-		"num_goroutine": runtime.NumGoroutine(), // 当前Goroutine数量
-	}
 	networkInfo := s.getNetworkInfo(netCounters)
 
-	s.statusCacheLock.Lock()
+	s.ioCacheLock.Lock()
 	hasPreviousNetCounter := len(s.netIOCache) > 0
 	hasPreviousDiskCounter := len(s.diskIOCache) > 0
 	netUpdated := false
@@ -121,7 +116,7 @@ func (s *service) updateMonitor() {
 			s.monitorHistory = append(s.monitorHistory, sample)
 		}
 	}
-	s.statusCacheLock.Unlock()
+	s.ioCacheLock.Unlock()
 
 	s.cpuInfoCacheLock.Lock()
 	s.cpuInfoCache = cpuInfo
@@ -134,10 +129,6 @@ func (s *service) updateMonitor() {
 	s.loadInfoCacheLock.Lock()
 	s.loadInfoCache = loadInfo
 	s.loadInfoCacheLock.Unlock()
-
-	s.runtimeInfoCacheLock.Lock()
-	s.runtimeInfoCache = runtimeInfo
-	s.runtimeInfoCacheLock.Unlock()
 
 	s.networkInfoCacheLock.Lock()
 	s.networkInfoCache = networkInfo
@@ -250,22 +241,16 @@ func (s *service) getSystemBaseInfo() map[string]interface{} {
 		"kernel_arch":      runtime.GOARCH, // 内核架构(如x86_64、arm64等)
 		"uptime":           uint64(0),      // 系统运行时间(单位:秒)
 		"boot_time":        uint64(0),      // 系统启动时间(时间戳)
-		"version":          "Unknown",      // 系统版本
 	}
 
-	// 获取系统信息（错误处理）
 	if hostInfo, err := host.Info(); err == nil {
-		data = map[string]interface{}{
-			"hostname":         hostInfo.Hostname,        // 主机名
-			"os":               runtime.GOOS,             // 操作系统类型
-			"platform":         hostInfo.Platform,        // 平台名称(如Windows、Linux等)
-			"platform_version": hostInfo.PlatformVersion, // 平台版本(如Windows 10、CentOS 7等)
-			"kernel_version":   hostInfo.KernelVersion,   // 内核版本
-			"kernel_arch":      hostInfo.KernelArch,      // 内核架构(如x86_64、arm64等)
-			"uptime":           hostInfo.Uptime,          // 系统运行时间(单位:秒)
-			"boot_time":        hostInfo.BootTime,        // 系统启动时间(时间戳)
-			"version":          constant.Version,         // 系统版本
-		}
+		data["hostname"] = hostInfo.Hostname
+		data["platform"] = hostInfo.Platform
+		data["platform_version"] = hostInfo.PlatformVersion
+		data["kernel_version"] = hostInfo.KernelVersion
+		data["kernel_arch"] = hostInfo.KernelArch
+		data["uptime"] = hostInfo.Uptime
+		data["boot_time"] = hostInfo.BootTime
 	}
 
 	return data

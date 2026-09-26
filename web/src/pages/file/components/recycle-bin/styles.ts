@@ -1,6 +1,17 @@
 import {createStyles} from "antd-style";
 
 const useStyles = createStyles(({css, token}, {compact = false}: {compact?: boolean} = {}) => ({
+    clearAction: css`
+        &&&:not(:disabled):not(.ant-btn-disabled) {
+            color: ${token.colorError};
+        }
+
+        &&& .ant-btn-icon,
+        &&& .anticon,
+        &&& .value {
+            color: inherit;
+        }
+    `,
     summary: css`
         display: flex;
         width: max-content;

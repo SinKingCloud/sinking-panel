@@ -1,9 +1,9 @@
 package system
 
-// GetStatus 获取系统状态信息（网卡流量和磁盘IO）
-func (s *service) GetStatus(netInterface, diskName string, after int64) map[string]interface{} {
-	s.statusCacheLock.RLock()
-	defer s.statusCacheLock.RUnlock()
+// GetIO 获取网卡和磁盘的 I/O 统计及采样历史。
+func (s *service) GetIO(netInterface, diskName string, after int64) map[string]interface{} {
+	s.ioCacheLock.RLock()
+	defer s.ioCacheLock.RUnlock()
 	if after > s.monitorSequence {
 		after = 0
 	}
@@ -79,6 +79,5 @@ func (s *service) GetStatus(netInterface, diskName string, after int64) map[stri
 	}
 	result["history"] = history
 
-	// 返回完整状态信息
 	return result
 }

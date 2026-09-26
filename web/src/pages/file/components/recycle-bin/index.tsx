@@ -303,6 +303,7 @@ const FileRecycleBin = memo(forwardRef<FileRecycleBinRef, FileRecycleBinProps>((
                     label: "清空",
                     icon: "DeleteOutlined",
                     danger: true,
+                    className: styles.clearAction,
                     disabled: !count || count.file + count.dir === 0,
                     onClick: confirmClear,
                 }],

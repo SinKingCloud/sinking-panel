@@ -2,6 +2,7 @@ package file
 
 import (
 	"fmt"
+	"net/http"
 	"path/filepath"
 	"server/app/enum/log_type"
 	"server/app/service"
@@ -9,10 +10,18 @@ import (
 	"server/app/util/context"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // Upload 文件上传处理
 func Upload(c *context.Context) {
+	// 分片状态实时变化，不能复用浏览器或代理缓存的检查结果。
+	c.SetHeader("Cache-Control", "no-store")
+	// 大文件上传和合并单独放宽超时，不影响其他接口的一分钟限制。
+	deadline := time.Now().Add(15 * time.Minute)
+	controller := http.NewResponseController(c.Writer)
+	_ = controller.SetReadDeadline(deadline)
+	_ = controller.SetWriteDeadline(deadline)
 	switch c.DefaultQuery("action", "upload") {
 	case "upload":
 		handleFileUpload(c)
@@ -28,6 +37,12 @@ func Upload(c *context.Context) {
 }
 
 func handleFileUpload(c *context.Context) {
+	// 超出 256 KB 的文件内容写入临时文件，避免每个分片在内存中反复扩容。
+	if err := c.Request.ParseMultipartForm(256 << 10); err != nil {
+		c.Error("读取上传文件失败: " + err.Error())
+		return
+	}
+	defer c.Request.MultipartForm.RemoveAll()
 	fileHeader, err := c.FormFile("file")
 	if err != nil {
 		c.Error("获取上传文件失败: " + err.Error())

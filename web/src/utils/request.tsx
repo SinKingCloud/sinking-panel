@@ -15,8 +15,29 @@ const request = extend({
  * 异常处理
  */
 let lock = false;
+let connectionErrorPauses = 0;
+
+// 暂停连接错误提示，完成、取消或超时后恢复；多个调用互不影响。
+export function pauseConnectionErrors(signal: AbortSignal, timeout: number): () => void {
+    if (signal.aborted) return () => {};
+    connectionErrorPauses += 1;
+    let paused = true;
+    const resume = () => {
+        if (!paused) return;
+        paused = false;
+        connectionErrorPauses -= 1;
+        window.clearTimeout(timer);
+        signal.removeEventListener("abort", resume);
+    };
+    const timer = window.setTimeout(resume, timeout);
+    signal.addEventListener("abort", resume, {once: true});
+    return resume;
+}
 
 function errorHandle(): void {
+    if (connectionErrorPauses > 0) {
+        return;
+    }
     if (!lock) {
         lock = true
         const clear = () => {

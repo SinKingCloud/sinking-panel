@@ -1,14 +1,12 @@
 import React, {useCallback, useEffect, useRef, useState} from "react";
-import {Alert, Col, Row} from "antd";
+import {Col, Row} from "antd";
 import {createStyles} from "antd-style";
 import {Body} from "sinking-antd";
-import {getSystemInfo, getSystemStatus} from "@/service/api/system";
+import {getSystemStatis, getSystemIO, getSystemInfo} from "@/service/api/system";
 import {gutter, numberValue} from "./utils";
 import HostOverview from "./components/host-overview";
 import MonitorOverview from "./components/monitor-overview";
 import ResourceOverview from "./components/resource-overview";
-
-type RefreshMode = "initial" | "manual" | "silent";
 
 const throughputPointCount = 120;
 const throughputInitialPointCount = 30;
@@ -30,78 +28,70 @@ export default (): React.ReactNode => {
     const {styles} = useStyles();
     const mountedRef = useRef(true);
     const requestingRef = useRef(false);
-    const snapshotRef = useRef({info: "", status: "", error: "", sampleId: 0, sampleTime: 0});
+    const snapshotRef = useRef({statis: "", info: "", io: "", sampleId: 0, sampleTime: 0});
     const [dashboard, setDashboard] = useState<any>(() => {
         const initialTime = Date.now();
         return {
+            statis: undefined,
             info: undefined,
-            status: undefined,
+            io: undefined,
             throughputHistory: Array.from({length: throughputInitialPointCount}, (_, index) => ({
                 time: initialTime - (throughputInitialPointCount - index) * 1000,
                 network: {},
                 disk: {},
                 placeholder: true,
             })),
-            error: "",
         };
     });
     const [loading, setLoading] = useState(true);
-    const [refreshing, setRefreshing] = useState(false);
-    const {info, status, throughputHistory, error} = dashboard;
+    const {statis, info, io, throughputHistory} = dashboard;
 
-    const loadData = useCallback(async (mode: RefreshMode = "silent") => {
+    const loadData = useCallback(async (initial = false) => {
         if (requestingRef.current) {
             return;
         }
         requestingRef.current = true;
-        if (mode === "initial") {
+        if (initial) {
             setLoading(true);
-        }
-        if (mode === "manual") {
-            setRefreshing(true);
         }
 
         try {
-            const [infoResponse, statusResponse] = await Promise.all([
+            const [statisResponse, infoResponse, ioResponse] = await Promise.all([
+                getSystemStatis(),
                 getSystemInfo(),
-                getSystemStatus({body: {after: snapshotRef.current.sampleId}}),
+                getSystemIO({body: {after: snapshotRef.current.sampleId}}),
             ]);
             if (!mountedRef.current) {
                 return;
             }
 
-            const errors: string[] = [];
+            const statisData = statisResponse?.code === 200 && statisResponse?.data
+                ? statisResponse.data
+                : undefined;
             const infoData = infoResponse?.code === 200 && infoResponse?.data
                 ? infoResponse.data
                 : undefined;
-            const statusData = statusResponse?.code === 200 && statusResponse?.data
-                ? statusResponse.data
+            const ioData = ioResponse?.code === 200 && ioResponse?.data
+                ? ioResponse.data
                 : undefined;
-            if (!infoData) {
-                errors.push(infoResponse?.message || "系统信息获取失败");
-            }
-            if (!statusData) {
-                errors.push(statusResponse?.message || "系统状态获取失败");
-            }
-
-            const nextError = errors.join("；");
-            const currentStatusData = statusData ? {...statusData, history: undefined} : undefined;
+            const currentIOData = ioData ? {...ioData, history: undefined} : undefined;
+            const nextStatisSnapshot = JSON.stringify(statisData || null);
             const nextInfoSnapshot = JSON.stringify(infoData || null);
-            const nextStatusSnapshot = JSON.stringify(currentStatusData || null);
+            const nextIOSnapshot = JSON.stringify(currentIOData || null);
+            const statisChanged = nextStatisSnapshot !== snapshotRef.current.statis;
             const infoChanged = nextInfoSnapshot !== snapshotRef.current.info;
-            const statusChanged = nextStatusSnapshot !== snapshotRef.current.status;
-            const errorChanged = nextError !== snapshotRef.current.error;
-            const responseSampleId = numberValue(statusData?.sample_id);
+            const ioChanged = nextIOSnapshot !== snapshotRef.current.io;
+            const responseSampleId = numberValue(ioData?.sample_id);
             const sampleReset = responseSampleId > 0 && responseSampleId < snapshotRef.current.sampleId;
             const sampleCursor = sampleReset ? 0 : snapshotRef.current.sampleId;
             const sampleTimeCursor = sampleReset ? 0 : snapshotRef.current.sampleTime;
-            const responseHistory = Array.isArray(statusData?.history) ? statusData.history : [];
-            const responseSampleTime = numberValue(statusData?.sample_time);
+            const responseHistory = Array.isArray(ioData?.history) ? ioData.history : [];
+            const responseSampleTime = numberValue(ioData?.sample_time);
             const fallbackHistory = responseHistory.length === 0 && responseSampleTime > 0 && (sampleCursor === 0
                 || responseSampleTime > sampleTimeCursor)
-                ? [statusData]
+                ? [ioData]
                 : [];
-            const statusSamples = [...responseHistory, ...fallbackHistory]
+            const ioSamples = [...responseHistory, ...fallbackHistory]
                 .filter((item: any) => {
                     const sampleId = numberValue(item?.sample_id);
                     return sampleId > 0
@@ -113,7 +103,7 @@ export default (): React.ReactNode => {
                     const idDiff = numberValue(first?.sample_id) - numberValue(second?.sample_id);
                     return idDiff || numberValue(first?.sample_time) - numberValue(second?.sample_time);
                 });
-            const samples = statusSamples.map((item: any) => ({
+            const samples = ioSamples.map((item: any) => ({
                 sampleId: numberValue(item.sample_id),
                 time: numberValue(item.sample_time),
                 network: Object.fromEntries((Object.entries(item.network || {}) as [string, any][]).map(([name, value]) => [name, {
@@ -132,15 +122,15 @@ export default (): React.ReactNode => {
             );
             const latestSampleTime = Math.max(
                 sampleTimeCursor,
-                numberValue(statusData?.sample_time),
+                numberValue(ioData?.sample_time),
                 ...samples.map((item: any) => item.time),
             );
-            const statusSampleChanged = samples.length > 0;
-            if (infoChanged || statusChanged || errorChanged || statusSampleChanged) {
+            const ioSampleChanged = samples.length > 0;
+            if (statisChanged || infoChanged || ioChanged || ioSampleChanged) {
                 snapshotRef.current = {
+                    statis: nextStatisSnapshot,
                     info: nextInfoSnapshot,
-                    status: nextStatusSnapshot,
-                    error: nextError,
+                    io: nextIOSnapshot,
                     sampleId: latestSampleId,
                     sampleTime: latestSampleTime,
                 };
@@ -171,43 +161,26 @@ export default (): React.ReactNode => {
                     }
 
                     return {
+                        statis: statisChanged && statisData ? statisData : current.statis,
                         info: infoChanged && infoData ? infoData : current.info,
-                        status: statusChanged && currentStatusData ? currentStatusData : current.status,
+                        io: ioChanged && currentIOData ? currentIOData : current.io,
                         throughputHistory,
-                        error: nextError,
                     };
                 });
 
-                if (mode === "silent") {
+                if (!initial) {
                     React.startTransition(commit);
                 } else {
                     commit();
                 }
             }
-        } catch (requestError: any) {
-            if (mountedRef.current) {
-                const nextError = requestError?.message || "系统状态获取失败";
-                if (nextError !== snapshotRef.current.error) {
-                    snapshotRef.current = {...snapshotRef.current, error: nextError};
-                    const commit = () => setDashboard((current: any) => ({
-                        ...current,
-                        error: nextError,
-                    }));
-                    if (mode === "silent") {
-                        React.startTransition(commit);
-                    } else {
-                        commit();
-                    }
-                }
-            }
+        } catch {
+            // 请求失败时保留已有数据，下一次轮询继续重试。
         } finally {
             requestingRef.current = false;
             if (mountedRef.current) {
-                if (mode === "initial") {
+                if (initial) {
                     setLoading(false);
-                }
-                if (mode === "manual") {
-                    setRefreshing(false);
                 }
             }
         }
@@ -225,7 +198,7 @@ export default (): React.ReactNode => {
                     return;
                 }
                 if (document.visibilityState === "visible") {
-                    await loadData("silent");
+                    await loadData();
                 }
                 nextPollAt += 1000;
                 if (nextPollAt < Date.now() - 1000) {
@@ -234,7 +207,7 @@ export default (): React.ReactNode => {
                 schedulePoll();
             }, delay);
         };
-        void loadData("initial").finally(() => {
+        void loadData(true).finally(() => {
             if (!stopped) {
                 nextPollAt = Date.now() + 1000;
                 schedulePoll();
@@ -243,7 +216,7 @@ export default (): React.ReactNode => {
         const handleVisibilityChange = () => {
             if (document.visibilityState === "visible") {
                 nextPollAt = Date.now() + 1000;
-                void loadData("silent");
+                void loadData();
             }
         };
         document.addEventListener("visibilitychange", handleVisibilityChange);
@@ -258,21 +231,15 @@ export default (): React.ReactNode => {
     return (
         <Body loading={loading}>
             <Row className={styles.page} gutter={[0, gutter]}>
-                {error && (
-                    <Col span={24}>
-                        <Alert type="warning" showIcon message={error}/>
-                    </Col>
-                )}
                 <Col span={24}>
                     <HostOverview
+                        statis={statis}
                         info={info}
-                        refreshing={refreshing}
-                        onRefresh={() => loadData("manual")}
                     />
                 </Col>
-                <ResourceOverview info={info}/>
+                <ResourceOverview statis={statis}/>
                 <Col span={24}>
-                    <MonitorOverview status={status} throughputHistory={throughputHistory}/>
+                    <MonitorOverview io={io} throughputHistory={throughputHistory}/>
                 </Col>
             </Row>
         </Body>

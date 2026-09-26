@@ -13,20 +13,31 @@ import type {ScriptFormRef} from "../script-form";
 const manageTypeKey = "__manage_script_types__";
 
 const fallbackCopyText = (value: string) => {
+    const activeElement = document.activeElement as HTMLElement | null;
     let textarea: HTMLTextAreaElement | undefined;
     try {
         textarea = document.createElement("textarea");
         textarea.value = value;
         textarea.setAttribute("readonly", "");
         textarea.style.position = "fixed";
-        textarea.style.left = "-9999px";
+        textarea.style.top = "0";
+        textarea.style.left = "0";
+        textarea.style.opacity = "0";
+        textarea.style.pointerEvents = "none";
         document.body.appendChild(textarea);
+        textarea.focus({preventScroll: true});
         textarea.select();
+        textarea.setSelectionRange(0, value.length);
         return document.execCommand("copy");
     } catch {
         return false;
     } finally {
         textarea?.remove();
+        try {
+            activeElement?.focus({preventScroll: true});
+        } catch {
+            // 原控件可能已经卸载，不影响复制结果。
+        }
     }
 };
 
@@ -47,6 +58,7 @@ const Scripts = ({styles, collapsed, connected, selectedId, onCollapsedChange, o
     const typeRequestRef = useRef(0);
     const insertRequestRef = useRef(0);
     const copyRequestRef = useRef(0);
+    const copyModalRef = useRef<{destroy: () => void} | null>(null);
     const [typeItems, setTypeItems] = useState<any[]>([]);
     const [insertingId, setInsertingId] = useState<number>();
     const [copyingId, setCopyingId] = useState<number>();
@@ -84,6 +96,7 @@ const Scripts = ({styles, collapsed, connected, selectedId, onCollapsedChange, o
             typeRequestRef.current += 1;
             insertRequestRef.current += 1;
             copyRequestRef.current += 1;
+            copyModalRef.current?.destroy();
         };
     }, [loadTypes]);
 
@@ -135,26 +148,29 @@ const Scripts = ({styles, collapsed, connected, selectedId, onCollapsedChange, o
 
     const copy = useCallback(async (record: any) => {
         const requestId = ++copyRequestRef.current;
+        copyModalRef.current?.destroy();
         setCopyingId(record.id);
-        const responsePromise = getScriptInfo({body: {id: record.id}});
-        let clipboardWrite: Promise<boolean> | undefined;
-        if (navigator.clipboard?.write && typeof ClipboardItem !== "undefined") {
-            try {
-                const content = responsePromise.then((response) => {
-                    if (copyRequestRef.current !== requestId || response?.code !== 200 || !response.data) {
-                        throw new Error("script detail unavailable");
-                    }
-                    return new Blob([String(response.data.script || "")], {type: "text/plain"});
-                });
-                clipboardWrite = navigator.clipboard.write([
-                    new ClipboardItem({"text/plain": content}),
-                ]).then(() => true, () => false);
-            } catch {
-                clipboardWrite = undefined;
-            }
-        }
         try {
-            const response = await responsePromise;
+            const detail = getScriptInfo({body: {id: record.id}});
+            let pendingCopy: Promise<boolean> | undefined;
+            if (window.isSecureContext && navigator.clipboard?.write && typeof ClipboardItem !== "undefined") {
+                // 先在点击时发起复制，再等待接口正文，保留 Safari 的用户操作授权。
+                const content = detail.then((response) => {
+                    if (copyRequestRef.current !== requestId || response?.code !== 200 || !response.data?.script) {
+                        throw new Error("脚本内容不可用");
+                    }
+                    return new Blob([String(response.data.script)], {type: "text/plain"});
+                });
+                // 不支持 Promise 内容的浏览器可能同步抛错，接口失败时也需要处理内容 Promise。
+                void content.catch(() => undefined);
+                try {
+                    pendingCopy = navigator.clipboard.write([new ClipboardItem({"text/plain": content})])
+                        .then(() => true, () => false);
+                } catch {
+                    // 继续尝试普通文本复制。
+                }
+            }
+            const response = await detail;
             if (copyRequestRef.current !== requestId || !response) {
                 return;
             }
@@ -162,14 +178,20 @@ const Scripts = ({styles, collapsed, connected, selectedId, onCollapsedChange, o
                 message.error(response.message || "获取脚本详情失败");
                 return;
             }
-            const script = String(response.data.script || "");
+            const script = String(response.data.script ?? "");
             if (!script) {
                 message.warning("脚本内容为空");
                 return;
             }
-            let copied = clipboardWrite ? await clipboardWrite : false;
-            if (!copied && navigator.clipboard?.writeText) {
+            let copied = pendingCopy ? await pendingCopy : false;
+            if (copyRequestRef.current !== requestId) {
+                return;
+            }
+            if (!copied && window.isSecureContext && navigator.clipboard?.writeText) {
                 copied = await navigator.clipboard.writeText(script).then(() => true, () => false);
+            }
+            if (copyRequestRef.current !== requestId) {
+                return;
             }
             if (!copied) {
                 copied = fallbackCopyText(script);
@@ -177,6 +199,32 @@ const Scripts = ({styles, collapsed, connected, selectedId, onCollapsedChange, o
             if (copied) {
                 message.success("脚本已复制");
             } else {
+                // HTTP 等环境需要重新点击，才能取得复制授权；复用本次已获取的正文。
+                const dialog = modal.confirm({
+                    title: "复制脚本",
+                    content: "脚本已加载，点击“复制”完成操作。",
+                    okText: "复制",
+                    cancelText: "取消",
+                    onOk: () => {
+                        if (copyRequestRef.current !== requestId) {
+                            return;
+                        }
+                        if (!fallbackCopyText(script)) {
+                            message.error("复制脚本失败，请检查浏览器权限");
+                            return Promise.reject(new Error("复制失败"));
+                        }
+                        message.success("脚本已复制");
+                    },
+                    afterClose: () => {
+                        if (copyModalRef.current === dialog) {
+                            copyModalRef.current = null;
+                        }
+                    },
+                });
+                copyModalRef.current = dialog;
+            }
+        } catch {
+            if (copyRequestRef.current === requestId) {
                 message.error("复制脚本失败");
             }
         } finally {
@@ -184,7 +232,7 @@ const Scripts = ({styles, collapsed, connected, selectedId, onCollapsedChange, o
                 setCopyingId(undefined);
             }
         }
-    }, [message]);
+    }, [message, modal]);
 
     const remove = useCallback((record: any) => {
         modal.confirm({

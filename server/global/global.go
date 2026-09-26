@@ -5,6 +5,7 @@ import (
 
 	"server/app/util/cache"
 	"server/app/util/container"
+	"server/app/util/daemon"
 	"server/app/util/database"
 
 	"github.com/spf13/viper"
@@ -17,4 +18,5 @@ type Application struct {
 	Cache     cache.Interface    //缓存系统
 	Log       *log.Logger        //日志系统
 	Container *container.Manager //轻量容器管理器
+	Daemon    *daemon.Daemon     //面板进程管理器
 }

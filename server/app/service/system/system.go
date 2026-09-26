@@ -5,7 +5,9 @@ import (
 	"os"
 	"server/app/constant"
 	serviceFile "server/app/service/file"
+	"server/app/util/daemon"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/shirou/gopsutil/v4/disk"
@@ -16,8 +18,10 @@ import (
 type Service interface {
 	Start()
 	Close()
-	GetInfo() map[string]interface{}
-	GetStatus(netInterface, diskName string, after int64) map[string]interface{}
+	Restart(action string) error                                             // 重启面板或服务器
+	GetInfo() map[string]interface{}                                         // 主机、系统和运行时信息
+	GetStatis() map[string]interface{}                                       // CPU、内存、磁盘等资源统计
+	GetIO(netInterface, diskName string, after int64) map[string]interface{} // 网络与磁盘 I/O 统计
 	GetTask(id string) *Task
 	TaskList() []*Task
 	TaskCreate(id, name string, data interface{}, run func(context.Context, interface{}, func(int, float64, string)))
@@ -38,6 +42,8 @@ type service struct {
 	tasks                  map[string]*Task
 	mu                     sync.RWMutex
 	fileService            serviceFile.Service
+	daemon                 *daemon.Daemon
+	restartPending         atomic.Bool
 	maxTaskWorkers         int    // 系统任务并发 worker 数量
 	systemTaskLogDirectory string // 系统任务日志目录
 
@@ -60,13 +66,11 @@ type service struct {
 	disksInfoCacheLock   sync.RWMutex
 	loadInfoCache        map[string]interface{}
 	loadInfoCacheLock    sync.RWMutex
-	runtimeInfoCache     map[string]interface{}
-	runtimeInfoCacheLock sync.RWMutex
 	networkInfoCache     []map[string]interface{}
 	networkInfoCacheLock sync.RWMutex
 	netIOCache           map[string]net.IOCountersStat
 	diskIOCache          map[string]disk.IOCountersStat
-	statusCacheLock      sync.RWMutex
+	ioCacheLock          sync.RWMutex
 	netRateCache         map[string]map[string]interface{}
 	diskRateCache        map[string]map[string]interface{}
 	netLastUpdateTime    time.Time
@@ -77,7 +81,7 @@ type service struct {
 }
 
 // NewService 实例化service
-func NewService(fileService serviceFile.Service) *service {
+func NewService(fileService serviceFile.Service, daemon *daemon.Daemon) *service {
 	now := time.Now()
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &service{
@@ -87,6 +91,7 @@ func NewService(fileService serviceFile.Service) *service {
 		jobs:                   make(map[string]*job),
 		queue:                  make([]string, 0),
 		fileService:            fileService,
+		daemon:                 daemon,
 		maxTaskWorkers:         maxTaskWorkers,
 		systemTaskLogDirectory: constant.TaskPath,
 		systemBaseCache:        make(map[string]interface{}),
@@ -94,7 +99,6 @@ func NewService(fileService serviceFile.Service) *service {
 		memoryInfoCache:        make(map[string]interface{}),
 		disksInfoCache:         make([]serviceFile.Disk, 0),
 		loadInfoCache:          make(map[string]interface{}),
-		runtimeInfoCache:       make(map[string]interface{}),
 		networkInfoCache:       make([]map[string]interface{}, 0),
 		netIOCache:             make(map[string]net.IOCountersStat),
 		diskIOCache:            make(map[string]disk.IOCountersStat),

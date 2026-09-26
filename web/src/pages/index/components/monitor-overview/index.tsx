@@ -8,6 +8,7 @@ import MonitorCard from "../monitor-card";
 
 const allDevices = "__all__";
 const diskWriteColor = "#13c2c2";
+const deviceNameCollator = new Intl.Collator("en", {numeric: true});
 
 const useStyles = createStyles(({css}: any) => ({
     monitorColumn: css`
@@ -20,7 +21,7 @@ const useStyles = createStyles(({css}: any) => ({
     `,
 }));
 
-const MonitorOverview = React.memo(({status, throughputHistory}: any) => {
+const MonitorOverview = React.memo(({io, throughputHistory}: any) => {
     const {styles} = useStyles();
     const {token} = antdTheme.useToken();
     const theme = useTheme();
@@ -28,26 +29,20 @@ const MonitorOverview = React.memo(({status, throughputHistory}: any) => {
     const [diskDevice, setDiskDevice] = useState(allDevices);
 
     const networkList = useMemo<any[]>(() => {
-        return (Object.entries(status?.network || {}) as [string, any][]).map(([name, item]) => ({
+        return (Object.entries(io?.network || {}) as [string, any][]).map(([name, item]) => ({
             ...item,
             key: name,
             name,
-        })).sort((left: any, right: any) => {
-            const leftRate = numberValue(left.recv_rate) + numberValue(left.send_rate);
-            const rightRate = numberValue(right.recv_rate) + numberValue(right.send_rate);
-            return rightRate - leftRate;
-        });
-    }, [status?.network]);
+        })).sort((left, right) => deviceNameCollator.compare(left.key, right.key)
+            || left.key.localeCompare(right.key, "en"));
+    }, [io?.network]);
 
-    const diskStatusList = useMemo<any[]>(() => (Object.entries(status?.disk || {}) as [string, any][]).map(([name, item]) => ({
+    const diskList = useMemo<any[]>(() => (Object.entries(io?.disk || {}) as [string, any][]).map(([name, item]) => ({
         ...item,
         key: name,
         name: item?.name || name,
-    })).sort((left: any, right: any) => {
-        const leftRate = numberValue(left.read_bytes_rate) + numberValue(left.write_bytes_rate);
-        const rightRate = numberValue(right.read_bytes_rate) + numberValue(right.write_bytes_rate);
-        return rightRate - leftRate;
-    }), [status?.disk]);
+    })).sort((left, right) => deviceNameCollator.compare(left.key, right.key)
+        || left.key.localeCompare(right.key, "en")), [io?.disk]);
 
     const networkOptions = useMemo(() => [
         {label: "全部接口", value: allDevices},
@@ -55,8 +50,8 @@ const MonitorOverview = React.memo(({status, throughputHistory}: any) => {
     ], [networkList]);
     const diskOptions = useMemo(() => [
         {label: "全部磁盘", value: allDevices},
-        ...diskStatusList.map((item: any) => ({label: item.name, value: item.key})),
-    ], [diskStatusList]);
+        ...diskList.map((item: any) => ({label: item.name, value: item.key})),
+    ], [diskList]);
 
     useEffect(() => {
         if (networkDevice !== allDevices && !networkList.some((item: any) => item.key === networkDevice)) {
@@ -65,17 +60,17 @@ const MonitorOverview = React.memo(({status, throughputHistory}: any) => {
     }, [networkDevice, networkList]);
 
     useEffect(() => {
-        if (diskDevice !== allDevices && !diskStatusList.some((item: any) => item.key === diskDevice)) {
+        if (diskDevice !== allDevices && !diskList.some((item: any) => item.key === diskDevice)) {
             setDiskDevice(allDevices);
         }
-    }, [diskDevice, diskStatusList]);
+    }, [diskDevice, diskList]);
 
     const selectedNetworkList = useMemo(() => networkDevice === allDevices
         ? networkList
         : networkList.filter((item: any) => item.key === networkDevice), [networkDevice, networkList]);
     const selectedDiskList = useMemo(() => diskDevice === allDevices
-        ? diskStatusList
-        : diskStatusList.filter((item: any) => item.key === diskDevice), [diskDevice, diskStatusList]);
+        ? diskList
+        : diskList.filter((item: any) => item.key === diskDevice), [diskDevice, diskList]);
 
     const networkThroughput = useMemo(() => selectedNetworkList.reduce((total, item: any) => ({
         receiveRate: total.receiveRate + numberValue(item.recv_rate),

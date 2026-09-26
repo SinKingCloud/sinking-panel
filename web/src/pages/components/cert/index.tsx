@@ -66,8 +66,6 @@ const isIPAddress = (value: any) => {
     }
 };
 
-const parseCertificateTime = (value: any) => dayjs(String(value || ""));
-
 const parseCertificate = (certificate: any) => {
     const type = Number(certificate?.type || 0);
     let domains: string[] = [];
@@ -759,8 +757,8 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
                 });
                 const matches = domains.some((value) => value === domain || (value.startsWith("*.") && !domain.startsWith("*.") && !isIPAddress(domain) && domain.split(".").length === value.split(".").length && domain.endsWith(value.slice(1))));
                 const now = dayjs();
-                const starts = parseCertificateTime(certificate.start_time);
-                const expires = parseCertificateTime(certificate.expire_time);
+                const starts = dayjs(String(certificate.start_time || ""));
+                const expires = dayjs(String(certificate.expire_time || ""));
                 if (matches && starts.isValid() && expires.isValid() && !starts.isAfter(now) && expires.isAfter(now)) {
                     message.success(response?.message || "操作成功");
                     close();
@@ -827,8 +825,8 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
                 const selection = deployRef.current;
                 if (!selection) return;
                 const now = dayjs();
-                const starts = parseCertificateTime(item.start_time);
-                const expires = parseCertificateTime(item.expire_time);
+                const starts = dayjs(String(item.start_time || ""));
+                const expires = dayjs(String(item.expire_time || ""));
                 if (!starts.isValid() || starts.isAfter(now) || !expires.isValid() || !expires.isAfter(now)) {
                     message.warning("证书不在有效期内，请选择其他证书。");
                     void loadList();
@@ -919,8 +917,8 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
             width: 145,
             render: (_: any, item: any) => {
                 const now = dayjs();
-                const expires = parseCertificateTime(item.expire_time);
-                const starts = parseCertificateTime(item.start_time);
+                const expires = dayjs(String(item.expire_time || ""));
+                const starts = dayjs(String(item.start_time || ""));
                 const knownExpiry = expires.isValid();
                 const expired = knownExpiry && !expires.isAfter(now);
                 const pending = starts.isValid() && starts.isAfter(now);
@@ -928,7 +926,7 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
                 const status = !knownExpiry ? "unknown" : expired ? "expired" : pending || days <= 7 ? "expiring" : "valid";
                 const text = !knownExpiry ? "有效期未知" : expired ? "已过期" : pending ? "尚未生效"
                     : days > 0 ? `剩余 ${days} 天` : "不足 1 天";
-                return <Tooltip title={knownExpiry ? `${expires.format("YYYY-MM-DD HH:mm")} 到期` : undefined}>
+                return <Tooltip title={knownExpiry ? `${String(item.expire_time).replace("T", " ").slice(0, 16)} 到期` : undefined}>
                     <span className={`record-state ${status}`}><i/>{text}</span>
                 </Tooltip>;
             },
@@ -1194,8 +1192,8 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
                                         items={[
                                             {key: "domains", label: "适用域名", children: (record.domains || []).join("、") || "暂无域名"},
                                             {key: "type", label: "签发方式", children: record.type === 1 ? "手动申请" : record.type === 2 ? "自动申请" : "导入证书"},
-                                            {key: "start_time", label: "生效时间", children: record.start_time || "未知"},
-                                            {key: "expire_time", label: "到期时间", children: record.expire_time || "未知"},
+                                            {key: "start_time", label: "生效时间", children: record.start_time ? String(record.start_time).replace("T", " ").slice(0, 19) : "未知"},
+                                            {key: "expire_time", label: "到期时间", children: record.expire_time ? String(record.expire_time).replace("T", " ").slice(0, 19) : "未知"},
                                             ...([1, 2].includes(record.type) ? [
                                                 {key: "challenge", label: "验证类型", children: String(record.challenge || "http").toUpperCase()},
                                                 {key: "auto_renew", label: "自动续签", children: record.auto_renew === 1 ? "开启" : "关闭"},

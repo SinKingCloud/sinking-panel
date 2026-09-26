@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	standardRuntime "runtime"
 	fileLog "server/app/util/log"
@@ -61,7 +62,14 @@ func (m *Manager) startPlatformRuntime(instance *Info, image *Image, options Run
 		standardRuntime.UnlockOSThread()
 		return fmt.Errorf("打开当前 mount namespace 失败: %w", err)
 	}
+	originalDirectory, err := os.Open(".")
+	if err != nil {
+		_ = originalNamespace.Close()
+		standardRuntime.UnlockOSThread()
+		return fmt.Errorf("打开当前工作目录失败: %w", err)
+	}
 	if err := unix.Unshare(unix.CLONE_NEWNS); err != nil {
+		_ = originalDirectory.Close()
 		_ = originalNamespace.Close()
 		standardRuntime.UnlockOSThread()
 		return fmt.Errorf("创建容器 mount namespace 失败: %w", err)
@@ -74,11 +82,17 @@ func (m *Manager) startPlatformRuntime(instance *Info, image *Image, options Run
 		if err := unix.Setns(int(originalNamespace.Fd()), unix.CLONE_NEWNS); err != nil {
 			return fmt.Errorf("恢复 mount namespace 失败: %w", err)
 		}
+		// setns 会把当前线程的工作目录重置为根目录，必须还原后才能归还 Go 线程池。
+		// 否则协程切换线程时，相对上传、日志等路径会随机指向另一目录。
+		if err := unix.Fchdir(int(originalDirectory.Fd())); err != nil {
+			return fmt.Errorf("恢复工作目录失败: %w", err)
+		}
 		namespaceActive = false
 		return nil
 	}
 	defer func() {
 		err := restoreNamespace()
+		_ = originalDirectory.Close()
 		_ = originalNamespace.Close()
 		if err != nil {
 			// 恢复失败的线程不能归还 Go 线程池，协程退出时由 runtime 回收。
@@ -212,7 +226,12 @@ func (m *Manager) startPlatformRuntime(instance *Info, image *Image, options Run
 		Stderr:           logFile,
 		Init:             true,
 	}
-	if err := container.Start(process); err != nil {
+	flushInitOutput, err := m.prepareInitOutput(process)
+	if err != nil {
+		return errors.Join(err, m.abortPlatformStart(instance, container, nil, logFile, err))
+	}
+	startErr := container.Start(process)
+	if err := errors.Join(startErr, flushInitOutput()); err != nil {
 		failure := fmt.Errorf("启动容器进程失败: %w", err)
 		return errors.Join(failure, m.abortPlatformStart(instance, container, process, logFile, failure))
 	}
@@ -804,6 +823,75 @@ func (m *Manager) execPlatformCommand(id string, options ExecOptions) (*ExecResu
 	if err != nil {
 		return nil, fmt.Errorf("创建容器命令输出管道失败: %w", err)
 	}
+	stderrWriter := outputWriter
+	var stderrReader *os.File
+	if file, ok := options.Stderr.(*os.File); ok && file != nil {
+		// 文件由调用方持有，直接继承，保留原来的终端/文件属性。
+		stderrWriter = file
+	} else if options.Stderr != nil {
+		// 使用可主动关闭的管道，避免子孙进程继承 stderr 后让命令一直等待。
+		stderrReader, stderrWriter, err = os.Pipe()
+		if err != nil {
+			_ = outputReader.Close()
+			_ = outputWriter.Close()
+			return nil, fmt.Errorf("创建容器错误输出管道失败: %w", err)
+		}
+	}
+	closeReaders := func() {
+		_ = outputReader.Close()
+		if stderrReader != nil {
+			_ = stderrReader.Close()
+		}
+	}
+	closeWriters := func() {
+		_ = outputWriter.Close()
+		if stderrReader != nil {
+			_ = stderrWriter.Close()
+		}
+	}
+	copyDone := make(chan struct{})
+	var stderrErr error
+	if !m.runBackground(func(ctx context.Context) {
+		defer close(copyDone)
+		closeDone := make(chan struct{})
+		stopClose := context.AfterFunc(ctx, func() {
+			defer close(closeDone)
+			closeReaders()
+		})
+		var stderrCopy sync.WaitGroup
+		if stderrReader != nil {
+			stderrCopy.Add(1)
+			go func() {
+				defer stderrCopy.Done()
+				defer stderrReader.Close()
+				if _, err := io.Copy(options.Stderr, stderrReader); err != nil && !errors.Is(err, os.ErrClosed) {
+					stderrErr = err
+				}
+			}()
+		}
+		_, _ = io.Copy(output, outputReader)
+		stderrCopy.Wait()
+		if !stopClose() {
+			<-closeDone
+		}
+	}) {
+		closeReaders()
+		closeWriters()
+		return nil, errors.New("容器管理器已关闭")
+	}
+	closeOutput := func() {
+		closeWriters()
+		timer := time.NewTimer(time.Second)
+		defer timer.Stop()
+		select {
+		case <-copyDone:
+		case <-timer.C:
+			closeReaders()
+			<-copyDone
+		}
+		closeReaders()
+	}
+	defer closeOutput()
 	process := &libcontainer.Process{
 		Args:             append([]string(nil), options.Command...),
 		Env:              env,
@@ -814,47 +902,21 @@ func (m *Manager) execPlatformCommand(id string, options ExecOptions) (*ExecResu
 		Cwd:              workingDir,
 		Stdin:            options.Stdin,
 		Stdout:           outputWriter,
-		Stderr:           outputWriter,
+		Stderr:           stderrWriter,
 	}
-	if options.Stderr != nil {
-		process.Stderr = options.Stderr
+	flushInitOutput, err := m.prepareInitOutput(process)
+	if err != nil {
+		return nil, err
 	}
-	if err := container.Run(process); err != nil {
-		_ = outputReader.Close()
-		_ = outputWriter.Close()
+	runErr := container.Run(process)
+	if err := errors.Join(runErr, flushInitOutput()); err != nil {
+		if runErr == nil {
+			_ = process.Signal(unix.SIGKILL)
+			_, _ = process.Wait()
+		}
 		return nil, fmt.Errorf("执行容器命令失败: %w", err)
 	}
-	_ = outputWriter.Close()
-	copyDone := make(chan struct{})
-	if !m.runBackground(func(ctx context.Context) {
-		defer close(copyDone)
-		closeDone := make(chan struct{})
-		stopClose := context.AfterFunc(ctx, func() {
-			defer close(closeDone)
-			_ = outputReader.Close()
-		})
-		_, _ = io.Copy(output, outputReader)
-		if !stopClose() {
-			<-closeDone
-		}
-	}) {
-		_ = outputReader.Close()
-		_ = process.Signal(unix.SIGKILL)
-		_, _ = process.Wait()
-		return nil, errors.New("容器管理器已关闭")
-	}
-	closeOutput := func() {
-		timer := time.NewTimer(time.Second)
-		defer timer.Stop()
-		select {
-		case <-copyDone:
-		case <-timer.C:
-			_ = outputReader.Close()
-			<-copyDone
-		}
-		_ = outputReader.Close()
-	}
-	defer closeOutput()
+	closeWriters()
 	type waitResult struct {
 		state *os.ProcessState
 		err   error
@@ -881,7 +943,14 @@ func (m *Manager) execPlatformCommand(id string, options ExecOptions) (*ExecResu
 	select {
 	case value := <-wait:
 		if value.err != nil {
-			return nil, fmt.Errorf("等待容器命令结束失败: %w", value.err)
+			// 命令自身失败仍需返回退出码和输出，不能当作运行时等待失败而丢弃诊断信息。
+			var exitError *exec.ExitError
+			if !errors.As(value.err, &exitError) {
+				return nil, fmt.Errorf("等待容器命令结束失败: %w", value.err)
+			}
+			if value.state == nil {
+				value.state = exitError.ProcessState
+			}
 		}
 		if value.state != nil {
 			result.ExitCode = value.state.ExitCode()
@@ -907,6 +976,9 @@ func (m *Manager) execPlatformCommand(id string, options ExecOptions) (*ExecResu
 	}
 	closeOutput()
 	result.Output, result.Truncated = output.snapshot()
+	if stderrErr != nil {
+		return result, fmt.Errorf("转发容器命令错误输出失败: %w", stderrErr)
+	}
 	return result, nil
 }
 
@@ -935,8 +1007,8 @@ func (m *Manager) waitPlatformProcess(ctx context.Context, process *libcontainer
 }
 
 type limitedBuffer struct {
-	mu sync.Mutex
-	bytes.Buffer
+	mu        sync.Mutex
+	buffer    bytes.Buffer
 	max       int64
 	truncated bool
 }
@@ -949,13 +1021,13 @@ func (b *limitedBuffer) Write(data []byte) (int, error) {
 		b.truncated = b.truncated || originalLength > 0
 		return originalLength, nil
 	}
-	left := b.max - int64(b.Len())
+	left := b.max - int64(b.buffer.Len())
 	if left > 0 {
 		if int64(len(data)) > left {
 			b.truncated = true
 			data = data[:left]
 		}
-		_, _ = b.Buffer.Write(data)
+		_, _ = b.buffer.Write(data)
 	} else if originalLength > 0 {
 		b.truncated = true
 	}
@@ -965,7 +1037,7 @@ func (b *limitedBuffer) Write(data []byte) (int, error) {
 func (b *limitedBuffer) snapshot() (string, bool) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	return b.Buffer.String(), b.truncated
+	return b.buffer.String(), b.truncated
 }
 
 func (m *Manager) openRuntimeLog(path string) (*os.File, error) {

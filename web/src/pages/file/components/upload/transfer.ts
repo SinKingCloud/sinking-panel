@@ -31,7 +31,7 @@ const apiUrl = (path: string) => {
     return gateway.toString();
 };
 
-const requestFileUpload = <T, >(
+const requestFileUpload = <T = any, >(
     action: "upload" | "check" | "merge" | "clear",
     signal: AbortSignal,
     params: {
@@ -39,7 +39,7 @@ const requestFileUpload = <T, >(
         query?: Record<string, string>;
         onProgress?: (loaded: number, total: number) => void;
     },
-) => requestFileUploadApi(apiUrl("/file/upload"), action, signal, params);
+) => requestFileUploadApi<T>(apiUrl("/file/upload"), action, signal, params);
 
 interface FileTransferProgress {
     loaded: number;
@@ -412,9 +412,14 @@ const uploadFileChunk = async (
             if (response.code !== 200) {
                 throw new FileUploadBusinessError(response);
             }
+            const data = response.data;
+            const completed = data?.name === fileName && data?.size === meta.totalSize && data?.file_hash === meta.fileHash;
+            if (!completed && (data?.upload_id !== uploadId || data?.chunk_index !== chunkIndex)) {
+                throw createUploadTransferError("FileUploadRequestError", "服务器返回的分片信息不一致");
+            }
             return;
         } catch (error) {
-            if (!isUploadError(error, "FileUploadTransportError") || attempt > FILE_UPLOAD_MAX_RETRIES || signal.aborted) {
+            if ((!isUploadError(error, "FileUploadRequestError") && !isUploadError(error, "FileUploadTransportError")) || attempt > FILE_UPLOAD_MAX_RETRIES || signal.aborted) {
                 throw error;
             }
             await waitForFileUploadRetry(attempt, signal);
@@ -463,39 +468,7 @@ const uploadFileByChunks = async (
         upload_id: uploadId,
         file_hash: fileHash,
     });
-    const clearUploadSession = async () => {
-        const body = new FormData();
-        body.append("upload_id", uploadId);
-        try {
-            await requestFileUpload("clear", signal, {body});
-        } catch {
-        }
-    };
-    let checkResponse = await requestFileUploadWithRetry<FileUploadCheckData>("check", signal, () => ({query: buildCheckQuery()}));
-    const checkMessage = String(checkResponse.message || "");
-    if (checkResponse.code !== 200 && (checkMessage.includes("上传任务") || checkMessage.includes("上传完成记录")
-        || checkMessage.includes("已上传文件"))) {
-        await clearUploadSession();
-        uploadId = createFileUploadId();
-        setFileUploadResumeId(resumeKey, uploadId);
-        checkResponse = await requestFileUploadWithRetry<FileUploadCheckData>("check", signal, () => ({query: buildCheckQuery()}));
-    }
-    if (checkResponse.code !== 200) {
-        throw new FileUploadBusinessError(checkResponse);
-    }
-    if (checkResponse.data?.completed && checkResponse.data.file) {
-        removeFileUploadResumeId(resumeKey, uploadId);
-        options.onProgress?.({loaded: meta.totalSize, total: meta.totalSize, percent: 100, phase: "complete"});
-        return {...checkResponse, data: checkResponse.data.file};
-    }
-    const uploadedChunks = new Set(
-        (checkResponse.data?.uploaded_chunks || []).filter((index) => Number.isInteger(index) && index >= 0 && index < meta.totalChunks),
-    );
-    let uploadedBytes = Array.from(uploadedChunks).reduce(
-        (total, index) => total + getFileUploadChunkSize(index, meta),
-        0,
-    );
-    let displayedBytes = uploadedBytes;
+    let displayedBytes = 0;
     const report = (loaded: number, chunkIndex?: number, attempt?: number) => {
         displayedBytes = Math.max(displayedBytes, Math.min(loaded, meta.totalSize));
         options.onProgress?.({
@@ -508,47 +481,85 @@ const uploadFileByChunks = async (
             attempt,
         });
     };
-    report(uploadedBytes);
-    for (let chunkIndex = 0; chunkIndex < meta.totalChunks; chunkIndex++) {
-        if (uploadedChunks.has(chunkIndex)) {
-            continue;
-        }
-        await uploadFileChunk(options, fileName, uploadId, chunkIndex, uploadedBytes, meta, signal, (loaded, attempt) => {
-            report(loaded, chunkIndex, attempt);
-        });
-        uploadedBytes += getFileUploadChunkSize(chunkIndex, meta);
-        report(uploadedBytes, chunkIndex);
-    }
-    ensureUploadNotAborted(signal);
-    options.onProgress?.({
-        loaded: meta.totalSize,
-        total: meta.totalSize,
-        percent: 100,
-        phase: "merging",
-        totalChunks: meta.totalChunks,
-    });
-    const mergeResponse = await requestFileUploadWithRetry<FileUploadData>("merge", signal, () => {
-        const mergeBody = new FormData();
-        appendUploadMeta(mergeBody, meta);
-        mergeBody.append("upload_id", uploadId);
-        return {body: mergeBody};
-    });
-    if (mergeResponse.code !== 200) {
-        if (String(mergeResponse.message || "").includes("校验失败")) {
+    // 上传或合并时任务失效、分片丢失都重新检查，最多补传三轮，复用已计算的哈希。
+    for (let repair = 0; repair <= FILE_UPLOAD_MAX_RETRIES; repair++) {
+        ensureUploadNotAborted(signal);
+        try {
+            const checkResponse = await requestFileUploadWithRetry<FileUploadCheckData>("check", signal, () => ({query: buildCheckQuery()}));
+            if (checkResponse.code !== 200) {
+                throw new FileUploadBusinessError(checkResponse);
+            }
+            if (checkResponse.data?.completed && checkResponse.data.file) {
+                removeFileUploadResumeId(resumeKey, uploadId);
+                options.onProgress?.({loaded: meta.totalSize, total: meta.totalSize, percent: 100, phase: "complete"});
+                return {...checkResponse, data: checkResponse.data.file};
+            }
+            const uploadedChunks = new Set(
+                (checkResponse.data?.uploaded_chunks || []).filter((index) => Number.isInteger(index) && index >= 0 && index < meta.totalChunks),
+            );
+            let uploadedBytes = Array.from(uploadedChunks).reduce(
+                (total, index) => total + getFileUploadChunkSize(index, meta),
+                0,
+            );
+            report(uploadedBytes);
+            for (let chunkIndex = 0; chunkIndex < meta.totalChunks; chunkIndex++) {
+                if (uploadedChunks.has(chunkIndex)) {
+                    continue;
+                }
+                await uploadFileChunk(options, fileName, uploadId, chunkIndex, uploadedBytes, meta, signal, (loaded, attempt) => {
+                    report(loaded, chunkIndex, attempt);
+                });
+                uploadedBytes += getFileUploadChunkSize(chunkIndex, meta);
+                report(uploadedBytes, chunkIndex);
+            }
+            ensureUploadNotAborted(signal);
+            options.onProgress?.({
+                loaded: meta.totalSize,
+                total: meta.totalSize,
+                percent: 100,
+                phase: "merging",
+                totalChunks: meta.totalChunks,
+            });
+            const mergeResponse = await requestFileUploadWithRetry<FileUploadData>("merge", signal, () => {
+                const mergeBody = new FormData();
+                appendUploadMeta(mergeBody, meta);
+                mergeBody.append("upload_id", uploadId);
+                return {body: mergeBody};
+            });
+            if (mergeResponse.code !== 200) {
+                throw new FileUploadBusinessError(mergeResponse);
+            }
             removeFileUploadResumeId(resumeKey, uploadId);
-            await clearUploadSession();
+            options.onProgress?.({
+                loaded: meta.totalSize,
+                total: meta.totalSize,
+                percent: 100,
+                phase: "complete",
+                totalChunks: meta.totalChunks,
+            });
+            return mergeResponse;
+        } catch (error) {
+            ensureUploadNotAborted(signal);
+            if (!(error instanceof FileUploadBusinessError)) {
+                throw error;
+            }
+            const message = error.message;
+            if (message === "合并文件校验失败，请重新上传") {
+                removeFileUploadResumeId(resumeKey, uploadId);
+            }
+            const newSession = ["上传任务信息不一致", "上传完成记录不合法", "已上传文件不存在或不完整", "已上传文件校验失败"].includes(message);
+            if (repair >= FILE_UPLOAD_MAX_RETRIES || (!newSession && message !== "上传任务不存在，请重新检查"
+                && !/^分片 \d+ 不存在或不完整$/.test(message))) {
+                throw error;
+            }
+            if (newSession) {
+                // 其他标签页可能仍在使用旧任务，只更换当前断点，不清理服务器上的任务。
+                uploadId = createFileUploadId();
+                setFileUploadResumeId(resumeKey, uploadId);
+            }
         }
-        throw new FileUploadBusinessError(mergeResponse);
     }
-    removeFileUploadResumeId(resumeKey, uploadId);
-    options.onProgress?.({
-        loaded: meta.totalSize,
-        total: meta.totalSize,
-        percent: 100,
-        phase: "complete",
-        totalChunks: meta.totalChunks,
-    });
-    return mergeResponse;
+    throw createUploadTransferError("FileUploadRequestError", "分片补传失败，请重试");
 };
 
 /** 上传文件 POST /file/upload */

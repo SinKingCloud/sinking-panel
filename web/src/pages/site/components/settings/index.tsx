@@ -2662,7 +2662,7 @@ const SSLPane = ({site, styles, onManageCert, onObtainCert, onDeployCert, onRene
                                                 <span className="https-certificate-status"
                                                     data-expired={expired || undefined}
                                                     data-expiring={!expired && remaining !== null && remaining <= 86400000 || undefined}
-                                                    title={`${pending ? "待部署" : "已部署"}${expiry?.isValid() ? ` · ${expiry.format("YYYY-MM-DD HH:mm")} 到期` : ""}`}>
+                                                    title={`${pending ? "待部署" : "已部署"}${expiry?.isValid() ? ` · ${String(certificate.expire_time).replace("T", " ").slice(0, 16)} 到期` : ""}`}>
                                                     {expiryText}
                                                 </span>
                                             ) : <span className="https-certificate-empty">—</span>}

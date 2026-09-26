@@ -1,8 +1,11 @@
-import React, {useState} from "react";
-import {Button, Card, Col, Row, Tooltip, Typography} from "antd";
+import React, {useEffect, useRef, useState} from "react";
+import {App, Button, Card, Col, Row, Tooltip, Typography} from "antd";
 import {createStyles} from "antd-style";
 import dayjs from "dayjs";
-import {Icon} from "sinking-antd";
+import {Icon, useTheme} from "sinking-antd";
+import Dropdown from "@/pages/components/stable-dropdown";
+import {getSystemInfo, restartSystem} from "@/service/api/system";
+import request, {pauseConnectionErrors} from "@/utils/request";
 import {formatSize} from "@/utils/string";
 import {formatUptime, gutter, numberValue} from "../../utils";
 
@@ -21,7 +24,7 @@ const systemVisuals: any = {
     aix: {icon: "GlobalOutlined", name: "AIX"},
 };
 
-const useStyles = createStyles(({css, token, isDarkMode}: any) => ({
+const useStyles = createStyles(({css, token, isDarkMode}: any, {compact}: {compact: boolean}) => ({
     hostCard: css`
         overflow: hidden;
         contain: paint;
@@ -412,8 +415,9 @@ const useStyles = createStyles(({css, token, isDarkMode}: any) => ({
             }
         }
     `,
-    refreshButton: css`
+    restartButton: css`
         position: absolute;
+        z-index: 3;
         top: 10px;
         right: 10px;
 
@@ -423,19 +427,140 @@ const useStyles = createStyles(({css, token, isDarkMode}: any) => ({
             padding: 0;
         }
     `,
+    restartMenu: css`
+        && {
+            min-width: ${compact ? 112 : 124}px;
+            padding: 0;
+            border-radius: ${token.borderRadius}px;
+        }
+
+        && .ant-dropdown-menu {
+            padding: 3px !important;
+            border-radius: ${token.borderRadius}px !important;
+            background: ${token.colorBgElevated};
+            box-shadow: ${token.boxShadowSecondary};
+        }
+
+        && .ant-dropdown-menu-item {
+            min-height: ${compact ? 28 : 30}px;
+            padding: 0 ${compact ? 7 : 8}px !important;
+            border-radius: ${token.borderRadiusSM}px !important;
+            color: ${token.colorTextSecondary};
+            font-size: ${compact ? 11 : 12}px;
+        }
+
+        && .ant-dropdown-menu-item-danger {
+            color: ${token.colorError};
+        }
+    `,
 }));
 
-const HostOverview = React.memo(({info, refreshing, onRefresh}: any) => {
-    const {styles} = useStyles();
+const HostOverview = React.memo(({info, statis}: any) => {
+    const theme = useTheme();
+    const {styles} = useStyles({compact: Boolean(theme?.isCompactTheme?.())});
+    const {message, modal} = App.useApp();
+    const [restarting, setRestarting] = useState(false);
+    const restartConfirmRef = useRef<ReturnType<typeof modal.confirm> | null>(null);
+    const restartControllerRef = useRef<AbortController | null>(null);
+    const mountedRef = useRef(true);
     const [operatingSystemEllipsis, setOperatingSystemEllipsis] = useState(false);
-    const system = info?.system;
-    const cpu = info?.cpu;
-    const memory = info?.memory;
+    const system = info;
+    const cpu = statis?.cpu;
+    const memory = statis?.memory;
     const systemVisual = systemVisuals[String(system?.os || "").toLowerCase()] || {
         icon: "DesktopOutlined",
         name: system?.os || "未知系统",
     };
     const operatingSystem = [system?.platform, system?.platform_version].filter(Boolean).join(" ") || systemVisual.name;
+
+    useEffect(() => {
+        mountedRef.current = true;
+        return () => {
+            mountedRef.current = false;
+            restartControllerRef.current?.abort();
+            restartConfirmRef.current?.destroy();
+        };
+    }, []);
+
+    const confirmRestart = (action: "panel" | "server") => {
+        if (restartConfirmRef.current || restartControllerRef.current) return;
+        const label = action === "panel" ? "重启面板" : "重启服务器";
+        const startTimeField = action === "panel" ? "panel_start_time" : "boot_time";
+        const confirmation = modal.confirm({
+            title: label,
+            content: action === "panel"
+                ? "重启期间面板和托管服务将暂时中断，恢复后自动刷新当前页面。是否继续？"
+                : "服务器上的所有服务将暂时中断，恢复后自动刷新当前页面。是否继续？",
+            okText: "重启",
+            cancelText: "取消",
+            okButtonProps: {danger: true},
+            afterClose: () => {
+                if (restartConfirmRef.current === confirmation) restartConfirmRef.current = null;
+            },
+            onOk: async () => {
+                if (restartControllerRef.current) return;
+                const controller = new AbortController();
+                let resumeConnectionErrors: (() => void) | undefined;
+                restartControllerRef.current = controller;
+                setRestarting(true);
+                try {
+                    // 先读取启动时间，避免把仍在响应的旧进程误判为重启完成。
+                    const info = await getSystemInfo();
+                    if (!mountedRef.current || controller.signal.aborted) return;
+                    if (info?.code !== 200 || !info.data) {
+                        message.error(info?.message || "获取系统信息失败，请重试");
+                        throw new Error("获取系统信息失败");
+                    }
+                    const previousStartTime = info.data[startTimeField];
+                    const timeout = 180000;
+                    const deadline = Date.now() + timeout;
+                    resumeConnectionErrors = pauseConnectionErrors(controller.signal, timeout);
+                    const response = await restartSystem({body: {action}});
+                    if (!mountedRef.current || controller.signal.aborted) return;
+                    if (response?.code !== 200) {
+                        message.error(response?.message || "提交重启指令失败");
+                        throw new Error("提交重启指令失败");
+                    }
+                    confirmation.update({
+                        title: `正在${label}`,
+                        content: "正在等待服务恢复，连接成功后将自动刷新。",
+                        closable: false,
+                        mask: {closable: false},
+                        keyboard: false,
+                        cancelButtonProps: {style: {display: "none"}},
+                    });
+                    let disconnected = false;
+                    while (mountedRef.current && !controller.signal.aborted && Date.now() < deadline) {
+                        const status = await request<API.Response<{panel_start_time?: number; boot_time?: number}>>("/system/info", {
+                            timeout: 3000,
+                            signal: controller.signal,
+                            errorHandler: () => undefined,
+                        }).catch(() => undefined);
+                        if (!mountedRef.current || controller.signal.aborted) return;
+                        const nextStartTime = status?.data?.[startTimeField];
+                        const recovered = previousStartTime && nextStartTime
+                            ? String(previousStartTime) !== String(nextStartTime)
+                            : disconnected;
+                        if (status?.code === 200 && recovered) {
+                            message.success(`${label}完成`);
+                            window.location.reload();
+                            return;
+                        }
+                        if (!status) disconnected = true;
+                        await new Promise((resolve) => window.setTimeout(resolve, 2000));
+                    }
+                    if (mountedRef.current && !controller.signal.aborted) {
+                        message.warning("暂未连接到服务，请稍后刷新页面");
+                    }
+                } finally {
+                    resumeConnectionErrors?.();
+                    restartControllerRef.current = null;
+                    if (mountedRef.current) setRestarting(false);
+                }
+            },
+        });
+        restartConfirmRef.current = confirmation;
+    };
 
     return (
         <Card className={styles.hostCard} variant="borderless">
@@ -511,15 +636,29 @@ const HostOverview = React.memo(({info, refreshing, onRefresh}: any) => {
                         </div>
                     </Col>
                 </Row>
-                <Button
-                    className={styles.refreshButton}
-                    color="default"
-                    variant="text"
-                    size="small"
-                    loading={refreshing}
-                    icon={<Icon type="ReloadOutlined"/>}
-                    onClick={() => void onRefresh()}
-                />
+                <Dropdown
+                    trigger={["click"]}
+                    placement="bottomRight"
+                    arrow={{pointAtCenter: true}}
+                    classNames={{root: styles.restartMenu}}
+                    disabled={restarting}
+                    menu={{items: [
+                        {key: "panel", label: "重启面板", onClick: () => confirmRestart("panel")},
+                        {type: "divider"},
+                        {key: "server", label: "重启服务器", danger: true, onClick: () => confirmRestart("server")},
+                    ]}}
+                >
+                    <Button
+                        className={styles.restartButton}
+                        color="default"
+                        variant="text"
+                        size="small"
+                        aria-label="重启"
+                        title="重启"
+                        loading={restarting}
+                        icon={<Icon type="PoweroffOutlined"/>}
+                    />
+                </Dropdown>
             </section>
         </Card>
     );

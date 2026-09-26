@@ -15,14 +15,24 @@ export async function getLog(params: API.RequestParams = {}) {
     return get("/system/log", params?.body, params?.onSuccess, params?.onFail, params?.onFinally);
 }
 
-/** 获取系统信息 GET /system/info */
+/** 获取主机、系统与运行时信息 GET /system/info */
 export async function getSystemInfo(params: API.RequestParams = {}) {
     return get("/system/info", params?.body, params?.onSuccess, params?.onFail, params?.onFinally);
 }
 
-/** 获取系统状态 GET /system/status */
-export async function getSystemStatus(params: API.RequestParams = {}) {
-    return get("/system/status", params?.body, params?.onSuccess, params?.onFail, params?.onFinally);
+/** 重启面板或服务器 POST /system/restart */
+export async function restartSystem(params: API.RequestParams = {}) {
+    return post("/system/restart", params?.body, params?.onSuccess, params?.onFail, params?.onFinally);
+}
+
+/** 获取系统资源使用情况 GET /system/statis */
+export async function getSystemStatis(params: API.RequestParams = {}) {
+    return get("/system/statis", params?.body, params?.onSuccess, params?.onFail, params?.onFinally);
+}
+
+/** 获取网络与磁盘 IO 速率、采样历史 GET /system/io */
+export async function getSystemIO(params: API.RequestParams = {}) {
+    return get("/system/io", params?.body, params?.onSuccess, params?.onFail, params?.onFinally);
 }
 
 /** 获取 HTTP 服务状态或配置 GET /system/http */

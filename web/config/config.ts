@@ -18,6 +18,7 @@ export default defineConfig({
     history: {
         type: 'hash'
     },
+    mfsu: false,
     hash: true,
     exportStatic: {},
     esbuildMinifyIIFE: true,

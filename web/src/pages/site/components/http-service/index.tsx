@@ -51,6 +51,7 @@ const navigationItems = [
 ];
 
 const pageItems = [
+    {key: "initial_page", label: "初始页面", description: "静态或 PHP 网站尚未部署首页时显示", status: 200},
     {key: "not_found_page", label: "404 页面", description: "站点内资源不存在时显示", status: 404},
     {key: "site_not_found_page", label: "网站不存在", description: "访问的域名没有绑定网站时显示", status: 404},
     {key: "site_disabled_page", label: "网站停用", description: "访问已停用的网站时显示", status: 503},
@@ -953,7 +954,7 @@ const HTTPService = forwardRef<any, any>((_, ref): any => {
     const [loadError, setLoadError] = useState("");
     const [siteOptions, setSiteOptions] = useState<any[]>([]);
     const [section, setSection] = useState("service");
-    const [pageSection, setPageSection] = useState("not_found_page");
+    const [pageSection, setPageSection] = useState("initial_page");
     const [networkPanels, setNetworkPanels] = useState<string[]>([]);
     const [runtimePanels, setRuntimePanels] = useState<string[]>([]);
     const [pagePanels, setPagePanels] = useState<string[]>([]);
@@ -1036,7 +1037,7 @@ const HTTPService = forwardRef<any, any>((_, ref): any => {
         setAction("");
         setLoadError("");
         setSection("service");
-        setPageSection("not_found_page");
+        setPageSection("initial_page");
         setNetworkPanels([]);
         setRuntimePanels([]);
         setPagePanels([]);
@@ -1456,7 +1457,7 @@ const HTTPService = forwardRef<any, any>((_, ref): any => {
 
     const pagesContent = section === "pages" && (
         <div className={styles.section}>
-            <SectionHeading styles={styles} title="默认页面" description="自定义资源不存在、域名未绑定和网站停用时返回的页面内容。"/>
+            <SectionHeading styles={styles} title="默认页面" description="自定义网站初始页面、资源不存在、域名未绑定和网站停用时的页面内容。"/>
             <Segmented
                 block
                 className={styles.pageSwitcher}
@@ -1557,7 +1558,7 @@ const HTTPService = forwardRef<any, any>((_, ref): any => {
                         setLoadError("");
                         setSiteOptions([]);
                         setSection("service");
-                        setPageSection("not_found_page");
+                        setPageSection("initial_page");
                         setNetworkPanels([]);
                         setRuntimePanels([]);
                         setPagePanels([]);

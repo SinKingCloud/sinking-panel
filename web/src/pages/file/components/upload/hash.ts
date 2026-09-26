@@ -6,6 +6,7 @@ class Md5 {
     private c = 0x98badcfe | 0;
     private d = 0x10325476 | 0;
     private buffer = new Uint8Array(64);
+    private words = new Int32Array(16);
     private bufferLength = 0;
     private bytesHashed = 0;
 
@@ -54,7 +55,7 @@ class Md5 {
     }
 
     private processBlock(data: Uint8Array, offset: number) {
-        const x: number[] = [];
+        const x = this.words;
         for (let i = 0; i < 16; i++) {
             const index = offset + i * 4;
             x[i] = (data[index] | (data[index + 1] << 8) | (data[index + 2] << 16) |
@@ -179,13 +180,7 @@ const throwIfAborted = (signal?: AbortSignal) => {
     }
 };
 
-const yieldToBrowser = () => new Promise<void>((resolve) => {
-    if (typeof requestAnimationFrame === "function") {
-        requestAnimationFrame(() => resolve());
-        return;
-    }
-    setTimeout(resolve, 0);
-});
+const yieldToBrowser = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 
 const readBlobAsArrayBuffer = (blob: Blob, signal?: AbortSignal) => new Promise<ArrayBuffer>((resolve, reject) => {
     const reader = new FileReader();

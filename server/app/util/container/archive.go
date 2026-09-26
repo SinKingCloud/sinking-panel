@@ -395,7 +395,19 @@ func (m *Manager) applyLayer(layerPath, rootfs string) error {
 				return err
 			}
 		case tar.TypeChar, tar.TypeBlock, tar.TypeFifo:
-			return fmt.Errorf("镜像层包含暂不支持的特殊文件: %s", name)
+			if !m.runtimeDevEntry(name, header) {
+				return fmt.Errorf("镜像层包含暂不支持的特殊文件: %s", name)
+			}
+			// 运行时会重新挂载 /dev 并创建设备，不从镜像向宿主还原设备或控制管道。
+			// 仍按层覆盖语义移除旧条目，并先校验父目录，避免经符号链接删除外部文件。
+			if _, err := m.archivePathInfo(destination, rootfs); errors.Is(err, os.ErrNotExist) {
+				continue
+			} else if err != nil {
+				return err
+			}
+			if err := os.RemoveAll(destination); err != nil {
+				return err
+			}
 		default:
 			if header.Size > 0 {
 				if _, err := io.Copy(io.Discard, reader); err != nil {
@@ -428,6 +440,41 @@ func (m *Manager) applyLayer(layerPath, rootfs string) error {
 		}
 	}
 	return nil
+}
+
+// runtimeDevEntry 只兼容旧系统镜像中已知的 /dev 条目；其余特殊文件仍拒绝导入。
+func (m *Manager) runtimeDevEntry(name string, header *tar.Header) bool {
+	name = filepath.ToSlash(filepath.Clean(name))
+	if header.Typeflag == tar.TypeFifo {
+		return name == "dev/initctl"
+	}
+	if header.Typeflag != tar.TypeChar {
+		return false
+	}
+	var major, minor int64
+	switch name {
+	case "dev/null":
+		major, minor = 1, 3
+	case "dev/zero":
+		major, minor = 1, 5
+	case "dev/full":
+		major, minor = 1, 7
+	case "dev/random":
+		major, minor = 1, 8
+	case "dev/urandom":
+		major, minor = 1, 9
+	case "dev/tty":
+		major, minor = 5, 0
+	case "dev/console":
+		major, minor = 5, 1
+	case "dev/ptmx":
+		major, minor = 5, 2
+	case "dev/tty0":
+		major, minor = 4, 0
+	default:
+		return false
+	}
+	return header.Devmajor == major && header.Devminor == minor
 }
 
 func (m *Manager) openTarReader(file *os.File) (*tar.Reader, io.Closer, error) {
