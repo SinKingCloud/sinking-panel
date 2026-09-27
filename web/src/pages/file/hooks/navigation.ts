@@ -43,12 +43,7 @@ const getPathFromSearch = (search: string) => (
     normalizeFilePath(new URLSearchParams(search).get("path") || "/")
 );
 
-export interface UseFileNavigationOptions {
-    onBeforeNavigate: () => void;
-    onExternalPathChange: () => void;
-}
-
-const useFileNavigation = ({onBeforeNavigate, onExternalPathChange}: UseFileNavigationOptions) => {
+const useFileNavigation = ({onBeforeNavigate, onExternalPathChange}: any) => {
     const {message} = App.useApp();
     const location = useLocation();
     const initialPathRef = useRef(

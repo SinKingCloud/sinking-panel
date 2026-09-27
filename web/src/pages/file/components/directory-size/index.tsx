@@ -1,16 +1,8 @@
 import React from "react";
 import {Spin, Tooltip} from "antd";
-import type {DirectoryCountState} from "../../hooks/directory-counts";
 import {formatFileSize} from "../../utils";
 
-interface DirectorySizeProps {
-    className?: string;
-    path: string;
-    count?: DirectoryCountState;
-    onCount: (path: string) => void;
-}
-
-const DirectorySize = ({className = "", path, count, onCount}: DirectorySizeProps) => {
+const DirectorySize = ({className = "", path, count, onCount}: any) => {
     const countDirectory = () => onCount(path);
     if (count?.status === "loading") {
         return (

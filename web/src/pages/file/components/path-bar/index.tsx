@@ -5,19 +5,12 @@ import {Icon, useTheme} from "sinking-antd";
 import {buildFileBreadcrumbs, normalizeFilePath, parentFilePath} from "../../utils";
 import useStyles from "./styles";
 
-export interface FilePathBarProps {
-    path: string;
-    roots?: string[];
-    disabled?: boolean;
-    onNavigate?: (path: string) => void;
-}
-
 const FilePathBar = ({
     path,
     roots,
     disabled,
     onNavigate,
-}: FilePathBarProps) => {
+}: any) => {
     const theme = useTheme();
     const {styles} = useStyles({compact: Boolean(theme?.isCompactTheme?.())});
     const breadcrumbRef = useRef<HTMLOListElement>(null);

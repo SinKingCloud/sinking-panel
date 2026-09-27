@@ -3,22 +3,6 @@ import {App} from "antd";
 import {copyFile, getFileInfo, moveFile} from "@/service/api/file";
 import {comparableFilePath, joinFilePath} from "../utils";
 
-interface PasteConfirmState {
-    id: symbol;
-    destroy: () => void;
-    resolve: (value: boolean) => void;
-}
-
-export interface UseFileClipboardOptions {
-    path: string;
-    loaded: boolean;
-    loading: boolean;
-    navigating: boolean;
-    selectedRecords: readonly any[];
-    hasBusySelection: boolean;
-    trackTask: (taskId: string, title: string) => void;
-}
-
 const emptyItems: any[] = [];
 
 const ignoreShortcut = (target: EventTarget | null) => {
@@ -38,13 +22,13 @@ const useFileClipboard = ({
     selectedRecords,
     hasBusySelection,
     trackTask,
-}: UseFileClipboardOptions) => {
+}: any) => {
     const {message, modal} = App.useApp();
     const [clipboard, setClipboard] = useState<any>();
     const [pasting, setPasting] = useState(false);
     const generationRef = useRef(0);
     const startingRef = useRef(false);
-    const confirmRef = useRef<PasteConfirmState | undefined>(undefined);
+    const confirmRef = useRef<any>(undefined);
     const items = clipboard?.items ?? emptyItems;
     const mode = clipboard?.mode ?? "copy";
 

@@ -1,12 +1,8 @@
 import {useCallback, useEffect, useState} from "react";
-import type {
-    FileEditorPreferences,
-    FileEditorTheme,
-} from "../components/editor-settings";
 import {readFileStorage, updateFileStorage} from "./file-storage";
 
 const preferencesVersion = 2;
-const availableThemes = new Set<FileEditorTheme>([
+const availableThemes = new Set<string>([
     "auto",
     "github",
     "github_dark",
@@ -19,7 +15,7 @@ const availableThemes = new Set<FileEditorTheme>([
     "solarized_dark",
 ]);
 
-const defaultPreferences: FileEditorPreferences = {
+const defaultPreferences: any = {
     theme: "auto",
     fontSize: 12,
     tabSize: 4,
@@ -27,26 +23,22 @@ const defaultPreferences: FileEditorPreferences = {
     showLineNumbers: true,
 };
 
-type StoredFileEditorPreferences = Partial<FileEditorPreferences> & {
-    version?: number;
-};
-
 const clampInteger = (value: unknown, minimum: number, maximum: number, fallback: number) => {
     const numeric = Math.trunc(Number(value));
     return Number.isFinite(numeric) ? Math.min(maximum, Math.max(minimum, numeric)) : fallback;
 };
 
-const loadPreferences = (): FileEditorPreferences => {
+const loadPreferences = (): any => {
     if (typeof window === "undefined") {
         return defaultPreferences;
     }
     try {
-        const stored = readFileStorage().editor?.preferences as StoredFileEditorPreferences | undefined;
+        const stored = readFileStorage().editor?.preferences as any;
         if (!stored || typeof stored !== "object") {
             return defaultPreferences;
         }
-        const theme = availableThemes.has(stored.theme as FileEditorTheme)
-            ? stored.theme as FileEditorTheme
+        const theme = availableThemes.has(stored.theme as string)
+            ? stored.theme as string
             : defaultPreferences.theme;
         const tabSize = [2, 4, 8].includes(Number(stored.tabSize))
             ? Number(stored.tabSize)
@@ -74,7 +66,7 @@ const loadPreferences = (): FileEditorPreferences => {
 };
 
 const useFileEditorPreferences = () => {
-    const [preferences, setPreferences] = useState<FileEditorPreferences>(loadPreferences);
+    const [preferences, setPreferences] = useState<any>(loadPreferences);
 
     useEffect(() => {
         updateFileStorage((current) => ({

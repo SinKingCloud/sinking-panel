@@ -6,24 +6,7 @@ import {formatFileMode, formatFileSize, formatFileTime, getFileIconType} from ".
 import useStyles from "./styles";
 import {copyTextToClipboard} from "./utils";
 
-interface PropertiesState {
-    path: string;
-    record: any;
-}
-
-export interface FilePropertiesRef {
-    open: (path: string, record: any) => void;
-    close: () => void;
-    updateRename: (sourcePath: string, targetPath: string, name: string) => void;
-    updatePermissions: (path: string, permissions: string) => void;
-}
-
-interface FilePropertiesProps {
-    onRename: (path: string, record: any) => void;
-    onPermissions: (path: string, record: any) => void;
-}
-
-const FileProperties = forwardRef<FilePropertiesRef, FilePropertiesProps>(({onRename, onPermissions}, ref) => {
+const FileProperties = forwardRef<any, any>(({onRename, onPermissions}, ref) => {
     const theme = useTheme();
     const compact = Boolean(theme?.isCompactTheme?.());
     const screens = Grid.useBreakpoint();
@@ -31,8 +14,8 @@ const FileProperties = forwardRef<FilePropertiesRef, FilePropertiesProps>(({onRe
     const {message} = App.useApp();
     const requestRef = useRef(0);
     const generationRef = useRef(0);
-    const stateRef = useRef<PropertiesState | undefined>(undefined);
-    const [state, setState] = useState<PropertiesState>();
+    const stateRef = useRef<any>(undefined);
+    const [state, setState] = useState<any>();
     const [info, setInfo] = useState<any>();
 
     const close = useCallback(() => {
@@ -76,7 +59,7 @@ const FileProperties = forwardRef<FilePropertiesRef, FilePropertiesProps>(({onRe
     }, []);
 
     useImperativeHandle(ref, () => ({
-        open: (path, record) => {
+        open: (path: string, record: any) => {
             const generation = ++generationRef.current;
             const requestId = ++requestRef.current;
             const nextState = {path, record};

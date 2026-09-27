@@ -4,24 +4,7 @@ import {createStyles} from "antd-style";
 import {Icon, useTheme} from "sinking-antd";
 import {controlSiteProcess, getSiteProcessStatus} from "@/service/api/site";
 
-type ProcessAction = "start" | "stop" | "restart";
-type ProcessState = "starting" | "running" | "stopping" | "restarting" | "stopped" | "failed";
-
-interface ProcessStatus {
-    state: ProcessState;
-    pid: number;
-    restart_count: number;
-    max_retries: number;
-    retry_exhausted: boolean;
-    error?: string;
-}
-
-interface ProcessControlsProps {
-    siteId: number;
-    disabled?: boolean;
-}
-
-const processStates: Record<ProcessState, {label: string; color: string}> = {
+const processStates: Record<string, {label: string; color: string}> = {
     starting: {label: "正在启动", color: "processing"},
     running: {label: "运行中", color: "success"},
     stopping: {label: "正在停止", color: "warning"},
@@ -152,7 +135,7 @@ const useStyles = createStyles(({css, token}: any, {compact}: {compact: boolean}
     `,
 }));
 
-const ProcessControls = ({siteId, disabled = false}: ProcessControlsProps) => {
+const ProcessControls = ({siteId, disabled = false}: any) => {
     const theme = useTheme();
     const {styles} = useStyles({compact: Boolean(theme?.isCompactTheme?.())});
     const {message} = App.useApp();
@@ -160,9 +143,9 @@ const ProcessControls = ({siteId, disabled = false}: ProcessControlsProps) => {
     const versionRef = useRef(0);
     const actionRef = useRef(false);
     const pendingRef = useRef<Promise<void>>(Promise.resolve());
-    const [status, setStatus] = useState<ProcessStatus | null>(null);
+    const [status, setStatus] = useState<any | null>(null);
     const [loading, setLoading] = useState(true);
-    const [action, setAction] = useState<ProcessAction | null>(null);
+    const [action, setAction] = useState<string | null>(null);
     const [loadError, setLoadError] = useState("");
 
     const isCurrent = useCallback((version: number) => versionRef.current === version && siteRef.current !== null, []);
@@ -239,7 +222,7 @@ const ProcessControls = ({siteId, disabled = false}: ProcessControlsProps) => {
         };
     }, [siteId, action, enqueue, isCurrent, loadStatus]);
 
-    const control = async (nextAction: ProcessAction) => {
+    const control = async (nextAction: string) => {
         if (!siteRef.current || actionRef.current || disabled) {
             return;
         }

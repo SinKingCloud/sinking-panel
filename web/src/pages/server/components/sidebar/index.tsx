@@ -2,34 +2,6 @@ import React, {useCallback, useEffect, useMemo, useState} from "react";
 import {Button, Empty, Input, Spin, Tooltip} from "antd";
 import {Icon, Title} from "sinking-antd";
 import ActionDropdown from "@/pages/components/action-dropdown";
-import type {ConnectionStatus} from "../terminal";
-import type {ServerRecord} from "../../hooks/servers";
-
-interface SidebarProps {
-    styles: any;
-    collapsed: boolean;
-    servers: ServerRecord[];
-    loading: boolean;
-    loadingMore: boolean;
-    loaded: boolean;
-    initializing: boolean;
-    hasMore: boolean;
-    localLoading: boolean;
-    localError: boolean;
-    keyword: string;
-    selectedId: number;
-    connectionStatuses: Record<string, ConnectionStatus>;
-    authTypeData: Record<string, string>;
-    onSelect: (server: ServerRecord) => void;
-    onConnect: (server: ServerRecord) => void;
-    onEdit: (server: ServerRecord) => void;
-    onDelete: (server: ServerRecord) => void;
-    onReload: () => void;
-    onLoadMore: () => void;
-    onKeywordChange: (keyword: string) => void;
-    onCreate: () => void;
-    onCollapsedChange: (collapsed: boolean) => void;
-}
 
 const renderBatchSize = 80;
 
@@ -57,7 +29,7 @@ const Sidebar = ({
     onKeywordChange,
     onCreate,
     onCollapsedChange,
-}: SidebarProps) => {
+}: any) => {
     const [visibleCount, setVisibleCount] = useState(renderBatchSize);
     const visibleItems = useMemo(
         () => servers.slice(0, visibleCount),
@@ -82,7 +54,7 @@ const Sidebar = ({
         }
     }, [hasMore, loadingMore, onLoadMore, servers.length, visibleCount]);
 
-    const renderServer = (server: ServerRecord) => {
+    const renderServer = (server: any) => {
         const selected = selectedId === server.id;
         const local = server.id === 0;
         const connectionStatus = connectionStatuses[String(server.id)] || "idle";

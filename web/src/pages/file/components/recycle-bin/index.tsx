@@ -24,23 +24,6 @@ import {getData} from "@/utils/page";
 import {formatFileSize, formatFileTime} from "../../utils";
 import useStyles from "./styles";
 
-export interface FileRecycleBinRef {
-    open: () => void;
-}
-
-interface FileRecycleBinProps {
-    onMutation: () => void;
-}
-
-type RecycleAction = "restore" | "delete";
-
-interface RecycleRowActionsProps {
-    id: string;
-    name: string;
-    onDelete: (names: string[], name?: string) => void;
-    onRestore: (names: string[], name?: string) => void;
-}
-
 const recycleSort = {update_time: "descend"};
 
 const normalizeNames = (names: string[]) => Array.from(new Set((names || []).filter(Boolean)));
@@ -50,7 +33,7 @@ const RecycleRowActions = memo(({
     name,
     onDelete,
     onRestore,
-}: RecycleRowActionsProps) => {
+}: any) => {
     const restore = useCallback(() => onRestore([id], name), [id, name, onRestore]);
     const remove = useCallback(() => onDelete([id], name), [id, name, onDelete]);
     const menu = useMemo(() => ({
@@ -69,7 +52,7 @@ const RecycleRowActions = memo(({
 
 RecycleRowActions.displayName = "RecycleRowActions";
 
-const FileRecycleBin = memo(forwardRef<FileRecycleBinRef, FileRecycleBinProps>(({onMutation}, ref) => {
+const FileRecycleBin = memo(forwardRef<any, any>(({onMutation}, ref) => {
     const {message, modal} = App.useApp();
     const appTheme = useTheme();
     const compact = Boolean(appTheme?.isCompactTheme?.());
@@ -120,7 +103,7 @@ const FileRecycleBin = memo(forwardRef<FileRecycleBinRef, FileRecycleBinProps>((
         onMutation();
     }, [loadCount, onMutation]);
 
-    const mutate = useCallback((names: string[], action: RecycleAction) => {
+    const mutate = useCallback((names: string[], action: string) => {
         const nextNames = normalizeNames(names);
         if (nextNames.length === 0) {
             message.warning("请选择回收站文件");

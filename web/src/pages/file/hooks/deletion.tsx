@@ -1,22 +1,7 @@
 import {useCallback, useEffect, useRef} from "react";
 import {App, Checkbox} from "antd";
 import {deleteFile} from "@/service/api/file";
-import type {FileOperationLock} from "./operation-lock";
 import {joinFilePath} from "../utils";
-
-interface DeleteConfirmState {
-    id: symbol;
-    destroy: () => void;
-}
-
-export interface UseFileDeletionOptions {
-    path: string;
-    selectedRecords: readonly any[];
-    navigationVersionRef: {current: number};
-    operationLock: FileOperationLock;
-    reload: () => void;
-    removeSelection: (paths: Iterable<string>) => void;
-}
 
 const useFileDeletion = ({
     path,
@@ -25,9 +10,9 @@ const useFileDeletion = ({
     operationLock,
     reload,
     removeSelection,
-}: UseFileDeletionOptions) => {
+}: any) => {
     const {message, modal} = App.useApp();
-    const confirmRef = useRef<DeleteConfirmState | undefined>(undefined);
+    const confirmRef = useRef<any>(undefined);
     const {begin, finish, beginMany, finishMany} = operationLock;
 
     const closeConfirm = useCallback(() => {

@@ -1,7 +1,6 @@
 package container
 
 import (
-	"server/app/enum/container_status"
 	"server/app/enum/log_type"
 	"server/app/service"
 	serviceContainer "server/app/service/container"
@@ -67,10 +66,6 @@ func List(c *context.Context) {
 	}
 	if form.Status != "" {
 		status := container.State(form.Status)
-		if _, ok := container_status.Map()[status]; !ok {
-			c.Error("运行状态无效")
-			return
-		}
 		where.Status = &status
 	}
 	data, err := service.Container.List(where, query)

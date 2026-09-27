@@ -9,21 +9,11 @@ import useStyles from "./styles";
 
 const emptyEnum = {};
 
-interface LogRecord {
-    id: number;
-    ip: string;
-    location: string;
-    type: number;
-    title: string;
-    content: string;
-    create_time: string;
-}
-
 export default (): React.ReactNode => {
     const {styles} = useStyles();
     const {message} = App.useApp();
     const [enumData, enumLoading]: any = useEnum("log");
-    const tableRef = useRef<PageTableRef<LogRecord> | null>(null);
+    const tableRef = useRef<PageTableRef<any> | null>(null);
     const clearRef = useRef<ProModalRef | null>(null);
     const requestRef = useRef(0);
     const submittingRef = useRef(false);
@@ -35,7 +25,7 @@ export default (): React.ReactNode => {
         requestRef.current += 1;
     }, []);
 
-    const columns = useMemo<PageTableProps<LogRecord>["columns"]>(() => [
+    const columns = useMemo<PageTableProps<any>["columns"]>(() => [
         {
             title: "操作IP",
             dataIndex: "ip",
@@ -127,7 +117,7 @@ export default (): React.ReactNode => {
 
     return (
         <Body loading={enumLoading}>
-            <PageTable<LogRecord>
+            <PageTable<any>
                 ref={tableRef}
                 ariaLabel="操作日志"
                 className={styles.logTable}

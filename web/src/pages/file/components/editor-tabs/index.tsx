@@ -1,17 +1,7 @@
 import React, {useCallback, useEffect, useRef} from "react";
 import {Button, Tooltip} from "antd";
 import {Icon} from "sinking-antd";
-import type {FileEditorTab} from "../../hooks/editor-document";
 import {getFileIconType} from "../../utils";
-
-interface FileEditorTabsProps {
-    tabs: FileEditorTab[];
-    activeKey?: string;
-    tooltipsDisabled: boolean;
-    getPopupContainer: () => HTMLElement;
-    onActivate: (key: string) => void;
-    onClose: (key: string) => void;
-}
 
 const FileEditorTabs = ({
     tabs,
@@ -20,7 +10,7 @@ const FileEditorTabs = ({
     getPopupContainer,
     onActivate,
     onClose,
-}: FileEditorTabsProps) => {
+}: any) => {
     const activeTabRef = useRef<HTMLDivElement | null>(null);
 
     useEffect(() => {
@@ -38,7 +28,7 @@ const FileEditorTabs = ({
 
     return (
         <div className="file-editor-tabs" role="tablist" aria-label="已打开文件">
-            {tabs.map((tab) => {
+            {tabs.map((tab: any) => {
                 const active = tab.key === activeKey;
                 const stateClassName = tab.error
                     ? "has-error"

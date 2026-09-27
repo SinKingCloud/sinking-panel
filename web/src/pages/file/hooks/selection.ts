@@ -1,25 +1,19 @@
 import {useCallback, useEffect, useMemo, useState} from "react";
 import {joinFilePath} from "../utils";
 
-export interface UseFileSelectionOptions {
-    path: string;
-    items: readonly any[];
-    operatingPaths: ReadonlySet<string>;
-}
-
-const useFileSelection = ({path, items, operatingPaths}: UseFileSelectionOptions) => {
+const useFileSelection = ({path, items, operatingPaths}: any) => {
     const [selectedPaths, setSelectedPaths] = useState<ReadonlySet<string>>(() => new Set());
 
-    const selectedRecords = useMemo(() => items.filter((record) => (
+    const selectedRecords = useMemo(() => items.filter((record: any) => (
         selectedPaths.has(joinFilePath(path, record.name))
     )), [items, path, selectedPaths]);
 
-    const hasBusySelection = useMemo(() => selectedRecords.some((record) => (
+    const hasBusySelection = useMemo(() => selectedRecords.some((record: any) => (
         operatingPaths.has(joinFilePath(path, record.name))
     )), [operatingPaths, path, selectedRecords]);
 
     useEffect(() => {
-        const visiblePaths = new Set(items.map((record) => joinFilePath(path, record.name)));
+        const visiblePaths = new Set(items.map((record: any) => joinFilePath(path, record.name)));
         setSelectedPaths((current) => {
             const next = new Set(Array.from(current).filter((value) => visiblePaths.has(value)));
             return next.size === current.size ? current : next;

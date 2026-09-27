@@ -16,7 +16,7 @@ import (
 // Obtain 通过 ACME 申请证书，type 控制自动或手动验证。
 func Obtain(c *context.Context) {
 	var form struct {
-		Type      int    `json:"type" default:"2" validate:"required,oneof=1 2" label:"证书类型"`
+		Type      int    `json:"type" default:"2" validate:"required" label:"证书类型"`
 		Action    string `json:"action" default:"start" validate:"required,oneof=start submit cancel" label:"验证操作"`
 		SessionId string `json:"session_id" default:"" validate:"omitempty,max=128" label:"验证会话"`
 		Name      string `json:"name" default:"" validate:"required_if=Action start,max=100" label:"证书名称"`
@@ -24,7 +24,7 @@ func Obtain(c *context.Context) {
 		CA        string `json:"ca" default:"" validate:"omitempty,oneof=production staging" label:"签发环境"`
 		Challenge string `json:"challenge" default:"http" validate:"required,oneof=http dns" label:"验证方式"`
 		SecretId  *int64 `json:"secret_id" validate:"omitempty,min=0" label:"密钥ID"`
-		AutoRenew *int   `json:"auto_renew" validate:"omitempty,oneof=0 1" label:"自动续签"`
+		AutoRenew *int   `json:"auto_renew" validate:"omitempty,numeric" label:"自动续签"`
 	}
 	if ok, msg := c.ValidatorAll(&form); !ok {
 		c.Error(msg)
@@ -94,7 +94,7 @@ func Obtain(c *context.Context) {
 // Renew 续签 ACME 证书，type 控制自动或手动验证。
 func Renew(c *context.Context) {
 	var form struct {
-		Type      int    `json:"type" default:"2" validate:"required,oneof=1 2" label:"证书类型"`
+		Type      int    `json:"type" default:"2" validate:"required" label:"证书类型"`
 		Action    string `json:"action" default:"start" validate:"required,oneof=start submit cancel" label:"验证操作"`
 		SessionId string `json:"session_id" default:"" validate:"omitempty,max=128" label:"验证会话"`
 		Id        int64  `json:"id" default:"0" validate:"required,min=1" label:"证书ID"`
@@ -102,7 +102,7 @@ func Renew(c *context.Context) {
 		CA        string `json:"ca" default:"" validate:"omitempty,oneof=production staging" label:"签发环境"`
 		Challenge string `json:"challenge" validate:"omitempty,oneof=http dns" label:"验证方式"`
 		SecretId  *int64 `json:"secret_id" validate:"omitempty,min=0" label:"密钥ID"`
-		AutoRenew *int   `json:"auto_renew" validate:"omitempty,oneof=0 1" label:"自动续签"`
+		AutoRenew *int   `json:"auto_renew" validate:"omitempty,numeric" label:"自动续签"`
 	}
 	if ok, msg := c.ValidatorAll(&form); !ok {
 		c.Error(msg)

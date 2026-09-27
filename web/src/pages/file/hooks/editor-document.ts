@@ -1,7 +1,5 @@
 import {useCallback, useEffect, useRef, useState} from "react";
-import {App} from "antd";
 import {getFilePreviewKind} from "@/pages/components/file-preview/media";
-import type {FilePreviewKind} from "@/pages/components/file-preview/media";
 import {getFileInfo, updateFile} from "@/service/api/file";
 import {
     contentByteSize,
@@ -10,47 +8,11 @@ import {
     maxEditorContentSize,
 } from "../components/editor/utils";
 
-export interface FileEditorTab {
-    key: string;
-    generation: number;
-    path: string;
-    name: string;
-    previewKind?: FilePreviewKind;
-    contentLength: number;
-    version: string;
-    loading: boolean;
-    saving: boolean;
-    dirty: boolean;
-    error: string;
-}
-
-export type FileEditorDocument = FileEditorTab;
-
-export interface UseFileEditorDocumentOptions {
-    onMutation: () => void;
-    message: ReturnType<typeof App.useApp>["message"];
-}
-
-interface FileEditorTabRuntime {
-    generation: number;
-    loadToken: number;
-    saveToken: number;
-    path: string;
-    name: string;
-    previewKind?: FilePreviewKind;
-    content: string;
-    baseline: string;
-    version: string;
-    loading: boolean;
-    saving: boolean;
-    dirty: boolean;
-}
-
 const getErrorMessage = (error: unknown, fallback: string) => (
     error instanceof Error && error.message ? error.message : fallback
 );
 
-const createTab = (key: string, runtime: FileEditorTabRuntime): FileEditorTab => ({
+const createTab = (key: string, runtime: any): any => ({
     key,
     generation: runtime.generation,
     path: runtime.path,
@@ -64,10 +26,10 @@ const createTab = (key: string, runtime: FileEditorTabRuntime): FileEditorTab =>
     error: "",
 });
 
-const useFileEditorDocument = ({onMutation, message}: UseFileEditorDocumentOptions) => {
+const useFileEditorDocument = ({onMutation, message}: any) => {
     const generationRef = useRef(0);
-    const runtimesRef = useRef(new Map<string, FileEditorTabRuntime>());
-    const tabsRef = useRef<FileEditorTab[]>([]);
+    const runtimesRef = useRef(new Map<string, any>());
+    const tabsRef = useRef<any[]>([]);
     const activeKeyRef = useRef<string | undefined>(undefined);
     const onMutationRef = useRef(onMutation);
     const contentUpdateFrameRef = useRef<number | undefined>(undefined);
@@ -76,7 +38,7 @@ const useFileEditorDocument = ({onMutation, message}: UseFileEditorDocumentOptio
         contentLength: number;
         dirty: boolean;
     }>());
-    const [tabs, setTabs] = useState<FileEditorTab[]>([]);
+    const [tabs, setTabs] = useState<any[]>([]);
     const [activeKey, setActiveKey] = useState<string>();
 
     useEffect(() => {
@@ -93,7 +55,7 @@ const useFileEditorDocument = ({onMutation, message}: UseFileEditorDocumentOptio
         activeKeyRef.current = undefined;
     }, []);
 
-    const commitTabs = useCallback((next: FileEditorTab[]) => {
+    const commitTabs = useCallback((next: any[]) => {
         tabsRef.current = next;
         setTabs(next);
     }, []);
@@ -101,7 +63,7 @@ const useFileEditorDocument = ({onMutation, message}: UseFileEditorDocumentOptio
     const updateTab = useCallback((
         key: string,
         generation: number,
-        update: (tab: FileEditorTab) => FileEditorTab,
+        update: (tab: any) => any,
     ) => {
         let changed = false;
         const next = tabsRef.current.map((tab) => {
@@ -266,7 +228,7 @@ const useFileEditorDocument = ({onMutation, message}: UseFileEditorDocumentOptio
 
         const generation = ++generationRef.current;
         const previewKind = getFilePreviewKind(name);
-        const runtime: FileEditorTabRuntime = {
+        const runtime: any = {
             generation,
             loadToken: 1,
             saveToken: 0,
@@ -325,7 +287,7 @@ const useFileEditorDocument = ({onMutation, message}: UseFileEditorDocumentOptio
         }
 
         const generation = ++generationRef.current;
-        const runtime: FileEditorTabRuntime = {
+        const runtime: any = {
             generation,
             loadToken: previous.loadToken + 1,
             saveToken: previous.saveToken + 1,

@@ -48,29 +48,14 @@ const useStyles = createStyles(({css, token}: any) => ({
     `,
 }));
 
-interface ScriptFormValues {
-    name: string;
-    type_id: number;
-    script: string;
-}
-
-export interface ScriptFormRef {
-    open: (record?: any, defaultTypeId?: number) => void;
-}
-
-interface ScriptFormProps {
-    typeItems: any[];
-    onSuccess?: () => void;
-}
-
-const ScriptForm = forwardRef<ScriptFormRef, ScriptFormProps>(({typeItems, onSuccess}, ref): any => {
+const ScriptForm = forwardRef<any, any>(({typeItems, onSuccess}, ref): any => {
     const {message} = App.useApp();
     const theme = useTheme();
     const compact = Boolean(theme?.isCompactTheme?.());
     const {styles} = useStyles();
     const modalRef = useRef<ProModalRef>({} as ProModalRef);
     const requestRef = useRef(0);
-    const [form] = AntForm.useForm<ScriptFormValues>();
+    const [form] = AntForm.useForm<any>();
     const [scriptId, setScriptId] = useState<number>();
     const [active, setActive] = useState(false);
     const [infoLoading, setInfoLoading] = useState(false);
@@ -78,7 +63,7 @@ const ScriptForm = forwardRef<ScriptFormRef, ScriptFormProps>(({typeItems, onSuc
     const editing = scriptId !== undefined;
     const typeOptions = useMemo(() => [
         {label: "全部分类", value: 0},
-        ...typeItems.map((item) => ({label: item.name, value: Number(item.id)})),
+        ...typeItems.map((item: any) => ({label: item.name, value: Number(item.id)})),
     ], [typeItems]);
 
     const reset = useCallback(() => {
@@ -150,7 +135,7 @@ const ScriptForm = forwardRef<ScriptFormRef, ScriptFormProps>(({typeItems, onSuc
         modalRef.current?.hide();
     }, []);
 
-    const submit = useCallback(async (values: ScriptFormValues) => {
+    const submit = useCallback(async (values: any) => {
         const requestId = ++requestRef.current;
         const name = String(values.name || "").trim();
         const script = String(values.script || "");
@@ -213,7 +198,7 @@ const ScriptForm = forwardRef<ScriptFormRef, ScriptFormProps>(({typeItems, onSuc
                 focusable: {focusTriggerAfterClose: false},
                 afterClose: reset,
             } as any}>
-            <AntForm<ScriptFormValues> form={form} layout="vertical" variant="filled" onFinish={submit}>
+            <AntForm<any> form={form} layout="vertical" variant="filled" onFinish={submit}>
                 {active && (infoLoading ? (
                     <div className={styles.loading}>
                         <Spin description="加载脚本详情..."/>

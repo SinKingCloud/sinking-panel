@@ -4,37 +4,15 @@ import {ProModal, Title, useTheme} from "sinking-antd";
 import {createFile, renameFile} from "@/service/api/file";
 import {joinFilePath, parentFilePath} from "../../utils";
 
-interface EditorState {
-    generation: number;
-    mode: any;
-    path: string;
-    targetPath?: string;
-    record?: any;
-}
-
-export interface FileFormRef {
-    open: (mode: any, path: string, record?: any, layered?: boolean) => void;
-    openRename: (path: string, record: any, layered?: boolean) => void;
-    close: () => void;
-}
-
-interface FileFormProps {
-    onSuccess: (result: any) => void;
-}
-
-interface FormValues {
-    name: string;
-}
-
-const FileForm = forwardRef<FileFormRef, FileFormProps>(({onSuccess}, ref) => {
+const FileForm = forwardRef<any, any>(({onSuccess}, ref) => {
     const {message} = App.useApp();
     const theme = useTheme();
     const compact = Boolean(theme?.isCompactTheme?.());
     const screens = Grid.useBreakpoint();
-    const [form] = AntForm.useForm<FormValues>();
+    const [form] = AntForm.useForm<any>();
     const generationRef = useRef(0);
     const submittingRef = useRef(false);
-    const [editor, setEditor] = useState<EditorState>();
+    const [editor, setEditor] = useState<any>();
     const [layered, setLayered] = useState(false);
     const [submitting, setSubmitting] = useState(false);
 
@@ -52,7 +30,7 @@ const FileForm = forwardRef<FileFormRef, FileFormProps>(({onSuccess}, ref) => {
     }, [form]);
 
     useImperativeHandle(ref, () => ({
-        open: (mode, path, record, nested = false) => {
+        open: (mode: any, path: string, record: any, nested = false) => {
             if (submittingRef.current) {
                 return;
             }
@@ -62,7 +40,7 @@ const FileForm = forwardRef<FileFormRef, FileFormProps>(({onSuccess}, ref) => {
             form.setFieldsValue({name: mode === "rename" ? record?.name || "" : ""});
             window.requestAnimationFrame(() => form.focusField("name"));
         },
-        openRename: (path, record, nested = false) => {
+        openRename: (path: string, record: any, nested = false) => {
             if (submittingRef.current) {
                 return;
             }
@@ -75,7 +53,7 @@ const FileForm = forwardRef<FileFormRef, FileFormProps>(({onSuccess}, ref) => {
         close,
     }), [close, form]);
 
-    const submit = async ({name}: FormValues) => {
+    const submit = async ({name}: any) => {
         if (!editor || submittingRef.current) {
             return;
         }
@@ -160,7 +138,7 @@ const FileForm = forwardRef<FileFormRef, FileFormProps>(({onSuccess}, ref) => {
                 cancelButtonProps: {disabled: false},
                 styles: {body: {paddingTop: compact ? 10 : 15}},
             }}>
-            <AntForm<FormValues>
+            <AntForm<any>
                 form={form}
                 layout="vertical"
                 variant="filled"

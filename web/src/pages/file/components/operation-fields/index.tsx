@@ -8,14 +8,6 @@ import {
     validateUrl,
 } from "../operation-form/utils";
 
-export interface FileOperationFormValues {
-    dir?: string;
-    name?: string;
-    format?: "zip" | "tar" | "gz" | "tgz";
-    url?: string;
-    path?: string;
-}
-
 const formatOptions = [
     {label: "ZIP", value: "zip"},
     {label: "TAR", value: "tar"},
@@ -74,7 +66,7 @@ export const ExtractOperationFields = memo(() => (
 ExtractOperationFields.displayName = "ExtractOperationFields";
 
 export const RemoteDownloadOperationFields = memo(() => {
-    const form = AntForm.useFormInstance<FileOperationFormValues>();
+    const form = AntForm.useFormInstance<any>();
     const nameEditedRef = useRef(false);
 
     return (

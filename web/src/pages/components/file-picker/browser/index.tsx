@@ -10,7 +10,6 @@ import {
     isFilePathWithin as isPathWithin,
     joinFilePath,
 } from "@/pages/file/utils";
-import type {FileBreadcrumbItem} from "@/pages/file/utils";
 
 type FilePickerBrowserProps = {
     className: string;
@@ -21,7 +20,7 @@ type FilePickerBrowserProps = {
     selectedFile?: any;
     disks: string[];
     selectedDisk?: string;
-    pathBreadcrumbs: FileBreadcrumbItem[];
+    pathBreadcrumbs: any[];
     parentPath: string;
     diskRoot: string;
     canGoUp: boolean;

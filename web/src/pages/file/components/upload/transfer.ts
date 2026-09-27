@@ -4,13 +4,6 @@ import {
 } from "@/service/api/file";
 import {getFileMd5} from "./hash";
 
-interface FileUploadData {
-    name: string;
-    path: string;
-    size: number;
-    file_hash?: string;
-}
-
 const isUploadError = (error: unknown, name: string) => (
     Boolean(error && typeof error === "object" && "name" in error && (error as {name?: unknown}).name === name)
 );
@@ -41,28 +34,6 @@ const requestFileUpload = <T = any, >(
     },
 ) => requestFileUploadApi<T>(apiUrl("/file/upload"), action, signal, params);
 
-interface FileTransferProgress {
-    loaded: number;
-    total: number;
-    percent: number;
-    phase?: "checking" | "uploading" | "merging" | "complete";
-    chunkIndex?: number;
-    totalChunks?: number;
-    attempt?: number;
-}
-
-interface FileUploadOptions {
-    path: string;
-    file: Blob;
-    fileName?: string;
-    onProgress?: (progress: FileTransferProgress) => void;
-}
-
-interface FileUploadTask {
-    promise: Promise<API.Response<FileUploadData>>;
-    abort: () => void;
-}
-
 const FILE_UPLOAD_CHUNK_THRESHOLD = 2 * 1024 * 1024;
 const FILE_UPLOAD_CHUNK_SIZE = 8 * 1024 * 1024;
 const FILE_UPLOAD_MAX_RETRIES = 3;
@@ -72,23 +43,9 @@ const FILE_UPLOAD_RESUME_LEGACY_STORAGE_PREFIX = "file-upload-task:";
 const FILE_UPLOAD_RESUME_MAX_AGE = 30 * 24 * 60 * 60 * 1000;
 const FILE_UPLOAD_RESUME_CLEANUP_INTERVAL = 60 * 60 * 1000;
 
-interface FileUploadResumeItem {
-    uploadId: string;
-    updateTime: number;
-}
-
-type FileUploadResumeItems = Record<string, FileUploadResumeItem>;
-
-interface FileUploadQueueItem {
-    run: () => Promise<void>;
-    signal: AbortSignal;
-    reject: (reason?: unknown) => void;
-    removeAbortListener?: () => void;
-}
-
 let activeFileUploads = 0;
 let lastFileUploadResumeCleanup = 0;
-const pendingFileUploads: FileUploadQueueItem[] = [];
+const pendingFileUploads: any[] = [];
 
 const runPendingFileUploads = () => {
     while (activeFileUploads < FILE_UPLOAD_CONCURRENCY && pendingFileUploads.length > 0) {
@@ -108,7 +65,7 @@ const runPendingFileUploads = () => {
 };
 
 const scheduleFileUpload = <T, >(run: () => Promise<T>, signal: AbortSignal) => new Promise<T>((resolve, reject) => {
-    const item: FileUploadQueueItem = {
+    const item: any = {
         run: async () => resolve(await run()),
         signal,
         reject,
@@ -125,21 +82,6 @@ const scheduleFileUpload = <T, >(run: () => Promise<T>, signal: AbortSignal) => 
     pendingFileUploads.push(item);
     runPendingFileUploads();
 });
-
-interface FileUploadMeta {
-    path: string;
-    fileName: string;
-    totalSize: number;
-    chunkSize: number;
-    totalChunks: number;
-    fileHash?: string;
-}
-
-interface FileUploadCheckData {
-    uploaded_chunks?: number[];
-    completed?: boolean;
-    file?: FileUploadData;
-}
 
 class FileUploadBusinessError extends Error {
     response: API.Response<unknown>;
@@ -159,7 +101,7 @@ const ensureUploadNotAborted = (signal: AbortSignal) => {
     }
 };
 
-const appendUploadMeta = (body: FormData, meta: FileUploadMeta) => {
+const appendUploadMeta = (body: FormData, meta: any) => {
     body.append("path", meta.path);
     body.append("file_name", meta.fileName);
     body.append("total_size", String(meta.totalSize));
@@ -170,11 +112,11 @@ const appendUploadMeta = (body: FormData, meta: FileUploadMeta) => {
     }
 };
 
-const isValidFileUploadResumeItem = (value: unknown, now: number): value is FileUploadResumeItem => {
+const isValidFileUploadResumeItem = (value: unknown, now: number): value is any => {
     if (!value || typeof value !== "object") {
         return false;
     }
-    const item = value as Partial<FileUploadResumeItem>;
+    const item = value as any;
     return typeof item.uploadId === "string"
         && typeof item.updateTime === "number"
         && Number.isFinite(item.updateTime)
@@ -182,7 +124,7 @@ const isValidFileUploadResumeItem = (value: unknown, now: number): value is File
 };
 
 const readFileUploadResumeItems = (now = Date.now()) => {
-    const items: FileUploadResumeItems = {};
+    const items: Record<string, any> = {};
     const raw = localStorage.getItem(FILE_UPLOAD_RESUME_STORAGE_KEY);
     if (!raw) {
         return {items, changed: false};
@@ -206,7 +148,7 @@ const readFileUploadResumeItems = (now = Date.now()) => {
     }
 };
 
-const writeFileUploadResumeItems = (items: FileUploadResumeItems) => {
+const writeFileUploadResumeItems = (items: Record<string, any>) => {
     try {
         if (Object.keys(items).length === 0) {
             localStorage.removeItem(FILE_UPLOAD_RESUME_STORAGE_KEY);
@@ -237,7 +179,7 @@ const cleanupExpiredFileUploadResumeItems = () => {
             }
             legacyStorageKeys.push(storageKey);
             try {
-                const item = JSON.parse(localStorage.getItem(storageKey) || "null") as FileUploadResumeItem | null;
+                const item = JSON.parse(localStorage.getItem(storageKey) || "null") as any;
                 if (!isValidFileUploadResumeItem(item, now)) {
                     continue;
                 }
@@ -297,7 +239,7 @@ const createFileUploadId = () => {
     return `${Date.now()}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`;
 };
 
-const buildFileUploadResumeKey = (options: FileUploadOptions, fileName: string, chunkSize: number, fileHash: string) => JSON.stringify({
+const buildFileUploadResumeKey = (options: any, fileName: string, chunkSize: number, fileHash: string) => JSON.stringify({
     gateway: apiUrl("/file/upload"),
     path: options.path,
     name: fileName,
@@ -341,17 +283,17 @@ const waitForFileUploadRetry = (attempt: number, signal: AbortSignal) => new Pro
     signal.addEventListener("abort", cancel, {once: true});
 });
 
-const getFileUploadChunkSize = (index: number, meta: FileUploadMeta) => {
+const getFileUploadChunkSize = (index: number, meta: any) => {
     const start = index * meta.chunkSize;
     return Math.max(0, Math.min(meta.chunkSize, meta.totalSize - start));
 };
 
 const uploadFileDirectly = async (
-    options: FileUploadOptions,
+    options: any,
     fileName: string,
     signal: AbortSignal,
 ) => {
-    const meta: FileUploadMeta = {
+    const meta: any = {
         path: options.path,
         fileName,
         totalSize: options.file.size,
@@ -361,7 +303,7 @@ const uploadFileDirectly = async (
     const body = new FormData();
     appendUploadMeta(body, meta);
     body.append("file", options.file, fileName);
-    const response = await requestFileUpload<FileUploadData>("upload", signal, {
+    const response = await requestFileUpload<any>("upload", signal, {
         body,
         onProgress: (loaded, total) => {
             const current = total > 0 ? Math.min(meta.totalSize, loaded / total * meta.totalSize) : Math.min(loaded, meta.totalSize);
@@ -382,12 +324,12 @@ const uploadFileDirectly = async (
 };
 
 const uploadFileChunk = async (
-    options: FileUploadOptions,
+    options: any,
     fileName: string,
     uploadId: string,
     chunkIndex: number,
     uploadedBytes: number,
-    meta: FileUploadMeta,
+    meta: any,
     signal: AbortSignal,
     report: (loaded: number, attempt: number) => void,
 ) => {
@@ -428,10 +370,10 @@ const uploadFileChunk = async (
 };
 
 const uploadFileByChunks = async (
-    options: FileUploadOptions,
+    options: any,
     fileName: string,
     signal: AbortSignal,
-): Promise<API.Response<FileUploadData>> => {
+): Promise<API.Response<any>> => {
     ensureUploadNotAborted(signal);
     options.onProgress?.({
         loaded: 0,
@@ -440,7 +382,7 @@ const uploadFileByChunks = async (
         phase: "checking",
     });
     const fileHash = (await getFileMd5(options.file, signal)).toLowerCase();
-    const meta: FileUploadMeta = {
+    const meta: any = {
         path: options.path,
         fileName,
         totalSize: options.file.size,
@@ -485,7 +427,7 @@ const uploadFileByChunks = async (
     for (let repair = 0; repair <= FILE_UPLOAD_MAX_RETRIES; repair++) {
         ensureUploadNotAborted(signal);
         try {
-            const checkResponse = await requestFileUploadWithRetry<FileUploadCheckData>("check", signal, () => ({query: buildCheckQuery()}));
+            const checkResponse = await requestFileUploadWithRetry<any>("check", signal, () => ({query: buildCheckQuery()}));
             if (checkResponse.code !== 200) {
                 throw new FileUploadBusinessError(checkResponse);
             }
@@ -494,8 +436,8 @@ const uploadFileByChunks = async (
                 options.onProgress?.({loaded: meta.totalSize, total: meta.totalSize, percent: 100, phase: "complete"});
                 return {...checkResponse, data: checkResponse.data.file};
             }
-            const uploadedChunks = new Set(
-                (checkResponse.data?.uploaded_chunks || []).filter((index) => Number.isInteger(index) && index >= 0 && index < meta.totalChunks),
+            const uploadedChunks = new Set<number>(
+                (checkResponse.data?.uploaded_chunks || []).filter((index: number) => Number.isInteger(index) && index >= 0 && index < meta.totalChunks),
             );
             let uploadedBytes = Array.from(uploadedChunks).reduce(
                 (total, index) => total + getFileUploadChunkSize(index, meta),
@@ -520,7 +462,7 @@ const uploadFileByChunks = async (
                 phase: "merging",
                 totalChunks: meta.totalChunks,
             });
-            const mergeResponse = await requestFileUploadWithRetry<FileUploadData>("merge", signal, () => {
+            const mergeResponse = await requestFileUploadWithRetry<any>("merge", signal, () => {
                 const mergeBody = new FormData();
                 appendUploadMeta(mergeBody, meta);
                 mergeBody.append("upload_id", uploadId);
@@ -563,7 +505,7 @@ const uploadFileByChunks = async (
 };
 
 /** 上传文件 POST /file/upload */
-export function uploadFile(options: FileUploadOptions): FileUploadTask {
+export function uploadFile(options: any): any {
     cleanupExpiredFileUploadResumeItems();
     const controller = new AbortController();
     let settled = false;
@@ -582,7 +524,7 @@ export function uploadFile(options: FileUploadOptions): FileUploadTask {
         controller.signal,
     ).catch((error) => {
         if (error instanceof FileUploadBusinessError) {
-            return error.response as API.Response<FileUploadData>;
+            return error.response as API.Response<any>;
         }
         throw error;
     }).finally(() => {

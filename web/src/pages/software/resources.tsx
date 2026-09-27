@@ -19,11 +19,6 @@ const timeText = (value: unknown) => {
 };
 const secondsText = (value: number) => `${Math.floor(value / 3600)} 小时 ${Math.floor(value % 3600 / 60)} 分 ${Math.floor(value % 60)} 秒`;
 
-interface Rates {cpu: number; read: number; write: number}
-interface ResourceSample {time: number; memory: number; rates?: Rates}
-interface PlotPoint {time: number; value: number; series: string}
-interface PlotSeries {label: string; color: string}
-
 const useStyles = createStyles(({css, token}: any) => ({
     resources: css`
         min-width: 0;
@@ -54,7 +49,7 @@ const useStyles = createStyles(({css, token}: any) => ({
 }));
 
 const ResourceChart = memo(({title, data, series, readings, kind, dark, wide, emptyText, loading, height}: {
-    title: string; data: PlotPoint[]; series: PlotSeries[]; readings: string[];
+    title: string; data: any[]; series: any[]; readings: string[];
     kind: "percent" | "bytes" | "rate"; dark: boolean; wide?: boolean; emptyText: string; loading?: boolean; height: number;
 }) => {
     const {token} = antdTheme.useToken();
@@ -119,8 +114,8 @@ const ResourceChart = memo(({title, data, series, readings, kind, dark, wide, em
             },
             legend: false,
             tooltip: {
-                title: (datum: PlotPoint) => timeText(datum?.time),
-                items: [(datum: PlotPoint) => ({
+                title: (datum: any) => timeText(datum?.time),
+                items: [(datum: any) => ({
                     name: datum?.series,
                     color: series.find((item) => item.label === datum?.series)?.color,
                     value: formatValue(datum?.value),
@@ -174,8 +169,8 @@ const ContainerResources = ({id, active = true, visible = true, onStatus}: {
     const dark = Boolean(theme?.isDarkTheme?.());
     const chartHeight = theme?.isCompactTheme?.() ? 100 : 112;
     const [status, setStatus] = useState<any>();
-    const [rates, setRates] = useState<Rates>();
-    const [history, setHistory] = useState<ResourceSample[]>([]);
+    const [rates, setRates] = useState<any>();
+    const [history, setHistory] = useState<any[]>([]);
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(true);
     const callbackRef = useRef(onStatus);

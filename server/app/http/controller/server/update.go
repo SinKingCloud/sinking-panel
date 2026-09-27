@@ -15,7 +15,7 @@ func Update(c *context.Context) {
 		Ip       string  `json:"ip" default:"" validate:"omitempty,ip" label:"IP地址"`
 		Port     string  `json:"port" default:"" validate:"omitempty,numeric" label:"端口"`
 		User     string  `json:"user" default:"" validate:"omitempty" label:"账号"`
-		AuthType string  `json:"auth_type" default:"" validate:"omitempty,oneof=0 1" label:"验证方式"`
+		AuthType string  `json:"auth_type" default:"" validate:"omitempty" label:"验证方式"`
 		Password string  `json:"password" default:"" validate:"omitempty" label:"密码"`
 		Name     string  `json:"name" default:"" validate:"omitempty" label:"名称"`
 	}

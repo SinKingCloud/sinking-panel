@@ -4,16 +4,13 @@ import {ProModal, Title, useTheme} from "sinking-antd";
 import dayjs from "dayjs";
 import Log from "@/pages/components/task-log";
 import type {LogRef} from "@/pages/components/task-log";
+
 import {getContainerInfo, getContainerLog} from "@/service/api/container";
 
 import {formatSize} from "@/utils/string";
 import useEnum from "@/utils/enum";
 import useStyles from "./styles";
 import ContainerResources from "./resources";
-
-export interface ContainerDetailRef {
-    open: (record: any, tab?: string) => void;
-}
 
 const dateText = (value?: number) => value ? dayjs.unix(value).format("YYYY-MM-DD HH:mm:ss") : "—";
 
@@ -145,7 +142,7 @@ const DetailContent = ({record, active, initialTab}: {
     </div>;
 };
 
-const ContainerDetail = forwardRef<ContainerDetailRef>((_, ref) => {
+const ContainerDetail = forwardRef<any>((_, ref) => {
     const theme = useTheme();
     const compact = Boolean(theme?.isCompactTheme?.());
     const screens = Grid.useBreakpoint();
@@ -155,7 +152,7 @@ const ContainerDetail = forwardRef<ContainerDetailRef>((_, ref) => {
     const openRef = useRef(false);
     const sessionRef = useRef(0);
     const showLog = useCallback((record: any) => logRef.current?.open({id: record.id, name: record.name || record.id}), []);
-    useImperativeHandle(ref, () => ({open: (record, tab = "overview") => {
+    useImperativeHandle(ref, () => ({open: (record: any, tab = "overview") => {
         if (tab === "log") { showLog(record); return; }
         openRef.current = true;
         setTarget({record, tab, session: ++sessionRef.current});

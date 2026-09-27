@@ -39,11 +39,7 @@ const useStyles = createStyles(({css, token}: any) => ({
     `,
 }));
 
-export interface FormRef {
-    open: (record?: any) => void;
-}
-
-const Form = forwardRef<FormRef, {typeData?: any; typeItems?: any[]; execTypeData?: any; onSuccess?: () => void}>(({
+const Form = forwardRef<any, {typeData?: any; typeItems?: any[]; execTypeData?: any; onSuccess?: () => void}>(({
     typeData,
     typeItems,
     execTypeData,

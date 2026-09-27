@@ -1,27 +1,11 @@
 import React, {forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState} from "react";
 import {App, Button, Grid, Progress, theme, Upload} from "antd";
-import type {UploadProps} from "antd";
 import {Icon, ProModal, Title, useTheme} from "sinking-antd";
 import {formatFileSize, getFileIconType} from "../../utils";
 import {uploadFile} from "./transfer";
 import useStyles from "./styles";
 
-type UploadStatus = "waiting" | "checking" | "uploading" | "merging" | "done" | "error" | "canceled";
-
-interface UploadItem {
-    id: string;
-    file: File;
-    path: string;
-    name: string;
-    percent: number;
-    status: UploadStatus;
-    error?: string;
-}
-
-type UploadRequestOptions = Parameters<NonNullable<UploadProps["customRequest"]>>[0];
-type UploadCallbacks = Pick<UploadRequestOptions, "onSuccess" | "onError">;
-
-const getUploadStatusText = (item: UploadItem) => {
+const getUploadStatusText = (item: any) => {
     if (item.status === "waiting") return "等待中";
     if (item.status === "checking") return "检查中";
     if (item.status === "uploading") return `上传中 ${Math.floor(item.percent)}%`;
@@ -31,20 +15,9 @@ const getUploadStatusText = (item: UploadItem) => {
     return "失败";
 };
 
-const activeUploadStatuses = new Set<UploadStatus>(["waiting", "checking", "uploading", "merging"]);
+const activeUploadStatuses = new Set<string>(["waiting", "checking", "uploading", "merging"]);
 
-export interface FileUploadRef {
-    open: () => void;
-}
-
-interface FileUploadProps {
-    path: string;
-    selectionDisabled?: boolean;
-    onUploaded: () => void;
-    onUploadingChange?: (uploading: boolean) => void;
-}
-
-const FileUpload = forwardRef<FileUploadRef, FileUploadProps>(({
+const FileUpload = forwardRef<any, any>(({
     path,
     selectionDisabled = false,
     onUploaded,
@@ -62,7 +35,7 @@ const FileUpload = forwardRef<FileUploadRef, FileUploadProps>(({
     const onUploadingChangeRef = useRef(onUploadingChange);
     const mountedRef = useRef(true);
     const [open, setOpen] = useState(false);
-    const [items, setItems] = useState<UploadItem[]>([]);
+    const [items, setItems] = useState<any[]>([]);
     const activeCount = useMemo(
         () => items.filter((item) => activeUploadStatuses.has(item.status)).length,
         [items],
@@ -88,7 +61,7 @@ const FileUpload = forwardRef<FileUploadRef, FileUploadProps>(({
         onUploadingChangeRef.current?.(activeCount > 0);
     }, [activeCount]);
 
-    const update = (id: string, values: Partial<UploadItem>) => {
+    const update = (id: string, values: any) => {
         if (!mountedRef.current) {
             return;
         }
@@ -101,7 +74,7 @@ const FileUpload = forwardRef<FileUploadRef, FileUploadProps>(({
         file: File,
         targetPath: string,
         reuseId?: string,
-        callbacks?: UploadCallbacks,
+        callbacks?: any,
     ) => {
         const id = reuseId || `${file.name}-${file.size}-${file.lastModified}-${Date.now()}-${Math.random()}`;
         setItems((current) => reuseId
@@ -114,7 +87,7 @@ const FileUpload = forwardRef<FileUploadRef, FileUploadProps>(({
             path: targetPath,
             file,
             fileName: file.name,
-            onProgress: ({percent, phase}) => {
+            onProgress: ({percent, phase}: any) => {
                 if (phase === "complete") {
                     return;
                 }
@@ -125,7 +98,7 @@ const FileUpload = forwardRef<FileUploadRef, FileUploadProps>(({
             },
         });
         transfersRef.current.set(id, transfer);
-        void transfer.promise.then((response) => {
+        void transfer.promise.then((response: any) => {
             if (response.code !== 200) {
                 callbacks?.onError?.(new Error(response.message || "上传失败"));
                 update(id, {status: "error", error: response.message || "上传失败"});
@@ -177,7 +150,7 @@ const FileUpload = forwardRef<FileUploadRef, FileUploadProps>(({
         return true;
     };
 
-    const customRequest = (options: UploadRequestOptions) => {
+    const customRequest = (options: any) => {
         const file = options.file as File;
         const targetPath = fileTargetsRef.current.get(file) || path;
         fileTargetsRef.current.delete(file);
@@ -189,7 +162,7 @@ const FileUpload = forwardRef<FileUploadRef, FileUploadProps>(({
     };
 
     const cancel = (id: string) => transfersRef.current.get(id)?.abort();
-    const retry = (item: UploadItem) => {
+    const retry = (item: any) => {
         if (transfersRef.current.has(item.id)) {
             return;
         }

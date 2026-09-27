@@ -102,6 +102,9 @@ func (s *service) UpdateCert(id int64, data *repositoryCert.UpdateCert) error {
 			candidate.PrivateKey = *data.PrivateKey
 		}
 		if data.AutoRenew != nil {
+			if _, ok := cert_auto_renew.Map()[*data.AutoRenew]; !ok {
+				return errors.New("自动续签参数错误")
+			}
 			candidate.AutoRenew = *data.AutoRenew
 		}
 		// 单独关闭自动续签不依赖原密钥仍然存在或有效。
@@ -503,6 +506,11 @@ func (s *service) ManualCert(ctx context.Context, id int64, name string, request
 		if request.SessionId == "" {
 			return nil, errors.New("手动验证订单不能为空")
 		}
+		if request.AutoRenew != nil {
+			if _, ok := cert_auto_renew.Map()[*request.AutoRenew]; !ok {
+				return nil, errors.New("自动续签参数错误")
+			}
+		}
 		key := constant.CacheNameWithCertOrder + request.SessionId
 		cancelKey := key + ":cancel"
 		lockKey := key + ":submit"
@@ -851,7 +859,7 @@ func (s *service) prepareCertificateRequest(data *model.Cert, request *Certifica
 		if data.Type == cert_type.Import {
 			return acme, errors.New("导入的证书不能修改为申请证书")
 		}
-		if *request.Type != cert_type.Manual && *request.Type != cert_type.Auto {
+		if _, ok := cert_type.Map()[*request.Type]; !ok || *request.Type == cert_type.Import {
 			return acme, errors.New("证书申请类型只支持手动申请或自动申请")
 		}
 		data.Type = *request.Type

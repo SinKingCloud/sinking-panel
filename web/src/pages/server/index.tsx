@@ -5,28 +5,21 @@ import useEnum from "@/utils/enum";
 import {deleteServer} from "@/service/api/server";
 import Scripts from "./components/scripts";
 import Form from "./components/form";
-import type {FormRef, FormSuccessResult} from "./components/form";
+
 import Sidebar from "./components/sidebar";
 import Terminal from "./components/terminal";
 import type {ConnectionStatus, TerminalRef} from "./components/terminal";
+
 import useHeight from "./hooks/height";
 import usePanels from "./hooks/panels";
 import useServers, {localServer} from "./hooks/servers";
-import type {ServerRecord} from "./hooks/servers";
+
 import useStyles from "./styles";
 
 const fallbackAuthTypeData = {
     "0": "密码验证",
     "1": "证书验证",
 };
-
-interface TerminalSession {
-    server: ServerRecord;
-    resetKey: number;
-}
-
-type TerminalSessions = Record<string, TerminalSession>;
-type ConnectionStatuses = Record<string, ConnectionStatus>;
 
 export default (): React.ReactNode => {
     const theme = useTheme();
@@ -37,15 +30,15 @@ export default (): React.ReactNode => {
     const {message, modal} = App.useApp();
     const [enumData, enumLoading, enumError] = useEnum("server");
     const list = useServers();
-    const formRef = useRef<FormRef>({} as FormRef);
+    const formRef = useRef<any>({} as any);
     const terminalRefs = useRef(new Map<number, TerminalRef>());
     const terminalRefCallbacks = useRef(new Map<number, (value: TerminalRef | null) => void>());
     const {pageRef, pageStyle} = useHeight(`${isCompactMode}:${enumLoading}`);
     const [selectedId, setSelectedId] = useState(localServer.id);
-    const [sessions, setSessions] = useState<TerminalSessions | any>(() => ({
+    const [sessions, setSessions] = useState<any>(() => ({
         [String(localServer.id)]: {server: localServer, resetKey: 0},
     }));
-    const [connectionStatuses, setConnectionStatuses] = useState<ConnectionStatuses | any>(() => ({
+    const [connectionStatuses, setConnectionStatuses] = useState<Record<string, ConnectionStatus>>(() => ({
         [String(localServer.id)]: "idle",
     }));
     const {
@@ -112,14 +105,14 @@ export default (): React.ReactNode => {
     }, []);
 
     const openCreate = useCallback(() => formRef.current?.open(), []);
-    const openEdit = useCallback((server: ServerRecord) => {
+    const openEdit = useCallback((server: any) => {
         if (server.id === 0 && list.localRefreshing) {
             message.info("本机连接信息正在加载");
             return;
         }
         formRef.current?.open(server);
     }, [list.localRefreshing, message]);
-    const selectServer = useCallback((server: ServerRecord) => {
+    const selectServer = useCallback((server: any) => {
         const key = String(server.id);
         setSessions((current) => {
             const existing = current[key];
@@ -137,7 +130,7 @@ export default (): React.ReactNode => {
         setConnectionStatuses((current) => key in current ? current : {...current, [key]: "idle"});
         setSelectedId(server.id);
     }, []);
-    const connectServer = useCallback((server: ServerRecord) => {
+    const connectServer = useCallback((server: any) => {
         selectServer(server);
         const status = connectionStatuses[String(server.id)] || "idle";
         if (status === "connected" || status === "connecting") {
@@ -145,7 +138,7 @@ export default (): React.ReactNode => {
         }
         window.requestAnimationFrame(() => terminalRefs.current.get(server.id)?.connect());
     }, [connectionStatuses, selectServer]);
-    const handleFormSuccess = useCallback(({serverId, server, reconnectRequired}: FormSuccessResult) => {
+    const handleFormSuccess = useCallback(({serverId, server, reconnectRequired}: any) => {
         if (serverId !== undefined) {
             const key = String(serverId);
             setSessions((current) => {
@@ -172,7 +165,7 @@ export default (): React.ReactNode => {
         return terminalRefs.current.get(serverId)?.insertCommand(command) || false;
     }, []);
 
-    const remove = useCallback(async (server: ServerRecord) => {
+    const remove = useCallback(async (server: any) => {
         const key = `server-delete-${server.id}`;
         message.loading({key, content: "正在删除终端...", duration: 0});
         try {
@@ -213,7 +206,7 @@ export default (): React.ReactNode => {
         }
     }, [list.localServer.id, list.reload, message, selectedId]);
 
-    const confirmDelete = useCallback((server: ServerRecord) => {
+    const confirmDelete = useCallback((server: any) => {
         modal.confirm({
             title: "删除终端",
             content: `确定删除终端“${server.name || server.ip}”吗？`,

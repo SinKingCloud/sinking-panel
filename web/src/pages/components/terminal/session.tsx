@@ -9,10 +9,6 @@ import {getHeaders} from "@/utils/auth";
 
 export type ConnectionStatus = "idle" | "connecting" | "connected" | "disconnected" | "error";
 
-interface ConnectionFailure {
-    code: string;
-    message: string;
-}
 
 export interface TerminalProps {
     path: string;
@@ -75,12 +71,12 @@ const TerminalSession = forwardRef<TerminalRef, TerminalProps>(({
     const socketRef = useRef<WebSocket | undefined>(undefined);
     const generationRef = useRef(0);
     const mountedRef = useRef(false);
-    const failureRef = useRef<ConnectionFailure | null>(null);
+    const failureRef = useRef<any>(null);
     const timersRef = useRef<{timeout?: number; heartbeat?: number}>({});
     const [attempt, setAttempt] = useState<{key: string; number: number}>();
     const [socket, setSocket] = useState<WebSocket>();
     const [status, setStatus] = useState<ConnectionStatus>("idle");
-    const [failure, setFailure] = useState<ConnectionFailure | null>(null);
+    const [failure, setFailure] = useState<any>(null);
     const [fullscreen, setFullscreen] = useState(false);
     const [fullscreenPending, setFullscreenPending] = useState(false);
     const connectionKey = JSON.stringify([path, params, binaryControl, acknowledge, resetKey]);
@@ -93,7 +89,7 @@ const TerminalSession = forwardRef<TerminalRef, TerminalProps>(({
         optionsRef.current.onStatusChange?.(value);
     }, []);
 
-    const changeFailure = useCallback((value: ConnectionFailure | null) => {
+    const changeFailure = useCallback((value: any) => {
         failureRef.current = value;
         if (mountedRef.current) setFailure(value);
     }, []);

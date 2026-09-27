@@ -1,14 +1,6 @@
 import {useCallback, useMemo, useRef, useState} from "react";
 
-export interface FileOperationLock {
-    paths: ReadonlySet<string>;
-    begin: (path: string) => boolean;
-    finish: (path: string) => void;
-    beginMany: (paths: readonly string[]) => boolean;
-    finishMany: (paths: readonly string[]) => void;
-}
-
-const useFileOperationLock = (): FileOperationLock => {
+const useFileOperationLock = (): any => {
     const pathsRef = useRef(new Set<string>());
     const [paths, setPaths] = useState<ReadonlySet<string>>(() => new Set());
 

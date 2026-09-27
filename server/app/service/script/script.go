@@ -3,6 +3,7 @@ package script
 import (
 	"server/app/model"
 	repositoryScript "server/app/repository/script"
+	serviceTypes "server/app/service/types"
 	"server/app/util/page"
 )
 
@@ -18,9 +19,13 @@ type Service interface {
 // service 注入结构
 type service struct {
 	repositoryScript repositoryScript.Interface
+	typeService      serviceTypes.Service
 }
 
 // NewService 实例化service
-func NewService(repositoryScript repositoryScript.Interface) *service {
-	return &service{repositoryScript: repositoryScript}
+func NewService(repositoryScript repositoryScript.Interface, typeService serviceTypes.Service) *service {
+	return &service{
+		repositoryScript: repositoryScript,
+		typeService:      typeService,
+	}
 }

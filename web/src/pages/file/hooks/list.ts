@@ -1,17 +1,7 @@
 import {useCallback, useEffect, useRef, useState} from "react";
 import {getFileList} from "@/service/api/file";
 
-interface ListQuery {
-    path: string;
-    keyword: string;
-    page: number;
-    pageSize: number;
-    sort?: any;
-    order?: any;
-    generation: number;
-}
-
-const defaultQuery: ListQuery = {
+const defaultQuery: any = {
     path: "/",
     keyword: "",
     page: 1,
@@ -29,7 +19,7 @@ const useFileList = (initialPath = "/") => {
     const requestRef = useRef(0);
     const committedPathRef = useRef(normalizePath(initialPath));
     const keywordRef = useRef("");
-    const [query, setQuery] = useState<ListQuery>(() => ({
+    const [query, setQuery] = useState<any>(() => ({
         ...defaultQuery,
         path: normalizePath(initialPath),
     }));
@@ -96,7 +86,7 @@ const useFileList = (initialPath = "/") => {
             const lastPage = Math.max(1, Math.ceil(nextTotal / pageSize));
             if (page > lastPage) {
                 pageAdjusted = nextTotal > 0;
-                setQuery((value) => ({...value, page: lastPage}));
+                setQuery((value: any) => ({...value, page: lastPage}));
             }
         }).catch(() => {
             fail("获取文件列表失败");
@@ -121,7 +111,7 @@ const useFileList = (initialPath = "/") => {
         keywordRef.current = "";
         setLoading(true);
         setError("");
-        setQuery((current) => ({
+        setQuery((current: any) => ({
             ...current,
             path: value,
             keyword: "",
@@ -132,7 +122,7 @@ const useFileList = (initialPath = "/") => {
 
     const reload = useCallback(() => {
         requestRef.current += 1;
-        setQuery((current) => ({...current, generation: current.generation + 1}));
+        setQuery((current: any) => ({...current, generation: current.generation + 1}));
     }, []);
 
     const changePage = useCallback((nextPage: number, nextPageSize: number = pageSize) => {
@@ -140,7 +130,7 @@ const useFileList = (initialPath = "/") => {
         setLoading(true);
         setError("");
         const size = Math.min(1000, Math.max(1, nextPageSize));
-        setQuery((current) => ({
+        setQuery((current: any) => ({
             ...current,
             page: size === current.pageSize ? Math.max(1, nextPage) : 1,
             pageSize: size,
@@ -153,7 +143,7 @@ const useFileList = (initialPath = "/") => {
         setLoading(true);
         setError("");
         const nextSort = field && value ? field : undefined;
-        setQuery((current) => ({
+        setQuery((current: any) => ({
             ...current,
             page: 1,
             sort: nextSort,
@@ -171,7 +161,7 @@ const useFileList = (initialPath = "/") => {
         requestRef.current += 1;
         setLoading(true);
         setError("");
-        setQuery((current) => ({
+        setQuery((current: any) => ({
             ...current,
             keyword: nextKeyword,
             page: 1,

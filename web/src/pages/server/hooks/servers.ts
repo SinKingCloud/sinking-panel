@@ -2,19 +2,7 @@ import {useCallback, useEffect, useMemo, useRef, useState} from "react";
 import {App} from "antd";
 import {getServerInfo, getServerList} from "@/service/api/server";
 
-export interface ServerRecord {
-    id: number;
-    ip: string;
-    port: number;
-    user: string;
-    auth_type: number;
-    name: string;
-    create_time?: string;
-    update_time?: string;
-    searchText: string;
-}
-
-const normalizeServer = (item: any): ServerRecord => {
+const normalizeServer = (item: any): any => {
     const id = Number(item?.id || 0);
     const ip = String(item?.ip || "");
     const port = Number(item?.port || 22);
@@ -46,8 +34,8 @@ const useServers = () => {
     const {message} = App.useApp();
     const listRequestRef = useRef(0);
     const localRequestRef = useRef(0);
-    const [remoteServers, setRemoteServers] = useState<ServerRecord[]>([]);
-    const [local, setLocal] = useState<ServerRecord>(localServer);
+    const [remoteServers, setRemoteServers] = useState<any[]>([]);
+    const [local, setLocal] = useState<any>(localServer);
     const [localLoaded, setLocalLoaded] = useState(false);
     const [localRefreshing, setLocalRefreshing] = useState(true);
     const [localError, setLocalError] = useState(false);
@@ -165,7 +153,7 @@ const useServers = () => {
         setReloadKey((value) => value + 1);
     }, []);
 
-    const update = useCallback((server: ServerRecord) => {
+    const update = useCallback((server: any) => {
         if (server.id === 0) {
             setLocal(server);
             setLocalLoaded(true);
@@ -207,7 +195,7 @@ const useServers = () => {
                 : [];
             setRemoteServers((current) => {
                 const ids = new Set(current.map((server) => server.id));
-                return [...current, ...list.filter((server: ServerRecord) => !ids.has(server.id))];
+                return [...current, ...list.filter((server: any) => !ids.has(server.id))];
             });
             setHasMore(Boolean((response.data as any)?.has_more));
             setNextCursor(String((response.data as any)?.next_cursor_id || ""));

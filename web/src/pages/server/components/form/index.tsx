@@ -2,36 +2,19 @@ import {forwardRef, memo, useCallback, useImperativeHandle, useMemo, useRef, use
 import {App, Col, Form as AntForm, Input, InputNumber, Row, Select} from "antd";
 import {ProModal, ProModalRef, Title} from "sinking-antd";
 import {createServer, updateServer} from "@/service/api/server";
-import type {ServerRecord} from "../../hooks/servers";
-
-export interface FormRef {
-    open: (record?: ServerRecord) => void;
-}
-
-interface FormProps {
-    authTypeData: Record<string, string>;
-    layered?: boolean;
-    onSuccess?: (result: FormSuccessResult) => void;
-}
-
-export interface FormSuccessResult {
-    serverId?: number;
-    server?: ServerRecord;
-    reconnectRequired: boolean;
-}
 
 const fallbackAuthTypes = {
     "0": "密码验证",
     "1": "证书验证",
 };
 
-const Form = forwardRef<FormRef, FormProps>(({authTypeData, layered = false, onSuccess}, ref): any => {
+const Form = forwardRef<any, any>(({authTypeData, layered = false, onSuccess}, ref): any => {
     const {message} = App.useApp();
     const modalRef = useRef<ProModalRef>({} as ProModalRef);
     const requestRef = useRef(0);
     const submittingRef = useRef(false);
     const [form] = AntForm.useForm();
-    const [record, setRecord] = useState<ServerRecord>();
+    const [record, setRecord] = useState<any>();
     const [authType, setAuthType] = useState(0);
     const [initialAuthType, setInitialAuthType] = useState(0);
     const [submitting, setSubmitting] = useState(false);
@@ -55,7 +38,7 @@ const Form = forwardRef<FormRef, FormProps>(({authTypeData, layered = false, onS
         setSubmitting(false);
     }, [form]);
 
-    const open = useCallback((server?: ServerRecord) => {
+    const open = useCallback((server?: any) => {
         requestRef.current += 1;
         submittingRef.current = false;
         form.resetFields();

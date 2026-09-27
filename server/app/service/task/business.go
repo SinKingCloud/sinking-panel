@@ -362,10 +362,8 @@ func (s *service) Add(data *model.Task, run ...func(context.Context)) error {
 	if err := s.validateTypeId(data.TypeId); err != nil {
 		return err
 	}
-	if !internal {
-		if _, ok := task_exec_type.Map()[data.ExecType]; !ok {
-			return errors.New("任务执行类型不合法")
-		}
+	if _, ok := task_exec_type.Map()[data.ExecType]; !ok {
+		return errors.New("任务执行类型不合法")
 	}
 	if _, ok := task_status.Map()[data.Status]; !ok {
 		return errors.New("任务状态不合法")

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"server/app/enum/container_status"
 	serviceMongo "server/app/service/container/mongo"
 	serviceMysql "server/app/service/container/mysql"
 	servicePgsql "server/app/service/container/pgsql"
@@ -47,6 +48,11 @@ func (m *Manager) available() error {
 
 // List 同步容器运行状态，按条件筛选并分页返回摘要，默认按创建时间倒序。
 func (m *Manager) List(where *SelectContainer, queryPage *page.Query) (*page.Result[*Container], error) {
+	if where != nil && where.Status != nil {
+		if _, ok := container_status.Map()[*where.Status]; !ok {
+			return nil, errors.New("运行状态无效")
+		}
+	}
 	if err := m.available(); err != nil {
 		return nil, err
 	}

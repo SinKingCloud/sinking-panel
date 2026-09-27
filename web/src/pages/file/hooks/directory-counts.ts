@@ -4,45 +4,21 @@ import {joinFilePath} from "../utils";
 
 const maxConcurrentCounts = 2;
 
-export type DirectoryCountState =
-    | {status: "loading"}
-    | {status: "success"; data: any}
-    | {status: "error"; message: string};
-
-export type DirectoryCountMap = ReadonlyMap<string, DirectoryCountState>;
-
-export interface UseDirectoryCountsOptions {
-    path: string;
-    items: readonly any[];
-    enabled?: boolean;
-}
-
-interface CountJob {
-    generation: number;
-    key: string;
-    path: string;
-}
-
-export interface UseDirectoryCountsResult {
-    counts: DirectoryCountMap;
-    countDirectory: (path: string) => void;
-}
-
 export const useDirectoryCounts = ({
     path,
     items,
     enabled = true,
-}: UseDirectoryCountsOptions): UseDirectoryCountsResult => {
+}: any): any => {
     const mountedRef = useRef(true);
     const generationRef = useRef(0);
     const activeRef = useRef(0);
     const pendingRef = useRef(new Set<string>());
     const visiblePathsRef = useRef<ReadonlySet<string>>(new Set());
-    const queueRef = useRef<CountJob[]>([]);
+    const queueRef = useRef<any[]>([]);
     const pumpRef = useRef<() => void>(() => undefined);
-    const [counts, setCounts] = useState<DirectoryCountMap>(() => new Map());
+    const [counts, setCounts] = useState<ReadonlyMap<string, any>>(() => new Map());
 
-    const publish = (job: CountJob, state: DirectoryCountState) => {
+    const publish = (job: any, state: any) => {
         if (!mountedRef.current || generationRef.current !== job.generation) {
             return;
         }
@@ -111,10 +87,10 @@ export const useDirectoryCounts = ({
         const generation = ++generationRef.current;
         queueRef.current.forEach((job) => pendingRef.current.delete(job.key));
         queueRef.current = [];
-        const directoryPaths = enabled ? Array.from(new Set(
+        const directoryPaths = enabled ? Array.from(new Set<string>(
             items
-                .filter((item) => item.is_dir)
-                .map((item) => joinFilePath(path, item.name)),
+                .filter((item: any) => item.is_dir)
+                .map((item: any) => joinFilePath(path, item.name)),
         )) : [];
         visiblePathsRef.current = new Set(directoryPaths);
         setCounts(new Map());

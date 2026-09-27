@@ -21,11 +21,6 @@ interface SecretFormProps {
     onSuccess: (change: SecretChange) => void;
 }
 
-interface SecretFormValues {
-    name: string;
-    provider?: number;
-    credentials?: Record<string, string>;
-}
 
 const useStyles = createStyles(({css}: any) => ({
     modal: css`
@@ -77,7 +72,7 @@ const SecretForm = forwardRef<SecretFormRef, SecretFormProps>(({zIndex, onSucces
     const openRef = useRef(false);
     const submittingRef = useRef(false);
     const originalCredentialsRef = useRef<Record<string, string>>({});
-    const [form] = Form.useForm<SecretFormValues>();
+    const [form] = Form.useForm<any>();
     const [record, setRecord] = useState<any>();
     const [providerNames, setProviderNames] = useState<Record<string, string>>({});
     const [fields, setFields] = useState<string[]>([]);
@@ -177,7 +172,7 @@ const SecretForm = forwardRef<SecretFormRef, SecretFormProps>(({zIndex, onSucces
         };
     }, []);
 
-    const submit = useCallback(async (values: SecretFormValues) => {
+    const submit = useCallback(async (values: any) => {
         if (!openRef.current || submittingRef.current || loading || loadError || (editing && fields.length === 0)) {
             return;
         }

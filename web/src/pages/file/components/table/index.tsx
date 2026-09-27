@@ -4,7 +4,6 @@ import type {MenuProps, TableColumnsType} from "antd";
 import {Icon} from "sinking-antd";
 import {isFilePreviewable} from "@/pages/components/file-preview";
 import ActionDropdown from "@/pages/components/action-dropdown";
-import type {DirectoryCountMap} from "../../hooks/directory-counts";
 import DirectorySize from "../directory-size";
 import {copyTextToClipboard} from "../properties/utils";
 import useStyles from "./styles";
@@ -17,57 +16,9 @@ import {
     joinFilePath,
 } from "../../utils";
 
-export interface FileTableProps {
-    path: string;
-    items: any[];
-    loading: boolean;
-    actionsDisabled?: boolean;
-    sort?: any;
-    order?: any;
-    directoryCounts?: DirectoryCountMap;
-    onCountDirectory: (path: string) => void;
-    operatingPaths?: ReadonlySet<string>;
-    selectedPaths: ReadonlySet<string>;
-    selectionDisabled: boolean;
-    onSelectionChange: (paths: string[]) => void;
-    onSortChange: (field?: any, order?: "ascend" | "descend") => void;
-    onOpen: (record: any) => void;
-    onEdit: (path: string, name: string) => void;
-    onPreview: (files: readonly any[], active: string) => void;
-    onDownload: (record: any) => void;
-    onRename: (record: any) => void;
-    onPermissions: (record: any) => void;
-    onCopy: (record: any) => void;
-    onMove: (record: any) => void;
-    onProperties: (record: any) => void;
-    onOperation: (mode: "compress" | "extract", record: any) => void;
-    onDelete: (record: any) => void;
-}
+const FileContextMenu = React.createContext<any>(undefined);
 
-type FileMenuSource = "action" | "context";
-
-interface FileMenuState {
-    path: string;
-    source: FileMenuSource;
-}
-
-type FileTableRowProps = React.HTMLAttributes<HTMLTableRowElement> & {
-    "data-row-key"?: React.Key;
-};
-
-interface FileContextMenuValue {
-    recordsByPath: ReadonlyMap<string, any>;
-    actionsDisabled: boolean;
-    operatingPaths?: ReadonlySet<string>;
-    openMenu?: FileMenuState;
-    fileMenuClassName: string;
-    getMenuItems: (record: any, recordPath: string, disabled?: boolean) => MenuProps["items"];
-    changeMenuOpen: (open: boolean, recordPath: string, source: FileMenuSource) => void;
-}
-
-const FileContextMenu = React.createContext<FileContextMenuValue | undefined>(undefined);
-
-const ContextMenuRow = React.forwardRef<HTMLTableRowElement, FileTableRowProps>((rowProps, ref) => {
+const ContextMenuRow = React.forwardRef<HTMLTableRowElement, any>((rowProps, ref) => {
     const context = React.useContext(FileContextMenu);
     const recordPath = String(rowProps["data-row-key"] || "");
     const record = context?.recordsByPath.get(recordPath);
@@ -119,13 +70,13 @@ const useFileTable = ({
     onProperties,
     onOperation,
     onDelete,
-}: FileTableProps) => {
+}: any) => {
     const {message} = App.useApp();
     const {styles} = useStyles();
-    const [openMenu, setOpenMenu] = useState<FileMenuState>();
+    const [openMenu, setOpenMenu] = useState<any>();
     const openRowPath = openMenu?.path || "";
-    const changeMenuOpen = useCallback((open: boolean, recordPath: string, source: FileMenuSource) => {
-        setOpenMenu((current) => {
+    const changeMenuOpen = useCallback((open: boolean, recordPath: string, source: any) => {
+        setOpenMenu((current: any) => {
             if (open) {
                 return {path: recordPath, source};
             }
@@ -133,8 +84,8 @@ const useFileTable = ({
         });
     }, []);
     const previewFiles = useMemo<any[]>(() => items
-        .filter((record) => !record.is_dir && isFilePreviewable(record.name))
-        .map((record) => ({
+        .filter((record: any) => !record.is_dir && isFilePreviewable(record.name))
+        .map((record: any) => ({
             name: record.name,
             path: joinFilePath(path, record.name),
             size: record.size,
@@ -207,14 +158,14 @@ const useFileTable = ({
     ]);
 
     const recordsByPath = useMemo(() => new Map(
-        items.map((record) => [joinFilePath(path, record.name), record]),
+        items.map((record: any) => [joinFilePath(path, record.name), record]),
     ), [items, path]);
     useEffect(() => {
-        setOpenMenu((current) => !actionsDisabled && current && recordsByPath.has(current.path)
+        setOpenMenu((current: any) => !actionsDisabled && current && recordsByPath.has(current.path)
             ? current
             : undefined);
     }, [actionsDisabled, recordsByPath]);
-    const contextMenuValue = useMemo<FileContextMenuValue>(() => ({
+    const contextMenuValue = useMemo<any>(() => ({
         recordsByPath,
         actionsDisabled,
         operatingPaths,
@@ -372,7 +323,7 @@ const useFileTable = ({
         onSortChange(supported ? field : undefined, value);
     }, [onSortChange]);
     const rowKey = useCallback((record: any) => joinFilePath(path, record.name), [path]);
-    const selectedRowKeys = useMemo(() => Array.from(selectedPaths), [selectedPaths]);
+    const selectedRowKeys = useMemo(() => Array.from<string>(selectedPaths), [selectedPaths]);
 
     return {
         columns,

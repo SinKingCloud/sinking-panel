@@ -53,46 +53,9 @@ interface DraggableRowProps {
     onKeyboardMove: (id: number, direction: -1 | 1) => void;
 }
 
-interface DragClasses {
-    dragging: string;
-    dropAfter: string;
-    dropBefore: string;
-    shifted: string;
-}
 
-interface DragRow {
-    center: number;
-    element: HTMLElement;
-    height: number;
-    id: number;
-}
 
-interface DragState {
-    activeId: number;
-    activeIndex: number;
-    activated: boolean;
-    classes: DragClasses;
-    clientX: number;
-    clientY: number;
-    ended: boolean;
-    frameId: number;
-    handle: HTMLButtonElement;
-    lastFrameTime: number;
-    list: HTMLDivElement | null;
-    listRect: DOMRect | null;
-    originItems: any[];
-    overIndex: number;
-    pointerId: number;
-    rowGap: number;
-    rows: DragRow[];
-    startScrollTop: number;
-    startX: number;
-    startY: number;
-}
 
-interface TypeFormValues {
-    name: string;
-}
 
 const moveItem = <T, >(items: T[], from: number, to: number): T[] => {
     const next = items.slice();
@@ -182,11 +145,11 @@ const animateRowsFrom = (list: HTMLElement, firstRects: Map<number, DOMRect>) =>
     });
 };
 
-const dragRangeIds = (state: DragState): Set<number> => {
+const dragRangeIds = (state: any): Set<number> => {
     const targetIndex = state.overIndex < 0 ? state.activeIndex : state.overIndex;
     const start = Math.min(state.activeIndex, targetIndex);
     const end = Math.max(state.activeIndex, targetIndex);
-    return new Set(state.rows.slice(start, end + 1).map((row) => row.id));
+    return new Set(state.rows.slice(start, end + 1).map((row: any) => row.id));
 };
 
 const moveRangeIds = (items: any[], from: number, to: number): Set<number> => {
@@ -217,7 +180,7 @@ const changedOrderIds = (current: any[], next: any[]): Set<number> => {
     return ids;
 };
 
-const closestRowIndex = (rows: DragRow[], center: number): number => {
+const closestRowIndex = (rows: any[], center: number): number => {
     let left = 0;
     let right = rows.length - 1;
     while (left < right) {
@@ -237,7 +200,7 @@ const closestRowIndex = (rows: DragRow[], center: number): number => {
     return left;
 };
 
-const clearDragVisuals = (state: DragState) => {
+const clearDragVisuals = (state: any) => {
     const targetIndex = state.overIndex < 0 ? state.activeIndex : state.overIndex;
     const start = Math.min(state.activeIndex, targetIndex);
     const end = Math.max(state.activeIndex, targetIndex);
@@ -256,7 +219,7 @@ const clearDragVisuals = (state: DragState) => {
     }
 };
 
-const releasePointerCapture = (state: DragState) => {
+const releasePointerCapture = (state: any) => {
     const {handle, pointerId} = state;
     if (typeof handle.hasPointerCapture !== "function"
         || typeof handle.releasePointerCapture !== "function") {
@@ -272,7 +235,7 @@ const releasePointerCapture = (state: DragState) => {
 };
 
 const updateDragPreview = (
-    state: DragState,
+    state: any,
     nextOverIndex: number,
 ) => {
     const activeRow = state.rows[state.activeIndex];
@@ -322,7 +285,7 @@ const updateDragPreview = (
 };
 
 const renderDragFrame = (
-    state: DragState,
+    state: any,
     timestamp: number,
 ) => {
     state.frameId = 0;
@@ -369,7 +332,7 @@ const renderDragFrame = (
     }
 };
 
-const scheduleDragFrame = (state: DragState) => {
+const scheduleDragFrame = (state: any) => {
     if (state.frameId === 0 && !state.ended) {
         state.frameId = window.requestAnimationFrame((time) => renderDragFrame(state, time));
     }
@@ -648,7 +611,7 @@ const TypeManager = forwardRef<TypeManagerRef, TypeManagerProps>(({module, onCha
     const compact = Boolean(theme?.isCompactTheme?.());
     const styleProps = useMemo(() => ({compact}), [compact]);
     const {styles} = useStyles(styleProps);
-    const dragClassesRef = useRef<DragClasses>({
+    const dragClassesRef = useRef<any>({
         dragging: styles.dragging,
         dropAfter: styles.dropAfter,
         dropBefore: styles.dropBefore,
@@ -661,7 +624,7 @@ const TypeManager = forwardRef<TypeManagerRef, TypeManagerProps>(({module, onCha
         shifted: styles.shifted,
     };
     const modalRef = useRef<ProModalRef>({} as ProModalRef);
-    const [form] = AntForm.useForm<TypeFormValues>();
+    const [form] = AntForm.useForm<any>();
     const requestRef = useRef(0);
     const lifecycleRef = useRef(0);
     const actionRef = useRef(false);
@@ -669,7 +632,7 @@ const TypeManager = forwardRef<TypeManagerRef, TypeManagerProps>(({module, onCha
     const sortRequestRef = useRef(0);
     const sortDirtyRef = useRef(false);
     const mountedRef = useRef(true);
-    const dragRef = useRef<DragState | null>(null);
+    const dragRef = useRef<any>(null);
     const listRef = useRef<HTMLDivElement | null>(null);
     const [items, setItems] = useState<any[]>([]);
     const itemsRef = useRef(items);
@@ -901,7 +864,7 @@ const TypeManager = forwardRef<TypeManagerRef, TypeManagerProps>(({module, onCha
         setFormSubmitting(false);
     }, [form]);
 
-    const submitForm = useCallback(async (values: TypeFormValues) => {
+    const submitForm = useCallback(async (values: any) => {
         if (actionRef.current) {
             return;
         }
@@ -1160,7 +1123,7 @@ const TypeManager = forwardRef<TypeManagerRef, TypeManagerProps>(({module, onCha
             const activeRect = elements[activeIndex].getBoundingClientRect();
             const activeTop = activeRect.top - listRect.top + list.scrollTop;
             const span = activeRect.height + rowGap;
-            const rows = elements.map((element, index): DragRow => ({
+            const rows = elements.map((element, index): any => ({
                 center: activeTop + (index - activeIndex) * span + activeRect.height / 2,
                 element,
                 height: activeRect.height,
@@ -1365,7 +1328,7 @@ const TypeManager = forwardRef<TypeManagerRef, TypeManagerProps>(({module, onCha
                         focusable: {focusTriggerAfterClose: false},
                         styles: {body: {paddingTop: compact ? 10 : 15}},
                     }}>
-                    <AntForm<TypeFormValues>
+                    <AntForm<any>
                         form={form}
                         layout="vertical"
                         variant="filled"

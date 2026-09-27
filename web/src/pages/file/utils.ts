@@ -1,10 +1,5 @@
 import dayjs from "dayjs";
 
-export interface FileBreadcrumbItem {
-    label: string;
-    path: string;
-}
-
 const parsePath = (value: string) => {
     const raw = String(value || "");
     const driveMatch = raw.match(/^([a-zA-Z]):(?:[\\/]+|$)/);
@@ -38,10 +33,10 @@ export const parentFilePath = (value: string) => {
     return normalizeFilePath(`${drive ? `${drive}/` : "/"}${parts.join("/")}`);
 };
 
-export const buildFileBreadcrumbs = (value: string): FileBreadcrumbItem[] => {
+export const buildFileBreadcrumbs = (value: string): any[] => {
     const {drive, parts} = parsePath(value);
     const root = drive ? `${drive}/` : "/";
-    const result: FileBreadcrumbItem[] = [{label: drive || "/", path: root}];
+    const result: any[] = [{label: drive || "/", path: root}];
     parts.forEach((part, index) => {
         result.push({
             label: part,
@@ -51,21 +46,7 @@ export const buildFileBreadcrumbs = (value: string): FileBreadcrumbItem[] => {
     return result;
 };
 
-export type FileCategory =
-    | "folder"
-    | "archive"
-    | "image"
-    | "video"
-    | "audio"
-    | "pdf"
-    | "document"
-    | "spreadsheet"
-    | "presentation"
-    | "code"
-    | "text"
-    | "file";
-
-const categoryExtensions: Partial<Record<FileCategory, Set<string>>> = {
+const categoryExtensions: Partial<Record<string, Set<string>>> = {
     archive: new Set(["7z", "bz", "bz2", "gz", "rar", "tar", "tgz", "xz", "zip"]),
     image: new Set(["avif", "bmp", "gif", "ico", "jpeg", "jpg", "png", "svg", "webp"]),
     video: new Set(["avi", "flv", "m4v", "mkv", "mov", "mp4", "mpeg", "mpg", "webm", "wmv"]),
@@ -82,12 +63,12 @@ const categoryExtensions: Partial<Record<FileCategory, Set<string>>> = {
     text: new Set(["log", "md", "text", "txt"]),
 };
 
-const categoryByExtension = new Map<string, FileCategory>();
-(Object.entries(categoryExtensions) as [FileCategory, Set<string>][]).forEach(([category, extensions]) => {
+const categoryByExtension = new Map<string, string>();
+(Object.entries(categoryExtensions) as [string, Set<string>][]).forEach(([category, extensions]) => {
     extensions.forEach((extension) => categoryByExtension.set(extension, category));
 });
 
-const categoryIcons: Record<FileCategory, string> = {
+const categoryIcons: Record<string, string> = {
     folder: "FolderOutlined",
     archive: "FileZipOutlined",
     image: "FileImageOutlined",
@@ -172,7 +153,7 @@ export const isAbsoluteFilePath = (value: string) => {
     return path.startsWith("/") || /^[a-zA-Z]:[\\/]/.test(path);
 };
 
-export const getFileCategory = (name: string, isDir = false): FileCategory => {
+export const getFileCategory = (name: string, isDir = false): string => {
     if (isDir) {
         return "folder";
     }

@@ -1,27 +1,10 @@
 import {forwardRef, memo, useState} from "react";
-import TerminalSession, {type ConnectionStatus, type TerminalProps as TerminalSessionProps, type TerminalRef} from "@/pages/components/terminal/session";
-import type {ServerRecord} from "../../hooks/servers";
+import TerminalSession, {type ConnectionStatus, type TerminalRef} from "@/pages/components/terminal/session";
 
 export type {ConnectionStatus, TerminalRef} from "@/pages/components/terminal/session";
 
-interface TerminalProps extends Pick<TerminalSessionProps,
-    "showHeader" | "toolbarContainer" | "showStatus" | "showClear" | "showReconnect" |
-    "showConnect" | "showFullscreen" | "showClose" | "onClose"> {
-    styles: any;
-    server: ServerRecord;
-    active: boolean;
-    initializing: boolean;
-    unavailable: boolean;
-    resetKey: number;
-    compact: boolean;
-    terminalBackground?: string;
-    terminalAccent?: string;
-    onStatusChange?: (serverId: number, status: ConnectionStatus) => void;
-    onEdit?: (server: ServerRecord) => void;
-}
-
 // SSH 仅提供服务器信息与认证编辑入口，连接及交互界面由通用终端负责。
-const Terminal = forwardRef<TerminalRef, TerminalProps>(({
+const Terminal = forwardRef<TerminalRef, any>(({
     server, initializing, unavailable, resetKey, onStatusChange, onEdit, ...props
 }, ref) => {
     const [status, setStatus] = useState<ConnectionStatus>("idle");
@@ -48,7 +31,7 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
         disabledReason={disabledReason}
         disabledIcon={localUnavailable ? "WarningOutlined" : "SettingOutlined"}
         resetKey={JSON.stringify([resetKey, server.auth_type, server.ip, server.port, server.user])}
-        onStatusChange={(nextStatus) => {
+        onStatusChange={(nextStatus: ConnectionStatus) => {
             setStatus(nextStatus);
             onStatusChange?.(server.id, nextStatus);
         }}

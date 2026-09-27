@@ -5,11 +5,11 @@ import Dropdown from "@/pages/components/stable-dropdown";
 import ActionDropdown from "@/pages/components/action-dropdown";
 import TypeManager from "@/pages/components/type-manager";
 import type {TypeManagerRef} from "@/pages/components/type-manager";
+
 import {deleteScript, getScriptInfo} from "@/service/api/script";
 import {getAllTypes} from "@/service/api/type";
 import useScripts from "../../hooks/scripts";
 import ScriptForm from "../script-form";
-import type {ScriptFormRef} from "../script-form";
 
 const manageTypeKey = "__manage_script_types__";
 
@@ -42,19 +42,10 @@ const fallbackCopyText = (value: string) => {
     }
 };
 
-interface ScriptsProps {
-    styles: any;
-    collapsed: boolean;
-    connected: boolean;
-    selectedId: number;
-    onCollapsedChange: (collapsed: boolean) => void;
-    onInsert: (script: string, serverId: number) => boolean;
-}
-
-const Scripts = ({styles, collapsed, connected, selectedId, onCollapsedChange, onInsert}: ScriptsProps) => {
+const Scripts = ({styles, collapsed, connected, selectedId, onCollapsedChange, onInsert}: any) => {
     const {message, modal} = App.useApp();
     const list = useScripts();
-    const formRef = useRef<ScriptFormRef>({} as ScriptFormRef);
+    const formRef = useRef<any>({} as any);
     const typeManagerRef = useRef<TypeManagerRef>({} as TypeManagerRef);
     const typeRequestRef = useRef(0);
     const insertRequestRef = useRef(0);

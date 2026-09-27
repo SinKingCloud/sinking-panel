@@ -2,7 +2,6 @@ import React, {useCallback, useLayoutEffect, useRef, useState} from "react";
 import {App, Button, Empty} from "antd";
 import {Body, Icon, PageTable} from "sinking-antd";
 import FileDialogHost from "./components/dialog-host";
-import type {FileDialogHostRef} from "./components/dialog-host";
 import FilePathBar from "./components/path-bar";
 import useFileTable from "./components/table";
 import useFileClipboard from "./hooks/clipboard";
@@ -16,7 +15,7 @@ import {joinFilePath, normalizeFilePath} from "./utils";
 
 export default (): React.ReactNode => {
     const {message} = App.useApp();
-    const dialogHostRef = useRef<FileDialogHostRef | null>(null);
+    const dialogHostRef = useRef<any>(null);
     const cancelPendingNavigationRef = useRef<() => void>(() => undefined);
     const [uploading, setUploading] = useState(false);
     const [editorMinimized, setEditorMinimized] = useState(false);

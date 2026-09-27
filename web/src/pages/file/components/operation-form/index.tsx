@@ -14,29 +14,7 @@ import {
     ExtractOperationFields,
     RemoteDownloadOperationFields,
 } from "../operation-fields";
-import type {FileOperationFormValues} from "../operation-fields";
 import {defaultArchiveName, getRemoteFileName} from "./utils";
-
-export interface FileOperationRef {
-    open: (mode: any, context: any) => void;
-    close: () => void;
-}
-
-interface FileOperationProps {
-    onTask: (taskId: string, title: string) => void;
-    onSuccess?: (context: any) => void;
-}
-
-interface OperationState {
-    generation: number;
-    mode: any;
-    context: any;
-}
-
-interface PendingConfirm {
-    destroy: () => void;
-    resolve: (confirmed: boolean) => void;
-}
 
 const modeText: Record<any, {title: string; action: string}> = {
     compress: {title: "压缩文件", action: "压缩"},
@@ -58,17 +36,17 @@ const useStyles = createStyles(({css}) => ({
     `,
 }));
 
-const FileOperationForm = forwardRef<FileOperationRef, FileOperationProps>(({onTask, onSuccess}, ref) => {
+const FileOperationForm = forwardRef<any, any>(({onTask, onSuccess}, ref) => {
     const {message, modal} = App.useApp();
     const theme = useTheme();
     const compact = Boolean(theme?.isCompactTheme?.());
     const screens = Grid.useBreakpoint();
     const {styles} = useStyles();
-    const formRef = useRef<FormInstance<FileOperationFormValues> | null>(null);
+    const formRef = useRef<FormInstance<any> | null>(null);
     const generationRef = useRef(0);
     const submittingGenerationRef = useRef<number | undefined>(undefined);
-    const confirmRef = useRef<PendingConfirm | undefined>(undefined);
-    const [operation, setOperation] = useState<OperationState>();
+    const confirmRef = useRef<any>(undefined);
+    const [operation, setOperation] = useState<any>();
     const [submitting, setSubmitting] = useState(false);
 
     const cancelPendingConfirm = useCallback(() => {
@@ -146,7 +124,7 @@ const FileOperationForm = forwardRef<FileOperationRef, FileOperationProps>(({onT
         });
     }, [cancelPendingConfirm, modal]);
 
-    const submit = useCallback(async (values: FileOperationFormValues) => {
+    const submit = useCallback(async (values: any) => {
         if (!operation || submittingGenerationRef.current === operation.generation) {
             return;
         }
@@ -239,7 +217,7 @@ const FileOperationForm = forwardRef<FileOperationRef, FileOperationProps>(({onT
     }, [close, confirmExtract, message, onSuccess, onTask, operation]);
 
     const records = operation?.context.records || [];
-    const initialValues: FileOperationFormValues | undefined = operation?.mode === "compress"
+    const initialValues: any = operation?.mode === "compress"
         ? {dir: operation.context.path, name: defaultArchiveName(records), format: "zip"}
         : operation?.mode === "extract"
             ? {dir: operation.context.path}
@@ -269,7 +247,7 @@ const FileOperationForm = forwardRef<FileOperationRef, FileOperationProps>(({onT
                     ? {body: {paddingTop: compact ? 10 : 15}}
                     : undefined,
             }}>
-            <AntForm<FileOperationFormValues>
+            <AntForm<any>
                 key={operation?.generation ?? 0}
                 ref={formRef}
                 initialValues={initialValues}

@@ -3,7 +3,7 @@ import {Body, PageTable} from "sinking-antd";
 import useEnum from "@/utils/enum";
 import TypeManager, {TypeManagerRef} from "@/pages/components/type-manager";
 import {getAllTypes} from "@/service/api/type";
-import Form, {FormRef} from "./components/form";
+import Form from "./components/form";
 import useTaskHeader from "./components/header";
 import Log, {LogRef} from "@/pages/components/task-log";
 import useTaskTable from "./components/table";
@@ -19,7 +19,7 @@ const defaultExecTypeEnum = {
 export default (): React.ReactNode => {
     const {styles} = useStyles();
     const [enumData, enumLoading] = useEnum("task");
-    const formRef = useRef<FormRef>({} as FormRef);
+    const formRef = useRef<any>({} as any);
     const logRef = useRef<LogRef>({} as LogRef);
     const typeManagerRef = useRef<TypeManagerRef>({} as TypeManagerRef);
     const typeVersionRef = useRef(0);

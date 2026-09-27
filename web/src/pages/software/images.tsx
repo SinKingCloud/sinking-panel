@@ -9,16 +9,7 @@ import {getContainerImage, getContainerImages, importContainerImage, removeConta
 import {getParams} from "@/utils/page";
 import useStyles from "./styles";
 
-export interface ImagesManagerRef {
-    open: () => void;
-    openDetail: (id: string) => Promise<void>;
-}
-
-interface ImagesManagerProps {
-    onRun: (image: any) => void;
-}
-
-const ImagesManager = forwardRef<ImagesManagerRef, ImagesManagerProps>(({onRun}, ref) => {
+const ImagesManager = forwardRef<any, any>(({onRun}, ref) => {
     const {message, modal} = App.useApp();
     const theme = useTheme();
     const compact = Boolean(theme?.isCompactTheme?.());

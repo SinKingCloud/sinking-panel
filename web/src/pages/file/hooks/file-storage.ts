@@ -1,18 +1,3 @@
-export interface FileStorageTask {
-    id: string;
-    title: string;
-}
-
-export interface FileStorageData {
-    editor?: {
-        preferences?: unknown;
-        treeCollapsed?: boolean;
-        treeWidth?: number;
-    };
-    lastPath?: string;
-    tasks?: FileStorageTask[];
-}
-
 const storageKey = "file";
 
 const parseObject = (value: string | null): Record<string, unknown> | undefined => {
@@ -29,15 +14,15 @@ const parseObject = (value: string | null): Record<string, unknown> | undefined 
     }
 };
 
-const readRaw = (): FileStorageData => {
+const readRaw = (): any => {
     if (typeof window === "undefined") {
         return {};
     }
     const stored = parseObject(window.localStorage.getItem(storageKey));
-    return stored ? stored as FileStorageData : {};
+    return stored ? stored as any : {};
 };
 
-const writeRaw = (value: FileStorageData) => {
+const writeRaw = (value: any) => {
     if (typeof window === "undefined") {
         return;
     }
@@ -48,13 +33,13 @@ const writeRaw = (value: FileStorageData) => {
     }
 };
 
-export const readFileStorage = (): FileStorageData => {
+export const readFileStorage = (): any => {
     if (typeof window === "undefined") {
         return {};
     }
     return readRaw();
 };
 
-export const updateFileStorage = (updater: (current: FileStorageData) => FileStorageData) => {
+export const updateFileStorage = (updater: (current: any) => any) => {
     writeRaw(updater(readFileStorage()));
 };

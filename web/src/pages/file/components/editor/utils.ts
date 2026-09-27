@@ -11,21 +11,6 @@ export const editorTreePageSize = 300;
 export const maxEditorContentSize = 8 * 1024 * 1024;
 const textEncoder = new TextEncoder();
 
-export interface FileEditorTreeNode {
-    key: string;
-    title: string;
-    name: string;
-    path: string;
-    parentPath: string;
-    kind: "entry" | "more";
-    isDirectory: boolean;
-    isLeaf: boolean;
-    record?: any;
-    nextPage?: number;
-    remaining?: number;
-    children?: FileEditorTreeNode[];
-}
-
 const extensionModes: Record<string, string> = {
     bash: "sh",
     bat: "batchfile",
@@ -106,7 +91,7 @@ export const contentByteSize = (value: string) => textEncoder.encode(value).byte
 
 export const editorTreeKey = (path: string) => comparableFilePath(path);
 
-export const createEditorRootNode = (path: string): FileEditorTreeNode => {
+export const createEditorRootNode = (path: string): any => {
     const normalized = normalizeFilePath(path);
     const breadcrumbs = buildFileBreadcrumbs(normalized);
     const name = breadcrumbs[breadcrumbs.length - 1]?.label || normalized;
@@ -125,7 +110,7 @@ export const createEditorRootNode = (path: string): FileEditorTreeNode => {
 export const createEditorEntryNode = (
     parentPath: string,
     record: any,
-): FileEditorTreeNode => {
+): any => {
     const path = joinFilePath(parentPath, record.name);
     return {
         key: editorTreeKey(path),
@@ -144,7 +129,7 @@ export const createEditorMoreNode = (
     parentPath: string,
     nextPage: number,
     remaining: number,
-): FileEditorTreeNode => ({
+): any => ({
     key: `editor-more:${encodeURIComponent(editorTreeKey(parentPath))}:${nextPage}`,
     title: `加载更多（${remaining}）`,
     name: "加载更多",
@@ -158,15 +143,15 @@ export const createEditorMoreNode = (
 });
 
 const preserveLoadedChildren = (
-    next: FileEditorTreeNode,
-    previous?: FileEditorTreeNode,
+    next: any,
+    previous?: any,
 ) => previous?.children && next.isDirectory
     ? {...next, children: previous.children}
     : next;
 
 const mergeChildren = (
-    current: FileEditorTreeNode[] | undefined,
-    incoming: FileEditorTreeNode[],
+    current: any[] | undefined,
+    incoming: any[],
     append: boolean,
 ) => {
     const existing = (current || []).filter((node) => node.kind !== "more");
@@ -193,11 +178,11 @@ const mergeChildren = (
 };
 
 export const setEditorTreeChildren = (
-    nodes: FileEditorTreeNode[],
+    nodes: any[],
     parentKey: string,
-    children: FileEditorTreeNode[],
+    children: any[],
     append = false,
-): FileEditorTreeNode[] => {
+): any[] => {
     let changed = false;
     const next = nodes.map((node) => {
         if (node.key === parentKey) {

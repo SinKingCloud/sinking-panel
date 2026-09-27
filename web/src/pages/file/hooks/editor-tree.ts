@@ -1,5 +1,4 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react";
-import {App} from "antd";
 import {getFileList} from "@/service/api/file";
 import {
     createEditorEntryNode,
@@ -11,38 +10,16 @@ import {
     resolveEditorRoot,
     setEditorTreeChildren,
 } from "../components/editor/utils";
-import type {FileEditorTreeNode} from "../components/editor/utils";
 import {normalizeFilePath, parentFilePath} from "../utils";
 
-export interface UseFileEditorTreeOptions {
-    roots: readonly string[];
-    message: ReturnType<typeof App.useApp>["message"];
-}
-
-type DirectoryLoadResult = {
-    status: "success";
-    entries: FileEditorTreeNode[];
-    hasMore: boolean;
-} | {
-    status: "failed" | "stale";
-};
-
-interface PendingDirectoryLoad {
-    page: number;
-    append: boolean;
-    generation: number;
-    requestId: number;
-    promise: Promise<DirectoryLoadResult>;
-}
-
-const useFileEditorTree = ({roots, message}: UseFileEditorTreeOptions) => {
+const useFileEditorTree = ({roots, message}: any) => {
     const generationRef = useRef(0);
     const selectionEpochRef = useRef(0);
     const expansionEpochRef = useRef(0);
     const requestSequenceRef = useRef(0);
     const directoryRequestsRef = useRef(new Map<string, number>());
-    const pendingLoadsRef = useRef(new Map<string, PendingDirectoryLoad>());
-    const [treeData, setTreeData] = useState<FileEditorTreeNode[]>([]);
+    const pendingLoadsRef = useRef(new Map<string, any>());
+    const [treeData, setTreeData] = useState<any[]>([]);
     const [expandedKeys, setExpandedKeys] = useState<string[]>([]);
     const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
     const [targetDirectory, setTargetDirectory] = useState("");
@@ -51,15 +28,15 @@ const useFileEditorTree = ({roots, message}: UseFileEditorTreeOptions) => {
     const loadingPathsRef = useRef(loadingPaths);
     loadingPathsRef.current = loadingPaths;
 
-    const normalizedRoots = useMemo(() => {
+    const normalizedRoots = useMemo<string[]>(() => {
         const values = roots
             .map(normalizeFilePath)
-            .filter((root, index, all) => all.indexOf(root) === index);
-        const isWindowsRoots = values.some((root) => /^[a-z]:\//i.test(root));
+            .filter((root: string, index: number, all: string[]) => all.indexOf(root) === index);
+        const isWindowsRoots = values.some((root: string) => /^[a-z]:\//i.test(root));
         // Linux mount enumeration may omit `/` when the root filesystem is overlay-backed.
         if (values.length > 0
             && !isWindowsRoots
-            && !values.some((root) => editorTreeKey(root) === editorTreeKey("/"))) {
+            && !values.some((root: string) => editorTreeKey(root) === editorTreeKey("/"))) {
             values.unshift("/");
         }
         return values;
@@ -74,7 +51,7 @@ const useFileEditorTree = ({roots, message}: UseFileEditorTreeOptions) => {
         append = false,
         generation = generationRef.current,
         force = false,
-    ): Promise<DirectoryLoadResult> => {
+    ): Promise<any> => {
         const normalizedPath = normalizeFilePath(path);
         const parentKey = editorTreeKey(normalizedPath);
         const pending = pendingLoadsRef.current.get(parentKey);
@@ -89,7 +66,7 @@ const useFileEditorTree = ({roots, message}: UseFileEditorTreeOptions) => {
         const requestId = ++requestSequenceRef.current;
         directoryRequestsRef.current.set(parentKey, requestId);
         setLoadingPaths((current) => new Set(current).add(parentKey));
-        const promise = (async (): Promise<DirectoryLoadResult> => {
+        const promise = (async (): Promise<any> => {
             try {
                 const response = await getFileList({body: {
                     path: normalizedPath,
@@ -175,7 +152,7 @@ const useFileEditorTree = ({roots, message}: UseFileEditorTreeOptions) => {
             if (current.length === 0) {
                 return current;
             }
-            const findNode = (nodes: FileEditorTreeNode[], key: string): FileEditorTreeNode | undefined => {
+            const findNode = (nodes: any[], key: string): any => {
                 for (const node of nodes) {
                     if (node.key === key) {
                         return node;
@@ -187,26 +164,26 @@ const useFileEditorTree = ({roots, message}: UseFileEditorTreeOptions) => {
                 }
                 return undefined;
             };
-            const nextRoots = normalizedRoots.map((path) => {
+            const nextRoots = normalizedRoots.map((path: string) => {
                 const root = createEditorRootNode(path);
                 const previous = findNode(current, root.key);
                 return previous?.children ? {...root, children: previous.children} : root;
             });
-            const nextRootKeys = new Set(nextRoots.map((node) => node.key));
+            const nextRootKeys = new Set(nextRoots.map((node: any) => node.key));
             current.forEach((node) => {
                 if (!nextRootKeys.has(node.key)) {
                     nextRootKeys.add(node.key);
                     nextRoots.push(node);
                 }
             });
-            const pruneNestedRoots = (node: FileEditorTreeNode): FileEditorTreeNode => {
+            const pruneNestedRoots = (node: any): any => {
                 if (!node.children) {
                     return node;
                 }
                 const children = node.children
-                    .filter((child) => !nextRootKeys.has(child.key))
+                    .filter((child: any) => !nextRootKeys.has(child.key))
                     .map(pruneNestedRoots);
-                return children.length === node.children.length && children.every((child, index) => child === node.children?.[index])
+                return children.length === node.children.length && children.every((child: any, index: number) => child === node.children?.[index])
                     ? node
                     : {...node, children};
             };
@@ -216,7 +193,7 @@ const useFileEditorTree = ({roots, message}: UseFileEditorTreeOptions) => {
 
     const loadedKeys = useMemo(() => {
         const keys: string[] = [];
-        const collect = (nodes: FileEditorTreeNode[]) => {
+        const collect = (nodes: any[]) => {
             nodes.forEach((node) => {
                 if (node.children !== undefined) {
                     keys.push(node.key);
@@ -239,7 +216,7 @@ const useFileEditorTree = ({roots, message}: UseFileEditorTreeOptions) => {
             ? normalizedRoots
             : [resolveEditorRoot(directory, [])];
         const root = resolveEditorRoot(directory, availableRoots);
-        if (!availableRoots.some((item) => editorTreeKey(item) === editorTreeKey(root))) {
+        if (!availableRoots.some((item: any) => editorTreeKey(item) === editorTreeKey(root))) {
             availableRoots = [...availableRoots, root];
         }
         const ancestors = getEditorAncestorPaths(directory, root);
@@ -264,7 +241,7 @@ const useFileEditorTree = ({roots, message}: UseFileEditorTreeOptions) => {
                         if (result.status !== "success" || generationRef.current !== generation) {
                             return;
                         }
-                        if (!target || result.entries.some((node) => node.key === editorTreeKey(target)) || !result.hasMore) {
+                        if (!target || result.entries.some((node: any) => node.key === editorTreeKey(target)) || !result.hasMore) {
                             break;
                         }
                         page += 1;
@@ -302,7 +279,7 @@ const useFileEditorTree = ({roots, message}: UseFileEditorTreeOptions) => {
         setInitializing(false);
     }, []);
 
-    const loadData = useCallback(async (node: FileEditorTreeNode) => {
+    const loadData = useCallback(async (node: any) => {
         if (node.kind !== "entry" || !node.isDirectory || node.children) {
             return;
         }
@@ -313,13 +290,13 @@ const useFileEditorTree = ({roots, message}: UseFileEditorTreeOptions) => {
         }
     }, [loadDirectory]);
 
-    const selectDirectory = useCallback((node: FileEditorTreeNode) => {
+    const selectDirectory = useCallback((node: any) => {
         selectionEpochRef.current += 1;
         setSelectedKeys([node.key]);
         setTargetDirectory(node.path);
     }, []);
 
-    const selectFile = useCallback((node: FileEditorTreeNode) => {
+    const selectFile = useCallback((node: any) => {
         selectionEpochRef.current += 1;
         setSelectedKeys([node.key]);
         setTargetDirectory(node.parentPath);
@@ -332,7 +309,7 @@ const useFileEditorTree = ({roots, message}: UseFileEditorTreeOptions) => {
         setTargetDirectory(isDirectory ? normalizedPath : parentFilePath(normalizedPath));
     }, []);
 
-    const loadMore = useCallback((node: FileEditorTreeNode) => {
+    const loadMore = useCallback((node: any) => {
         if (node.kind !== "more" || !node.nextPage) {
             return;
         }
@@ -364,7 +341,7 @@ const useFileEditorTree = ({roots, message}: UseFileEditorTreeOptions) => {
             if (result.status !== "success") {
                 return;
             }
-            if (result.entries.some((node) => node.key === editorTreeKey(targetPath)) || !result.hasMore) {
+            if (result.entries.some((node: any) => node.key === editorTreeKey(targetPath)) || !result.hasMore) {
                 break;
             }
             page += 1;

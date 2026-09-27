@@ -13,24 +13,6 @@ import {cancelSystemTask, getSystemTask} from "@/service/api/system";
 import {readFileStorage, updateFileStorage} from "../../hooks/file-storage";
 import useStyles from "./styles";
 
-export interface FileTaskCenterRef {
-    track: (id: string, title: string) => void;
-}
-
-interface FileTaskCenterProps {
-    onSettled: () => void;
-}
-
-interface DragState {
-    pointerId: number;
-    startX: number;
-    startY: number;
-    left: number;
-    top: number;
-    width: number;
-    height: number;
-}
-
 const terminalStatuses = new Set([2, 3, 4]);
 const statusMeta: Record<number, {label: string; className: string}> = {
     0: {label: "排队中", className: "running"},
@@ -81,7 +63,7 @@ const persistTasks = (tasks: any[]) => {
     }));
 };
 
-const FileTaskCenter = forwardRef<FileTaskCenterRef, FileTaskCenterProps>(({onSettled}, ref) => {
+const FileTaskCenter = forwardRef<any, any>(({onSettled}, ref) => {
     const theme = useTheme();
     const compact = Boolean(theme?.isCompactTheme?.());
     const {styles} = useStyles({compact});
@@ -94,7 +76,7 @@ const FileTaskCenter = forwardRef<FileTaskCenterRef, FileTaskCenterProps>(({onSe
     const [panelClosed, setPanelClosed] = useState(false);
     const [panelReady, setPanelReady] = useState(false);
     const panelRef = useRef<HTMLElement | null>(null);
-    const dragRef = useRef<DragState | undefined>(undefined);
+    const dragRef = useRef<any>(undefined);
     const [dragging, setDragging] = useState(false);
     const [panelPosition, setPanelPosition] = useState<{left?: number; top?: number}>({});
     const active = tasks.some((task) => !isTerminalStatus(task.status));
@@ -147,7 +129,7 @@ const FileTaskCenter = forwardRef<FileTaskCenterRef, FileTaskCenterProps>(({onSe
     }, [clearDismissTimer, commitTasks]);
 
     useImperativeHandle(ref, () => ({
-        track: (id, title) => {
+        track: (id: string, title: string) => {
             if (!id) {
                 return;
             }

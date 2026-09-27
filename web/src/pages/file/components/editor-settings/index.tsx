@@ -2,33 +2,7 @@ import React, {useCallback, useEffect, useId, useLayoutEffect, useRef, useState}
 import {Button, InputNumber, Segmented, Select, Switch} from "antd";
 import {Icon} from "sinking-antd";
 
-export type FileEditorTheme =
-    | "auto"
-    | "github"
-    | "github_dark"
-    | "one_dark"
-    | "dracula"
-    | "monokai"
-    | "tomorrow"
-    | "tomorrow_night"
-    | "solarized_light"
-    | "solarized_dark";
-
-export interface FileEditorPreferences {
-    theme: FileEditorTheme;
-    fontSize: number;
-    tabSize: number;
-    wrapEnabled: boolean;
-    showLineNumbers: boolean;
-}
-
-interface FileEditorSettingsProps {
-    value: FileEditorPreferences;
-    popupClassName?: string;
-    onChange: (value: FileEditorPreferences) => void;
-}
-
-const themeOptions: Array<{label: string; value: FileEditorTheme}> = [
+const themeOptions: Array<{label: string; value: string}> = [
     {label: "跟随界面", value: "auto"},
     {label: "GitHub Light", value: "github"},
     {label: "GitHub Dark", value: "github_dark"},
@@ -45,14 +19,14 @@ const FileEditorSettings = ({
     value,
     popupClassName,
     onChange,
-}: FileEditorSettingsProps) => {
+}: any) => {
     const containerRef = useRef<HTMLDivElement | null>(null);
     const panelRef = useRef<HTMLDivElement | null>(null);
     const buttonRef = useRef<HTMLButtonElement | null>(null);
     const panelId = useId();
     const [open, setOpen] = useState(false);
     const [rendered, setRendered] = useState(false);
-    const update = (nextValue: Partial<FileEditorPreferences>) => onChange({...value, ...nextValue});
+    const update = (nextValue: any) => onChange({...value, ...nextValue});
     const closePanel = useCallback(() => setOpen(false), []);
 
     const togglePanel = useCallback(() => {
@@ -141,7 +115,7 @@ const FileEditorSettings = ({
                     getPopupContainer={(triggerNode) => (
                         panelRef.current || triggerNode.parentElement || triggerNode
                     )}
-                    onChange={(nextValue) => update({theme: nextValue as FileEditorTheme})}/>
+                    onChange={(nextValue) => update({theme: nextValue as string})}/>
             </div>
             <div className="file-editor-setting-row">
                 <span>字号</span>

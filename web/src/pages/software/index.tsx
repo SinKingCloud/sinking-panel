@@ -9,13 +9,13 @@ import {getContainerList, removeContainer, restartContainer, startContainer, sto
 import useEnum from "@/utils/enum";
 import {getParams} from "@/utils/page";
 import RunContainer from "./run";
-import type {RunContainerRef} from "./run";
+
 import ContainerDetail from "./detail";
-import type {ContainerDetailRef} from "./detail";
+
 import ContainerExec from "./exec";
-import type {ContainerExecRef} from "./exec";
+
 import ImagesManager from "./images";
-import type {ImagesManagerRef} from "./images";
+
 import useStyles from "./styles";
 
 const emptyStatusData: Record<string, string> = {};
@@ -37,7 +37,6 @@ const operations = {
         content: "将停止容器并删除容器内的写入内容、日志及运行记录。挂载到服务器的数据目录和镜像会保留。",
     },
 };
-type Operation = keyof typeof operations;
 
 export default () => {
     const {message, modal} = App.useApp();
@@ -45,10 +44,10 @@ export default () => {
     const [enumData, enumLoading] = useEnum("container");
     const statusData = enumData.status || emptyStatusData;
     const tableRef = useRef<PageTableRef<any> | null>(null);
-    const runRef = useRef<RunContainerRef | null>(null);
-    const detailRef = useRef<ContainerDetailRef | null>(null);
-    const execRef = useRef<ContainerExecRef | null>(null);
-    const imagesRef = useRef<ImagesManagerRef | null>(null);
+    const runRef = useRef<any | null>(null);
+    const detailRef = useRef<any | null>(null);
+    const execRef = useRef<any | null>(null);
+    const imagesRef = useRef<any | null>(null);
     const confirmRef = useRef<{destroy: () => void} | null>(null);
     const mountedRef = useRef(true);
     const busyRef = useRef(new Set<string>());
@@ -66,7 +65,7 @@ export default () => {
 
     const reload = useCallback(() => tableRef.current?.reload(), []);
 
-    const operate = useCallback((action: Operation, records: any[]) => {
+    const operate = useCallback((action: keyof typeof operations, records: any[]) => {
         const targets = records.filter((record) => !busyRef.current.has(record.id)
             && !["starting", "stopping"].includes(record.status)
             && (action !== "start" || record.status !== "running")
@@ -261,7 +260,7 @@ export default () => {
                 columnWidth: 44,
                 getCheckboxProps: (record) => ({disabled: busy.has(record.id)}),
                 clearDisabled: busy.size > 0,
-                actions: (_, rows) => (Object.keys(operations) as Operation[]).map((action) => ({
+                actions: (_, rows) => (Object.keys(operations) as (keyof typeof operations)[]).map((action) => ({
                     key: action, type: "button", label: operations[action].label, danger: action === "remove",
                     disabled: busy.size > 0, onClick: () => operate(action, rows),
                 })),
@@ -270,7 +269,7 @@ export default () => {
         <RunContainer ref={runRef} onChange={reload}/>
         <ContainerDetail ref={detailRef}/>
         <ContainerExec ref={execRef} onChange={reload}/>
-        <ImagesManager ref={imagesRef} onRun={(image) => runRef.current?.open(image)}/>
+        <ImagesManager ref={imagesRef} onRun={(image: any) => runRef.current?.open(image)}/>
         <ContainerTerminal id={terminal?.id || ""}
             open={Boolean(terminal)} onClose={() => setTerminal(null)}/>
     </Body>;

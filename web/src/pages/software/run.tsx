@@ -5,27 +5,6 @@ import {ProModal, Title, useTheme} from "sinking-antd";
 import FilePicker from "@/pages/components/file-picker";
 import {getContainerImage, getContainerImages, getContainerList, runContainer} from "@/service/api/container";
 
-export interface RunContainerRef {
-    open: (image?: any) => void;
-}
-
-interface RunValues {
-    id: string;
-    name?: string;
-    image_id: string;
-    mounts?: {source: string; destination: string; read_only?: boolean}[];
-    command?: string;
-    env?: string;
-    working_dir?: string;
-    user?: string;
-    memory?: number;
-    cpu_quota?: number;
-    cpu_period?: number;
-    pids_limit?: number;
-    auto_restart: boolean;
-    read_only?: boolean;
-}
-
 const useStyles = createStyles(({css, token}, {compact}: {compact: boolean}) => ({
     modal: css`
         .ant-modal { max-width: calc(100vw - 24px); }
@@ -66,13 +45,13 @@ const useStyles = createStyles(({css, token}, {compact}: {compact: boolean}) => 
     `,
 }));
 
-const RunContainer = forwardRef<RunContainerRef, {onChange?: () => void}>(({onChange}, ref) => {
+const RunContainer = forwardRef<any, {onChange?: () => void}>(({onChange}, ref) => {
     const {message} = App.useApp();
     const theme = useTheme();
     const compact = Boolean(theme?.isCompactTheme?.());
     const screens = Grid.useBreakpoint();
     const {styles} = useStyles({compact});
-    const [form] = Form.useForm<RunValues>();
+    const [form] = Form.useForm<any>();
     const sessionRef = useRef(0);
     const listRequestRef = useRef(0);
     const imageRequestRef = useRef(0);
@@ -135,7 +114,7 @@ const RunContainer = forwardRef<RunContainerRef, {onChange?: () => void}>(({onCh
     }, [message]);
 
     useImperativeHandle(ref, () => ({
-        open: (selected) => {
+        open: (selected?: any) => {
             sessionRef.current += 1;
             listRequestRef.current += 1;
             imageRequestRef.current += 1;
@@ -170,7 +149,7 @@ const RunContainer = forwardRef<RunContainerRef, {onChange?: () => void}>(({onCh
         setOpen(false);
     }, []);
 
-    const submit = useCallback(async (values: RunValues) => {
+    const submit = useCallback(async (values: any) => {
         if (submittingRef.current) return;
         const session = sessionRef.current;
         submittingRef.current = true;
@@ -186,12 +165,12 @@ const RunContainer = forwardRef<RunContainerRef, {onChange?: () => void}>(({onCh
                 id: values.id.trim(),
                 name: values.name?.trim() || "",
                 image_id: values.image_id,
-                mounts: (values.mounts || []).map((mount) => ({
+                mounts: (values.mounts || []).map((mount: any) => ({
                     source: mount.source.trim(), destination: mount.destination.trim(), read_only: Boolean(mount.read_only),
                 })),
                 // 参数按行原样传递，保留参数内的空格；不做 shell 拆词或执行。
-                command: (values.command || "").split(/\r?\n/).filter((line) => line.length > 0),
-                env: (values.env || "").split(/\r?\n/).filter((line) => line.length > 0),
+                command: (values.command || "").split(/\r?\n/).filter((line: string) => line.length > 0),
+                env: (values.env || "").split(/\r?\n/).filter((line: string) => line.length > 0),
                 working_dir: values.working_dir?.trim() || "",
                 user: values.user?.trim() || "",
                 resources: {

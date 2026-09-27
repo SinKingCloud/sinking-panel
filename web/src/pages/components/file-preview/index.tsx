@@ -7,10 +7,6 @@ import useStyles from "./styles";
 
 export {getFilePreviewKind, isFilePreviewable} from "./media";
 
-interface PreviewSession {
-    files: any[];
-    index: number;
-}
 
 const previewIcons: Record<FilePreviewKind, string> = {
     image: "FileImageOutlined",
@@ -24,7 +20,7 @@ const FilePreview = memo(forwardRef<any>((_, ref) => {
     const compact = Boolean(theme?.isCompactTheme?.());
     const screens = Grid.useBreakpoint();
     const {styles} = useStyles({compact});
-    const [session, setSession] = useState<PreviewSession>();
+    const [session, setSession] = useState<any>();
     const current = session?.files[session.index];
     const kind = current ? getFilePreviewKind(current.name) : undefined;
     const total = session?.files.length || 0;
@@ -66,7 +62,7 @@ const FilePreview = memo(forwardRef<any>((_, ref) => {
     }), [close, message]);
 
     const changeIndex = useCallback((nextIndex: number) => {
-        setSession((currentSession) => {
+        setSession((currentSession: any) => {
             if (
                 !currentSession
                 || nextIndex < 0

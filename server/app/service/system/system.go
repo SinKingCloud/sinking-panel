@@ -23,7 +23,7 @@ type Service interface {
 	GetStatis() map[string]interface{}                                       // CPU、内存、磁盘等资源统计
 	GetIO(netInterface, diskName string, after int64) map[string]interface{} // 网络与磁盘 I/O 统计
 	GetTask(id string) *Task
-	TaskList() []*Task
+	TaskList(status *int) ([]*Task, error)
 	TaskCreate(id, name string, data interface{}, run func(context.Context, interface{}, func(int, float64, string)))
 	TaskUpdate(id string, status int, progress float64, message string)
 	TaskCancel(id string) bool

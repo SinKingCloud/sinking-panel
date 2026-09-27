@@ -1,13 +1,7 @@
 import React, {useCallback, useEffect, useLayoutEffect, useRef, useState} from "react";
 import {readFileStorage, updateFileStorage} from "../../hooks/file-storage";
 
-interface FileEditorResizeHandleProps {
-    workspaceRef: React.RefObject<HTMLDivElement | null>;
-    minWidth: number;
-    disabled: boolean;
-}
-
-const FileEditorResizeHandle = ({workspaceRef, minWidth, disabled}: FileEditorResizeHandleProps) => {
+const FileEditorResizeHandle = ({workspaceRef, minWidth, disabled}: any) => {
     const handleRef = useRef<HTMLDivElement>(null);
     const [width, setWidth] = useState(() => {
         try {

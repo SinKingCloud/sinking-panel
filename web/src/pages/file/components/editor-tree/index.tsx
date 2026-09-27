@@ -4,62 +4,12 @@ import type {MenuProps, TreeProps} from "antd";
 import {Icon} from "sinking-antd";
 import Dropdown from "@/pages/components/stable-dropdown";
 import {getFileIconType} from "../../utils";
-import type {FileEditorTreeNode} from "../editor/utils";
-
-type TreeSelectHandler = NonNullable<TreeProps<FileEditorTreeNode>["onSelect"]>;
-type TreeExpandHandler = NonNullable<TreeProps<FileEditorTreeNode>["onExpand"]>;
-type TreeSelectArgs = Parameters<TreeSelectHandler>;
-type TreeExpandArgs = Parameters<TreeExpandHandler>;
 
 const useStableEvent = <T extends (...args: any[]) => any>(callback: T): T => {
     const callbackRef = useRef(callback);
     callbackRef.current = callback;
     return useCallback(((...args: any[]) => callbackRef.current(...args)) as T, []);
 };
-
-export interface FileEditorTreeProps {
-    treeData: FileEditorTreeNode[];
-    expandedKeys: string[];
-    selectedKeys: string[];
-    loadedKeys: string[];
-    loadingPaths: ReadonlySet<string>;
-    initializing: boolean;
-    locateToken: number;
-    targetDirectory: string;
-    disabled: boolean;
-    layoutReady: boolean;
-    tooltipsDisabled: boolean;
-    onExpand: (keys: string[]) => void;
-    onSelect: (node: FileEditorTreeNode) => void;
-    onLoadData: NonNullable<TreeProps<FileEditorTreeNode>["loadData"]>;
-    onRefresh: () => void;
-    onCreate: (mode: any, parentPath?: string) => void;
-    onRename: (node: FileEditorTreeNode) => void;
-    onPermissions: (node: FileEditorTreeNode) => void;
-    onDelete: (node: FileEditorTreeNode) => void;
-    onCopy: (value: string, label: "名称" | "路径") => Promise<void>;
-    getPopupContainer: (triggerNode: HTMLElement) => HTMLElement;
-    menuClassName: string;
-    itemHeight: number;
-}
-
-interface FileEditorTreeNodeTitleProps {
-    node: FileEditorTreeNode;
-    loading: boolean;
-    disabled: boolean;
-    tooltipsDisabled: boolean;
-    onToggleDirectory: (event: React.MouseEvent, node: FileEditorTreeNode) => void;
-    onRename: (node: FileEditorTreeNode) => void;
-    onCreate: (mode: any, parentPath?: string) => void;
-    onPermissions: (node: FileEditorTreeNode) => void;
-    onDelete: (node: FileEditorTreeNode) => void;
-    onCopy: (value: string, label: "名称" | "路径") => Promise<void>;
-    menuOpen: boolean;
-    onOpenMenu: (node: FileEditorTreeNode) => void;
-    onCloseMenu: () => void;
-    getPopupContainer: (triggerNode: HTMLElement) => HTMLElement;
-    menuClassName: string;
-}
 
 const FileEditorTreeNodeTitle = React.memo(({
     node,
@@ -77,7 +27,7 @@ const FileEditorTreeNodeTitle = React.memo(({
     onCloseMenu,
     getPopupContainer,
     menuClassName,
-}: FileEditorTreeNodeTitleProps) => {
+}: any) => {
     const iconType = node.kind === "more"
         ? "EllipsisOutlined"
         : getFileIconType(node.name, node.isDirectory);
@@ -220,7 +170,7 @@ const FileEditorTree = ({
     getPopupContainer,
     menuClassName,
     itemHeight,
-}: FileEditorTreeProps) => {
+}: any) => {
     const treeBodyRef = useRef<HTMLDivElement | null>(null);
     const treeRef = useRef<any>(null);
     const initialLocateDoneRef = useRef(false);
@@ -244,7 +194,7 @@ const FileEditorTree = ({
         const parts = normalized.split(/[\\/]/).filter(Boolean);
         return parts[parts.length - 1] || targetDirectory || "目录";
     }, [targetDirectory]);
-    const openNodeMenu = useCallback((node: FileEditorTreeNode) => setMenuNodeKey(node.key), []);
+    const openNodeMenu = useCallback((node: any) => setMenuNodeKey(node.key), []);
     const closeNodeMenu = useCallback(() => setMenuNodeKey(undefined), []);
 
     useLayoutEffect(() => {
@@ -301,7 +251,7 @@ const FileEditorTree = ({
         };
     }, [expandedKeys, layoutReady, treeData, treeHeight]);
 
-    const toggleDirectory = useCallback((event: React.MouseEvent, node: FileEditorTreeNode) => {
+    const toggleDirectory = useCallback((event: React.MouseEvent, node: any) => {
         event.preventDefault();
         event.stopPropagation();
         if (node.kind !== "entry" || !node.isDirectory || disabled) {
@@ -309,11 +259,11 @@ const FileEditorTree = ({
         }
         const currentKeys = expandedKeysRef.current;
         stableOnExpand(currentKeys.includes(node.key)
-            ? currentKeys.filter((key) => key !== node.key)
+            ? currentKeys.filter((key: string) => key !== node.key)
             : [...currentKeys, node.key]);
     }, [disabled, stableOnExpand]);
 
-    const titleRender = useCallback((node: FileEditorTreeNode) => {
+    const titleRender = useCallback((node: any) => {
         return <FileEditorTreeNodeTitle
             node={node}
             loading={loadingPaths.has(node.key)}
@@ -349,12 +299,12 @@ const FileEditorTree = ({
         return () => window.cancelAnimationFrame(renderFrame);
     }, [initializing, locateToken, selectedKeys[0], treeData.length]);
 
-    const select = useCallback((_: TreeSelectArgs[0], info: TreeSelectArgs[1]) => {
+    const select = useCallback((_: Parameters<NonNullable<TreeProps<any>["onSelect"]>>[0], info: Parameters<NonNullable<TreeProps<any>["onSelect"]>>[1]) => {
         closeNodeMenu();
         stableOnSelect(info.node);
     }, [closeNodeMenu, stableOnSelect]);
 
-    const expand = useCallback((keys: TreeExpandArgs[0]) => {
+    const expand = useCallback((keys: Parameters<NonNullable<TreeProps<any>["onExpand"]>>[0]) => {
         closeNodeMenu();
         stableOnExpand(keys.map(String));
     }, [closeNodeMenu, stableOnExpand]);
@@ -394,7 +344,7 @@ const FileEditorTree = ({
                         <Spin/>
                     </div>
                 ) : treeData.length > 0 ? (
-                    <Tree<FileEditorTreeNode>
+                    <Tree<any>
                         ref={treeRef}
                         blockNode
                         showIcon={false}

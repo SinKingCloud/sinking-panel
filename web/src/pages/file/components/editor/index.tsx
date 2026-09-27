@@ -29,13 +29,10 @@ import {
 import FileEditorSettings from "../editor-settings";
 import FileEditorTabs from "../editor-tabs";
 import FileEditorTree from "../editor-tree";
-import type {FileEditorTreeNode} from "./utils";
 import {getEditorMode} from "./utils";
 import FileEditorResizeHandle from "./resize-handle";
 import FileForm from "../form";
-import type {FileFormRef} from "../form";
 import FilePermissions from "../permissions";
-import type {FilePermissionsRef} from "../permissions";
 import {copyTextToClipboard} from "../properties/utils";
 import useStyles from "./styles";
 
@@ -47,46 +44,13 @@ const previewKindLabels: Record<FilePreviewKind, string> = {
     audio: "音频预览",
 };
 
-interface FileEditorSession {
-    generation: number;
-}
-
-interface FormContext {
-    generation: number;
-    mode: any;
-    parentPath: string;
-    isDirectory?: boolean;
-}
-
-interface EditorViewState {
-    cursor?: {row: number; column: number};
-    scrollTop?: number;
-    scrollLeft?: number;
-}
-
-interface Destroyable {
-    destroy: () => void;
-}
-
-interface FileEditorProps {
-    roots: string[];
-    onMutation: () => void;
-    onMinimizedChange: (minimized: boolean) => void;
-}
-
-export interface FileEditorRef {
-    open: (path: string, name?: string) => void;
-    restore: () => void;
-    close: (force?: boolean) => void;
-}
-
 const isMobileViewport = () => (
     typeof window !== "undefined" && window.matchMedia("(max-width: 720px)").matches
 );
 
 const FileEditor = forwardRef(function FileEditor(
-    {roots, onMutation, onMinimizedChange}: FileEditorProps,
-    ref: React.ForwardedRef<FileEditorRef>,
+    {roots, onMutation, onMinimizedChange}: any,
+    ref: React.ForwardedRef<any>,
 ) {
     const {modal} = App.useApp();
     const theme = useTheme();
@@ -94,19 +58,19 @@ const FileEditor = forwardRef(function FileEditor(
     const dark = Boolean(theme?.isDarkMode?.() || theme?.isDarkTheme?.());
     const screens = Grid.useBreakpoint();
     const {styles} = useStyles({compact, dark});
-    const formRef = useRef<FileFormRef | null>(null);
-    const permissionsRef = useRef<FilePermissionsRef | null>(null);
+    const formRef = useRef<any>(null);
+    const permissionsRef = useRef<any>(null);
     const workspaceRef = useRef<HTMLDivElement | null>(null);
     const aceRef = useRef<any>(null);
-    const sessionRef = useRef<FileEditorSession | undefined>(undefined);
+    const sessionRef = useRef<any>(undefined);
     const sessionGenerationRef = useRef(0);
-    const formContextRef = useRef<FormContext | undefined>(undefined);
-    const discardConfirmRef = useRef<Destroyable | undefined>(undefined);
+    const formContextRef = useRef<any>(undefined);
+    const discardConfirmRef = useRef<any>(undefined);
     const deletingPathsRef = useRef(new Set<string>());
     const treeTransitionTimerRef = useRef<number | undefined>(undefined);
     const saveCommandRef = useRef<() => void>(() => undefined);
-    const viewStateRef = useRef(new Map<string, EditorViewState>());
-    const [session, setSession] = useState<FileEditorSession>();
+    const viewStateRef = useRef(new Map<string, any>());
+    const [session, setSession] = useState<any>();
     const [treeCollapsed, setTreeCollapsed] = useState(() => {
         const stored = readFileStorage().editor?.treeCollapsed;
         return typeof stored === "boolean" ? stored : isMobileViewport();
@@ -214,7 +178,7 @@ const FileEditor = forwardRef(function FileEditor(
 
         const showConfirm = () => {
             destroyDiscardConfirm();
-            let instance: Destroyable | undefined;
+            let instance: any;
             instance = modal.confirm({
                 title: "放弃未保存的修改？",
                 content,
@@ -351,7 +315,7 @@ const FileEditor = forwardRef(function FileEditor(
         setAceAttempt(0);
     }, [files.activeKey, files.activeTab?.generation]);
 
-    const selectTreeNode = useCallback((node: FileEditorTreeNode) => {
+    const selectTreeNode = useCallback((node: any) => {
         if (node.kind === "more") {
             tree.loadMore(node);
             return;
@@ -426,7 +390,7 @@ const FileEditor = forwardRef(function FileEditor(
         openForm();
     }, [exitWorkspaceFullscreen, message, session, tree.targetDirectory]);
 
-    const openPermissions = useCallback((node: FileEditorTreeNode) => {
+    const openPermissions = useCallback((node: any) => {
         if (!session || !node.record) {
             return;
         }
@@ -440,7 +404,7 @@ const FileEditor = forwardRef(function FileEditor(
         open();
     }, [exitWorkspaceFullscreen, message, session]);
 
-    const openRenameTreeNode = useCallback((node: FileEditorTreeNode) => {
+    const openRenameTreeNode = useCallback((node: any) => {
         if (!session || !node.record || node.kind !== "entry") {
             return;
         }
@@ -471,7 +435,7 @@ const FileEditor = forwardRef(function FileEditor(
         openForm();
     }, [exitWorkspaceFullscreen, message, session]);
 
-    const deleteTreeNode = useCallback((node: FileEditorTreeNode) => {
+    const deleteTreeNode = useCallback((node: any) => {
         if (!session || !node.record) {
             return;
         }
@@ -716,7 +680,7 @@ const FileEditor = forwardRef(function FileEditor(
     }, [finishTreeTransition]);
 
     const activeTab = files.activeTab;
-    const previewKind = activeTab?.previewKind;
+    const previewKind: FilePreviewKind | undefined = activeTab?.previewKind;
     const activeMode = getEditorMode(activeTab?.name || "");
     const currentAceError = !previewKind && aceError && activeTab && aceError.key === activeTab.key
         ? aceError.message

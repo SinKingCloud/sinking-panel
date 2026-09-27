@@ -2,6 +2,7 @@ package file
 
 import (
 	"context"
+	"errors"
 	"server/app/enum/file_format"
 	"server/app/util/archive"
 )
@@ -24,6 +25,9 @@ func (s *service) CompressFiles(ctx context.Context, srcPaths []string, destPath
 	case <-ctx.Done():
 		return ctx.Err()
 	default:
+	}
+	if !s.IsSupportedFormat(format) {
+		return errors.New("不支持的压缩格式")
 	}
 
 	// 创建包装的回调函数，检查上下文是否已取消

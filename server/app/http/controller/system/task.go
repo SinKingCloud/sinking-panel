@@ -78,20 +78,19 @@ func Task(c *context.Context) {
 			}
 			return
 		}
-		tasks := service.System.TaskList()
+		var status *int
 		if form.Status != "" {
-			filteredTasks := make([]interface{}, 0)
-			for _, task := range tasks {
-				if strconv.Itoa(task.Status) == form.Status {
-					filteredTasks = append(filteredTasks, task)
-				}
+			value, err := strconv.Atoi(form.Status)
+			if err != nil {
+				c.Error("任务状态参数错误")
+				return
 			}
-			c.SuccessWithData("获取成功", filteredTasks)
-			return
+			status = &value
 		}
-		data := make([]interface{}, len(tasks))
-		for i, task := range tasks {
-			data[i] = task
+		data, err := service.System.TaskList(status)
+		if err != nil {
+			c.Error(err.Error())
+			return
 		}
 		c.SuccessWithData("获取成功", data)
 	default:

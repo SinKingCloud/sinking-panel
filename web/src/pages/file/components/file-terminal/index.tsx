@@ -2,22 +2,10 @@ import React, {memo, useCallback, useEffect, useRef, useState} from "react";
 import {useTheme} from "sinking-antd";
 import {getServerInfo} from "@/service/api/server";
 import TerminalModal, {terminalBackground} from "@/pages/components/terminal/modal";
-import ServerTerminal, {
-    type ConnectionStatus,
-    type TerminalRef,
-} from "@/pages/server/components/terminal";
-import ServerForm, {
-    type FormRef as ServerFormRef,
-    type FormSuccessResult,
-} from "@/pages/server/components/form";
+import ServerTerminal, {type ConnectionStatus, type TerminalRef} from "@/pages/server/components/terminal";
+import ServerForm from "@/pages/server/components/form";
 import useServerStyles from "@/pages/server/styles";
-import {localServer, type ServerRecord} from "@/pages/server/hooks/servers";
-
-interface FileTerminalProps {
-    path: string;
-    open: boolean;
-    onClose: () => void;
-}
+import { localServer } from "@/pages/server/hooks/servers";
 
 const authTypeData: Record<string, string> = {};
 
@@ -33,7 +21,7 @@ const normalizeLocalServer = (data: any) => ({
     searchText: "",
 });
 
-const FileTerminal = ({path, open, onClose}: FileTerminalProps) => {
+const FileTerminal = ({path, open, onClose}: any) => {
     const theme = useTheme();
     const compact = Boolean(theme?.isCompactTheme?.());
     const dark = Boolean(theme?.isDarkMode?.() || theme?.isDarkTheme?.());
@@ -43,7 +31,7 @@ const FileTerminal = ({path, open, onClose}: FileTerminalProps) => {
         terminalBackground,
     });
     const terminalRef = useRef<TerminalRef | null>(null);
-    const formRef = useRef<ServerFormRef>({} as ServerFormRef);
+    const formRef = useRef<any>({} as any);
     const pathRef = useRef(path);
     const requestRef = useRef(0);
     const [server, setServer] = useState(localServer);
@@ -141,11 +129,11 @@ const FileTerminal = ({path, open, onClose}: FileTerminalProps) => {
         setStatus(nextStatus);
     }, []);
 
-    const openEdit = useCallback((record: ServerRecord) => {
+    const openEdit = useCallback((record: any) => {
         formRef.current?.open(record);
     }, []);
 
-    const handleFormSuccess = useCallback(({server: nextServer, reconnectRequired}: FormSuccessResult) => {
+    const handleFormSuccess = useCallback(({server: nextServer, reconnectRequired}: any) => {
         if (nextServer) {
             setServer(nextServer);
         }

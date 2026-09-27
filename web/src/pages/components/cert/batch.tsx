@@ -15,26 +15,8 @@ export interface BatchCertRef {
     close: () => void;
 }
 
-type TaskStatus = "pending" | "running" | "waiting" | "success" | "failed" | "skipped";
-interface Task {
-    domain: string;
-    certificate_id?: string | number;
-    status: TaskStatus;
-    error?: string;
-    challenge?: string;
-    type?: number;
-    secret_id?: number;
-    auto_renew?: number;
-    ca?: string;
-}
-interface ManualTask {
-    index: number;
-    data: any;
-    method: "obtain" | "renew";
-    id?: string | number;
-}
 
-const statusNames: Record<TaskStatus, string> = {
+const statusNames: Record<string, string> = {
     pending: "待申请", running: "申请中", waiting: "待验证", success: "成功", failed: "失败", skipped: "已跳过",
 };
 
@@ -140,18 +122,18 @@ const BatchCert = forwardRef<BatchCertRef, {onChange?: () => void; secretVersion
     const pauseRef = useRef(false);
     const closePendingRef = useRef(false);
     const reopenRef = useRef<(() => void) | null>(null);
-    const tasksRef = useRef<Task[]>([]);
+    const tasksRef = useRef<any[]>([]);
     const requestedDomainsRef = useRef<string[]>([]);
     const configurationsRef = useRef(new Map<string, {id?: string | number; values: Record<string, any>}>());
     const queueSelectionRef = useRef<number[] | null>(null);
-    const manualRef = useRef<ManualTask | null>(null);
+    const manualRef = useRef<any>(null);
     const onObtainedRef = useRef<((cert: any) => void) | undefined>(undefined);
     const onChangeRef = useRef(onChange);
     onChangeRef.current = onChange;
     const secretRequestRef = useRef(0);
     const secretVisitRef = useRef<{version: number; index: number} | null>(null);
     const createdSecretRef = useRef<number | null>(null);
-    const [tasks, setTasks] = useState<Task[]>([]);
+    const [tasks, setTasks] = useState<any[]>([]);
     const [mergeDomains, setMergeDomains] = useState(true);
     const [checkingCertificates, setCheckingCertificates] = useState(false);
     const [certificateError, setCertificateError] = useState("");
@@ -162,12 +144,12 @@ const BatchCert = forwardRef<BatchCertRef, {onChange?: () => void; secretVersion
     const [editingConfig, setEditingConfig] = useState(true);
     const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
     const [scrollRequest, setScrollRequest] = useState<{field: (string | number)[]; version: number} | null>(null);
-    const [manual, setManual] = useState<ManualTask | null>(null);
+    const [manual, setManual] = useState<any>(null);
     const [secretOptions, setSecretOptions] = useState<{value: number; label: string}[]>([]);
     const [secretLoading, setSecretLoading] = useState(false);
     const [secretError, setSecretError] = useState(false);
     const counts = useMemo(() => {
-        const result = {pending: 0, running: 0, waiting: 0, failed: 0, success: 0, skipped: 0, renewal: 0};
+        const result: Record<string, number> = {pending: 0, running: 0, waiting: 0, failed: 0, success: 0, skipped: 0, renewal: 0};
         for (const task of tasks) {
             result[task.status]++;
             if (task.certificate_id) result.renewal++;
@@ -200,7 +182,7 @@ const BatchCert = forwardRef<BatchCertRef, {onChange?: () => void; secretVersion
         return () => window.cancelAnimationFrame(frame);
     }, [form, scrollRequest]);
 
-    const updateTask = useCallback((index: number, changes: Partial<Task>) => {
+    const updateTask = useCallback((index: number, changes: Partial<any>) => {
         tasksRef.current = tasksRef.current.map((task, position) => position === index ? {...task, ...changes} : task);
         setTasks(tasksRef.current);
     }, []);

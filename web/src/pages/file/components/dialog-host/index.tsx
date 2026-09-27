@@ -10,58 +10,16 @@ import {App} from "antd";
 import FilePreview from "@/pages/components/file-preview";
 import {joinFilePath} from "../../utils";
 import FileForm from "../form";
-import type {FileFormRef} from "../form";
 import FileEditor from "../editor";
-import type {FileEditorRef} from "../editor";
 import FileOperationForm from "../operation-form";
-import type {FileOperationRef} from "../operation-form";
 import FilePermissions from "../permissions";
-import type {FilePermissionsRef} from "../permissions";
 import FileProperties from "../properties";
-import type {FilePropertiesRef} from "../properties";
 import FileRecycleBin from "../recycle-bin";
-import type {FileRecycleBinRef} from "../recycle-bin";
 import FileTaskCenter from "../task-center";
-import type {FileTaskCenterRef} from "../task-center";
 import FileUpload from "../upload";
-import type {FileUploadRef} from "../upload";
 import FileTerminal from "../file-terminal";
 
-export interface FileDialogHostRef {
-    openCreate: (mode: any) => void;
-    openEditor: (path?: string, name?: string) => void;
-    restoreEditor: () => void;
-    openRename: (record: any) => void;
-    openPermissions: (record: any) => void;
-    openProperties: (record: any) => void;
-    openPreview: (files: readonly any[], active: string) => void;
-    openOperation: (mode: any, record?: any) => void;
-    openOperationMany: (
-        mode: any,
-        records: any[],
-        clearSelectionOnSuccess?: boolean,
-    ) => void;
-    openUpload: () => void;
-    openTerminal: (path?: string) => void;
-    openRecycle: () => void;
-    trackTask: (taskId: string, title: string) => void;
-    closePathBound: () => void;
-}
-
-export interface FileDialogHostProps {
-    path: string;
-    roots: string[];
-    loaded: boolean;
-    loading: boolean;
-    navigating: boolean;
-    uploading: boolean;
-    onReload: () => void;
-    onUploadingChange: (uploading: boolean) => void;
-    onOperationCompleted: (paths: string[]) => void;
-    onEditorMinimizedChange: (minimized: boolean) => void;
-}
-
-const FileDialogHost = forwardRef<FileDialogHostRef, FileDialogHostProps>(({
+const FileDialogHost = forwardRef<any, any>(({
     path,
     roots,
     loaded,
@@ -74,15 +32,15 @@ const FileDialogHost = forwardRef<FileDialogHostRef, FileDialogHostProps>(({
     onEditorMinimizedChange,
 }, ref) => {
     const {message} = App.useApp();
-    const formRef = useRef<FileFormRef | null>(null);
-    const editorRef = useRef<FileEditorRef | null>(null);
-    const propertiesRef = useRef<FilePropertiesRef | null>(null);
+    const formRef = useRef<any>(null);
+    const editorRef = useRef<any>(null);
+    const propertiesRef = useRef<any>(null);
     const previewRef = useRef<any>(null);
-    const permissionsRef = useRef<FilePermissionsRef | null>(null);
-    const recycleBinRef = useRef<FileRecycleBinRef | null>(null);
-    const operationRef = useRef<FileOperationRef | null>(null);
-    const taskCenterRef = useRef<FileTaskCenterRef | null>(null);
-    const uploadRef = useRef<FileUploadRef | null>(null);
+    const permissionsRef = useRef<any>(null);
+    const recycleBinRef = useRef<any>(null);
+    const operationRef = useRef<any>(null);
+    const taskCenterRef = useRef<any>(null);
+    const uploadRef = useRef<any>(null);
     const [terminalPath, setTerminalPath] = React.useState("");
     const [terminalOpen, setTerminalOpen] = React.useState(false);
     const reloadTimerRef = useRef<number | undefined>(undefined);

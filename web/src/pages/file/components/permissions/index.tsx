@@ -4,33 +4,15 @@ import {ProModal, Title, useTheme} from "sinking-antd";
 import {updateFile} from "@/service/api/file";
 import {formatFileMode} from "../../utils";
 
-interface PermissionsState {
-    generation: number;
-    path: string;
-}
-
-interface PermissionsValues {
-    permissions: string;
-}
-
-export interface FilePermissionsRef {
-    open: (path: string, record: any, layered?: boolean) => void;
-    close: () => void;
-}
-
-interface FilePermissionsProps {
-    onSuccess: (path: string, permissions: string) => void;
-}
-
-const FilePermissions = forwardRef<FilePermissionsRef, FilePermissionsProps>(({onSuccess}, ref) => {
+const FilePermissions = forwardRef<any, any>(({onSuccess}, ref) => {
     const {message} = App.useApp();
     const theme = useTheme();
     const compact = Boolean(theme?.isCompactTheme?.());
     const screens = Grid.useBreakpoint();
-    const [form] = Form.useForm<PermissionsValues>();
+    const [form] = Form.useForm<any>();
     const generationRef = useRef(0);
     const submittingRef = useRef(false);
-    const [state, setState] = useState<PermissionsState>();
+    const [state, setState] = useState<any>();
     const [layered, setLayered] = useState(false);
     const [submitting, setSubmitting] = useState(false);
 
@@ -43,7 +25,7 @@ const FilePermissions = forwardRef<FilePermissionsRef, FilePermissionsProps>(({o
     }, [form]);
 
     useImperativeHandle(ref, () => ({
-        open: (path, record, nested = false) => {
+        open: (path: string, record: any, nested = false) => {
             setLayered(nested);
             const generation = ++generationRef.current;
             submittingRef.current = false;
@@ -55,7 +37,7 @@ const FilePermissions = forwardRef<FilePermissionsRef, FilePermissionsProps>(({o
         close,
     }), [close, form]);
 
-    const submit = async ({permissions}: PermissionsValues) => {
+    const submit = async ({permissions}: any) => {
         if (!state || submittingRef.current) {
             return;
         }
@@ -108,7 +90,7 @@ const FilePermissions = forwardRef<FilePermissionsRef, FilePermissionsProps>(({o
                 mask: {closable: true},
                 styles: {body: {paddingTop: compact ? 10 : 15}},
             }}>
-            <Form<PermissionsValues>
+            <Form<any>
                 form={form}
                 layout="vertical"
                 variant="filled"
