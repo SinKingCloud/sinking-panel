@@ -167,36 +167,36 @@ export default () => {
     const columns = useMemo<PageTableProps<any>["columns"]>(() => [
         {
             title: "ID", dataIndex: "id", key: "id", width: 145, sorter: true,
-            render: (value: string) => <Tooltip title={value}><span className="software-text software-muted">{value}</span></Tooltip>,
+            render: (value: string) => <Tooltip title={value}><span className="container-text container-muted">{value}</span></Tooltip>,
         },
         {
             title: "名称", dataIndex: "name", key: "name", width: 170, sorter: true,
-            render: (name: string, record: any) => <button type="button" className="software-name"
+            render: (name: string, record: any) => <button type="button" className="container-name"
                 title={name || record.id} onClick={() => detailRef.current?.open(record)}>{name || record.id}</button>,
         },
         {
             title: "镜像", dataIndex: "image_name", key: "image_name", width: 200,
-            render: (name: string, record: any) => <button type="button" className="software-name"
+            render: (name: string, record: any) => <button type="button" className="container-name"
                 aria-label={`查看镜像 ${name || record.image_id} 的详情`}
                 onClick={() => void imagesRef.current?.openDetail(record.image_id)}>{name || record.image_id}</button>,
         },
         {
             title: "运行状态", dataIndex: "status", key: "status", width: 110,
-            render: (value: string) => <span className={`software-state ${value}`}>{statusData[value] || "未知状态"}</span>,
+            render: (value: string) => <span className={`container-state ${value}`}>{statusData[value] || "未知状态"}</span>,
         },
         {
             title: "自动恢复", key: "auto_restart", width: 110,
             render: (_, record) => <Tooltip title={record.auto_restart
                 ? record.manual_stop ? "已手动停止，启动后恢复自动重启" : "跟随面板启动，退出后自动重启"
                 : "容器退出后不自动重启"}>
-                <span className={record.auto_restart && !record.manual_stop ? "" : "software-muted"}>
+                <span className={record.auto_restart && !record.manual_stop ? "" : "container-muted"}>
                     {record.auto_restart ? record.manual_stop ? "已暂停" : "已开启" : "未开启"}
                 </span>
             </Tooltip>,
         },
         {
             title: "创建时间", dataIndex: "create_time", key: "create_time", width: 165, sorter: true,
-            render: (value: string) => <span className="software-time">{value || "—"}</span>,
+            render: (value: string) => <span className="container-time">{value || "—"}</span>,
         },
         {
             title: "操作", key: "action", width: 82, fixed: "right", className: "action-cell",
@@ -226,7 +226,7 @@ export default () => {
         <PageTable<any>
             ref={tableRef}
             className={styles.table}
-            ariaLabel="软件管理"
+            ariaLabel="容器管理"
             rowKey="id"
             columns={columns}
             scroll={{x: 1050}}
@@ -238,7 +238,7 @@ export default () => {
             }}
             defaultPageSize={20}
             paginationAffix={{offsetBottom: 15}}
-            hero={{eyebrow: "SOFTWARE MANAGER", title: "软件管理", action: {label: "创建容器", onClick: () => runRef.current?.open()}}}
+            hero={{eyebrow: "CONTAINER MANAGER", title: "容器管理", action: {label: "创建容器", onClick: () => runRef.current?.open()}}}
             search={{
                 placeholder: "搜索容器", maxLength: 100,
                 fields: [

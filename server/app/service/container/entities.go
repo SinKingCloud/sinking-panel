@@ -5,7 +5,7 @@ import (
 	"server/app/util/str"
 )
 
-// Container 软件管理列表数据。
+// Container 容器管理列表数据。
 type Container struct {
 	Id          string          `json:"id"`           // 容器 ID
 	Name        string          `json:"name"`         // 容器名称

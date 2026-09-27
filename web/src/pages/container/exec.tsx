@@ -4,7 +4,7 @@ import {createStyles} from "antd-style";
 import {ProModal, Title, useTheme} from "sinking-antd";
 import {execContainer, getContainerStatus} from "@/service/api/container";
 
-import useSoftwareStyles from "./styles";
+import useContainerStyles from "./styles";
 
 const useStyles = createStyles(({css, token}, {compact}: {compact: boolean}) => ({
     modal: css`
@@ -92,7 +92,7 @@ const ContainerExec = forwardRef<any, {onChange?: () => void}>(({onChange}, ref)
     const compact = Boolean(theme?.isCompactTheme?.());
     const screens = Grid.useBreakpoint();
     const {styles} = useStyles({compact});
-    const {styles: softwareStyles} = useSoftwareStyles();
+    const {styles: containerStyles} = useContainerStyles();
     const [form] = Form.useForm<any>();
     const mode = Form.useWatch("mode", form) || "shell";
     const executionTimeout = Form.useWatch("timeout", form);
@@ -202,7 +202,7 @@ const ContainerExec = forwardRef<any, {onChange?: () => void}>(({onChange}, ref)
             okButtonProps: {disabled: statusLoading || Boolean(statusError) || status?.status !== "running"},
             afterOpenChange: (visible: boolean) => { if (visible) form.focusField(mode === "shell" ? "script" : "command"); },
         } as any}>
-        <div className={softwareStyles.detail} style={{minHeight: 0}}>
+        <div className={containerStyles.detail} style={{minHeight: 0}}>
             {statusError && <Alert type="error" showIcon title={statusError} action={retryStatus}/>}
             {!statusLoading && !statusError && status && status.status !== "running" && <Alert type="warning" showIcon
                 title="容器未运行，请启动后再执行命令。" action={retryStatus}/>}

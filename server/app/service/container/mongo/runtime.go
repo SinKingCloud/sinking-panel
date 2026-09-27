@@ -220,7 +220,7 @@ func (m *Manager) Uninstall(ctx context.Context, removeData bool) error {
 	}
 	if instance != nil {
 		if !m.managed(instance) {
-			return errors.New("该实例不是受管数据库，请在软件管理中操作")
+			return errors.New("该实例不是受管数据库，请在容器管理中操作")
 		}
 		if err = m.container.Remove(m.InstanceID); err != nil {
 			return err

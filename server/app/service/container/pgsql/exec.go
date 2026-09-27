@@ -102,7 +102,7 @@ func (m *Manager) statusLocked(ctx context.Context) (map[string]interface{}, err
 	result["auto_start"], result["image_id"] = instance.AutoRestart && !instance.ManualStop, instance.ImageID
 	result["config_path"], result["data_path"] = filepath.Join(m.root, "server.conf"), filepath.Join(m.root, "data")
 	if !m.managed(instance) {
-		result["error"] = "同名容器已存在，请先在软件管理中处理该实例"
+		result["error"] = "同名容器已存在，请先在容器管理中处理该实例"
 		return result, nil
 	}
 	state, err := m.readState()

@@ -147,22 +147,22 @@ const ImagesManager = forwardRef<any, any>(({onRun}, ref) => {
     const columns = useMemo<ModalTableProps<any>["columns"]>(() => [
         {
             title: "镜像名称", dataIndex: "name", key: "name", width: 205, sorter: true,
-            render: (name: string, image: any) => <button type="button" className="software-name"
+            render: (name: string, image: any) => <button type="button" className="container-name"
                 title={name || image.id} onClick={() => void showDetail(image.id)}>{name || "未命名镜像"}</button>,
         },
         {
             title: "标签", key: "tags", width: 210,
             render: (_, image) => <Tooltip title={image.tags?.join("、") || "无标签"}>
-                <span className="software-text">{image.tags?.join("、") || "—"}</span>
+                <span className="container-text">{image.tags?.join("、") || "—"}</span>
             </Tooltip>,
         },
         {
             title: "ID", dataIndex: "id", key: "id", width: 140, sorter: true,
-            render: (id: string) => <Tooltip title={id}><span className="software-text software-muted">{id.replace(/^sha256:/, "").slice(0, 12)}</span></Tooltip>,
+            render: (id: string) => <Tooltip title={id}><span className="container-text container-muted">{id.replace(/^sha256:/, "").slice(0, 12)}</span></Tooltip>,
         },
         {
             title: "创建时间", dataIndex: "create_time", key: "create_time", width: 165, sorter: true,
-            render: (value: string) => <span className="software-time">{value || "—"}</span>,
+            render: (value: string) => <span className="container-time">{value || "—"}</span>,
         },
         {
             title: "操作", key: "action", width: 82, fixed: "right", className: "action-cell",

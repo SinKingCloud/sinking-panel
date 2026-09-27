@@ -2,9 +2,9 @@ import {createStyles} from "antd-style";
 
 const useStyles = createStyles(({css, token}: any) => ({
     table: css`
-        .software-text,
-        .software-name,
-        .software-time {
+        .container-text,
+        .container-name,
+        .container-time {
             display: block;
             max-width: 100%;
             overflow: hidden;
@@ -12,7 +12,7 @@ const useStyles = createStyles(({css, token}: any) => ({
             white-space: nowrap;
         }
 
-        .software-name {
+        .container-name {
             padding: 0;
             border: 0;
             background: transparent;
@@ -22,13 +22,13 @@ const useStyles = createStyles(({css, token}: any) => ({
             cursor: pointer;
         }
 
-        .software-name:hover,
-        .software-name:focus-visible { color: ${token.colorPrimary}; }
-        .software-name:disabled { color: ${token.colorTextDisabled}; cursor: default; }
-        .software-time { color: ${token.colorTextSecondary}; font-variant-numeric: tabular-nums; }
-        .software-muted { color: ${token.colorTextTertiary}; }
+        .container-name:hover,
+        .container-name:focus-visible { color: ${token.colorPrimary}; }
+        .container-name:disabled { color: ${token.colorTextDisabled}; cursor: default; }
+        .container-time { color: ${token.colorTextSecondary}; font-variant-numeric: tabular-nums; }
+        .container-muted { color: ${token.colorTextTertiary}; }
 
-        .software-state {
+        .container-state {
             display: inline-flex;
             align-items: center;
             gap: 7px;
@@ -36,7 +36,7 @@ const useStyles = createStyles(({css, token}: any) => ({
             white-space: nowrap;
         }
 
-        .software-state::before {
+        .container-state::before {
             content: "";
             width: 6px;
             height: 6px;
@@ -44,10 +44,10 @@ const useStyles = createStyles(({css, token}: any) => ({
             background: currentColor;
         }
 
-        .software-state.running { color: ${token.colorSuccess}; }
-        .software-state.failed { color: ${token.colorError}; }
-        .software-state.starting,
-        .software-state.stopping { color: ${token.colorWarning}; }
+        .container-state.running { color: ${token.colorSuccess}; }
+        .container-state.failed { color: ${token.colorError}; }
+        .container-state.starting,
+        .container-state.stopping { color: ${token.colorWarning}; }
     `,
     detail: css`
         display: flex;
