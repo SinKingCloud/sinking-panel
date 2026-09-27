@@ -119,7 +119,7 @@ func (s *service) UpdateWAF(id int64, config *WAFUpdate) error {
 			current.Enabled = *config.Enabled
 		}
 		if config.Mode != nil {
-			current.Mode = *config.Mode
+			current.Mode = caddy.WAFMode(*config.Mode)
 		}
 		if config.BlockPage != nil {
 			current.BlockPage = *config.BlockPage
@@ -420,7 +420,7 @@ func (s *service) UpdateProxy(id int64, config *ProxyUpdate) error {
 		proxy.Upstreams = *config.Upstreams
 	}
 	if config.Scheme != nil {
-		proxy.Scheme = *config.Scheme
+		proxy.Scheme = caddy.ProxyScheme(*config.Scheme)
 	}
 	if config.Policy != nil {
 		proxy.Policy = *config.Policy

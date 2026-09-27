@@ -27,26 +27,24 @@ func CheckLogin(c *context.Context) {
 			}
 		}
 	}
-	if token == "" || types == "" {
-		isWebSocket := websocket.IsWebSocketUpgrade(c.Request)
-		if isWebSocket {
-			protocols := websocket.Subprotocols(c.Request)
-			if len(protocols) > 0 {
-				var form struct {
-					Token  string `json:"token"`
-					Device string `json:"device"`
-				}
-				if data, err := base64.RawURLEncoding.DecodeString(protocols[0]); err == nil {
-					_ = json.Unmarshal(data, &form)
-				}
-				if token == "" && form.Token != "" {
-					token = form.Token
-				}
-				if types == "" && form.Device != "" {
-					types = form.Device
-				}
-			}
+	if websocket.IsWebSocketUpgrade(c.Request) {
+		// WebSocket 必须显式携带凭据，避免跨域终端仅凭浏览器自动附带的 Cookie 连接。
+		var auth struct {
+			Token  string `json:"token"`
+			Device string `json:"device"`
 		}
+		valid := false
+		if protocols := websocket.Subprotocols(c.Request); len(protocols) > 0 {
+			data, err := base64.RawURLEncoding.DecodeString(protocols[0])
+			valid = err == nil && json.Unmarshal(data, &auth) == nil
+		}
+		if !valid || auth.Token == "" || auth.Device == "" ||
+			(token != "" && token != auth.Token) || (types != "" && types != auth.Device) {
+			c.NotLogin("终端认证失败，请重新登录", nil)
+			c.Abort()
+			return
+		}
+		token, types = auth.Token, auth.Device
 	}
 	if token == "" || types == "" {
 		c.NotLogin("您还未登陆,请先登陆账户", nil)
