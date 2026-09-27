@@ -130,8 +130,11 @@ func (s *Server) Execute(args []string) error {
 			return errors.New("port 必须在 1 到 65535 之间")
 		}
 	}
-	if err := platform.CheckPrivilege(); err != nil {
-		return err
+	// 前台运行不要求提权，系统服务相关命令仍检查权限。
+	if command != "run" {
+		if err := platform.CheckPrivilege(); err != nil {
+			return err
+		}
 	}
 	if startup {
 		bootstrap.LoadConf()

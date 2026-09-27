@@ -9,12 +9,18 @@ import (
 
 	"server/app/constant"
 	"server/app/util/container"
+	"server/app/util/platform"
 	"server/global"
 )
 
 // LoadContainer 在服务启动时加载容器管理器，接管运行实例并启动已停止的容器。
 func LoadContainer() error {
 	if global.App.Container != nil {
+		return nil
+	}
+	// 普通用户仍可运行面板，只有 Linux 容器运行时需要 root。
+	if platform.IsLinux() && os.Geteuid() != 0 {
+		log.Println("当前用户非 root，跳过轻量容器初始化")
 		return nil
 	}
 	executable, err := os.Executable()
