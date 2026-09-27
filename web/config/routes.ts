@@ -44,6 +44,22 @@ export default [
         component: "@/pages/server",
     },
     {
+        path: "database",
+        title: "数据管理",
+        name: "database",
+        icon: "DatabaseOutlined",
+        hideInMenu: false,
+        component: "@/pages/database",
+    },
+    {
+        path: "software",
+        title: "软件管理",
+        name: "software",
+        icon: "AppstoreOutlined",
+        hideInMenu: false,
+        component: "@/pages/software",
+    },
+    {
         path: "log",
         title: "操作日志",
         name: "log",
