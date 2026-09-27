@@ -16,6 +16,7 @@ const (
 // ManagerOptions 控制容器运行时的轮询、日志和停止策略。
 // 字段为零值时使用内置默认值，便于按需只覆盖单项配置。
 type ManagerOptions struct {
+	DisableAutoRestart     bool          // 仅接管或清理时关闭自动启动，不修改实例保存的保活策略
 	ContainerLogMaxSize    int64         // 单份实例日志保留大小，默认 10 MiB
 	RuntimeLogInterval     time.Duration // 实例日志大小检查间隔，默认 5 秒
 	RuntimePollInterval    time.Duration // 恢复实例状态检查间隔，默认 1 秒
@@ -227,7 +228,7 @@ type Manager struct {
 	platformSecurity  interface{}      // 平台特有的安全配置和运行环境状态
 
 	mu             sync.RWMutex                  // 保护内存中的镜像、实例、运行时、终端及关闭状态
-	lifecycleMu    sync.RWMutex                  // 协调运行请求与 StopAll，关闭期间阻止新增运行操作
+	lifecycleMu    sync.RWMutex                  // 协调运行请求与 Close，关闭期间阻止新增运行操作
 	importMu       sync.Mutex                    // 串行导入镜像
 	imageMu        sync.RWMutex                  // 协调镜像文件读写，避免使用期间删除或替换镜像
 	mountMu        sync.Mutex                    // 串行检查挂载源冲突及启动实例
@@ -242,6 +243,6 @@ type Manager struct {
 	cancel         context.CancelFunc            // 关闭管理器时取消后台任务
 	workers        sync.WaitGroup                // 等待受管理的后台任务退出
 	closing        bool                          // 管理器是否已进入关闭流程
-	closeOnce      sync.Once                     // 保证 StopAll 只执行一次清理流程
-	closeErr       error                         // StopAll 汇总的关闭错误，后续调用复用
+	closeOnce      sync.Once                     // 保证 Close 只执行一次关闭流程
+	closeErr       error                         // Close 汇总的关闭错误，后续调用复用
 }

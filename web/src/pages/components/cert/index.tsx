@@ -20,7 +20,7 @@ import {createStyles} from "antd-style";
 import dayjs from "dayjs";
 import {Icon, ModalTable, ProModal, Title, useTheme} from "sinking-antd";
 import type {ModalTableRef} from "sinking-antd";
-import Dropdown from "@/pages/components/stable-dropdown";
+import ActionDropdown from "@/pages/components/action-dropdown";
 import {
     createCert,
     deleteCert,
@@ -32,7 +32,6 @@ import {
     renewCert,
     updateCert,
 } from "@/service/api/cert";
-import type {ManualCertSession} from "@/service/api/cert";
 import {getEnum as getSystemEnum} from "@/service/api/system";
 import SecretManager, {SecretManagerRef} from "@/pages/components/secret";
 import type {SecretChange} from "@/pages/components/secret";
@@ -251,7 +250,7 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
     const secretRequestRef = useRef(0);
     const formOpenRef = useRef(false);
     const submittingRef = useRef(false);
-    const manualSessionRef = useRef<{data: ManualCertSession, method: "obtain" | "renew", id?: number} | null>(null);
+    const manualSessionRef = useRef<{data: any, method: "obtain" | "renew", id?: number} | null>(null);
     const obtainRef = useRef<{domain: string, onObtained?: (cert: any) => void} | null>(null);
     const deployRef = useRef<{domain: string, onSelected: (cert: any) => void} | null>(null);
     const suggestedNameRef = useRef("");
@@ -268,7 +267,7 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
     const certificateForm = viewing || mode === "import" || mode === "edit";
     const [obtainDomain, setObtainDomain] = useState("");
     const [challenge, setChallenge] = useState("http");
-    const [manualSession, setManualSession] = useState<ManualCertSession | null>(null);
+    const [manualSession, setManualSession] = useState<any>(null);
     const [secretOptions, setSecretOptions] = useState<{label: string, value: number}[]>([]);
     const [secretLoading, setSecretLoading] = useState(false);
     const [secretLoadError, setSecretLoadError] = useState(false);
@@ -695,7 +694,7 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
                         const method = mode === "renew" ? "renew" : "obtain";
                         const id = method === "renew" ? record?.id : undefined;
                         const started = await requestCertManual(method, {...body, action: "start", id});
-                        const data = started?.data as ManualCertSession | undefined;
+                        const data = started?.data;
                         if (formRequestRef.current !== requestId) {
                             if (data?.session_id) void requestCertManual(method, {action: "cancel", session_id: data.session_id, id}).catch(() => undefined);
                             return;
@@ -838,17 +837,14 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
                 } catch {}
             }}>部署</Button>
     ) : (
-            <Dropdown
-                trigger={["click"]}
-                placement="bottom"
-                arrow
+            <ActionDropdown
                 menu={{
                     items: [
-                        {key: "view", label: "查看"},
-                        {key: "edit", label: "编辑"},
-                        {key: "renew", label: "续签", disabled: ![1, 2].includes(Number(item.type))},
+                        {key: "view", label: "查看证书"},
+                        {key: "edit", label: "编辑证书"},
+                        {key: "renew", label: "续签证书", disabled: ![1, 2].includes(Number(item.type))},
                         {type: "divider" as const},
-                        {key: "delete", label: "删除", danger: true},
+                        {key: "delete", label: "删除证书", danger: true},
                     ],
                     onClick: ({key}) => {
                         if (key === "view" || key === "edit") {
@@ -864,7 +860,7 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
                     size="small"
                     autoInsertSpace={false}
                     aria-label={`操作证书 ${item?.name || ""}`}>操作</Button>
-            </Dropdown>
+            </ActionDropdown>
     ), [close, confirmRemove, deployDomain, loadList, message, openForm]);
 
     const columns = useMemo<any[]>(() => [
@@ -1029,7 +1025,7 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
             <ModalTable
                 ref={modalRef}
                 title={<Title>{deployDomain ? "部署证书" : "证书管理"}</Title>}
-                width={910}
+                width={compact ? 800 : 910}
                 onCancel={close}
                 className={styles.certificateTable}
                 minHeight={compact ? 440 : 480}
@@ -1342,7 +1338,7 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
                                     <Typography.Text type="secondary">无需添加验证信息，点击“验证”继续。</Typography.Text>
                                 </section>
                             )}
-                            {manualSession.challenges.map((manualChallenge, index) => (
+                            {manualSession.challenges.map((manualChallenge: any, index: number) => (
                                 <section key={manualChallenge.id} className={styles.verificationRecord}>
                                     {manualChallenge.type === "HTTP" && (
                                         <div className="verification-heading">

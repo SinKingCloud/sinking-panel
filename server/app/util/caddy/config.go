@@ -916,7 +916,8 @@ func (m *Manager) buildConfig(sites map[string]*Site) ([]byte, error) {
 		sort.Strings(certificate.Tags)
 		loadPEMs = append(loadPEMs, *certificate)
 	}
-	tlsApp := map[string]interface{}{}
+	// 证书由面板管理，关闭会额外向默认用户目录写入 instance.uuid 的存储清理任务。
+	tlsApp := map[string]interface{}{"disable_storage_clean": true}
 	certificateLoaders := map[string]interface{}{}
 	if len(loadFiles) != 0 {
 		certificateLoaders["load_files"] = loadFiles

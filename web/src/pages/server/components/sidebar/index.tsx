@@ -140,6 +140,7 @@ const Sidebar = ({
                 </button>
                 <div className="server-actions">
                     <ActionDropdown
+                        placement="bottomRight"
                         disabled={pending}
                         menu={{items: menuItems}}>
                         <Button

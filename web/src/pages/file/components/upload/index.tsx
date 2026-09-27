@@ -205,7 +205,7 @@ const FileUpload = forwardRef<FileUploadRef, FileUploadProps>(({
     return (
         <ProModal
             title={<Title>上传文件</Title>}
-            width="640px"
+            width={compact ? "560px" : "640px"}
             onCancel={() => setOpen(false)}
             modalProps={{
                 open,

@@ -12,7 +12,7 @@ import {App, Button, Grid, Space, Tooltip} from "antd";
 import type {TableColumnsType} from "antd";
 import {Icon, ModalTable, Title, useTheme} from "sinking-antd";
 import type {ModalTableProps, ModalTableRef} from "sinking-antd";
-import Dropdown from "@/pages/components/stable-dropdown";
+import ActionDropdown from "@/pages/components/action-dropdown";
 import {
     clearRecycle,
     deleteRecycleItem,
@@ -61,13 +61,9 @@ const RecycleRowActions = memo(({
     }), [remove, restore]);
 
     return (
-        <Dropdown
-            menu={menu}
-            trigger={["click"]}
-            placement="bottom"
-            arrow>
+        <ActionDropdown menu={menu}>
             <Button size="small" autoInsertSpace={false}>操作</Button>
-        </Dropdown>
+        </ActionDropdown>
     );
 });
 
@@ -277,7 +273,7 @@ const FileRecycleBin = memo(forwardRef<FileRecycleBinRef, FileRecycleBinProps>((
         <ModalTable
             ref={tableRef}
             title={<Title>回收站</Title>}
-            width={910}
+            width={compact ? 800 : 910}
             minHeight={compact ? 440 : 480}
             modalProps={{style: {top: screens.md ? 100 : 24, paddingBottom: screens.md ? 100 : 24, maxWidth: "calc(100vw - 24px)"}}}
             scrollMode="modal"

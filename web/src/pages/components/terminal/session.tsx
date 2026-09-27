@@ -64,7 +64,7 @@ const TerminalSession = forwardRef<TerminalRef, TerminalProps>(({
     showReconnect = false, showConnect = true, showFullscreen = true, autoConnect = false,
     terminalBackground, terminalAccent, errorAction, onStatusChange, onClose, showClose = Boolean(onClose),
 }, ref) => {
-    const {message} = App.useApp();
+    const {message, modal} = App.useApp();
     const {styles: defaultStyles} = useStyles({compact, terminalBackground});
     const styles = customStyles || defaultStyles;
     const terminalTheme = useMemo(() => ({
@@ -296,7 +296,25 @@ const TerminalSession = forwardRef<TerminalRef, TerminalProps>(({
     const actions = [
         {key: "clear", visible: showClear, title: "清理", icon: "ClearOutlined", onClick: () => terminalRef.current?.clear()},
         {key: "reconnect", visible: showReconnect, title: "重连", icon: "ReloadOutlined", disabled: loading || Boolean(disabledReason), onClick: () => connect(true)},
-        {key: "connect", visible: showConnect, title: connectionLabel, icon: canDisconnect ? "DisconnectOutlined" : "LinkOutlined", disabled: !canDisconnect && (loading || Boolean(disabledReason)), onClick: () => canDisconnect ? closeSocket("disconnected") : connect()},
+        {key: "connect", visible: showConnect, title: connectionLabel, icon: canDisconnect ? "DisconnectOutlined" : "LinkOutlined", disabled: !canDisconnect && (loading || Boolean(disabledReason)), onClick: () => {
+            if (!canDisconnect) {
+                connect();
+                return;
+            }
+            const generation = generationRef.current;
+            modal.confirm({
+                title: "断开连接",
+                content: `确定断开终端“${title}”的连接吗？`,
+                okText: "断开",
+                cancelText: "取消",
+                okButtonProps: {danger: true, type: "default"},
+                mask: {closable: true},
+                getContainer: document.fullscreenElement === screenRef.current ? screenRef.current || document.body : document.body,
+                onOk: () => {
+                    if (mountedRef.current && generationRef.current === generation) closeSocket("disconnected");
+                },
+            });
+        }},
         {key: "fullscreen", visible: showFullscreen, title: fullscreen ? "退出全屏" : "全屏", icon: fullscreen ? "FullscreenExitOutlined" : "FullscreenOutlined", disabled: fullscreenPending, onClick: () => void toggleFullscreen()},
         {key: "close", visible: showClose && Boolean(onClose), title: "关闭", icon: "CloseOutlined", onClick: () => void close()},
     ].filter((action) => action.visible);

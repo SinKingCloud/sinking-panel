@@ -391,7 +391,8 @@ const Scripts = ({styles, collapsed, connected, selectedId, onCollapsedChange, o
                                             <Tooltip title="填入终端">
                                                 <Button
                                                     className="script-terminal"
-                                                    type="text"
+                                                    color="default"
+                                                    variant="text"
                                                     loading={insertingId === record.id}
                                                     aria-label={`填入终端 ${record.name}`}
                                                     icon={<Icon type="EnterOutlined"/>}
@@ -418,7 +419,8 @@ const Scripts = ({styles, collapsed, connected, selectedId, onCollapsedChange, o
                                                 }}>
                                                 <Button
                                                     className="script-action"
-                                                    type="text"
+                                                    color="default"
+                                                    variant="text"
                                                     loading={deletingId === record.id}
                                                     aria-label={`管理脚本 ${record.name}`}
                                                     icon={<Icon type="MoreOutlined"/>}/>

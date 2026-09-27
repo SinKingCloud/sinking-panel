@@ -18,7 +18,7 @@ import (
 type Service interface {
 	Start()
 	Close()
-	Restart(action string) error                                             // 重启面板或服务器
+	Restart(action string, containers bool) error                            // 重启面板或服务器，可选同时重启容器
 	GetInfo() map[string]interface{}                                         // 主机、系统和运行时信息
 	GetStatis() map[string]interface{}                                       // CPU、内存、磁盘等资源统计
 	GetIO(netInterface, diskName string, after int64) map[string]interface{} // 网络与磁盘 I/O 统计

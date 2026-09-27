@@ -351,6 +351,10 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
                 justify-content: center;
             }
 
+            .server-empty {
+                flex: 1;
+            }
+
             .server-empty .ant-empty {
                 margin-block: 12px;
             }
@@ -935,7 +939,9 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
             .script-scroll {
                 min-width: 0;
                 min-height: 0;
+                display: flex;
                 flex: 1;
+                flex-direction: column;
                 overflow-x: hidden;
                 overflow-y: auto;
                 overscroll-behavior: contain;
@@ -956,6 +962,7 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
                 min-width: 0;
                 padding: 0 ${compact ? 7 : 9}px;
                 display: flex;
+                flex: none;
                 flex-direction: column;
                 gap: 3px;
             }
@@ -1050,15 +1057,17 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
                 width: ${compact ? 28 : 30}px !important;
                 height: ${compact ? 28 : 30}px !important;
                 padding: 0;
-            }
-
-            .script-action {
                 opacity: 0;
                 transition: opacity .16s ease;
             }
 
+            .script-item:hover .script-terminal,
+            .script-item:focus-within .script-terminal,
             .script-item:hover .script-action,
-            .script-item:focus-within .script-action {
+            .script-item:focus-within .script-action,
+            .script-terminal.ant-btn-loading,
+            .script-action.ant-btn-loading,
+            .script-action.ant-dropdown-open {
                 opacity: 1;
             }
 
@@ -1066,6 +1075,7 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
                 min-height: 110px;
                 padding: 16px 10px;
                 display: flex;
+                flex: 1;
                 flex-direction: column;
                 align-items: center;
                 justify-content: center;

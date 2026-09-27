@@ -127,14 +127,14 @@ const useTaskTable = ({
                 const id = String(record.id);
                 const running = Number(record.status) === 0;
                 const items = [
-                    {key: "edit", label: "编辑", onClick: () => onEdit(record)},
-                    {key: "log", label: "日志", onClick: () => onLog(record)},
-                    {key: "run", label: "执行", onClick: () => onAction("run", record)},
+                    {key: "edit", label: "编辑任务", onClick: () => onEdit(record)},
+                    {key: "log", label: "任务日志", onClick: () => onLog(record)},
+                    {key: "run", label: "立即执行", onClick: () => onAction("run", record)},
                     running
-                        ? {key: "stop", label: "暂停", onClick: () => onAction("stop", record)}
-                        : {key: "restore", label: "恢复", onClick: () => onAction("restore", record)},
+                        ? {key: "stop", label: "暂停任务", onClick: () => onAction("stop", record)}
+                        : {key: "restore", label: "恢复任务", onClick: () => onAction("restore", record)},
                     {type: "divider" as const},
-                    {key: "delete", label: "删除", danger: true, onClick: () => onAction("delete", record)},
+                    {key: "delete", label: "删除任务", danger: true, onClick: () => onAction("delete", record)},
                 ];
                 return (
                     <ActionDropdown

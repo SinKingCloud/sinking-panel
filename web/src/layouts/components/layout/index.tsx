@@ -355,7 +355,24 @@ const RightTop: React.FC = () => {
                 return;
             }
             if (response?.code === 200 && Array.isArray(response.data)) {
-                setTasks(response.data);
+                setTasks((current) => {
+                    const pending = new Map<string, any>(response.data.map((task: any) => [task.id, task]));
+                    const next: any[] = [];
+                    // 进度刷新沿用已显示的顺序，不受接口返回顺序影响。
+                    current.forEach((task) => {
+                        const updated = pending.get(task.id);
+                        if (updated) {
+                            next.push(updated);
+                            pending.delete(task.id);
+                        }
+                    });
+                    if (next.length !== current.length || pending.size > 0) {
+                        next.push(...pending.values());
+                        // 仅任务增删时排序，同秒创建的已有任务保持相对位置。
+                        next.sort((first, second) => Number(first.create_time) - Number(second.create_time));
+                    }
+                    return next;
+                });
             }
         } finally {
             if (mountedRef.current && requestId === taskRequestRef.current) {
@@ -487,20 +504,6 @@ const RightTop: React.FC = () => {
     } = useRightTopStyles();
 
     const pendingTaskCount = tasks.filter((task) => !taskTerminalStatuses.has(Number(task.status))).length;
-    const displayTasks = useMemo(() => tasks
-        .map((task, index) => ({task, index}))
-        .sort((first, second) => {
-            const firstStatus = Number(first.task.status);
-            const secondStatus = Number(second.task.status);
-            const firstPriority = firstStatus === taskStatusValues.running
-                ? 0
-                : firstStatus === taskStatusValues.pending ? 1 : 2;
-            const secondPriority = secondStatus === taskStatusValues.running
-                ? 0
-                : secondStatus === taskStatusValues.pending ? 1 : 2;
-            return firstPriority - secondPriority || first.index - second.index;
-        })
-        .map(({task}) => task), [tasks]);
     const taskContent = (
         <>
             {taskLoading && tasks.length === 0 ? (
@@ -513,7 +516,7 @@ const RightTop: React.FC = () => {
                 </div>
             ) : (
                 <div className={taskList}>
-                    {displayTasks.map((task) => {
+                    {tasks.map((task) => {
                         const status = Number(task.status);
                         const meta = taskStatusMeta[status] || taskStatusMeta[taskStatusValues.pending];
                         const rawProgress = Number(task.progress);
@@ -729,6 +732,10 @@ const useSKLayoutStyles = createStyles((): any => {
                 whiteSpace: "nowrap",
             }
         },
+        horizontalLogo: {
+            position: "static",
+            paddingInline: "20px",
+        },
     };
 });
 
@@ -747,7 +754,7 @@ const SKLayout: React.FC = () => {
     const menus = useMemo(() => getAllMenuItems(true), []);
     const menusWithHidden = useMemo(() => getAllMenuItems(false), []);
     const isTopLayout = web?.info?.ui?.layout != "left";
-    const {styles: {collapsedLogo, content, unCollapsed}} = useSKLayoutStyles();
+    const {styles: {collapsedLogo, content, unCollapsed, horizontalLogo}, cx} = useSKLayoutStyles();
 
     /**
      * 计算面包屑数据
@@ -806,7 +813,7 @@ const SKLayout: React.FC = () => {
                 }}
                 unCollapsedLogo={() => {
                     return (
-                        <div className={unCollapsed}>
+                        <div className={cx(unCollapsed, isTopLayout && horizontalLogo)}>
                             <Icon type={"icon-logo"}
                                   style={{color: web?.info?.ui?.color || defaultSettings?.color}}/>
                             <div style={{color: web?.info?.ui?.color || defaultSettings?.color}}>

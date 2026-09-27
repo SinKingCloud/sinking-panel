@@ -7,11 +7,14 @@ import (
 	"io"
 	"log"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"server/app"
+	"server/app/constant"
 	"server/app/enum/log_type"
 	"server/app/service"
+	"server/app/util/container"
 	"server/app/util/daemon"
 	"server/app/util/platform"
 	"server/bootstrap"
@@ -30,8 +33,8 @@ const (
   stop    停止服务
   restart 重启服务
   run     直接运行(非守护进程模式)
-  install 设置登录信息并安装系统自启动
-  uninstall 卸载软件，保留网站数据并询问是否保留容器
+  install 设置登录信息、安装系统服务并启动
+  uninstall 卸载软件，询问是否保留容器、镜像及数据
   user    修改登录账号
   pwd     修改登录密码
 
@@ -40,6 +43,9 @@ const (
   --host HOST      监听地址，默认 0.0.0.0
   --port PORT      监听端口，默认 5678
   -h, --help       显示帮助
+
+停止/重启参数（适用于 stop、restart）:
+  --containers    同时停止或重启容器，默认保留容器运行
 
 配置文件可选: data/server/application.yml，不自动创建。
 优先级: 命令行参数 > 配置文件 > 默认值。`
@@ -70,7 +76,7 @@ func NewServer() (*Server, error) {
 	if err != nil {
 		return nil, fmt.Errorf("创建守护进程管理器失败: %w", err)
 	}
-	server.daemon = d.SetAutoStartOptions(daemon.AutoStartOptions{Name: serviceName})
+	server.daemon = d.SetAutoStartOptions(daemon.AutoStartOptions{Name: serviceName, KeepChildProcesses: true})
 	global.App.Daemon = server.daemon
 	return server, nil
 }
@@ -92,9 +98,16 @@ func (s *Server) Execute(args []string) error {
 	}
 	options := flag.NewFlagSet(command, flag.ContinueOnError)
 	options.SetOutput(io.Discard)
-	mode := options.String("mode", "release", "运行模式")
-	host := options.String("host", "0.0.0.0", "监听地址")
-	port := options.Int("port", 5678, "监听端口")
+	mode, host, port := "release", "0.0.0.0", 5678
+	if startup {
+		options.StringVar(&mode, "mode", mode, "运行模式")
+		options.StringVar(&host, "host", host, "监听地址")
+		options.IntVar(&port, "port", port, "监听端口")
+	}
+	var containers bool
+	if command == "stop" || command == "restart" {
+		options.BoolVar(&containers, "containers", false, "同时停止或重启容器")
+	}
 	if err := options.Parse(args[1:]); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			log.Println(usage)
@@ -105,18 +118,15 @@ func (s *Server) Execute(args []string) error {
 	if options.NArg() > 0 {
 		return fmt.Errorf("无法识别的命令参数: %s", strings.Join(options.Args(), " "))
 	}
-	if !startup && options.NFlag() > 0 {
-		return fmt.Errorf("%s 命令不接受启动参数", command)
-	}
 	if startup {
-		if *mode != "dev" && *mode != "release" {
+		if mode != "dev" && mode != "release" {
 			return errors.New("mode 只支持 dev 或 release")
 		}
-		*host = strings.TrimSpace(*host)
-		if *host == "" {
+		host = strings.TrimSpace(host)
+		if host == "" {
 			return errors.New("host 不能为空")
 		}
-		if *port < 1 || *port > 65535 {
+		if port < 1 || port > 65535 {
 			return errors.New("port 必须在 1 到 65535 之间")
 		}
 	}
@@ -127,6 +137,10 @@ func (s *Server) Execute(args []string) error {
 		bootstrap.LoadConf()
 		arguments := make([]string, 0, options.NFlag())
 		options.Visit(func(option *flag.Flag) {
+			// 容器选项只控制本次退出，不写入配置或下次启动参数。
+			if option.Name == "containers" {
+				return
+			}
 			global.App.Config.Set("server."+option.Name, option.Value.String())
 			arguments = append(arguments, "--"+option.Name+"="+option.Value.String())
 		})
@@ -136,11 +150,13 @@ func (s *Server) Execute(args []string) error {
 			return fmt.Errorf("读取程序工作目录失败: %w", err)
 		}
 		s.daemon.SetAutoStartOptions(daemon.AutoStartOptions{
-			Name:             serviceName,
-			WorkingDirectory: workingDirectory,
-			Arguments:        append([]string{"run"}, arguments...),
+			Name:               serviceName,
+			WorkingDirectory:   workingDirectory,
+			Arguments:          append([]string{"run"}, arguments...),
+			KeepChildProcesses: true,
 		})
-		if (command == "start" || command == "restart") && !s.daemon.IsChildProcess() {
+		// 没有传入新配置时沿用安装服务时保存的端口等参数。
+		if len(arguments) > 0 && (command == "start" || command == "restart") && !s.daemon.IsChildProcess() {
 			if err := s.daemon.SyncAutoStart(); err != nil {
 				return fmt.Errorf("同步系统启动配置失败: %w", err)
 			}
@@ -161,9 +177,9 @@ func (s *Server) Execute(args []string) error {
 	case "start":
 		return s.start()
 	case "stop":
-		return s.stop()
+		return s.stop(containers)
 	case "restart":
-		return s.restart()
+		return s.restart(containers)
 	}
 	return nil
 }
@@ -175,7 +191,9 @@ func (s *Server) run(stop <-chan struct{}) {
 		}
 	}()
 	bootstrap.Load()
-	bootstrap.LoadContainer()
+	if err := bootstrap.LoadContainer(); err != nil {
+		panic(fmt.Errorf("初始化轻量容器失败: %w", err))
+	}
 	app.Run(stop)
 }
 
@@ -206,7 +224,11 @@ func (s *Server) install() error {
 		return fmt.Errorf("登录账号密码已设置，但安装系统自启动失败: %w", err)
 	}
 	log.Println("系统自启动安装成功")
-	return nil
+	// 启动前释放安装命令持有的数据库和缓存。
+	if err := bootstrap.Close(); err != nil {
+		return err
+	}
+	return s.start()
 }
 
 func (s *Server) start() error {
@@ -220,20 +242,47 @@ func (s *Server) start() error {
 	return nil
 }
 
-func (s *Server) stop() error {
+func (s *Server) stop(containers bool) error {
 	log.Println("正在停止服务...")
 	if err := s.daemon.Stop(); err != nil {
 		return fmt.Errorf("停止失败: %w", err)
+	}
+	if containers {
+		// 旧面板退出后统一接管，面板此前已停止也走相同流程。
+		executable, err := os.Executable()
+		if err != nil {
+			return err
+		}
+		root, err := filepath.EvalSymlinks(filepath.Dir(executable))
+		if err != nil {
+			return err
+		}
+		directory := filepath.Join(root, constant.ContainerPath)
+		resolved, err := filepath.EvalSymlinks(directory)
+		if !errors.Is(err, os.ErrNotExist) {
+			if err != nil {
+				return fmt.Errorf("读取容器目录失败: %w", err)
+			}
+			if resolved != directory {
+				return errors.New("容器目录不能通过符号链接指向其他目录")
+			}
+			// 清理时仅加载已有状态，不能把已停止的容器重新启动。
+			manager, err := container.NewManager(directory, container.ManagerOptions{DisableAutoRestart: true})
+			if err != nil {
+				return err
+			}
+			if err := manager.StopAll(); err != nil {
+				return fmt.Errorf("停止容器失败: %w", err)
+			}
+		}
 	}
 	log.Println("服务已停止")
 	return nil
 }
 
-func (s *Server) restart() error {
-	log.Println("正在重启服务...")
-	if err := s.daemon.Reload(); err != nil {
-		return fmt.Errorf("重启失败: %w", err)
+func (s *Server) restart(containers bool) error {
+	if err := s.stop(containers); err != nil {
+		return err
 	}
-	log.Println("服务已重启")
-	return nil
+	return s.start()
 }

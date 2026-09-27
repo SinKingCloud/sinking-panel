@@ -3,7 +3,6 @@ import {App, Button, ConfigProvider, Empty, Form, Grid, Progress, Spin, Switch, 
 import {createStyles} from "antd-style";
 import {Icon, ProModal, Title, useTheme} from "sinking-antd";
 import {getCertList, obtainCert, renewCert, requestCertManual} from "@/service/api/cert";
-import type {ManualCertSession} from "@/service/api/cert";
 import {getEnum as getSystemEnum} from "@/service/api/system";
 import SecretManager from "@/pages/components/secret";
 import type {SecretChange, SecretManagerRef} from "@/pages/components/secret";
@@ -30,7 +29,7 @@ interface Task {
 }
 interface ManualTask {
     index: number;
-    data: ManualCertSession;
+    data: any;
     method: "obtain" | "renew";
     id?: string | number;
 }
@@ -496,7 +495,7 @@ const BatchCert = forwardRef<BatchCertRef, {onChange?: () => void; secretVersion
                         let session = activeManual;
                         if (!session) {
                             const started = await requestCertManual(method, {...body, action: "start"});
-                            const data = started?.data as ManualCertSession | undefined;
+                            const data = started?.data;
                             if (!current()) {
                                 if (data?.session_id) void requestCertManual(method, {action: "cancel", session_id: data.session_id, id: task.certificate_id}).catch(() => undefined);
                                 return;

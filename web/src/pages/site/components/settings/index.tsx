@@ -24,7 +24,7 @@ import AceEditor from "@/components/ace-editor";
 import FilePicker from "@/pages/components/file-picker";
 import Log from "@/pages/components/task-log";
 import ProcessControls from "../process-controls";
-import Dropdown from "@/pages/components/stable-dropdown";
+import ActionDropdown from "@/pages/components/action-dropdown";
 import {
     comparableFilePath,
     isAbsoluteFilePath,
@@ -1956,7 +1956,7 @@ const WAFRuleBuilder = forwardRef(({fields, add, remove, errors, styles}: any, r
                                                     size="small"
                                                     aria-label={`启用规则 ${index + 1}`}/>
                                             </Form.Item>
-                                            <Dropdown trigger={["click"]} menu={{
+                                            <ActionDropdown menu={{
                                                 items: [
                                                     {key: "copy", label: "复制规则"},
                                                     {key: "delete", label: "删除规则", danger: true},
@@ -1971,7 +1971,7 @@ const WAFRuleBuilder = forwardRef(({fields, add, remove, errors, styles}: any, r
                                                 },
                                             }}>
                                                 <Button color="default" variant="text" className={styles.ruleAction} size="small" aria-label={`防护规则 ${index + 1} 操作`} icon={<Icon type="MoreOutlined"/>}/>
-                                            </Dropdown>
+                                            </ActionDropdown>
                                         </div>
                                     </>;
                                 }}
@@ -3568,7 +3568,7 @@ const RedirectRule = ({field, index, count, move, remove, domainOptions, errors,
             </button>
             <div className="redirect-controls">
                 <Form.Item name={[field.name, "enabled"]} valuePropName="checked" noStyle><Switch size="small" aria-label={`启用重定向规则 ${index + 1}`}/></Form.Item>
-                <Dropdown trigger={["click"]} menu={{
+                <ActionDropdown menu={{
                     items: [
                         {key: "up", label: "上移规则", disabled: index === 0},
                         {key: "down", label: "下移规则", disabled: index === count - 1},
@@ -3582,7 +3582,7 @@ const RedirectRule = ({field, index, count, move, remove, domainOptions, errors,
                     },
                 }}>
                     <Button color="default" variant="text" className={styles.ruleAction} size="small" aria-label={`重定向规则 ${index + 1} 操作`} icon={<Icon type="MoreOutlined"/>}/>
-                </Dropdown>
+                </ActionDropdown>
             </div>
         </div>
         <div className="redirect-body" hidden={!expanded}>
@@ -3820,7 +3820,7 @@ const RouteRule = ({field, index, count, move, remove, copy, errors, styles}: an
                     <span className="route-destination" title={summary}>{summary}</span>
                 </span>
             </button>
-            <Dropdown trigger={["click"]} menu={{
+            <ActionDropdown menu={{
                 items: [
                     {key: "up", label: "上移规则", disabled: index === 0},
                     {key: "down", label: "下移规则", disabled: index === count - 1},
@@ -3836,7 +3836,7 @@ const RouteRule = ({field, index, count, move, remove, copy, errors, styles}: an
                 },
             }}>
                 <Button color="default" variant="text" className={styles.ruleAction} size="small" aria-label={`路由 ${index + 1} 操作`} icon={<Icon type="MoreOutlined"/>}/>
-            </Dropdown>
+            </ActionDropdown>
         </div>
         <div className="route-body" hidden={!expanded}>
             <Form.Item name={[field.name, "name"]} label="规则名称" rules={[{required: true, whitespace: true, message: "请输入规则名称"}]}>

@@ -8,6 +8,8 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"strconv"
+	"strings"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -35,12 +37,7 @@ func (u *Daemon) SetChildArgs(args ...string) *Daemon {
 
 // SetAutoStartOptions 设置系统自启动配置。
 func (u *Daemon) SetAutoStartOptions(options AutoStartOptions) *Daemon {
-	u.autoStart = AutoStartOptions{
-		Name:             options.Name,
-		Executable:       options.Executable,
-		WorkingDirectory: options.WorkingDirectory,
-		Arguments:        options.Arguments,
-	}
+	u.autoStart = options
 	if options.Arguments != nil {
 		u.autoStart.Arguments = append([]string{}, options.Arguments...)
 	}
@@ -55,11 +52,6 @@ func (u *Daemon) InstallAutoStart() error {
 // UninstallAutoStart 删除系统自启动。
 func (u *Daemon) UninstallAutoStart() error {
 	return u.uninstallAutoStart()
-}
-
-// Uninstall 停止服务并卸载系统自启动。
-func (u *Daemon) Uninstall() error {
-	return u.uninstall()
 }
 
 // IsChildProcess 是否为守护进程子进程。
@@ -141,43 +133,81 @@ func (u *Daemon) Start() error {
 	return u.Run()
 }
 
-// Stop 停止
-func (u *Daemon) Stop() error {
-	if runtime.GOOS == "windows" {
-		return u.stopWindows()
-	}
+// Stop 等待服务完成退出；未运行时直接返回。
+func (u *Daemon) Stop() (result error) {
 	managed := u.systemdInstalled()
+	pid, err := u.readPidFile()
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("读取服务 PID 失败: %w", err)
+	}
+	defer func() {
+		if result != nil || pid <= 1 {
+			return
+		}
+		// 只清理刚退出的进程，保留其他操作新建的 PID 文件。
+		if current, err := u.readPidFile(); err == nil && current == pid {
+			if err := os.Remove(u.PidFileName); err != nil && !errors.Is(err, os.ErrNotExist) {
+				result = fmt.Errorf("删除服务 PID 失败: %w", err)
+			}
+		}
+	}()
 	if managed {
-		if err := u.commandOutput("systemctl", "stop", u.autoStart.Name+".service"); err != nil {
+		if err := u.syncSystemdKillMode(); err != nil {
 			return err
 		}
-	}
-	// 读取PID文件获取守护进程的PID
-	pid, err := u.readPidFile()
-	if err != nil {
-		if managed && errors.Is(err, os.ErrNotExist) {
-			return nil
+		output, queryErr := u.commandText("systemctl", "show", "--property=MainPID", "--value", u.autoStart.Name+".service")
+		if queryErr != nil {
+			return fmt.Errorf("查询系统服务 PID 失败: %w", queryErr)
 		}
-		return fmt.Errorf("无法读取PID文件: %w", err)
+		current, queryErr := strconv.Atoi(strings.TrimSpace(string(output)))
+		if queryErr != nil {
+			return fmt.Errorf("解析系统服务 PID 失败: %w", queryErr)
+		}
+		if current > 0 && err == nil && current != pid {
+			return errors.New("系统服务进程已变更，请重新执行操作")
+		}
+		if current > 0 || errors.Is(err, os.ErrNotExist) {
+			pid = current
+			// systemctl stop 同步等待退出，避免再向已退出的 PID 发送信号。
+			return u.commandOutput("systemctl", "stop", u.autoStart.Name+".service")
+		}
+	}
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
 	}
 	if pid <= 1 {
 		return errors.New("服务 PID 无效")
 	}
 	process, err := os.FindProcess(pid)
 	if err != nil {
-		return fmt.Errorf("无法获取守护进程: %w", err)
+		if errors.Is(err, os.ErrProcessDone) || errors.Is(err, syscall.ESRCH) ||
+			(runtime.GOOS == "windows" && errors.Is(err, syscall.Errno(87))) { // ERROR_INVALID_PARAMETER：PID 已不存在。
+			return nil
+		}
+		return fmt.Errorf("获取服务进程失败: %w", err)
 	}
-	defer func() {
-		_ = process.Release()
-	}()
+	defer process.Release()
+	if current, err := u.readPidFile(); errors.Is(err, os.ErrNotExist) {
+		return nil
+	} else if err != nil {
+		return fmt.Errorf("确认服务 PID 失败: %w", err)
+	} else if current != pid {
+		return errors.New("服务进程已变更，请重新执行操作")
+	}
+	if runtime.GOOS == "windows" {
+		return u.stopWindows(process)
+	}
 	err = process.Signal(syscall.SIGTERM)
 	if err != nil {
+		if errors.Is(err, os.ErrProcessDone) || errors.Is(err, syscall.ESRCH) {
+			return nil
+		}
 		return fmt.Errorf("无法停止守护进程: %w", err)
 	}
 	deadline := time.Now().Add(u.StopTimeout)
 	for {
 		// 服务会在资源清理完成后删除 PID 文件；不必等待 systemd 回收进程。
-		if _, statErr := os.Stat(u.PidFileName); errors.Is(statErr, os.ErrNotExist) {
+		if current, err := u.readPidFile(); errors.Is(err, os.ErrNotExist) || (err == nil && current != pid) {
 			return nil
 		}
 		err = process.Signal(syscall.Signal(0))
@@ -192,14 +222,10 @@ func (u *Daemon) Stop() error {
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
-	// 删除PID文件
-	if err = os.Remove(u.PidFileName); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf("无法删除PID文件: %w", err)
-	}
 	return nil
 }
 
-// Reload 重启
+// Reload 从外部停止服务后重新启动。
 func (u *Daemon) Reload() error {
 	// 启动路径、日志和任务脚本先检查，避免停止服务后才发现无法重新启动。
 	options, err := u.normalizeOptions()
@@ -226,11 +252,8 @@ func (u *Daemon) Reload() error {
 	}
 	// 先停止守护进程
 	if err := u.Stop(); err != nil {
-		if !errors.Is(err, os.ErrNotExist) && !errors.Is(err, os.ErrProcessDone) && !errors.Is(err, syscall.ESRCH) {
-			return fmt.Errorf("无法停止守护进程: %w", err)
-		}
+		return fmt.Errorf("无法停止守护进程: %w", err)
 	}
-	time.Sleep(time.Second)
 	// 再启动守护进程
 	if err := u.Start(); err != nil {
 		return fmt.Errorf("无法重新启动守护进程: %w", err)

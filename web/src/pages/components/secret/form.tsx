@@ -4,7 +4,6 @@ import {createStyles} from "antd-style";
 import {ProModal, Title, useTheme} from "sinking-antd";
 import type {ProModalRef} from "sinking-antd";
 import {createSecret, getSecretInfo, updateSecret} from "@/service/api/secret";
-import type {SecretEnum, SecretInfo, SecretRecord} from "@/service/api/secret";
 import {getEnum as getSystemEnum} from "@/service/api/system";
 
 export interface SecretChange {
@@ -13,7 +12,7 @@ export interface SecretChange {
 }
 
 export interface SecretFormRef {
-    open: (record?: Pick<SecretRecord, "id">) => void;
+    open: (record?: any) => void;
     close: () => void;
 }
 
@@ -30,19 +29,31 @@ interface SecretFormValues {
 
 const useStyles = createStyles(({css}: any) => ({
     modal: css`
-        .ant-modal { max-width: calc(100vw - 24px); outline: none; }
+        .ant-modal {
+            max-width: calc(100vw - 24px);
+            outline: none;
+        }
+
         .ant-modal-body {
             max-height: calc(100dvh - 290px);
             overflow-y: auto;
             overscroll-behavior: contain;
         }
+
         @supports not (height: 100dvh) {
-            .ant-modal-body { max-height: calc(100vh - 290px); }
+            .ant-modal-body {
+                max-height: calc(100vh - 290px);
+            }
         }
         @media (max-width: 767px) {
-            .ant-modal-body { max-height: calc(100dvh - 138px); }
+            .ant-modal-body {
+                max-height: calc(100dvh - 138px);
+            }
+
             @supports not (height: 100dvh) {
-                .ant-modal-body { max-height: calc(100vh - 138px); }
+                .ant-modal-body {
+                    max-height: calc(100vh - 138px);
+                }
             }
         }
     `,
@@ -54,7 +65,7 @@ const useStyles = createStyles(({css}: any) => ({
     `,
 }));
 
-const SecretForm = forwardRef<SecretFormRef, SecretFormProps>(({zIndex, onSuccess}, ref) => {
+const SecretForm = forwardRef<SecretFormRef, SecretFormProps>(({zIndex, onSuccess}, ref): any => {
     const {message} = App.useApp();
     const theme = useTheme();
     const compact = Boolean(theme?.isCompactTheme?.());
@@ -67,15 +78,18 @@ const SecretForm = forwardRef<SecretFormRef, SecretFormProps>(({zIndex, onSucces
     const submittingRef = useRef(false);
     const originalCredentialsRef = useRef<Record<string, string>>({});
     const [form] = Form.useForm<SecretFormValues>();
-    const [record, setRecord] = useState<Pick<SecretRecord, "id">>();
-    const [providerNames, setProviderNames] = useState<SecretEnum["provider"]>({});
+    const [record, setRecord] = useState<any>();
+    const [providerNames, setProviderNames] = useState<Record<string, string>>({});
     const [fields, setFields] = useState<string[]>([]);
     const [active, setActive] = useState(false);
     const [loading, setLoading] = useState(false);
     const [loadError, setLoadError] = useState("");
     const [submitting, setSubmitting] = useState(false);
     const editing = record !== undefined;
-    const providerOptions = useMemo(() => Object.entries(providerNames).map(([value, label]) => ({value: Number(value), label})), [providerNames]);
+    const providerOptions = useMemo(() => Object.entries(providerNames).map(([value, label]) => ({
+        value: Number(value),
+        label
+    })), [providerNames]);
 
     const close = useCallback(() => {
         requestRef.current += 1;
@@ -93,7 +107,7 @@ const SecretForm = forwardRef<SecretFormRef, SecretFormProps>(({zIndex, onSucces
         modalRef.current?.hide();
     }, [form]);
 
-    const open = useCallback((record?: Pick<SecretRecord, "id">) => {
+    const open = useCallback((record?: any) => {
         const requestId = ++requestRef.current;
         openRef.current = true;
         submittingRef.current = false;
@@ -122,8 +136,8 @@ const SecretForm = forwardRef<SecretFormRef, SecretFormProps>(({zIndex, onSucces
                 if (record && (infoResponse?.code !== 200 || !infoResponse.data)) {
                     throw new Error(infoResponse?.message || "获取密钥详情失败");
                 }
-                const enums = enumResponse.data as SecretEnum;
-                const info = infoResponse?.data as SecretInfo | undefined;
+                const enums = enumResponse.data;
+                const info = infoResponse?.data;
                 const nextProvider = info ? Number(info.provider) : Number(Object.keys(enums.provider)[0]);
                 const credentials = info ? info.data : {};
                 if (!enums.provider[String(nextProvider)] || !credentials || typeof credentials !== "object"
@@ -243,30 +257,32 @@ const SecretForm = forwardRef<SecretFormRef, SecretFormProps>(({zIndex, onSucces
             focusable: {focusTriggerAfterClose: false},
         } as any}>
         <Form form={form} layout="vertical" variant="filled" onFinish={submit}>
-            {active && (loading ? <div className={styles.loading}><Spin/></div> : loadError ? <div className={styles.loading}>
-                <Space orientation="vertical" align="center">
-                    <Typography.Text type="danger">{loadError}</Typography.Text>
-                    <Button color="default" variant="filled" onClick={() => open(record)}>重新加载</Button>
-                </Space>
-            </div> : <>
-                <Form.Item name="name" label="密钥名称" rules={[
-                    {required: true, whitespace: true, message: "请输入密钥名称"},
-                    {max: 100, message: "密钥名称不能超过 100 个字符"},
-                ]}>
-                    <Input maxLength={100} placeholder="请输入密钥名称" autoComplete="off"/>
-                </Form.Item>
-                {!editing && <Form.Item name="provider" label="密钥厂商" rules={[{required: true, message: "请选择密钥厂商"}]}>
-                    <Select options={providerOptions} placeholder="请选择密钥厂商" disabled={submitting}/>
-                </Form.Item>}
-                {editing && fields.map((field) => <Form.Item
-                    key={field}
-                    preserve={false}
-                    name={["credentials", field]}
-                    label={field}
-                    rules={[{required: true, whitespace: true, message: `请输入 ${field}`}]}>
-                    <Input placeholder={`请输入 ${field}`} autoComplete="off"/>
-                </Form.Item>)}
-            </>)}
+            {active && (loading ? <div className={styles.loading}><Spin/></div> : loadError ?
+                <div className={styles.loading}>
+                    <Space orientation="vertical" align="center">
+                        <Typography.Text type="danger">{loadError}</Typography.Text>
+                        <Button color="default" variant="filled" onClick={() => open(record)}>重新加载</Button>
+                    </Space>
+                </div> : <>
+                    <Form.Item name="name" label="密钥名称" rules={[
+                        {required: true, whitespace: true, message: "请输入密钥名称"},
+                        {max: 100, message: "密钥名称不能超过 100 个字符"},
+                    ]}>
+                        <Input maxLength={100} placeholder="请输入密钥名称" autoComplete="off"/>
+                    </Form.Item>
+                    {!editing && <Form.Item name="provider" label="密钥厂商"
+                                            rules={[{required: true, message: "请选择密钥厂商"}]}>
+                        <Select options={providerOptions} placeholder="请选择密钥厂商" disabled={submitting}/>
+                    </Form.Item>}
+                    {editing && fields.map((field) => <Form.Item
+                        key={field}
+                        preserve={false}
+                        name={["credentials", field]}
+                        label={field}
+                        rules={[{required: true, whitespace: true, message: `请输入 ${field}`}]}>
+                        <Input placeholder={`请输入 ${field}`} autoComplete="off"/>
+                    </Form.Item>)}
+                </>)}
         </Form>
     </ProModal>;
 });

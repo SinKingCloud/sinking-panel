@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -40,7 +41,7 @@ func (u *Daemon) runWindows() (result error) {
 				close(stop)
 				return
 			case <-ticker.C:
-				if _, err := os.Stat(stopFile); err == nil {
+				if data, err := os.ReadFile(stopFile); err == nil && strings.TrimSpace(string(data)) == strconv.Itoa(os.Getpid()) {
 					close(stop)
 					return
 				}
@@ -106,26 +107,12 @@ func (u *Daemon) startWindows() error {
 }
 
 // stopWindows 通知服务进程自行平滑退出。
-func (u *Daemon) stopWindows() error {
+func (u *Daemon) stopWindows(process *os.Process) error {
 	if runtime.GOOS != "windows" {
 		return fmt.Errorf("当前系统不是 Windows")
 	}
-	pid, err := u.readPidFile()
-	if errors.Is(err, os.ErrNotExist) {
-		return nil
-	} else if err != nil {
-		return fmt.Errorf("读取服务 PID 失败: %w", err)
-	}
-	if pid <= 1 {
-		return errors.New("服务 PID 无效")
-	}
-	process, err := os.FindProcess(pid)
-	if err != nil {
-		return fmt.Errorf("获取服务进程失败: %w", err)
-	}
-	defer process.Release()
 	stopFile := u.PidFileName + ".stop"
-	if err := os.WriteFile(stopFile, nil, 0600); err != nil {
+	if err := os.WriteFile(stopFile, []byte(strconv.Itoa(process.Pid)), 0600); err != nil {
 		return fmt.Errorf("发送停止通知失败: %w", err)
 	}
 	deadline := time.NewTimer(u.StopTimeout)

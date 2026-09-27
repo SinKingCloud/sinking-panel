@@ -4,7 +4,6 @@ import React, {
     useCallback,
     useEffect,
     useImperativeHandle,
-    useMemo,
     useRef,
     useState,
 } from "react";
@@ -93,21 +92,23 @@ const FileTaskCenter = forwardRef<FileTaskCenterRef, FileTaskCenterProps>(({onSe
     const notifiedIdsRef = useRef(new Set<string>());
     const [tasks, setTasks] = useState<any[]>(restoreTasks);
     const [panelClosed, setPanelClosed] = useState(false);
+    const [panelReady, setPanelReady] = useState(false);
     const panelRef = useRef<HTMLElement | null>(null);
     const dragRef = useRef<DragState | undefined>(undefined);
     const [dragging, setDragging] = useState(false);
     const [panelPosition, setPanelPosition] = useState<{left?: number; top?: number}>({});
     const active = tasks.some((task) => !isTerminalStatus(task.status));
-    const displayTasks = useMemo(() => tasks
-        .map((task, index) => ({task, index}))
-        .sort((first, second) => {
-            const firstStatus = Number(first.task.status);
-            const secondStatus = Number(second.task.status);
-            const firstPriority = firstStatus === 1 ? 0 : firstStatus === 0 ? 1 : 2;
-            const secondPriority = secondStatus === 1 ? 0 : secondStatus === 0 ? 1 : 2;
-            return firstPriority - secondPriority || first.index - second.index;
-        })
-        .map(({task}) => task), [tasks]);
+    const panelVisible = tasks.length > 0 && !panelClosed;
+
+    useEffect(() => {
+        if (!panelVisible) {
+            setPanelReady(false);
+            return;
+        }
+        // 延迟显示，期间正常获取任务状态，进度更新不重置计时。
+        const timer = window.setTimeout(() => setPanelReady(true), 1000);
+        return () => window.clearTimeout(timer);
+    }, [panelVisible]);
 
     const commitTasks = useCallback((next: any[], persist = false) => {
         tasksRef.current = next;
@@ -161,7 +162,7 @@ const FileTaskCenter = forwardRef<FileTaskCenterRef, FileTaskCenterProps>(({onSe
                         ? createPendingTask(id, title)
                         : {...task, title, name: task.name || title}
                     : task)
-                : [createPendingTask(id, title), ...current];
+                : [...current, createPendingTask(id, title)];
             commitTasks(next, true);
         },
     }), [clearDismissTimer, commitTasks]);
@@ -314,7 +315,7 @@ const FileTaskCenter = forwardRef<FileTaskCenterRef, FileTaskCenterProps>(({onSe
         setDragging(false);
     }, []);
 
-    if (tasks.length === 0 || panelClosed) {
+    if (!panelVisible || !panelReady) {
         return null;
     }
 
@@ -345,7 +346,7 @@ const FileTaskCenter = forwardRef<FileTaskCenterRef, FileTaskCenterProps>(({onSe
                     onClick={() => setPanelClosed(true)}/>
             </div>
             <div className="file-task-progress-list">
-                {displayTasks.map((task) => {
+                {tasks.map((task) => {
                     const meta = task.unknown
                         ? {label: "状态未知", className: "canceled"}
                         : statusMeta[Number(task.status)] || statusMeta[0];

@@ -48,6 +48,7 @@ func (s *service) Create(data *CreateSite) (*Site, error) {
 	root := strings.TrimSpace(data.Root)
 	autoRoot := false
 	createdRoot := false
+	var createdPages []string
 	if root == "" {
 		if len(data.Domains) == 0 && data.Type != site_type.General {
 			return nil, errors.New("网站至少需要绑定一个域名")
@@ -138,7 +139,13 @@ func (s *service) Create(data *CreateSite) (*Site, error) {
 	}
 	cleanupRoot := func() error {
 		if !createdRoot {
-			return nil
+			var cleanupErr error
+			for _, path := range createdPages {
+				if removeErr := os.Remove(path); removeErr != nil && !os.IsNotExist(removeErr) {
+					cleanupErr = errors.Join(cleanupErr, fmt.Errorf("清理网站默认页面失败: %w", removeErr))
+				}
+			}
+			return cleanupErr
 		}
 		if removeErr := os.RemoveAll(root); removeErr != nil {
 			return fmt.Errorf("清理自动网站目录失败: %w", removeErr)
@@ -164,9 +171,61 @@ func (s *service) Create(data *CreateSite) (*Site, error) {
 	var domains []*model.SiteDomain
 	err = s.database.Transaction(func(tx *gorm.DB) error {
 		var prepareErr error
-		_, domains, prepareErr = s.prepareSite(record, domainInput, nil, false, tx)
+		var value interface{}
+		value, domains, prepareErr = s.prepareSite(record, domainInput, nil, false, tx)
 		if prepareErr != nil {
 			return prepareErr
+		}
+		if record.Type == site_type.Static || record.Type == site_type.PHP {
+			runRoot, pathErr := s.runRoot(record)
+			if pathErr != nil {
+				return pathErr
+			}
+			if pathErr = os.MkdirAll(runRoot, 0755); pathErr != nil {
+				return fmt.Errorf("创建网站运行目录失败: %w", pathErr)
+			}
+			// 已部署的网站保留原首页，避免新增 index.html 遮盖 index.htm 或 PHP 首页。
+			indexes := []string{"index.html", "index.htm"}
+			switch config := value.(type) {
+			case StaticConfig:
+				indexes = append(indexes, config.Index...)
+			case PHPConfig:
+				indexes = append(indexes, "index.php", config.FastCGI.Index)
+			}
+			hasIndex := false
+			for _, index := range indexes {
+				if index == "" {
+					continue
+				}
+				if _, statErr := os.Lstat(filepath.Join(runRoot, index)); statErr == nil {
+					hasIndex = true
+					break
+				} else if !os.IsNotExist(statErr) {
+					return fmt.Errorf("检查网站首页失败: %w", statErr)
+				}
+			}
+			pages := s.http.Options()
+			for _, page := range []struct{ name, body string }{
+				{"index.html", pages.InitialPage.Body},
+				{"404.html", pages.NotFoundPage.Body},
+			} {
+				if page.name == "index.html" && hasIndex {
+					continue
+				}
+				path := filepath.Join(runRoot, page.name)
+				file, openErr := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
+				if os.IsExist(openErr) {
+					continue
+				}
+				if openErr != nil {
+					return fmt.Errorf("创建网站默认页面失败: %w", openErr)
+				}
+				createdPages = append(createdPages, path)
+				_, writeErr := file.WriteString(page.body)
+				if writeErr = errors.Join(writeErr, file.Close()); writeErr != nil {
+					return fmt.Errorf("写入网站默认页面失败: %w", writeErr)
+				}
+			}
 		}
 		if createErr := s.repositorySite.Create(record, tx); createErr != nil {
 			return fmt.Errorf("创建网站失败: %w", createErr)

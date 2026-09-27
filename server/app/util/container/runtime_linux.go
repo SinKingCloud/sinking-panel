@@ -278,7 +278,23 @@ func (m *Manager) startPlatformRuntime(instance *Info, image *Image, options Run
 	})
 	m.runBackground(func(ctx context.Context) {
 		id, generation := instance.ID, instance.Generation
-		state, waitErr := m.waitPlatformProcess(ctx, runtime.process, m.managerOptions().StopGracePeriod)
+		// 等待子进程不绑定管理器生命周期；面板退出时容器继续运行。
+		// 单独回收 Wait，避免同进程重新创建 Manager 后留下僵尸子进程。
+		done := make(chan struct{})
+		var state *os.ProcessState
+		var waitErr error
+		go func() {
+			state, waitErr = runtime.process.Wait()
+			close(done)
+		}()
+		select {
+		case <-ctx.Done():
+			return
+		case <-done:
+		}
+		if ctx.Err() != nil {
+			return
+		}
 		exitCode := -1
 		if state != nil {
 			exitCode = state.ExitCode()
@@ -589,6 +605,15 @@ func (m *Manager) markPlatformRuntimeUnknown(id string, generation uint64, runti
 }
 
 func (m *Manager) watchRuntimeLog(ctx context.Context, id string, generation uint64, runtime *linuxRuntime) {
+	defer func() {
+		// 容器持有独立的文件描述符，关闭面板这端不影响后续日志写入。
+		runtime.logMu.Lock()
+		if runtime.logFile != nil {
+			_ = runtime.logFile.Close()
+			runtime.logFile = nil
+		}
+		runtime.logMu.Unlock()
+	}()
 	ticker := time.NewTicker(m.managerOptions().RuntimeLogInterval)
 	defer ticker.Stop()
 	for {

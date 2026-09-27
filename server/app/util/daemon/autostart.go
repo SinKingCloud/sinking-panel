@@ -16,10 +16,11 @@ import (
 // Executable、WorkingDirectory 默认使用当前程序和工作目录。
 // Arguments 为 nil 时沿用当前进程参数，空切片表示不传参数；Name 仅管理系统自启动时必填。
 type AutoStartOptions struct {
-	Name             string
-	Executable       string
-	WorkingDirectory string
-	Arguments        []string
+	Name               string
+	Executable         string
+	WorkingDirectory   string
+	Arguments          []string
+	KeepChildProcesses bool // Linux 服务退出时保留子进程，由应用决定如何清理。
 }
 
 // installAutoStart 安装并启用系统自启动。
@@ -160,6 +161,10 @@ func (u *Daemon) writeSystemd(options AutoStartOptions) error {
 	for _, argument := range options.Arguments {
 		arguments = append(arguments, u.quoteSystemd(argument))
 	}
+	killMode := "mixed"
+	if options.KeepChildProcesses {
+		killMode = "process"
+	}
 	unit := fmt.Sprintf(`[Unit]
 Description=%s
 After=network-online.target
@@ -172,16 +177,64 @@ ExecStart=%s
 Restart=on-failure
 RestartSec=5
 TimeoutStopSec=%d
-KillMode=mixed
+KillMode=%s
 
 [Install]
 WantedBy=multi-user.target
-`, options.Name, strings.ReplaceAll(options.WorkingDirectory, "%", "%%"), strings.Join(arguments, " "), int(u.StopTimeout.Seconds())+10)
+`, options.Name, strings.ReplaceAll(options.WorkingDirectory, "%", "%%"), strings.Join(arguments, " "), int(u.StopTimeout.Seconds())+10, killMode)
 	path := u.systemdUnitPath(options.Name)
 	if err := os.WriteFile(path, []byte(unit), 0644); err != nil {
 		return fmt.Errorf("写入 systemd 服务文件失败: %w", err)
 	}
 	return u.commandOutput("systemctl", "daemon-reload")
+}
+
+// syncSystemdKillMode 升级已安装服务的进程清理策略，保留原有启动参数与自启开关。
+func (u *Daemon) syncSystemdKillMode() error {
+	if !u.systemdInstalled() {
+		return nil
+	}
+	path := u.systemdUnitPath(u.autoStart.Name)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("读取 systemd 服务文件失败: %w", err)
+	}
+	killMode := "mixed"
+	if u.autoStart.KeepChildProcesses {
+		killMode = "process"
+	}
+	lines := strings.Split(string(data), "\n")
+	serviceLine := -1
+	found := false
+	for index, line := range lines {
+		if strings.TrimSpace(line) == "[Service]" {
+			serviceLine = index
+		}
+		if !strings.HasPrefix(strings.TrimSpace(line), "KillMode=") {
+			continue
+		}
+		lines[index] = "KillMode=" + killMode
+		found = true
+		break
+	}
+	if !found {
+		if serviceLine < 0 {
+			return errors.New("systemd 服务文件缺少 Service 配置")
+		}
+		lines[serviceLine] += "\nKillMode=" + killMode
+	}
+	updated := []byte(strings.Join(lines, "\n"))
+	if bytes.Equal(updated, data) {
+		return nil
+	}
+	if err := os.WriteFile(path, updated, 0644); err != nil {
+		return fmt.Errorf("更新 systemd 进程清理策略失败: %w", err)
+	}
+	if err := u.commandOutput("systemctl", "daemon-reload"); err != nil {
+		// 未生效时还原文件，下一次操作仍会尝试同步。
+		return errors.Join(err, os.WriteFile(path, data, 0644))
+	}
+	return nil
 }
 
 // systemdInstalled 只接管本程序安装的服务，未安装时继续使用普通守护进程。

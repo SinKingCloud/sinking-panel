@@ -104,22 +104,22 @@ const FileEditorTreeNodeTitle = React.memo(({
     const isRoot = !node.record;
     const menuItems: MenuProps["items"] = menuOpen ? (isRoot ? [
         {key: "create-directory", icon: <Icon type="FolderAddOutlined"/>, label: "新建文件夹"},
-        {key: "create-file", icon: <Icon type="FileAddOutlined"/>, label: "新建空文件"},
+        {key: "create-file", icon: <Icon type="FileAddOutlined"/>, label: "新建文件"},
         {type: "divider"},
         {key: "copy-path", icon: <Icon type="LinkOutlined"/>, label: "复制路径"},
     ] : node.isDirectory ? [
         {key: "create-directory", icon: <Icon type="FolderAddOutlined"/>, label: "新建文件夹"},
-        {key: "create-file", icon: <Icon type="FileAddOutlined"/>, label: "新建空文件"},
+        {key: "create-file", icon: <Icon type="FileAddOutlined"/>, label: "新建文件"},
         {type: "divider"},
         {key: "rename", icon: <Icon type="EditOutlined"/>, label: "重命名"},
-        {key: "permissions", icon: <Icon type="SafetyOutlined"/>, label: "修改权限"},
+        {key: "permissions", icon: <Icon type="SafetyOutlined"/>, label: "权限"},
         {key: "copy-name", icon: <Icon type="CopyOutlined"/>, label: "复制名称"},
         {key: "copy-path", icon: <Icon type="LinkOutlined"/>, label: "复制路径"},
         {type: "divider"},
         {key: "delete", icon: <Icon type="DeleteOutlined"/>, label: "删除", danger: true},
     ] : [
         {key: "rename", icon: <Icon type="EditOutlined"/>, label: "重命名"},
-        {key: "permissions", icon: <Icon type="SafetyOutlined"/>, label: "修改权限"},
+        {key: "permissions", icon: <Icon type="SafetyOutlined"/>, label: "权限"},
         {key: "copy-name", icon: <Icon type="CopyOutlined"/>, label: "复制名称"},
         {key: "copy-path", icon: <Icon type="LinkOutlined"/>, label: "复制路径"},
         {type: "divider"},

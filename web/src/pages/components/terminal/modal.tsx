@@ -58,7 +58,6 @@ const useStyles = createStyles(({css, token}: any, {compact}: {compact: boolean}
             overflow: hidden;
 
             > * {
-                display: block;
                 overflow: hidden;
                 text-overflow: ellipsis;
                 white-space: nowrap;

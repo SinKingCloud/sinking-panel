@@ -213,7 +213,7 @@ func NewManager(root string, options ...ManagerOptions) (_ *Manager, err error) 
 	ready := false
 	defer func() {
 		if !ready {
-			err = errors.Join(err, m.StopAll())
+			err = errors.Join(err, m.Close())
 		}
 	}()
 	if err := m.ensureManagedDirectory(absRoot); err != nil {
@@ -746,9 +746,14 @@ func (m *Manager) Status(id string) (*Status, error) {
 	return result, nil
 }
 
-// StopAll 停止全部容器并释放终端和后台任务，用于程序退出或初始化失败时清理。
-// 可重复调用；完成后 Manager 不再接受启动请求。
+// StopAll 停止全部容器并关闭管理器，保留各实例的自动启动配置。
 func (m *Manager) StopAll() error {
+	return m.Close(true)
+}
+
+// Close 关闭终端和后台管理，默认保留容器运行，供下一次启动接管。
+// 传入 true 时同时停止容器；可重复调用，完成后不再接受运行操作。
+func (m *Manager) Close(stopContainers ...bool) error {
 	m.closeOnce.Do(func() {
 		m.lifecycleMu.Lock()
 		m.mu.Lock()
@@ -768,10 +773,12 @@ func (m *Manager) StopAll() error {
 
 		m.mu.RLock()
 		ids := make([]string, 0, len(m.instances))
-		for id, instance := range m.instances {
-			_, hasRuntime := m.runtime[id]
-			if m.isActiveStatus(instance.Status) || instance.PID > 0 || hasRuntime {
-				ids = append(ids, id)
+		if len(stopContainers) > 0 && stopContainers[0] {
+			for id, instance := range m.instances {
+				_, hasRuntime := m.runtime[id]
+				if m.isActiveStatus(instance.Status) || instance.PID > 0 || hasRuntime {
+					ids = append(ids, id)
+				}
 			}
 		}
 		m.mu.RUnlock()

@@ -12,11 +12,15 @@ func Load() {
 	LoadDatabase()
 }
 
-// Close 按依赖顺序释放全局资源。
-func Close() error {
+// Close 释放已加载的全局资源，默认保留容器运行；传入 true 时一并停止。
+func Close(stopContainers ...bool) error {
 	var err error
 	if global.App.Container != nil {
-		err = global.App.Container.StopAll()
+		if len(stopContainers) > 0 && stopContainers[0] {
+			err = global.App.Container.StopAll()
+		} else {
+			err = global.App.Container.Close()
+		}
 		global.App.Container = nil
 	}
 	if global.App.Cache != nil {

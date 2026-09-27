@@ -1,9 +1,9 @@
 import React, {useCallback, useEffect, useMemo, useState} from "react";
 import {App, Button, Tooltip} from "antd";
 import type {MenuProps, TableColumnsType} from "antd";
-import {Icon, useTheme} from "sinking-antd";
+import {Icon} from "sinking-antd";
 import {isFilePreviewable} from "@/pages/components/file-preview";
-import Dropdown from "@/pages/components/stable-dropdown";
+import ActionDropdown from "@/pages/components/action-dropdown";
 import type {DirectoryCountMap} from "../../hooks/directory-counts";
 import DirectorySize from "../directory-size";
 import {copyTextToClipboard} from "../properties/utils";
@@ -76,15 +76,17 @@ const ContextMenuRow = React.forwardRef<HTMLTableRowElement, FileTableRowProps>(
     }
     const disabled = context.actionsDisabled || Boolean(context.operatingPaths?.has(recordPath));
     return (
-        <Dropdown
+        <ActionDropdown
             disabled={context.actionsDisabled}
             open={context.openMenu?.source === "context" && context.openMenu.path === recordPath}
             onOpenChange={(open) => context.changeMenuOpen(open, recordPath, "context")}
             classNames={{root: context.fileMenuClassName}}
             menu={{items: context.getMenuItems(record, recordPath, disabled)}}
-            trigger={["contextMenu"]}>
+            trigger={["contextMenu"]}
+            placement="bottomLeft"
+            arrow={false}>
             <tr {...rowProps} ref={ref}/>
-        </Dropdown>
+        </ActionDropdown>
     );
 });
 
@@ -118,10 +120,8 @@ const useFileTable = ({
     onOperation,
     onDelete,
 }: FileTableProps) => {
-    const theme = useTheme();
     const {message} = App.useApp();
-    const compact = Boolean(theme?.isCompactTheme?.());
-    const {styles} = useStyles({compact});
+    const {styles} = useStyles();
     const [openMenu, setOpenMenu] = useState<FileMenuState>();
     const openRowPath = openMenu?.path || "";
     const changeMenuOpen = useCallback((open: boolean, recordPath: string, source: FileMenuSource) => {
@@ -155,15 +155,15 @@ const useFileTable = ({
         const previewable = !record.is_dir && isFilePreviewable(record.name);
         const items: MenuProps["items"] = [
             ...(!record.is_dir ? [
-                {key: "edit", label: "编辑文件", onClick: () => onEdit(recordPath, record.name)},
+                {key: "edit", label: "编辑", onClick: () => onEdit(recordPath, record.name)},
                 ...(previewable ? [
-                    {key: "preview", label: "预览文件", onClick: () => onPreview(previewFiles, recordPath)},
+                    {key: "preview", label: "预览", onClick: () => onPreview(previewFiles, recordPath)},
                 ] : []),
-                {key: "download", label: "下载文件", onClick: () => onDownload(record)},
-            ] : [{key: "open", label: "打开目录", onClick: () => onOpen(record)}]),
+                {key: "download", label: "下载", onClick: () => onDownload(record)},
+            ] : [{key: "open", label: "打开", onClick: () => onOpen(record)}]),
             {type: "divider" as const},
-            {key: "copy", label: "复制文件", onClick: () => onCopy(record)},
-            {key: "move", label: "移动文件", onClick: () => onMove(record)},
+            {key: "copy", label: "复制", onClick: () => onCopy(record)},
+            {key: "move", label: "移动", onClick: () => onMove(record)},
             {
                 key: "copy-name",
                 label: "复制名称",
@@ -174,14 +174,14 @@ const useFileTable = ({
                 label: "复制路径",
                 onClick: () => void copyValue(recordPath, "路径"),
             },
-            {key: "rename", label: "重新命名", onClick: () => onRename(record)},
-            {key: "properties", label: "文件属性", onClick: () => onProperties(record)},
-            {key: "compress", label: "压缩文件", onClick: () => onOperation("compress", record)},
-            ...(archive ? [{key: "extract", label: "解压文件", onClick: () => onOperation("extract", record)}] : []),
+            {key: "rename", label: "重命名", onClick: () => onRename(record)},
+            {key: "properties", label: "属性", onClick: () => onProperties(record)},
+            {key: "compress", label: "压缩", onClick: () => onOperation("compress", record)},
+            ...(archive ? [{key: "extract", label: "解压", onClick: () => onOperation("extract", record)}] : []),
             {type: "divider" as const},
             {
                 key: "delete",
-                label: "删除文件",
+                label: "删除",
                 danger: true,
                 onClick: () => onDelete(record),
             },
@@ -329,7 +329,7 @@ const useFileTable = ({
             render: (_, record) => {
                 const recordPath = joinFilePath(path, record.name);
                 return (
-                    <Dropdown
+                    <ActionDropdown
                         open={openMenu?.source === "action" && openMenu.path === recordPath}
                         onOpenChange={(open) => changeMenuOpen(open, recordPath, "action")}
                         classNames={{root: styles.fileMenu}}
@@ -337,16 +337,13 @@ const useFileTable = ({
                             record,
                             recordPath,
                             Boolean(operatingPaths?.has(recordPath)),
-                        )}}
-                        trigger={["click"]}
-                        placement="bottom"
-                        arrow>
+                        )}}>
                         <Button
                             size="small"
                             disabled={actionsDisabled || operatingPaths?.has(recordPath)}>
                             操作
                         </Button>
-                    </Dropdown>
+                    </ActionDropdown>
                 );
             },
         },

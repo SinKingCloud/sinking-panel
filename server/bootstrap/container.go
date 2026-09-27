@@ -3,6 +3,7 @@ package bootstrap
 import (
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 
@@ -11,25 +12,16 @@ import (
 	"server/global"
 )
 
-// LoadContainer 仅在运行服务时加载，避免管理命令接管运行中的容器。
-func LoadContainer() {
-	if global.App.Container != nil {
-		return
-	}
-	executable, err := os.Executable()
-	if err != nil {
-		panic(fmt.Errorf("获取面板程序路径失败: %w", err))
-	}
-	if err := loadContainer(filepath.Dir(executable)); err != nil {
-		panic(fmt.Errorf("初始化轻量容器失败: %w", err))
-	}
-}
-
-func loadContainer(installationRoot string) error {
+// LoadContainer 在服务启动时加载容器管理器，接管运行实例并启动已停止的容器。
+func LoadContainer() error {
 	if global.App.Container != nil {
 		return nil
 	}
-	root, err := filepath.EvalSymlinks(installationRoot)
+	executable, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("获取面板程序路径失败: %w", err)
+	}
+	root, err := filepath.EvalSymlinks(filepath.Dir(executable))
 	if err != nil {
 		return fmt.Errorf("解析安装目录失败: %w", err)
 	}
@@ -49,8 +41,20 @@ func loadContainer(installationRoot string) error {
 	}
 	manager, err := container.NewManager(directory)
 	if err != nil {
-		return err
+		return fmt.Errorf("初始化轻量容器失败: %w", err)
 	}
 	global.App.SetContainer(manager)
+	for _, instance := range manager.List() {
+		if instance.Status != container.StatusStopped && instance.Status != container.StatusFailed {
+			continue
+		}
+		if _, err := manager.Start(instance.ID); err != nil {
+			// 自动启动可能已先完成；已运行的容器直接接管，不重复启动。
+			if info, infoErr := manager.Info(instance.ID); infoErr == nil && info.Status == container.StatusRunning {
+				continue
+			}
+			log.Printf("启动容器 %s 失败: %v", instance.ID, err)
+		}
+	}
 	return nil
 }

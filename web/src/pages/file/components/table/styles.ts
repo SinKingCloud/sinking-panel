@@ -1,7 +1,6 @@
 import {createStyles} from "antd-style";
 
-const useStyles = createStyles(({css, token}: any, props: {compact?: boolean} = {}) => {
-    const compact = Boolean(props.compact);
+const useStyles = createStyles(({css, token}: any) => {
     return {
         fileNameButton: css`
             width: 100%;
@@ -150,18 +149,8 @@ const useStyles = createStyles(({css, token}: any, props: {compact?: boolean} = 
         `,
         fileMenu: css`
             && .ant-dropdown-menu {
-                min-width: 132px;
                 max-height: min(420px, calc(100dvh - 24px));
-                padding: 3px !important;
                 overflow-y: auto;
-                border-radius: ${token.borderRadius}px !important;
-            }
-
-            && .ant-dropdown-menu-item {
-                min-height: ${compact ? 26 : 30}px;
-                padding: 0 8px !important;
-                border-radius: ${token.borderRadiusSM}px !important;
-                font-size: ${compact ? 11 : 12}px;
             }
         `,
     };

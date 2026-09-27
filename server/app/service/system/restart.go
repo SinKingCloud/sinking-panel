@@ -8,12 +8,13 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"server/global"
 	"strings"
 	"time"
 )
 
 // Restart 先返回请求结果，再执行重启；同一时间只接受一个重启请求。
-func (s *service) Restart(action string) error {
+func (s *service) Restart(action string, containers bool) error {
 	var run func() error
 	switch action {
 	case "panel":
@@ -25,7 +26,23 @@ func (s *service) Restart(action string) error {
 		} else if _, err = os.Stat(executable); err != nil {
 			return fmt.Errorf("读取面板程序失败: %w", err)
 		}
-		run = s.daemon.Restart
+		manager := global.App.Container
+		run = func() error {
+			if containers && manager != nil {
+				for _, instance := range manager.List() {
+					if err := s.ctx.Err(); err != nil {
+						return err
+					}
+					if _, err := manager.Restart(instance.ID); err != nil {
+						return fmt.Errorf("重启容器 %s 失败: %w", instance.ID, err)
+					}
+				}
+			}
+			if err := s.ctx.Err(); err != nil {
+				return err
+			}
+			return s.daemon.Restart()
+		}
 	case "server":
 		command, err := serverRestartCommand(runtime.GOOS)
 		if err != nil {

@@ -132,7 +132,7 @@ const useSiteTable = ({
                 const items = [
                     {key: "settings", label: "网站设置", onClick: () => onSettings(record, "basic")},
                     {key: "domain", label: "域名管理", onClick: () => onSettings(record, "domain")},
-                    {key: "ssl", label: "SSL设置", onClick: () => onSettings(record, "ssl")},
+                    {key: "ssl", label: "证书设置", onClick: () => onSettings(record, "ssl")},
                     {key: "log", label: "网站日志", onClick: () => onSettings(record, "log")},
                     {type: "divider" as const},
                     enabled

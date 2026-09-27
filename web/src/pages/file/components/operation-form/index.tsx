@@ -246,7 +246,7 @@ const FileOperationForm = forwardRef<FileOperationRef, FileOperationProps>(({onT
             : operation?.mode === "remote-download"
                 ? {url: "", name: "", path: operation.context.path}
                 : undefined;
-    const modalWidth = operation?.mode === "remote-download" ? "460px" : "380px";
+    const modalWidth = operation?.mode === "remote-download" ? (compact ? "400px" : "460px") : "380px";
 
     return (
         <ProModal

@@ -593,7 +593,7 @@ func (m *Manager) markExitedLocked(id string, generation uint64, exitCode int, w
 func (m *Manager) scheduleAutoRestart(id string, generation uint64) {
 	m.mu.Lock()
 	instance := m.instances[id]
-	if m.closing || instance == nil || instance.Generation != generation || !instance.AutoRestart || instance.ManualStop {
+	if m.closing || m.options.DisableAutoRestart || instance == nil || instance.Generation != generation || !instance.AutoRestart || instance.ManualStop {
 		m.mu.Unlock()
 		return
 	}

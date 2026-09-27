@@ -334,7 +334,7 @@ const FilePicker = forwardRef<InputRef, any>(({
                 </Tooltip>
             </Space.Compact>
 
-            <ConfigProvider componentSize={compact ? "small" : "middle"} variant="outlined">
+            <ConfigProvider componentSize="middle" variant="outlined">
                 <ProModal
                     title={<Title>{title}</Title>}
                     width="640px"

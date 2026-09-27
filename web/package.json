@@ -17,7 +17,7 @@
     "antd-style": "^4.1.0",
     "dayjs": "^1.11.23",
     "go-captcha-react": "^1.0.5",
-    "sinking-antd": "^1.1.8",
+    "sinking-antd": "^1.1.9",
     "umi": "^4.7.18",
     "umi-request": "^1.4.0"
   },

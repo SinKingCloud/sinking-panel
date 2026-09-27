@@ -40,6 +40,9 @@ func (u *Daemon) Restart() (result error) {
 		return errors.New("Restart 只能在当前运行的服务中调用，外部重启请使用 Reload")
 	}
 	if u.systemdInstalled() {
+		if err := u.syncSystemdKillMode(); err != nil {
+			return err
+		}
 		output, err := u.commandText("systemctl", "show", "--property=MainPID", "--value", options.Name+".service")
 		if err != nil {
 			return fmt.Errorf("查询系统服务失败: %w", err)
@@ -188,7 +191,7 @@ try {
     $previous = [System.Diagnostics.Process]::GetProcessById(%d)
     try {
         $null = $previous.Handle
-        [System.IO.File]::WriteAllBytes(%s, [byte[]]@())
+        [System.IO.File]::WriteAllText(%s, '%d')
         if (-not $previous.WaitForExit(%d)) { throw '等待服务停止超时' }
     } finally {
         $previous.Dispose()
@@ -209,7 +212,7 @@ try {
 } catch {
     [Console]::Error.WriteLine($_.Exception.Message)
     exit 1
-}`, os.Getpid(), quote(stopFile), min(timeout.Milliseconds(), int64(1<<31-1)),
+}`, os.Getpid(), quote(stopFile), os.Getpid(), min(timeout.Milliseconds(), int64(1<<31-1)),
 		quote(options.Executable), quote(strings.Join(arguments, " ")), quote(options.WorkingDirectory))
 	return exec.Command(filepath.Join(systemRoot, "System32", "WindowsPowerShell", "v1.0", "powershell.exe"),
 		"-NoProfile", "-NonInteractive", "-Command", script), nil

@@ -4,7 +4,6 @@ import {createStyles} from "antd-style";
 import dayjs from "dayjs";
 import {Icon, ProModal, Title, useTheme} from "sinking-antd";
 import type {ProModalRef} from "sinking-antd";
-import type {ManualCertSession} from "@/service/api/cert";
 
 export interface BatchVerificationRef {
     show: () => void;
@@ -12,7 +11,7 @@ export interface BatchVerificationRef {
 }
 
 export interface BatchVerificationProps {
-    session: {domain: string; data: ManualCertSession; error?: string} | null;
+    session: {domain: string; data: any; error?: string} | null;
     busy: boolean;
     onVerify: () => void;
     onRefresh: () => void;
@@ -125,7 +124,7 @@ const BatchVerification = forwardRef<BatchVerificationRef, BatchVerificationProp
                 {displayedSession.error && <div className="verification-error" role="alert">{displayedSession.error}</div>}
             </div>
             {displayedSession.data.challenges.length === 0 && <div className={styles.hint}>无需添加验证信息，可直接验证。</div>}
-            {displayedSession.data.challenges.map((record, index) => <section className={styles.record} key={record.id || index}>
+            {displayedSession.data.challenges.map((record: any, index: number) => <section className={styles.record} key={record.id || index}>
                 {record.type === "HTTP" && <div className="verification-heading">
                     <span>部署验证文件{displayedSession.data.challenges.length > 1 ? ` ${index + 1}` : ""}</span>
                     <Button size="small" color="default" variant="filled" icon={<Icon type="DownloadOutlined"/>} onClick={() => {

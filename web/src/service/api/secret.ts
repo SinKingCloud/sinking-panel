@@ -1,22 +1,5 @@
 import {get, post} from "@/utils/request";
 
-export interface SecretRecord {
-    id: number;
-    name: string;
-    provider: number;
-    create_time: string;
-    update_time: string;
-}
-
-export interface SecretInfo extends SecretRecord {
-    data: Record<string, string>;
-}
-
-export interface SecretEnum {
-    provider: Record<string, string>;
-    name: Record<string, string>;
-}
-
 /** 获取密钥列表 GET /secret/list */
 export async function getSecretList(params: API.RequestParams = {}) {
     return get("/secret/list", params?.body, params?.onSuccess, params?.onFail, params?.onFinally);

@@ -13,6 +13,7 @@ import (
 	repositoryTypes "server/app/repository/types"
 	serviceAuth "server/app/service/auth"
 	serviceConfig "server/app/service/config"
+	serviceContainer "server/app/service/container"
 	serviceFile "server/app/service/file"
 	serviceLog "server/app/service/log"
 	serviceRecycle "server/app/service/recycle"
@@ -28,18 +29,19 @@ import (
 
 // service实例
 var (
-	Config  serviceConfig.Service
-	Auth    serviceAuth.Service
-	Server  serviceServer.Service
-	Script  serviceScript.Service
-	Secret  serviceSecret.Service
-	Type    serviceTypes.Service
-	Log     serviceLog.Service
-	Task    serviceTask.Service
-	File    serviceFile.Service
-	Recycle serviceRecycle.Service
-	System  serviceSystem.Service
-	Site    serviceSite.Service
+	Config    serviceConfig.Service
+	Auth      serviceAuth.Service
+	Server    serviceServer.Service
+	Script    serviceScript.Service
+	Secret    serviceSecret.Service
+	Type      serviceTypes.Service
+	Log       serviceLog.Service
+	Task      serviceTask.Service
+	File      serviceFile.Service
+	Recycle   serviceRecycle.Service
+	System    serviceSystem.Service
+	Site      serviceSite.Service
+	Container serviceContainer.Service
 )
 
 // Init 初始化service
@@ -65,7 +67,8 @@ func Init() {
 	Task = serviceTask.NewService(taskRepository, Type)
 	File = serviceFile.NewService(global.App.Cache)
 	Recycle = serviceRecycle.NewService()
-	System = serviceSystem.NewService(File)
+	System = serviceSystem.NewService(File, global.App.Daemon)
+	Container = serviceContainer.NewManager(global.App.Container)
 	Site, _ = serviceSite.NewService(siteRepository, siteDomainRepository, certRepository, secretRepository, Type, Config, Task, global.App.Database, global.App.Cache)
 }
 

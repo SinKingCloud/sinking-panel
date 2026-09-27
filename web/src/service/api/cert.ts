@@ -1,20 +1,5 @@
 import {get, post} from "@/utils/request";
 
-export interface ManualCertChallenge {
-    id: string;
-    name: string;
-    type: "HTTP" | "TXT";
-    value: string;
-    path?: string;
-    url?: string;
-}
-
-export interface ManualCertSession {
-    session_id: string;
-    challenges: ManualCertChallenge[];
-    expires_at: number;
-}
-
 /** 手动申请或续签：获取验证信息、提交验证、取消订单。 */
 export async function requestCertManual(
     method: "obtain" | "renew",

@@ -16,7 +16,7 @@ import type {
 import {App, Button, Empty, Form as AntForm, Input, Spin} from "antd";
 import {createStyles} from "antd-style";
 import {Icon, ProModal, ProModalRef, Title, useTheme} from "sinking-antd";
-import Dropdown from "@/pages/components/stable-dropdown";
+import ActionDropdown from "@/pages/components/action-dropdown";
 import {
     createType,
     deleteType,
@@ -612,15 +612,12 @@ const DraggableRow = memo(({
             </button>
             <span className={nameClassName} title={record.name}>{record.name}</span>
             <div className={actionsClassName} data-row-action>
-                <Dropdown
-                    trigger={["click"]}
-                    placement="bottom"
-                    arrow={{pointAtCenter: true}}
+                <ActionDropdown
                     menu={{
                         items: [
-                            {key: "edit", label: "编辑"},
+                            {key: "edit", label: "编辑分类"},
                             {type: "divider"},
-                            {key: "delete", label: "删除", danger: true},
+                            {key: "delete", label: "删除分类", danger: true},
                         ],
                         onClick: ({key}) => {
                             if (key === "edit") {
@@ -637,7 +634,7 @@ const DraggableRow = memo(({
                         icon={<Icon type="MoreOutlined"/>}
                         loading={operating}
                         disabled={actionDisabled}/>
-                </Dropdown>
+                </ActionDropdown>
             </div>
         </div>
     );

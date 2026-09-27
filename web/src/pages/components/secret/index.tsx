@@ -3,9 +3,8 @@ import {App, Button, Empty, Grid, Tooltip} from "antd";
 import {createStyles} from "antd-style";
 import {ModalTable, Title, useTheme} from "sinking-antd";
 import type {ModalTableProps, ModalTableRef} from "sinking-antd";
-import Dropdown from "@/pages/components/stable-dropdown";
+import ActionDropdown from "@/pages/components/action-dropdown";
 import {deleteSecret, getSecretList} from "@/service/api/secret";
-import type {SecretRecord} from "@/service/api/secret";
 import {getEnum as getSystemEnum} from "@/service/api/system";
 import SecretForm from "./form";
 import type {SecretChange, SecretFormRef} from "./form";
@@ -57,7 +56,7 @@ const SecretManager = forwardRef<SecretManagerRef, SecretManagerProps>(({zIndex 
     const compact = Boolean(theme?.isCompactTheme?.());
     const screens = Grid.useBreakpoint();
     const {styles} = useStyles();
-    const tableRef = useRef<ModalTableRef<SecretRecord> | null>(null);
+    const tableRef = useRef<ModalTableRef<any> | null>(null);
     const formRef = useRef<SecretFormRef | null>(null);
     const confirmRef = useRef<{destroy: () => void} | null>(null);
     const mountedRef = useRef(true);
@@ -147,7 +146,7 @@ const SecretManager = forwardRef<SecretManagerRef, SecretManagerProps>(({zIndex 
         };
     }, []);
 
-    const request = useCallback<NonNullable<ModalTableProps<SecretRecord>["request"]>>(async ({current, pageSize, keyword, provider}) => {
+    const request = useCallback<NonNullable<ModalTableProps<any>["request"]>>(async ({current, pageSize, keyword, provider}) => {
         const response = await getSecretList({body: {
             page: current,
             page_size: pageSize,
@@ -160,7 +159,7 @@ const SecretManager = forwardRef<SecretManagerRef, SecretManagerProps>(({zIndex 
         if (response?.code !== 200 || !Array.isArray(list)) {
             throw new Error(response?.message || "获取密钥列表失败");
         }
-        const data: SecretRecord[] = list.map((item: SecretRecord) => ({
+        const data: any[] = list.map((item: any) => ({
             id: Number(item.id),
             name: item.name,
             provider: Number(item.provider),
@@ -183,7 +182,7 @@ const SecretManager = forwardRef<SecretManagerRef, SecretManagerProps>(({zIndex 
         } catch {}
     }, []);
 
-    const confirmDelete = useCallback((record: SecretRecord) => {
+    const confirmDelete = useCallback((record: any) => {
         const sessionId = sessionRef.current;
         confirmRef.current?.destroy();
         const confirmation = modal.confirm({
@@ -231,7 +230,7 @@ const SecretManager = forwardRef<SecretManagerRef, SecretManagerProps>(({zIndex 
             dataIndex: "name",
             key: "name",
             width: 190,
-            render: (name: string, record: SecretRecord) => <button
+            render: (name: string, record: any) => <button
                 type="button"
                 className="secret-name"
                 title={name}
@@ -262,22 +261,19 @@ const SecretManager = forwardRef<SecretManagerRef, SecretManagerProps>(({zIndex 
             width: 82,
             fixed: "right",
             className: "action-cell",
-            render: (_: unknown, record: SecretRecord) => <Dropdown
-                trigger={["click"]}
-                placement="bottom"
-                arrow
+            render: (_: unknown, record: any) => <ActionDropdown
                 disabled={deletingIds.includes(record.id)}
                 menu={{
-                    items: [{key: "edit", label: "编辑"}, {key: "delete", label: "删除", danger: true}],
+                    items: [{key: "edit", label: "编辑密钥"}, {key: "delete", label: "删除密钥", danger: true}],
                     onClick: ({key}) => key === "edit" ? formRef.current?.open(record) : confirmDelete(record),
                 }}>
                 <Button size="small" autoInsertSpace={false} disabled={deletingIds.includes(record.id)} aria-label={`操作密钥 ${record.name}`}>操作</Button>
-            </Dropdown>,
+            </ActionDropdown>,
         },
     ], [confirmDelete, deletingIds, providerNames]);
 
     return <>
-        <ModalTable<SecretRecord>
+        <ModalTable<any>
             key={session}
             ref={tableRef}
             open={open}
