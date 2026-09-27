@@ -36,6 +36,7 @@ type ImageInfo struct {
 	Labels       map[string]string `json:"labels,omitempty"`        // 标签元数据
 	Volumes      []string          `json:"volumes,omitempty"`       // 声明的数据卷
 	ExposedPorts []string          `json:"exposed_ports,omitempty"` // 声明的端口
+	Metadata     *container.Image  `json:"-"`                       // 仅供软件管理器使用的完整镜像元数据副本
 }
 
 // SelectContainer 容器查询条件；nil 字段不参与筛选。

@@ -26,7 +26,7 @@ func Image(c *context.Context) {
 		}
 		source = image.Id
 	}
-	data, err := service.Container.Redis().Image(source)
+	data, err := service.Software.Redis().Image(source)
 	if err != nil {
 		c.Error(err.Error())
 	} else {

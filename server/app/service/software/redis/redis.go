@@ -3,13 +3,13 @@ package redis
 import (
 	"sync"
 
-	"server/app/util/container"
+	serviceContainer "server/app/service/container"
 )
 
 // Manager 管理指定 Redis 容器及其配置和数据。
 type Manager struct {
 	InstanceID       string
-	container        *container.Manager
+	container        serviceContainer.Service
 	root             string // redis.conf 保存目标配置，config/redis.conf 供下次启动读取，data 保存数据库文件。
 	initErr          error
 	mu               sync.Mutex // 串行处理配置和状态读取。
@@ -18,7 +18,7 @@ type Manager struct {
 }
 
 // NewManager 从容器管理器取得数据卷路径，不创建目录。
-func NewManager(manager *container.Manager, instanceID string) *Manager {
+func NewManager(manager serviceContainer.Service, instanceID string) *Manager {
 	m := &Manager{container: manager, InstanceID: instanceID}
 	m.root, m.initErr = manager.VolumePath(instanceID)
 	return m

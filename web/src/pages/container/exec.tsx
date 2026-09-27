@@ -13,7 +13,6 @@ const useStyles = createStyles(({css, token}, {compact}: {compact: boolean}) => 
     `,
     form: css`
         .ant-form-item { margin-bottom: ${compact ? token.marginSM : token.margin}px; }
-        .ant-form-item-label > label { color: ${token.colorTextSecondary}; font-size: 12px; }
         .exec-validated-field .ant-form-item-additional { min-height: 14px; }
         .exec-validated-field .ant-form-item-explain { font-size: 11px; line-height: 14px; }
         .exec-command-field .ant-form-item-label > label { width: 100%; }
@@ -33,6 +32,8 @@ const useStyles = createStyles(({css, token}, {compact}: {compact: boolean}) => 
         }
     `,
     advanced: css`
+        .ant-form-item-label > label { color: ${token.colorTextSecondary}; font-size: 12px; }
+        .ant-form-item-label > label.ant-form-item-required::before { display: none; }
         && {
             margin-top: ${compact ? 12 : 16}px;
             border: 1px solid ${token.colorBorderSecondary};
@@ -207,7 +208,7 @@ const ContainerExec = forwardRef<any, {onChange?: () => void}>(({onChange}, ref)
             {!statusLoading && !statusError && status && status.status !== "running" && <Alert type="warning" showIcon
                 title="容器未运行，请启动后再执行命令。" action={retryStatus}/>}
             <Form form={form} layout="vertical" variant="filled" className={styles.form} onFinish={execute}
-                disabled={executing} requiredMark={false} initialValues={{mode: "shell", timeout: 30, max_output: 512}}
+                disabled={executing} initialValues={{mode: "shell", timeout: 30, max_output: 512}}
                 onFieldsChange={() => setFieldErrors(Object.fromEntries(form.getFieldsError().map(({name, errors}) => [name[0], errors[0]])))}
                 onKeyDown={(event) => {
                     if ((event.ctrlKey || event.metaKey) && event.key === "Enter" && !event.nativeEvent.isComposing) {

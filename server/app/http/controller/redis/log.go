@@ -19,14 +19,14 @@ func Log(c *context.Context) {
 		return
 	}
 	if form.Action == "clear" {
-		if err := service.Container.ClearLog(service.Container.Redis().InstanceID); err != nil {
+		if err := service.Container.ClearLog(service.Software.Redis().InstanceID); err != nil {
 			c.Error(err.Error())
 		} else {
 			service.Log.Create(c.GetRequestIp(), log_type.EventDelete, "清理 Redis 日志", "清理 Redis 运行日志")
 			c.Success("清理成功")
 		}
 	} else {
-		data, err := service.Container.ReadLog(service.Container.Redis().InstanceID, form.After, form.Before, form.PageSize)
+		data, err := service.Container.ReadLog(service.Software.Redis().InstanceID, form.After, form.Before, form.PageSize)
 		if err != nil {
 			c.Error(err.Error())
 		} else {

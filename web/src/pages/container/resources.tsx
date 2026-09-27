@@ -266,8 +266,8 @@ const ContainerResources = ({id, active = true, visible = true, onStatus}: {
     const series = useMemo(() => ({
         cpu: [{label: "CPU", color: token.colorPrimary}],
         memory: [{label: "内存", color: token.colorPrimary}],
-        io: [{label: "读取", color: token.colorPrimary}, {label: "写入", color: token.colorPrimaryHover}],
-    }), [token.colorPrimary, token.colorPrimaryHover]);
+        io: [{label: "读取", color: token.colorPrimary}, {label: "写入", color: token.colorSuccess}],
+    }), [token.colorPrimary, token.colorSuccess]);
     // 切换详情分段只卸载图表，采样与历史数据保留到弹窗关闭。
     if (!visible) return null;
 

@@ -21,6 +21,7 @@ import (
 	serviceSecret "server/app/service/secret"
 	serviceServer "server/app/service/server"
 	serviceSite "server/app/service/site"
+	serviceSoftware "server/app/service/software"
 	serviceSystem "server/app/service/system"
 	serviceTask "server/app/service/task"
 	serviceTypes "server/app/service/types"
@@ -42,6 +43,7 @@ var (
 	System    serviceSystem.Service
 	Site      serviceSite.Service
 	Container serviceContainer.Service
+	Software  serviceSoftware.Service
 )
 
 // Init 初始化service
@@ -68,7 +70,8 @@ func Init() {
 	File = serviceFile.NewService(global.App.Cache)
 	Recycle = serviceRecycle.NewService()
 	System = serviceSystem.NewService(File, global.App.Daemon)
-	Container = serviceContainer.NewManager(global.App.Container)
+	Container = serviceContainer.NewManager(global.App.Container, global.App.Cache)
+	Software = serviceSoftware.NewService(Container)
 	Site, _ = serviceSite.NewService(siteRepository, siteDomainRepository, certRepository, secretRepository, Type, Config, Task, global.App.Database, global.App.Cache)
 }
 

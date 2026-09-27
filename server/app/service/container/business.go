@@ -4,39 +4,18 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
+	"path/filepath"
 	"slices"
 	"strings"
 	"time"
 
+	"server/app/constant"
 	"server/app/enum/container_status"
-	serviceMongo "server/app/service/container/mongo"
-	serviceMysql "server/app/service/container/mysql"
-	servicePgsql "server/app/service/container/pgsql"
-	serviceRedis "server/app/service/container/redis"
 	"server/app/util/container"
 	"server/app/util/page"
 	"server/app/util/str"
 )
-
-// Redis 返回当前服务管理的 Redis 实例。
-func (m *Manager) Redis() *serviceRedis.Manager {
-	return m.redis
-}
-
-// Mysql 返回当前服务管理的 MySQL 实例。
-func (m *Manager) Mysql() *serviceMysql.Manager {
-	return m.mysql
-}
-
-// Pgsql 返回当前服务管理的 PostgreSQL 实例。
-func (m *Manager) Pgsql() *servicePgsql.Manager {
-	return m.pgsql
-}
-
-// Mongo 返回当前服务管理的 MongoDB 实例。
-func (m *Manager) Mongo() *serviceMongo.Manager {
-	return m.mongo
-}
 
 // available 判断是否初始化
 func (m *Manager) available() error {
@@ -118,12 +97,26 @@ func (m *Manager) Info(id string) (*container.Info, error) {
 	return m.manager.Info(id)
 }
 
-// Run 解析镜像并创建、启动新容器，不覆盖已有实例。
+// VolumePath 获取当前实例的数据卷路径，不创建目录。
+func (m *Manager) VolumePath(id string) (string, error) {
+	if err := m.available(); err != nil {
+		return "", err
+	}
+	return m.manager.VolumePath(id)
+}
+
+// Run 统一处理镜像导入后启动容器，是否允许复用已有实例由 CreateOnly 控制。
 func (m *Manager) Run(options container.RunOptions) (*container.Info, error) {
 	if err := m.available(); err != nil {
 		return nil, err
 	}
-	options.CreateOnly = true
+	if filepath.IsAbs(strings.TrimSpace(options.ImageID)) {
+		image, err := m.Import(strings.TrimSpace(options.ImageID))
+		if err != nil {
+			return nil, err
+		}
+		options.ImageID = image.Id
+	}
 	return m.manager.Run(options)
 }
 
@@ -266,6 +259,35 @@ func (m *Manager) Images(where *SelectImage, queryPage *page.Query) (*page.Resul
 	return page.New(queryPage, total, data), nil
 }
 
+// GetImageNameMap 缓存全部镜像名称及标签，镜像变动后重新生成。
+func (m *Manager) GetImageNameMap() (map[string]string, error) {
+	if err := m.available(); err != nil {
+		return nil, err
+	}
+	m.enumMu.Lock()
+	defer m.enumMu.Unlock()
+	if data, ok := m.cache.Get(constant.CacheNameWithContainerImageEnum).(map[string]string); ok {
+		return maps.Clone(data), nil
+	}
+	list := m.manager.Images()
+	data := make(map[string]string, len(list))
+	for _, item := range list {
+		name := strings.TrimSpace(item.Name)
+		if name == "" {
+			name = item.ID
+		}
+		names := []string{name}
+		for _, tag := range item.Tags {
+			if tag = strings.TrimSpace(tag); tag != "" && !slices.Contains(names, tag) {
+				names = append(names, tag)
+			}
+		}
+		data[item.ID] = strings.Join(names, " / ")
+	}
+	m.cache.SetWithExpire(constant.CacheNameWithContainerImageEnum, data, constant.CacheTimeWithContainerImageEnum)
+	return maps.Clone(data), nil
+}
+
 // Image 按 ID、名称或标签查询已导入的镜像。
 func (m *Manager) Image(id string) (*ImageInfo, error) {
 	if err := m.available(); err != nil {
@@ -284,6 +306,7 @@ func (m *Manager) Image(id string) (*ImageInfo, error) {
 		Entrypoint: item.Entrypoint, Command: item.Command, Env: item.Env,
 		WorkingDir: item.WorkingDir, Labels: item.Labels,
 		Volumes: item.Volumes, ExposedPorts: item.ExposedPorts,
+		Metadata: item,
 	}, nil
 }
 
@@ -293,6 +316,10 @@ func (m *Manager) Import(source string) (*ImageInfo, error) {
 		return nil, err
 	}
 	item, err := m.manager.Import(source)
+	// 与枚举填充共用锁，防止并发读取将导入前的旧列表重新写入缓存。
+	m.enumMu.Lock()
+	m.cache.Delete(constant.CacheNameWithContainerImageEnum)
+	m.enumMu.Unlock()
 	if err != nil {
 		return nil, err
 	}
@@ -310,5 +337,9 @@ func (m *Manager) RemoveImage(ids []string) error {
 			errs = append(errs, fmt.Errorf("镜像[%s]：%w", id, err))
 		}
 	}
+	// 部分删除成功或元数据清理失败时，镜像索引也可能已经改变。
+	m.enumMu.Lock()
+	m.cache.Delete(constant.CacheNameWithContainerImageEnum)
+	m.enumMu.Unlock()
 	return errors.Join(errs...)
 }

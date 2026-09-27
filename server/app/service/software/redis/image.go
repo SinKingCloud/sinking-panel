@@ -18,10 +18,11 @@ func (m *Manager) Image(id string) (*ImageInfo, error) {
 	if err := m.available(); err != nil {
 		return nil, err
 	}
-	image, err := m.container.Image(id)
+	info, err := m.container.Image(id)
 	if err != nil {
 		return nil, err
 	}
+	image := info.Metadata
 	if image.OS != "linux" || image.Architecture != runtime.GOARCH {
 		return nil, fmt.Errorf("镜像平台 %s/%s 与当前运行平台 linux/%s 不匹配", image.OS, image.Architecture, runtime.GOARCH)
 	}

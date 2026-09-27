@@ -18,6 +18,9 @@ const (
 	CacheNameWithSecretNameEnum = "SecretNameEnum"  //密钥名称枚举
 	CacheTimeWithSecretNameEnum = 600 * time.Second //密钥名称枚举储存时间
 
+	CacheNameWithContainerImageEnum = "ContainerImageEnum" //容器镜像枚举
+	CacheTimeWithContainerImageEnum = 600 * time.Second    //容器镜像枚举储存时间
+
 	CacheNameWithCertOrder = "CertOrder_"     //手动证书验证订单
 	CacheTimeWithCertOrder = 20 * time.Minute //手动证书验证订单有效期
 

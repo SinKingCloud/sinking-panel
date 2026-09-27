@@ -45,7 +45,7 @@ func (m *Manager) Install(ctx context.Context, source string, options *InstallOp
 		if err != nil {
 			return nil, err
 		}
-		source = image.ID
+		source = image.Id
 	}
 	image, err := m.Image(source)
 	if err != nil {
@@ -215,7 +215,7 @@ docker_temp_server_stop() {
 		return nil, err
 	}
 	if err = m.waitReady(ctx, 120*time.Second); err != nil {
-		return nil, errors.Join(err, m.container.Stop(m.InstanceID))
+		return nil, errors.Join(err, m.container.Stop(context.WithoutCancel(ctx), m.InstanceID))
 	}
 	return m.statusLocked(ctx)
 }
@@ -238,7 +238,7 @@ func (m *Manager) Uninstall(ctx context.Context, removeData bool) error {
 		if !m.managed(instance) {
 			return errors.New("该实例不是受管数据库，请在容器管理中操作")
 		}
-		if err = m.container.Remove(m.InstanceID); err != nil {
+		if err = m.container.Remove([]string{m.InstanceID}); err != nil {
 			return err
 		}
 	}

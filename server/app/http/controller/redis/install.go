@@ -3,7 +3,7 @@ package redis
 import (
 	"server/app/enum/log_type"
 	"server/app/service"
-	serviceRedis "server/app/service/container/redis"
+	serviceRedis "server/app/service/software/redis"
 	"server/app/util/context"
 )
 
@@ -22,7 +22,7 @@ func Install(c *context.Context) {
 	if form.ImageID != "" {
 		source = form.ImageID
 	}
-	data, err := service.Container.Redis().Install(c.Request.Context(), source, form.Config)
+	data, err := service.Software.Redis().Install(c.Request.Context(), source, form.Config)
 	if err != nil {
 		c.Error(err.Error())
 	} else {

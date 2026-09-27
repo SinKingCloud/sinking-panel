@@ -42,7 +42,7 @@ func (m *Manager) Install(ctx context.Context, source string, performance *Perfo
 		return nil, errors.New("Redis 已安装，请使用启动或重启操作")
 	}
 	if instance != nil {
-		if err = m.container.Stop(m.InstanceID); err != nil {
+		if err = m.container.Stop(ctx, m.InstanceID); err != nil {
 			return nil, err
 		}
 	}
@@ -59,7 +59,7 @@ func (m *Manager) Install(ctx context.Context, source string, performance *Perfo
 		if err != nil {
 			return nil, err
 		}
-		source = image.ID
+		source = image.Id
 	}
 	image, err := m.Image(source)
 	if err != nil {
@@ -117,7 +117,7 @@ func (m *Manager) Install(ctx context.Context, source string, performance *Perfo
 		return nil, err
 	}
 	if err = m.waitReady(ctx, config); err != nil {
-		return nil, errors.Join(err, m.container.Stop(m.InstanceID))
+		return nil, errors.Join(err, m.container.Stop(context.WithoutCancel(ctx), m.InstanceID))
 	}
 	return m.statusLocked(ctx)
 }
@@ -137,7 +137,7 @@ func (m *Manager) Uninstall(ctx context.Context) error {
 		return err
 	}
 	if instance != nil {
-		if err = m.container.Remove(m.InstanceID); err != nil {
+		if err = m.container.Remove([]string{m.InstanceID}); err != nil {
 			return err
 		}
 	}

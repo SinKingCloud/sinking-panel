@@ -3,7 +3,7 @@ package redis
 import (
 	"server/app/enum/log_type"
 	"server/app/service"
-	serviceRedis "server/app/service/container/redis"
+	serviceRedis "server/app/service/software/redis"
 	"server/app/util/context"
 )
 
@@ -19,7 +19,7 @@ func Performance(c *context.Context) {
 		return
 	}
 	if form.Action == "get" {
-		data, err := service.Container.Redis().GetPerformance()
+		data, err := service.Software.Redis().GetPerformance()
 		if err != nil {
 			c.Error(err.Error())
 		} else {
@@ -31,7 +31,7 @@ func Performance(c *context.Context) {
 			c.Error("性能配置不能为空")
 			return
 		}
-		data, err := service.Container.Redis().UpdatePerformance(c.Request.Context(), form.Config)
+		data, err := service.Software.Redis().UpdatePerformance(c.Request.Context(), form.Config)
 		if err != nil {
 			c.Error(err.Error())
 		} else {

@@ -8,7 +8,7 @@ import (
 
 // Databases 管理数据库，系统数据库由业务层保护。
 func Databases(c *context.Context) {
-	m := service.Container.Mongo()
+	m := service.Software.Mongo()
 	var form struct {
 		Action string `json:"action" default:"list" validate:"oneof=list create delete" label:"操作"`
 		Name   string `json:"name" default:"" label:"数据库名称"`
@@ -40,7 +40,7 @@ func Databases(c *context.Context) {
 
 // Users 管理业务账号，审计记录不包含密码。
 func Users(c *context.Context) {
-	m := service.Container.Mongo()
+	m := service.Software.Mongo()
 	var form struct {
 		Action   string `json:"action" default:"list" validate:"oneof=list create delete password" label:"操作"`
 		Name     string `json:"name" default:"" label:"账号"`

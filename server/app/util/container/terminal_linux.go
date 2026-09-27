@@ -144,6 +144,7 @@ func (m *Manager) openPlatformTerminal(id string, height, width int) (TerminalSe
 	env := m.mergeEnv(
 		[]string{"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"},
 		image.Env,
+		m.timezoneEnv(runtimeContainer.Config()),
 		instance.Env,
 		[]string{"TERM=xterm-256color", "COLORTERM=truecolor"},
 	)

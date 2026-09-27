@@ -8,9 +8,11 @@ import (
 )
 
 const (
-	instanceLockCount       = 64    // 实例操作锁槽位数量
-	securityMetadataVersion = 1     // 容器安全元数据版本
-	defaultIDMapSize        = 65536 // 默认映射完整的常规容器 UID/GID 范围
+	instanceLockCount       = 64                  // 实例操作锁槽位数量
+	securityMetadataVersion = 1                   // 容器安全元数据版本
+	defaultIDMapSize        = 65536               // 默认映射完整的常规容器 UID/GID 范围
+	timezoneMountLabel      = "sinking.timezone=" // 运行时系统时区挂载路径，创建镜像时排除
+	containerTimezonePath   = "/etc/localtime"    //运行时系统时区时间信息
 )
 
 // ManagerOptions 控制容器运行时的轮询、日志和停止策略。

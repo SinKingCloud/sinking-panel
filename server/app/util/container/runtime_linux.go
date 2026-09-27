@@ -17,6 +17,7 @@ import (
 	"sync"
 	"time"
 
+	pathrs "github.com/cyphar/filepath-securejoin/pathrs-lite"
 	"github.com/moby/sys/mountinfo"
 	userUtil "github.com/moby/sys/user"
 	"github.com/opencontainers/cgroups"
@@ -171,10 +172,37 @@ func (m *Manager) startPlatformRuntime(instance *Info, image *Image, options Run
 		return nil
 	}
 	defer func() { returnErr = errors.Join(returnErr, cleanupRootfs()) }()
-	if err := unix.Mount(rootfs, initRootfs, "", unix.MS_BIND|unix.MS_REC, ""); err != nil {
-		return fmt.Errorf("挂载容器 rootfs 入口失败: %w", err)
+	containerRootfs := initRootfs
+	if instance.WritableLayer {
+		if err := unix.Mount(rootfs, initRootfs, "", unix.MS_BIND|unix.MS_REC, ""); err != nil {
+			return fmt.Errorf("挂载容器 rootfs 入口失败: %w", err)
+		}
+		rootfsMounted = true
+	} else {
+		// 只读实例也需要准备 /etc、/proc 等挂载目标，不能写入共享镜像。
+		// 临时层随容器命名空间释放，父线程仅卸载入口，不删除仍在使用的 upper/work。
+		if err := unix.Mount("tmpfs", initRootfs, "tmpfs", unix.MS_NOSUID|unix.MS_NODEV, "mode=755,size=16m"); err != nil {
+			return fmt.Errorf("创建只读容器准备层失败: %w", err)
+		}
+		rootfsMounted = true
+		for _, name := range []string{"upper", "work", "rootfs"} {
+			dir := filepath.Join(initRootfs, name)
+			if err := os.Mkdir(dir, 0755); err != nil {
+				return err
+			}
+			if err := os.Chown(dir, int(m.security.UIDMapStart), int(m.security.GIDMapStart)); err != nil {
+				return err
+			}
+			if err := os.Chmod(dir, 0755); err != nil {
+				return err
+			}
+		}
+		containerRootfs = filepath.Join(initRootfs, "rootfs")
+		data := fmt.Sprintf("lowerdir=%s,upperdir=%s,workdir=%s", rootfs, filepath.Join(initRootfs, "upper"), filepath.Join(initRootfs, "work"))
+		if err := unix.Mount("overlay", containerRootfs, "overlay", 0, data); err != nil {
+			return fmt.Errorf("挂载只读容器准备层失败: %w", err)
+		}
 	}
-	rootfsMounted = true
 	config, err := m.buildConfig(instance, image, options, true)
 	if err != nil {
 		return err
@@ -182,7 +210,51 @@ func (m *Manager) startPlatformRuntime(instance *Info, image *Image, options Run
 	for index, source := range stagedSources {
 		config.Mounts[len(config.Mounts)-len(stagedSources)+index].Source = source
 	}
-	config.Rootfs = initRootfs
+	config.Rootfs = containerRootfs
+	for _, mount := range config.Mounts[:len(config.Mounts)-len(options.Mounts)] {
+		if mount.Destination != containerTimezonePath {
+			continue
+		}
+		// 保存本次启动的 TZif 数据，避免 UID 映射受宿主文件权限影响。
+		// 宿主未配置 localtime 时按 Linux 的默认行为使用 UTC。
+		var timezone []byte
+		info, err := os.Stat(mount.Source)
+		if os.IsNotExist(err) {
+			timezone = make([]byte, 54)
+			copy(timezone, "TZif")
+			timezone[39], timezone[43] = 1, 4 // 一个 UTC 类型及 "UTC\x00" 缩写，无切换记录
+			copy(timezone[50:], "UTC")
+		} else if err != nil {
+			return fmt.Errorf("读取服务器时区失败: %w", err)
+		} else {
+			if !info.Mode().IsRegular() {
+				return errors.New("服务器时区文件不是普通文件")
+			}
+			timezone, err = os.ReadFile(mount.Source)
+			if err != nil {
+				return fmt.Errorf("读取服务器时区失败: %w", err)
+			}
+		}
+		if _, err := time.LoadLocationFromTZData("localtime", timezone); err != nil {
+			return fmt.Errorf("服务器时区数据无效: %w", err)
+		}
+		file, err := os.CreateTemp("/tmp", "sinking-timezone-")
+		if err != nil {
+			return err
+		}
+		defer os.Remove(file.Name())
+		_, writeErr := file.Write(timezone)
+		if err := errors.Join(writeErr, file.Chmod(0444), file.Close()); err != nil {
+			return fmt.Errorf("准备容器时区数据失败: %w", err)
+		}
+		mount.Source = file.Name()
+		destination, err := m.prepareTimezoneMount(containerRootfs)
+		if err != nil {
+			return err
+		}
+		mount.Destination = destination
+		config.Labels = append(config.Labels, timezoneMountLabel+destination)
+	}
 	container, err := libcontainer.Create(m.runtimeRoot, instance.ID, config)
 	if err != nil {
 		return fmt.Errorf("创建容器失败: %w", err)
@@ -205,6 +277,7 @@ func (m *Manager) startPlatformRuntime(instance *Info, image *Image, options Run
 	env := m.mergeEnv(
 		[]string{"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"},
 		image.Env,
+		m.timezoneEnv(*config),
 		options.Env,
 	)
 	workingDir := options.WorkingDir
@@ -818,6 +891,7 @@ func (m *Manager) execPlatformCommand(id string, options ExecOptions) (*ExecResu
 	env := m.mergeEnv(
 		[]string{"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"},
 		image.Env,
+		m.timezoneEnv(container.Config()),
 		instance.Env,
 		options.Env,
 	)
@@ -1344,6 +1418,78 @@ func (m *Manager) waitContainerStopped(container *libcontainer.Container, timeou
 	}
 }
 
+// prepareTimezoneMount 只准备实例内的标准时区文件，不沿叶子链接覆盖镜像的 UTC 等时区数据。
+func (m *Manager) prepareTimezoneMount(rootfs string) (string, error) {
+	// 调用线程已 LockOSThread + Unshare(CLONE_NEWNS)，后者隐含 CLONE_FS，
+	// 因而这里只调整线程自己的 umask，新建目录保持可遍历，现有目录权限不变。
+	umask := unix.Umask(0)
+	defer unix.Umask(umask)
+	root, err := os.OpenFile(rootfs, unix.O_PATH|unix.O_DIRECTORY|unix.O_CLOEXEC, 0)
+	if err != nil {
+		return "", err
+	}
+	defer root.Close()
+	dir, err := pathrs.MkdirAllHandle(root, "etc", 0755)
+	if err != nil {
+		return "", fmt.Errorf("准备容器时区目录失败: %w", err)
+	}
+	defer dir.Close()
+	// 通过目录句柄操作最终文件，父目录中的绝对/相对链接只在 rootfs 内解析。
+	directory, err := os.Readlink(fmt.Sprintf("/proc/thread-self/fd/%d", dir.Fd()))
+	if err != nil {
+		return "", err
+	}
+	if err := m.normalizePlatformPathOwnership(directory, rootfs); err != nil {
+		return "", err
+	}
+	var stat unix.Stat_t
+	err = unix.Fstatat(int(dir.Fd()), "localtime", &stat, unix.AT_SYMLINK_NOFOLLOW)
+	if err == nil && stat.Mode&unix.S_IFMT == unix.S_IFLNK {
+		if err := unix.Unlinkat(int(dir.Fd()), "localtime", 0); err != nil {
+			return "", fmt.Errorf("替换容器时区链接失败: %w", err)
+		}
+		err = unix.ENOENT
+	}
+	if err != nil && !errors.Is(err, unix.ENOENT) {
+		return "", err
+	}
+	if err == nil && stat.Mode&unix.S_IFMT != unix.S_IFREG {
+		return "", errors.New("容器 /etc/localtime 不是普通文件或符号链接")
+	}
+	if errors.Is(err, unix.ENOENT) {
+		fd, err := unix.Openat(int(dir.Fd()), "localtime", unix.O_CREAT|unix.O_EXCL|unix.O_WRONLY|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0644)
+		if err != nil {
+			return "", fmt.Errorf("创建容器时区挂载目标失败: %w", err)
+		}
+		ownerErr := unix.Fchown(fd, int(m.security.UIDMapStart), int(m.security.GIDMapStart))
+		if err := errors.Join(ownerErr, unix.Close(fd)); err != nil {
+			return "", err
+		}
+	}
+	relative, err := filepath.Rel(rootfs, filepath.Join(directory, "localtime"))
+	if err != nil {
+		return "", err
+	}
+	return "/" + filepath.ToSlash(relative), nil
+}
+
+// timezoneEnv 使用实际运行配置；标准文件也供清除 TZ 的进程直接读取。
+// 默认值覆盖镜像自带的 TZ，但仍允许实例和 Exec 显式覆盖（包括 TZ=）。
+func (m *Manager) timezoneEnv(config configs.Config) []string {
+	for _, label := range config.Labels {
+		if strings.HasPrefix(label, timezoneMountLabel) {
+			return []string{"TZ=:" + containerTimezonePath}
+		}
+	}
+	for _, mount := range config.Mounts {
+		switch filepath.Clean(mount.Destination) {
+		case "/etc", "/etc/localtime":
+			return []string{"TZ=:/etc/localtime"}
+		}
+	}
+	return nil
+}
+
 func (m *Manager) buildConfig(instance *Info, image *Image, options RunOptions, mountsReady bool) (*configs.Config, error) {
 	security, ok := m.platformSecurity.(*linuxSecurity)
 	if !ok || security == nil || security.capabilities == nil || security.seccomp == nil {
@@ -1398,6 +1544,23 @@ func (m *Manager) buildConfig(instance *Info, image *Image, options RunOptions, 
 			// User Namespace 会锁定继承的子挂载，必须一并绑定，不能剥离 cgroup 等子挂载。
 			Flags: unix.MS_BIND | unix.MS_REC | unix.MS_NOEXEC | unix.MS_NOSUID | unix.MS_NODEV | unix.MS_RDONLY,
 		},
+	}
+	// 每次启动重新解析宿主时区，保留完整的夏令时规则，不固化成当前 UTC 偏移。
+	// 用户挂载 /etc/localtime、/etc 时保留其文件；显式 TZ 仅覆盖进程环境。
+	inheritTimezone := true
+	for _, mount := range options.Mounts {
+		if destination := filepath.Clean(mount.Destination); destination == "/etc" || destination == "/etc/localtime" {
+			inheritTimezone = false
+			break
+		}
+	}
+	if inheritTimezone {
+		mounts = append(mounts, &configs.Mount{
+			Source:      "/etc/localtime",
+			Destination: containerTimezonePath,
+			Device:      "bind",
+			Flags:       unix.MS_BIND | unix.MS_RDONLY | unix.MS_NOSUID | unix.MS_NODEV | unix.MS_NOEXEC,
+		})
 	}
 	for _, mount := range options.Mounts {
 		if !mountsReady {
@@ -1508,19 +1671,34 @@ func (m *Manager) resolveUser(rootfs, value string) (int, int, []int, error) {
 	if value == "" {
 		return 0, 0, nil, nil
 	}
-	passwdPath, err := m.safeRootfsFile(rootfs, filepath.Join("etc", "passwd"))
-	if err != nil {
-		return 0, 0, nil, err
+	var files [2]io.Reader
+	for index, name := range []string{"etc/passwd", "etc/group"} {
+		// /etc 可以是镜像内的链接；固定文件句柄，避免链接被解析到宿主机。
+		handle, err := pathrs.OpenInRoot(rootfs, name)
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return 0, 0, nil, err
+		}
+		info, err := handle.Stat()
+		if err != nil || !info.Mode().IsRegular() {
+			_ = handle.Close()
+			return 0, 0, nil, fmt.Errorf("容器用户文件不是可读的普通文件: %s", name)
+		}
+		file, err := pathrs.Reopen(handle, unix.O_RDONLY|unix.O_CLOEXEC)
+		_ = handle.Close()
+		if err != nil {
+			return 0, 0, nil, err
+		}
+		defer file.Close()
+		files[index] = file
 	}
-	groupPath, err := m.safeRootfsFile(rootfs, filepath.Join("etc", "group"))
-	if err != nil {
-		return 0, 0, nil, err
-	}
-	user, err := userUtil.GetExecUserPath(
+	user, err := userUtil.GetExecUser(
 		value,
 		&userUtil.ExecUser{Uid: 0, Gid: 0},
-		passwdPath,
-		groupPath,
+		files[0],
+		files[1],
 	)
 	if err != nil {
 		return 0, 0, nil, err
@@ -1539,24 +1717,6 @@ func (m *Manager) normalizeArchitecture(value string) string {
 	default:
 		return strings.ToLower(strings.TrimSpace(value))
 	}
-}
-
-func (m *Manager) safeRootfsFile(rootfs, name string) (string, error) {
-	path, err := m.safeJoin(rootfs, name)
-	if err != nil {
-		return "", err
-	}
-	info, err := m.rootfsPathInfo(rootfs, path)
-	if errors.Is(err, os.ErrNotExist) {
-		return path, nil
-	}
-	if err != nil {
-		return "", err
-	}
-	if !info.Mode().IsRegular() {
-		return "", fmt.Errorf("容器用户文件不是普通文件: %s", path)
-	}
-	return path, nil
 }
 
 func (m *Manager) rootfsPathInfo(rootfs, path string) (os.FileInfo, error) {

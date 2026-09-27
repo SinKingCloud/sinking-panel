@@ -1,4 +1,4 @@
-package mongo
+package pgsql
 
 import (
 	"context"
@@ -12,8 +12,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"gopkg.in/yaml.v3"
 
 	"server/app/util/container"
 )
@@ -45,7 +43,7 @@ func (m *Manager) Install(ctx context.Context, source string, options *InstallOp
 		if err != nil {
 			return nil, err
 		}
-		source = image.ID
+		source = image.Id
 	}
 	image, err := m.Image(source)
 	if err != nil {
@@ -53,7 +51,7 @@ func (m *Manager) Install(ctx context.Context, source string, options *InstallOp
 	}
 	username := strings.TrimSpace(options.Username)
 	if username == "" {
-		username = "admin"
+		username = "postgres"
 	}
 	if !regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]{0,62}$`).MatchString(username) {
 		return nil, errors.New("管理员名称需以字母或下划线开头，长度不超过 63 位")
@@ -88,7 +86,7 @@ func (m *Manager) Install(ctx context.Context, source string, options *InstallOp
 		if options.Password == "" {
 			return nil, errors.New("首次安装必须设置管理员密码")
 		}
-		for _, name := range []string{"data", "configdb"} {
+		for _, name := range []string{"data"} {
 			entries, err := os.ReadDir(filepath.Join(m.root, name))
 			if err != nil && !errors.Is(err, os.ErrNotExist) {
 				return nil, err
@@ -108,18 +106,18 @@ func (m *Manager) Install(ctx context.Context, source string, options *InstallOp
 	if options.Port != 0 {
 		values["port"] = options.Port
 	}
-	content, err = m.patchConfig(content, values, image.Version)
+	content, err = m.patchConfig(content, values)
 	if err != nil {
 		return nil, err
 	}
-	config, err := m.parseConfig(content, image.Version)
+	config, err := m.parseConfig(content)
 	if err != nil {
 		return nil, err
 	}
 	if err = m.checkAddress(config); err != nil {
 		return nil, err
 	}
-	for _, name := range []string{"", "data", "config", "secrets", "configdb"} {
+	for _, name := range []string{"", "data", "config", "secrets"} {
 		directory := filepath.Join(m.root, name)
 		if info, err := os.Lstat(directory); err == nil {
 			if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
@@ -145,7 +143,7 @@ func (m *Manager) Install(ctx context.Context, source string, options *InstallOp
 		if err = m.writeFile("secrets/password", []byte(options.Password)); err != nil {
 			return nil, err
 		}
-		metadata, _ := json.Marshal(&installation{Kind: "mongo", ImageID: image.ID, Version: image.Version, Username: username})
+		metadata, _ := json.Marshal(&installation{Kind: "pgsql", ImageID: image.ID, Version: image.Version, Username: username})
 		if err = m.writeFile("installation.json", metadata); err != nil {
 			return nil, err
 		}
@@ -160,29 +158,19 @@ func (m *Manager) Install(ctx context.Context, source string, options *InstallOp
 	if err = m.writeRunningConfig([]byte(content), 0); err != nil {
 		return nil, err
 	}
-	// 最早的官方镜像没有管理员初始化流程；旧 mongo 也不适合通过交互输入传入密码。
-	// 密码仍从只读文件读取，配置、进程参数和容器元数据均不保存明文密码。
-	var initial map[string]interface{}
-	if err = yaml.Unmarshal([]byte(content), &initial); err != nil {
-		return nil, err
+	authentication := "scram-sha-256"
+	if m.versionNumber(image.Version) < 100000 {
+		authentication = "md5"
+		// 早期官方入口不识别 PASSWORD_FILE，启动时从挂载文件读取，再交回官方初始化。
+		// 密码不写进实例 Env 或命令参数，新旧镜像都保留原有 ENTRYPOINT。
+		image.Command = append([]string{"sh", "-ec", `POSTGRES_PASSWORD="$(cat /run/sinking-database/password)"; PGPASSWORD="$POSTGRES_PASSWORD"; export POSTGRES_PASSWORD PGPASSWORD; unset POSTGRES_PASSWORD_FILE; exec "$@"`, "postgres-init", image.Entrypoint[0]}, image.Command...)
 	}
-	initial["net"] = map[string]interface{}{"bindIp": "127.0.0.1", "port": config["port"]}
-	delete(initial, "systemLog")
-	delete(initial, "processManagement")
-	delete(initial, "replication")
-	initialConfig, err := yaml.Marshal(initial)
-	if err != nil {
-		return nil, err
+	// --auth 同时设置本地和 TCP 认证，也兼容尚无 --auth-local/--auth-host 的 9.0、9.1。
+	initdbArgs := "--auth=" + authentication
+	if m.versionNumber(image.Version) < 90300 {
+		initdbArgs += " --pwfile=/run/sinking-database/password"
 	}
-	admin, _ := json.Marshal(username)
-	address, _ := json.Marshal(net.JoinHostPort("127.0.0.1", strconv.Itoa(int(config["port"].(float64)))))
-	initialScript := "var db = new Mongo(" + string(address) + ").getDB('admin'); var u = " + string(admin) + "; var p = cat('/run/sinking-database/password'); if (!db.auth(u,p)) { db.createUser({user:u,pwd:p,roles:[{role:'root',db:'admin'}]}); if (!db.auth(u,p)) { throw new Error('管理员初始化失败'); } }\n"
-	for name, data := range map[string][]byte{"config/init.conf": initialConfig, "config/init.js": []byte(initialScript), "config/entrypoint.sh": []byte(entrypoint)} {
-		if err = m.writeFile(name, data); err != nil {
-			return nil, err
-		}
-	}
-	env := []string{"MONGO_INITDB_ROOT_USERNAME=" + username, "MONGO_INITDB_ROOT_PASSWORD_FILE=/run/sinking-database/password"}
+	env := []string{"POSTGRES_USER=" + username, "POSTGRES_PASSWORD_FILE=/run/sinking-database/password", "POSTGRES_INITDB_ARGS=" + initdbArgs, "POSTGRES_HOST_AUTH_METHOD=" + authentication}
 
 	mounts := []container.Mount{
 		{Source: filepath.Join(m.root, "data"), Destination: image.DataPath},
@@ -190,16 +178,17 @@ func (m *Manager) Install(ctx context.Context, source string, options *InstallOp
 		{Source: filepath.Join(m.root, "secrets"), Destination: "/run/sinking-database", ReadOnly: true},
 	}
 
-	mounts = append(mounts, container.Mount{Source: filepath.Join(m.root, "configdb"), Destination: "/data/configdb"})
-
 	if err = ctx.Err(); err != nil {
 		return nil, err
 	}
-	if _, err = m.container.Run(container.RunOptions{ID: m.InstanceID, Name: "MongoDB", ImageID: image.ID, Command: image.Command, Env: env, Mounts: mounts, AutoRestart: true, CreateOnly: true}); err != nil {
+	if err = m.prepareDataDirectories(image); err != nil {
+		return nil, err
+	}
+	if _, err = m.container.Run(container.RunOptions{ID: m.InstanceID, Name: "PostgreSQL", ImageID: image.ID, Command: image.Command, Env: env, Mounts: mounts, AutoRestart: true, CreateOnly: true}); err != nil {
 		return nil, err
 	}
 	if err = m.waitReady(ctx, 120*time.Second); err != nil {
-		return nil, errors.Join(err, m.container.Stop(m.InstanceID))
+		return nil, errors.Join(err, m.container.Stop(context.WithoutCancel(ctx), m.InstanceID))
 	}
 	return m.statusLocked(ctx)
 }
@@ -222,7 +211,7 @@ func (m *Manager) Uninstall(ctx context.Context, removeData bool) error {
 		if !m.managed(instance) {
 			return errors.New("该实例不是受管数据库，请在容器管理中操作")
 		}
-		if err = m.container.Remove(m.InstanceID); err != nil {
+		if err = m.container.Remove([]string{m.InstanceID}); err != nil {
 			return err
 		}
 	}
@@ -271,7 +260,7 @@ func (m *Manager) waitReady(ctx context.Context, timeout time.Duration) error {
 	defer cancel()
 	ticker := time.NewTicker(300 * time.Millisecond)
 	defer ticker.Stop()
-	statement := "print(JSON.stringify(db.runCommand({ping: 1})));"
+	statement := "SELECT 1;"
 
 	for {
 		select {

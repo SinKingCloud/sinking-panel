@@ -3,6 +3,7 @@ package enum
 import (
 	"server/app/enum/cert_auto_renew"
 	"server/app/enum/cert_type"
+	"server/app/enum/container_image"
 	"server/app/enum/container_status"
 	"server/app/enum/file_format"
 	"server/app/enum/log_type"
@@ -22,8 +23,11 @@ import (
 
 // Data 枚举信息
 var Data = map[string]interface{}{
-	"container": map[string]interface{}{
-		"status": container_status.Map(), //容器运行状态
+	"container": func() interface{} {
+		return map[string]interface{}{
+			"status": container_status.Map(), //容器运行状态
+			"image":  container_image.Map(),  //镜像名称及标签
+		}
 	},
 	"cert": map[string]interface{}{
 		"type":       cert_type.Map(),       //证书类型

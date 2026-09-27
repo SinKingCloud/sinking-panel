@@ -899,7 +899,24 @@ func (m *Manager) commitInstance(instance *Info, name string, tags []string) (*I
 	if err := m.ensureManagedDirectory(stageRootfs); err != nil {
 		return nil, err
 	}
-	if err := m.copyRootfsSnapshot(sourceRootfs, base.Rootfs, stageRootfs, instance.Mounts); err != nil {
+	mounts := append([]Mount(nil), instance.Mounts...)
+	if instance.WritableLayer {
+		// 系统时区仅供本次运行使用；快照恢复基础镜像的文件或符号链接。
+		var state struct {
+			Config struct {
+				Labels []string `json:"labels"`
+			} `json:"config"`
+		}
+		if err := m.readJSON(filepath.Join(m.runtimeRoot, instance.ID, "state.json"), &state); err != nil {
+			return nil, fmt.Errorf("读取容器快照挂载信息失败: %w", err)
+		}
+		for _, label := range state.Config.Labels {
+			if destination, ok := strings.CutPrefix(label, timezoneMountLabel); ok {
+				mounts = append(mounts, Mount{Destination: destination})
+			}
+		}
+	}
+	if err := m.copyRootfsSnapshot(sourceRootfs, base.Rootfs, stageRootfs, mounts); err != nil {
 		return nil, fmt.Errorf("复制实例 rootfs 失败: %w", err)
 	}
 

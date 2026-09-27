@@ -8,7 +8,7 @@ import (
 
 // Uninstall 停止并删除 Redis 容器及其专属数据。
 func Uninstall(c *context.Context) {
-	if err := service.Container.Redis().Uninstall(c.Request.Context()); err != nil {
+	if err := service.Software.Redis().Uninstall(c.Request.Context()); err != nil {
 		c.Error(err.Error())
 	} else {
 		service.Log.Create(c.GetRequestIp(), log_type.EventDelete, "卸载 Redis", "停止并删除 Redis 容器及其配置数据")
@@ -18,7 +18,7 @@ func Uninstall(c *context.Context) {
 
 // Start 启动 Redis 容器。
 func Start(c *context.Context) {
-	if _, err := service.Container.Start(c.Request.Context(), service.Container.Redis().InstanceID); err != nil {
+	if _, err := service.Container.Start(c.Request.Context(), service.Software.Redis().InstanceID); err != nil {
 		c.Error(err.Error())
 	} else {
 		service.Log.Create(c.GetRequestIp(), log_type.EventUpdate, "启动 Redis", "启动 Redis 容器")
@@ -28,7 +28,7 @@ func Start(c *context.Context) {
 
 // Stop 停止 Redis 容器。
 func Stop(c *context.Context) {
-	if err := service.Container.Stop(c.Request.Context(), service.Container.Redis().InstanceID); err != nil {
+	if err := service.Container.Stop(c.Request.Context(), service.Software.Redis().InstanceID); err != nil {
 		c.Error(err.Error())
 	} else {
 		service.Log.Create(c.GetRequestIp(), log_type.EventUpdate, "停止 Redis", "停止 Redis 容器")
@@ -38,7 +38,7 @@ func Stop(c *context.Context) {
 
 // Restart 重启 Redis 容器。
 func Restart(c *context.Context) {
-	if err := service.Container.Restart(c.Request.Context(), service.Container.Redis().InstanceID); err != nil {
+	if err := service.Container.Restart(c.Request.Context(), service.Software.Redis().InstanceID); err != nil {
 		c.Error(err.Error())
 	} else {
 		service.Log.Create(c.GetRequestIp(), log_type.EventUpdate, "重启 Redis", "重启 Redis 容器")
@@ -48,7 +48,7 @@ func Restart(c *context.Context) {
 
 // Reload 重新加载 Redis 配置。
 func Reload(c *context.Context) {
-	data, err := service.Container.Redis().Reload(c.Request.Context())
+	data, err := service.Software.Redis().Reload(c.Request.Context())
 	if err != nil {
 		c.Error(err.Error())
 	} else {

@@ -3,7 +3,7 @@ package redis
 import (
 	"server/app/enum/log_type"
 	"server/app/service"
-	serviceRedis "server/app/service/container/redis"
+	serviceRedis "server/app/service/software/redis"
 	"server/app/util/context"
 )
 
@@ -18,7 +18,7 @@ func Persistence(c *context.Context) {
 		return
 	}
 	if form.Action == "get" {
-		data, err := service.Container.Redis().GetPersistence()
+		data, err := service.Software.Redis().GetPersistence()
 		if err != nil {
 			c.Error(err.Error())
 		} else {
@@ -30,7 +30,7 @@ func Persistence(c *context.Context) {
 			c.Error("持久化配置不能为空")
 			return
 		}
-		data, err := service.Container.Redis().UpdatePersistence(c.Request.Context(), form.Config)
+		data, err := service.Software.Redis().UpdatePersistence(c.Request.Context(), form.Config)
 		if err != nil {
 			c.Error(err.Error())
 		} else {

@@ -19,7 +19,7 @@ func Config(c *context.Context) {
 		return
 	}
 	if form.Action == "get" {
-		content, err := service.Container.Redis().GetConfig()
+		content, err := service.Software.Redis().GetConfig()
 		if err != nil {
 			c.Error(err.Error())
 		} else {
@@ -31,7 +31,7 @@ func Config(c *context.Context) {
 			c.Error("配置内容不能为空")
 			return
 		}
-		data, err := service.Container.Redis().UpdateConfig(c.Request.Context(), form.Content)
+		data, err := service.Software.Redis().UpdateConfig(c.Request.Context(), form.Content)
 		if err != nil {
 			c.Error(err.Error())
 		} else {
