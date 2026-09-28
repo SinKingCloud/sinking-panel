@@ -327,13 +327,14 @@ func loadFileRoute(s *sinking_web.Engine) {
 func loadSystemRoute(s *sinking_web.Engine) {
 	g := s.Group("/system")
 	g.Use(context.HandleFunc(middleware.CheckLogin))
-	g.ANY("/account", context.HandleFunc(system.Account)) //账户管理
-	g.ANY("/info", context.HandleFunc(system.Info))       //主机、系统和运行时信息
-	g.ANY("/statis", context.HandleFunc(system.Statis))   //系统资源统计
-	g.ANY("/io", context.HandleFunc(system.IO))           //网络与磁盘 I/O 统计
-	g.ANY("/task", context.HandleFunc(system.Task))       //系统任务
-	g.ANY("/log", context.HandleFunc(system.Log))         //系统日志
-	g.ANY("/enum", context.HandleFunc(system.Enum))       //枚举类型
-	g.ANY("/http", context.HandleFunc(system.HTTP))       //HTTP 服务管理
-	g.ANY("/restart", context.HandleFunc(system.Restart)) //重启面板或服务器
+	g.ANY("/account", context.HandleFunc(system.Account))   //账户管理
+	g.ANY("/info", context.HandleFunc(system.Info))         //主机、系统和运行时信息
+	g.ANY("/timezone", context.HandleFunc(system.Timezone)) //系统时区
+	g.ANY("/statis", context.HandleFunc(system.Statis))     //系统资源统计
+	g.ANY("/io", context.HandleFunc(system.IO))             //网络与磁盘 I/O 统计
+	g.ANY("/task", context.HandleFunc(system.Task))         //系统任务
+	g.ANY("/log", context.HandleFunc(system.Log))           //系统日志
+	g.ANY("/enum", context.HandleFunc(system.Enum))         //枚举类型
+	g.ANY("/http", context.HandleFunc(system.HTTP))         //HTTP服务管理
+	g.ANY("/restart", context.HandleFunc(system.Restart))   //重启面板或服务器
 }

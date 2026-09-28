@@ -20,6 +20,8 @@ type Service interface {
 	Close()
 	Restart(action string, containers bool) error                            // 重启面板或服务器，可选同时重启容器
 	GetInfo() map[string]interface{}                                         // 主机、系统和运行时信息
+	GetTimezone() (map[string]interface{}, error)                            // 本机时区、时区列表和系统当地时间
+	SetTimezone(name string) error                                           // 设置系统时区
 	GetStatis() map[string]interface{}                                       // CPU、内存、磁盘等资源统计
 	GetIO(netInterface, diskName string, after int64) map[string]interface{} // 网络与磁盘 I/O 统计
 	GetTask(id string) *Task

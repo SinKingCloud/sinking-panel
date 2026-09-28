@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"time"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
@@ -25,27 +26,35 @@ func List() ([]string, error) {
 	return slices.Compact(names), nil
 }
 
-// Get 读取系统配置，不受进程的 TZ 环境变量或 time.Local 缓存影响。
-func Get() (string, error) {
+// Get 读取系统时区和当前当地时间，不受进程 TZ 环境变量或 time.Local 缓存影响。
+func Get() (string, time.Time, error) {
 	library, err := loadWindowsLibrary("kernel32.dll")
 	if err != nil {
-		return "", err
+		return "", time.Time{}, err
 	}
 	defer library.Release()
 	get, err := library.FindProc("GetDynamicTimeZoneInformation")
 	if err != nil {
-		return "", fmt.Errorf("系统不支持读取 Windows 动态时区: %w", err)
+		return "", time.Time{}, fmt.Errorf("系统不支持读取 Windows 动态时区: %w", err)
 	}
 	var info windowsTimezoneInformation
 	result, _, err := get.Call(uintptr(unsafe.Pointer(&info)))
 	if uint32(result) == 0xffffffff { // TIME_ZONE_ID_INVALID
-		return "", fmt.Errorf("读取 Windows 系统时区失败: %w", err)
+		return "", time.Time{}, fmt.Errorf("读取 Windows 系统时区失败: %w", err)
 	}
 	name := windows.UTF16ToString(info.TimeZoneKeyName[:])
 	if name == "" {
-		return "", errors.New("Windows 当前使用的自定义时区没有系统时区 ID")
+		return "", time.Time{}, errors.New("Windows 当前使用的自定义时区没有系统时区 ID")
 	}
-	return name, nil
+	// Windows 使用 UTC = 当地时间 + Bias，返回状态已包含当前夏令时判断。
+	bias := info.Bias
+	switch uint32(result) {
+	case windows.TIME_ZONE_ID_STANDARD:
+		bias += info.StandardBias
+	case windows.TIME_ZONE_ID_DAYLIGHT:
+		bias += info.DaylightBias
+	}
+	return name, time.Now().In(time.FixedZone(name, -int(bias)*60)), nil
 }
 
 // setTimezone 使用当前年度规则设置系统时区，并在调用后恢复进程特权。
