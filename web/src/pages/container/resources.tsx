@@ -208,18 +208,13 @@ const ContainerResources = ({id, active = true, visible = true, onStatus}: {
                 const next = response.data;
                 setStatus(next);
                 callbackRef.current?.(next);
-                if (!next.resources_available) {
-                    reset();
-                    setError("");
-                    return;
-                }
                 const time = Date.parse(next.read_time);
                 if (!Number.isFinite(time) || time <= 0) throw new Error("采样时间无效，等待下一次采样");
                 if (![next.cpu_usage, next.io_read_bytes, next.io_write_bytes, next.memory_usage].every(validNumber)) {
                     throw new Error("资源采样数据无效，等待下一次采样");
                 }
                 const elapsed = previous ? time - Date.parse(previous.read_time) : 0;
-                const continuous = !!previous && previous.resources_available && elapsed > 0
+                const continuous = !!previous && elapsed > 0
                     && next.generation === previous.generation && next.started_at === previous.started_at
                     && next.cpu_usage >= previous.cpu_usage && next.io_read_bytes >= previous.io_read_bytes
                     && next.io_write_bytes >= previous.io_write_bytes;
@@ -271,13 +266,13 @@ const ContainerResources = ({id, active = true, visible = true, onStatus}: {
     // 切换详情分段只卸载图表，采样与历史数据保留到弹窗关闭。
     if (!visible) return null;
 
-    const available = active && history.length > 0 && !!status?.resources_available && !error;
+    const available = active && history.length > 0 && !error;
     const displayBytes = (value?: number) => available && validNumber(value) ? formatSize(value) : "—";
     const currentRates = available ? rates : undefined;
-    const emptyText = !active ? "" : error ? "等待采样恢复" : status && !status.resources_available ? "当前没有可用的资源采样" : "等待有效采样";
+    const emptyText = !active ? "" : error ? "等待采样恢复" : "等待有效采样";
     const lastSample = history[history.length - 1];
     const rateEmptyText = available && lastSample ? "等待下一次采样计算速率" : emptyText;
-    const waiting = active && !error && (loading || !status || status.resources_available);
+    const waiting = active && !error && (loading || !rates);
     const displayCount = (value?: number) => available && validNumber(value) ? value.toLocaleString() : "—";
     const displaySeconds = (value?: number) => available && validNumber(value) ? `${(value / 1e9).toFixed(2)} 秒` : "—";
     const metricGroups = [
@@ -313,7 +308,6 @@ const ContainerResources = ({id, active = true, visible = true, onStatus}: {
 
     return <div className={styles.resources}>
         {error && <Alert type="warning" showIcon title={error}/>}
-        {!error && status && !status.resources_available && <Alert type="info" showIcon title={status.resource_error || "当前容器没有可用的资源采样"}/>}
         <div className="resource-grid">
             <ResourceChart title="CPU 使用率" data={plots.cpu} series={series.cpu} readings={[currentRates ? `${currentRates.cpu.toFixed(1)}%` : "—"]}
                            kind="percent" dark={dark} emptyText={rateEmptyText} loading={waiting} height={chartHeight}/>

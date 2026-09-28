@@ -43,8 +43,8 @@ func loadApp(s *sinking_web.Engine) {
 	loadSiteRoute(s)
 	loadCertRoute(s)
 	loadSecretRoute(s)
-	// 轻量容器及依赖它的软件接口仅在 Linux 注册。
-	if platform.IsLinux() {
+	// 支持轻量容器时才注册容器及依赖它的软件接口。
+	if platform.CanRunContainer() {
 		loadRedisRoute(s)
 		loadMysqlRoute(s)
 		loadPgsqlRoute(s)
