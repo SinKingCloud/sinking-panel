@@ -1,5 +1,41 @@
 package pgsql
 
+import (
+	"fmt"
+	"strings"
+
+	"server/app/util/platform"
+)
+
+// timezoneConfig 补齐独立配置文件缺失的时区；显式配置优先，不使用固定偏移或进程缓存。
+// 面板指定 config_file 后，initdb 写入 PGDATA/postgresql.conf 的时区不会被读取。
+func (m *Manager) timezoneConfig(content string) (string, error) {
+	configured := make(map[string]bool, 2)
+	for _, line := range strings.Split(content, "\n") {
+		parts := strings.FieldsFunc(strings.TrimSpace(line), func(r rune) bool {
+			return r == '=' || r == ' ' || r == '\t'
+		})
+		if len(parts) > 1 {
+			configured[strings.ToLower(parts[0])] = true
+		}
+	}
+	if configured["timezone"] && configured["log_timezone"] {
+		return content, nil
+	}
+	name, _, err := platform.TimezoneGet()
+	if err != nil {
+		return "", fmt.Errorf("读取服务器时区失败: %w", err)
+	}
+	name = strings.NewReplacer("\\", "\\\\", "'", "''").Replace(name)
+	var defaults strings.Builder
+	for _, key := range []string{"timezone", "log_timezone"} {
+		if !configured[key] {
+			fmt.Fprintf(&defaults, "%s = '%s'\n", key, name)
+		}
+	}
+	return defaults.String() + content, nil
+}
+
 func (m *Manager) performanceFields() []map[string]interface{} {
 	return []map[string]interface{}{
 		{"name": "max_connections", "label": "最大连接数", "type": "number", "min": 1, "max": 262143},

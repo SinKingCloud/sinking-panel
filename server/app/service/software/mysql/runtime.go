@@ -100,6 +100,7 @@ func (m *Manager) Install(ctx context.Context, source string, options *InstallOp
 			}
 		}
 	}
+	content = m.timezoneConfig(content)
 	values := make(map[string]interface{}, len(options.Config)+2)
 	for key, value := range options.Config {
 		values[key] = value

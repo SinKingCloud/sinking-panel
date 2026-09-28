@@ -54,6 +54,10 @@ func (m *Manager) Image(id string) (*ImageInfo, error) {
 		return nil, errors.New("镜像 PGDATA 不在官方持久化目录内")
 	}
 	result.Config, result.Command = m.defaultConfig(version), []string{image.Command[0], "-c", "config_file=" + result.ConfigPath}
+	result.Config, err = m.timezoneConfig(result.Config)
+	if err != nil {
+		return nil, err
+	}
 
 	return result, nil
 }

@@ -13,5 +13,5 @@ func (m *Manager) performanceFields() []map[string]interface{} {
 }
 
 func (m *Manager) defaultConfig() string {
-	return "[mysqld]\nuser=mysql\ndatadir=/var/lib/mysql\nsocket=/var/run/mysqld/mysqld.sock\nbind-address=127.0.0.1\nport=3306\nloose-mysqlx=0\nmax_connections=151\ninnodb_buffer_pool_size=128M\nwait_timeout=28800\nmax_allowed_packet=64M\nslow_query_log=0\nlong_query_time=2\n"
+	return m.timezoneConfig("[mysqld]\nuser=mysql\ndatadir=/var/lib/mysql\nsocket=/var/run/mysqld/mysqld.sock\nbind-address=127.0.0.1\nport=3306\nloose-mysqlx=0\nmax_connections=151\ninnodb_buffer_pool_size=128M\nwait_timeout=28800\nmax_allowed_packet=64M\nslow_query_log=0\nlong_query_time=2\n")
 }

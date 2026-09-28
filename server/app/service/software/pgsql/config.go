@@ -317,6 +317,13 @@ func (m *Manager) saveConfig(ctx context.Context, content string) (*ApplyResult,
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	content, err := m.timezoneConfig(content)
+	if err != nil {
+		return nil, err
+	}
+	if _, err = m.parseConfig(content); err != nil {
+		return nil, err
+	}
 	active, err := m.readRunningConfig()
 	if err != nil {
 		return nil, err
@@ -350,6 +357,14 @@ func (m *Manager) Reload(ctx context.Context) (*ApplyResult, error) {
 	next, err := m.readFile("server.conf")
 	if err != nil {
 		return nil, err
+	}
+	// 已安装实例也能通过重载补齐旧配置；仍由用户决定何时重启数据库。
+	content, err := m.timezoneConfig(string(next))
+	if err != nil {
+		return nil, err
+	}
+	if content != string(next) {
+		return m.saveConfig(ctx, content)
 	}
 	previous, err := m.readRunningConfig()
 	if err != nil {

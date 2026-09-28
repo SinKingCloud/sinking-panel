@@ -29,6 +29,57 @@ func (m *Manager) configKey(name string) string {
 	return name
 }
 
+// timezoneConfig 仅补齐缺失的服务端时区选项，保留用户在有效分组中的显式配置。
+func (m *Manager) timezoneConfig(content string) string {
+	versionGroup := ""
+	if state, err := m.readState(); err == nil {
+		var major, minor int
+		if _, err = fmt.Sscanf(state.Version, "%d.%d", &major, &minor); err == nil {
+			versionGroup = fmt.Sprintf("mysqld-%d.%d", major, minor)
+		}
+	}
+	section := ""
+	hasTimezone, hasLogTimestamps := false, false
+	for _, line := range strings.Split(content, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, ";") {
+			continue
+		}
+		if end := strings.IndexByte(line, ']'); strings.HasPrefix(line, "[") && end > 0 {
+			section = strings.ToLower(strings.TrimSpace(line[1:end]))
+			continue
+		}
+		if section != "mysqld" && section != "server" && (versionGroup == "" || section != versionGroup) {
+			continue
+		}
+		key, _, _ := strings.Cut(line, "=")
+		key = strings.TrimPrefix(strings.ReplaceAll(strings.TrimSpace(key), "-", "_"), "loose_")
+		switch key {
+		case "default_time_zone":
+			hasTimezone = true
+		case "log_timestamps":
+			hasLogTimestamps = true
+		}
+	}
+	if hasTimezone && hasLogTimestamps {
+		return content
+	}
+	if !strings.HasSuffix(content, "\n") {
+		content += "\n"
+	}
+	if section != "mysqld" && section != "server" {
+		content += "[mysqld]\n"
+	}
+	if !hasTimezone {
+		content += "default-time-zone=SYSTEM\n"
+	}
+	if !hasLogTimestamps {
+		// 旧版不支持日志时区选项时忽略它，仍保留 SYSTEM 的数据库时区。
+		content += "loose-log-timestamps=SYSTEM\n"
+	}
+	return content
+}
+
 // parseConfig 只提取可视化管理项；其他原文始终保留并交由数据库验证。
 func (m *Manager) parseConfig(content string) (map[string]interface{}, error) {
 	if len(content) == 0 || len(content) > configMaxSize || strings.ContainsRune(content, 0) {
@@ -52,8 +103,8 @@ func (m *Manager) parseConfig(content string) (map[string]interface{}, error) {
 		if strings.HasPrefix(line, "!") || strings.HasPrefix(line, "include") {
 			return nil, errors.New("请将配置直接写入当前文件，不支持引用其他配置文件")
 		}
-		if strings.HasPrefix(line, "[") && strings.HasSuffix(line, "]") {
-			section = strings.ToLower(strings.TrimSpace(line[1 : len(line)-1]))
+		if end := strings.IndexByte(line, ']'); strings.HasPrefix(line, "[") && end > 0 {
+			section = strings.ToLower(strings.TrimSpace(line[1:end]))
 			if strings.HasPrefix(section, "mysqld-") && versionGroup == "" {
 				return nil, errors.New("未取得 MySQL 版本，请先安装后再配置版本专属分组")
 			}
@@ -298,8 +349,8 @@ func (m *Manager) patchConfig(content string, values map[string]interface{}) (st
 	lines := strings.Split(strings.TrimRight(content, "\n"), "\n")
 	for i, line := range lines {
 		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, "[") && strings.HasSuffix(trimmed, "]") {
-			section = strings.ToLower(strings.TrimSpace(trimmed[1 : len(trimmed)-1]))
+		if end := strings.IndexByte(trimmed, ']'); strings.HasPrefix(trimmed, "[") && end > 0 {
+			section = strings.ToLower(strings.TrimSpace(trimmed[1:end]))
 			continue
 		}
 		if section != "mysqld" && section != "server" && (versionGroup == "" || section != versionGroup) || strings.HasPrefix(trimmed, "#") || strings.HasPrefix(trimmed, ";") {
@@ -387,6 +438,10 @@ func (m *Manager) saveConfig(ctx context.Context, content string) (*ApplyResult,
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	content = m.timezoneConfig(content)
+	if _, err := m.parseConfig(content); err != nil {
+		return nil, err
+	}
 	active, err := m.readRunningConfig()
 	if err != nil {
 		return nil, err
@@ -414,6 +469,9 @@ func (m *Manager) Reload(ctx context.Context) (*ApplyResult, error) {
 	next, err := m.readFile("server.conf")
 	if err != nil {
 		return nil, err
+	}
+	if content := m.timezoneConfig(string(next)); content != string(next) {
+		return m.saveConfig(ctx, content)
 	}
 	previous, err := m.readRunningConfig()
 	if err != nil {

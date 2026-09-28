@@ -110,6 +110,10 @@ func (m *Manager) Install(ctx context.Context, source string, options *InstallOp
 	if err != nil {
 		return nil, err
 	}
+	content, err = m.timezoneConfig(content)
+	if err != nil {
+		return nil, err
+	}
 	config, err := m.parseConfig(content)
 	if err != nil {
 		return nil, err
