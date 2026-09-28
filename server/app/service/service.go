@@ -72,7 +72,7 @@ func Init() {
 	System = serviceSystem.NewService(File, global.App.Daemon)
 	Container = serviceContainer.NewManager(global.App.Container, global.App.Cache)
 	Software = serviceSoftware.NewService(Container)
-	Site, _ = serviceSite.NewService(siteRepository, siteDomainRepository, certRepository, secretRepository, Type, Config, Task, global.App.Database, global.App.Cache)
+	Site, _ = serviceSite.NewService(siteRepository, siteDomainRepository, certRepository, secretRepository, Type, Config, Task, Recycle, global.App.Database, global.App.Cache)
 }
 
 // Boot 启动服务运行时，并返回统一的清理函数。

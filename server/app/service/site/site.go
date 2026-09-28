@@ -19,6 +19,7 @@ import (
 	repositorySite "server/app/repository/site"
 	repositorySiteDomain "server/app/repository/site_domain"
 	serviceConfig "server/app/service/config"
+	serviceRecycle "server/app/service/recycle"
 	serviceTask "server/app/service/task"
 	serviceTypes "server/app/service/types"
 	"server/app/util/cache"
@@ -101,6 +102,7 @@ type service struct {
 	typeService          serviceTypes.Service
 	configService        serviceConfig.Service
 	taskService          serviceTask.Service
+	recycleService       serviceRecycle.Service
 	cache                cache.Interface
 	database             *database.Database
 	http                 *caddy.Manager
@@ -114,8 +116,8 @@ type service struct {
 }
 
 // NewService 创建网站管理服务。
-func NewService(repositorySite repositorySite.Interface, repositorySiteDomain repositorySiteDomain.Interface, repositoryCert repositoryCert.Interface, repositorySecret repositorySecret.Interface, typeService serviceTypes.Service, configService serviceConfig.Service, taskService serviceTask.Service, database *database.Database, cache cache.Interface, options ...Options) (*service, error) {
-	if repositorySite == nil || repositorySiteDomain == nil || repositoryCert == nil || repositorySecret == nil || typeService == nil || configService == nil || taskService == nil || database == nil || database.Db == nil || cache == nil {
+func NewService(repositorySite repositorySite.Interface, repositorySiteDomain repositorySiteDomain.Interface, repositoryCert repositoryCert.Interface, repositorySecret repositorySecret.Interface, typeService serviceTypes.Service, configService serviceConfig.Service, taskService serviceTask.Service, recycleService serviceRecycle.Service, database *database.Database, cache cache.Interface, options ...Options) (*service, error) {
+	if repositorySite == nil || repositorySiteDomain == nil || repositoryCert == nil || repositorySecret == nil || typeService == nil || configService == nil || taskService == nil || recycleService == nil || database == nil || database.Db == nil || cache == nil {
 		return nil, errors.New("网站服务依赖不能为空")
 	}
 	if len(options) > 1 {
@@ -165,6 +167,7 @@ func NewService(repositorySite repositorySite.Interface, repositorySiteDomain re
 		typeService:          typeService,
 		configService:        configService,
 		taskService:          taskService,
+		recycleService:       recycleService,
 		cache:                cache,
 		database:             database,
 		root:                 filepath.Clean(root),

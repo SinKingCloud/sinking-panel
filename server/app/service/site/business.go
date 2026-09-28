@@ -409,7 +409,7 @@ func (s *service) updateLocked(id int64, data *siteMutation) error {
 	return nil
 }
 
-// Delete 删除网站和域名，可在运行时同步成功后同时删除网站根目录。
+// Delete 删除网站和域名，可在运行时同步成功后将网站根目录移至回收站。
 func (s *service) Delete(id int64, deleteRoot bool) error {
 	s.operationMu.Lock()
 	defer s.operationMu.Unlock()
@@ -423,17 +423,17 @@ func (s *service) Delete(id int64, deleteRoot bool) error {
 		}
 		return fmt.Errorf("查询网站失败: %w", err)
 	}
-	rootToDelete := ""
+	rootToRecycle := ""
 	if deleteRoot {
-		rootToDelete = strings.TrimSpace(previous.Root)
-		if rootToDelete == "" {
+		rootToRecycle = strings.TrimSpace(previous.Root)
+		if rootToRecycle == "" {
 			return errors.New("网站根目录为空，无法删除")
 		}
-		rootToDelete, err = filepath.Abs(rootToDelete)
+		rootToRecycle, err = filepath.Abs(rootToRecycle)
 		if err != nil {
 			return fmt.Errorf("解析网站根目录失败: %w", err)
 		}
-		rootToDelete = filepath.Clean(rootToDelete)
+		rootToRecycle = filepath.Clean(rootToRecycle)
 		pathContains := func(parent, child string) bool {
 			relative, relativeErr := filepath.Rel(parent, child)
 			return relativeErr == nil && relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator))
@@ -522,22 +522,22 @@ func (s *service) Delete(id int64, deleteRoot bool) error {
 			}
 			return nil
 		}
-		if err = validateDeleteRoot(rootToDelete); err != nil {
+		if err = validateDeleteRoot(rootToRecycle); err != nil {
 			return err
 		}
-		if info, statErr := os.Lstat(rootToDelete); statErr == nil {
+		if info, statErr := os.Lstat(rootToRecycle); statErr == nil {
 			if info.Mode()&os.ModeSymlink != 0 {
 				return errors.New("网站根目录是符号链接，不能自动删除")
 			}
 			if !info.IsDir() {
 				return errors.New("网站根目录不是目录，不能自动删除")
 			}
-			resolved, resolveErr := filepath.EvalSymlinks(rootToDelete)
+			resolved, resolveErr := filepath.EvalSymlinks(rootToRecycle)
 			if resolveErr != nil {
 				return fmt.Errorf("解析网站根目录失败: %w", resolveErr)
 			}
-			rootToDelete = filepath.Clean(resolved)
-			if err = validateDeleteRoot(rootToDelete); err != nil {
+			rootToRecycle = filepath.Clean(resolved)
+			if err = validateDeleteRoot(rootToRecycle); err != nil {
 				return err
 			}
 		} else if !os.IsNotExist(statErr) {
@@ -559,7 +559,7 @@ func (s *service) Delete(id int64, deleteRoot bool) error {
 			if resolved, resolveErr := filepath.EvalSymlinks(otherRoot); resolveErr == nil {
 				otherRoot = filepath.Clean(resolved)
 			}
-			if pathContains(rootToDelete, otherRoot) || pathContains(otherRoot, rootToDelete) {
+			if pathContains(rootToRecycle, otherRoot) || pathContains(otherRoot, rootToRecycle) {
 				return fmt.Errorf("网站根目录与网站[%s]共用或嵌套，请保留目录后再删除", item.Name)
 			}
 		}
@@ -638,9 +638,14 @@ func (s *service) Delete(id int64, deleteRoot bool) error {
 	}
 	cacheErr := s.http.DeleteSiteCache(strconv.FormatInt(id, 10))
 	var rootErr error
-	if rootToDelete != "" {
-		if removeErr := os.RemoveAll(rootToDelete); removeErr != nil {
-			rootErr = fmt.Errorf("删除网站根目录失败: %w", removeErr)
+	if rootToRecycle != "" {
+		// 目录已不存在时无需回收，保持删除网站操作可正常完成。
+		if _, statErr := os.Lstat(rootToRecycle); statErr == nil {
+			if recycleErr := s.recycleService.Create(rootToRecycle); recycleErr != nil {
+				rootErr = fmt.Errorf("网站根目录移至回收站失败: %w", recycleErr)
+			}
+		} else if !os.IsNotExist(statErr) {
+			rootErr = fmt.Errorf("检查网站根目录失败: %w", statErr)
 		}
 	}
 	s.logMu.Lock()

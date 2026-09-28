@@ -203,7 +203,7 @@ const useList = () => {
                         onChange: (event) => {
                             deleteRoot = event.target.checked;
                         },
-                    }, "同时删除网站根目录"),
+                    }, "将网站根目录移至回收站"),
                 ),
             ) : option.content(record?.name || "-"),
             okText: option.okText,
@@ -216,7 +216,7 @@ const useList = () => {
                 }
                 modal.confirm({
                     title: "再次确认",
-                    content: deleteRoot ? "确定删除网站及根目录吗？" : "确定删除网站吗？",
+                    content: deleteRoot ? "确定删除网站并将网站根目录移至回收站吗？" : "确定删除网站吗？",
                     okText: "删除",
                     cancelText: "取消",
                     okButtonProps: {danger: true, type: "default"},

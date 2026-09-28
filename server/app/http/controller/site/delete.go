@@ -12,7 +12,7 @@ import (
 func Delete(c *context.Context) {
 	var form struct {
 		Id         int64 `json:"id" default:"0" validate:"required,min=1" label:"网站ID"`
-		DeleteRoot bool  `json:"delete_root" default:"false" label:"删除网站根目录"`
+		DeleteRoot bool  `json:"delete_root" default:"false" label:"将网站根目录移至回收站"`
 	}
 	if ok, msg := c.ValidatorAll(&form); !ok {
 		c.Error(msg)
@@ -24,7 +24,7 @@ func Delete(c *context.Context) {
 	} else {
 		detail := "删除网站[" + strconv.FormatInt(form.Id, 10) + "]"
 		if form.DeleteRoot {
-			detail += "，同时删除网站根目录"
+			detail += "，将网站根目录移至回收站"
 		}
 		service.Log.Create(c.GetRequestIp(), log_type.EventDelete, "删除网站", detail)
 		c.Success("删除成功")

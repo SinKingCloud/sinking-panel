@@ -789,7 +789,7 @@ func (d *Disk) copyFile(src, dest string) error {
 		_ = srcFile.Close()
 	}()
 
-	destFile, err := os.Create(dest)
+	destFile, err := os.OpenFile(dest, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, srcInfo.Mode().Perm())
 	if err != nil {
 		return err
 	}
@@ -798,6 +798,10 @@ func (d *Disk) copyFile(src, dest string) error {
 	}()
 
 	if _, err = io.CopyBuffer(destFile, srcFile, make([]byte, bufferSize)); err != nil {
+		return err
+	}
+	// 跨磁盘移动会先复制文件，保留原权限，避免回收还原后丢失执行权限。
+	if err = destFile.Chmod(srcInfo.Mode().Perm()); err != nil {
 		return err
 	}
 
