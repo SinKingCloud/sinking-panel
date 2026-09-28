@@ -21,7 +21,7 @@ import defaultSettings from "@/../config/defaultSettings";
 import AceEditor from "@/components/ace-editor";
 import FilePicker from "@/pages/components/file-picker";
 import Log from "@/pages/components/task-log";
-import {getEnum as getSystemEnum, getHTTPLog, getHTTPService, updateHTTPService} from "@/service/api/system";
+import {getEnum as getSystemEnum, systemHTTP} from "@/service/api/system";
 
 const acePath = `${defaultSettings?.basePath || "/"}ace`;
 
@@ -959,6 +959,14 @@ const HTTPService = forwardRef<any, any>((_, ref): any => {
     const [runtimePanels, setRuntimePanels] = useState<string[]>([]);
     const [pagePanels, setPagePanels] = useState<string[]>([]);
 
+    const requestHTTPLog = useCallback((params: API.RequestParams = {}) => {
+        const {id, action, ...body} = params.body || {};
+        return systemHTTP({
+            ...params,
+            body: {...body, action: "log", log_action: action === "clear" ? "clear" : "read"},
+        });
+    }, []);
+
     const fillConfig = useCallback((config: any) => {
         const values: any = {...(config || {})};
         durationFields.forEach(([name]) => {
@@ -990,7 +998,7 @@ const HTTPService = forwardRef<any, any>((_, ref): any => {
         setLoadError("");
         try {
             const [response, enumResponse] = await Promise.all([
-                getHTTPService({body: {action: "get"}}),
+                systemHTTP({body: {action: "get"}}),
                 includeSiteOptions
                     ? getSystemEnum({body: {name: "site"}})
                     : Promise.resolve(null),
@@ -1095,7 +1103,7 @@ const HTTPService = forwardRef<any, any>((_, ref): any => {
         const requestId = ++requestRef.current;
         setAction(nextAction);
         try {
-            const response = await updateHTTPService({body: {action: nextAction}});
+            const response = await systemHTTP({body: {action: nextAction}});
             if (requestRef.current !== requestId) {
                 return;
             }
@@ -1138,7 +1146,7 @@ const HTTPService = forwardRef<any, any>((_, ref): any => {
         const requestId = ++requestRef.current;
         setSaving(true);
         try {
-            const response = await updateHTTPService({body: {action: "set", config}});
+            const response = await systemHTTP({body: {action: "set", config}});
             if (requestRef.current !== requestId) {
                 return;
             }
@@ -1626,7 +1634,7 @@ const HTTPService = forwardRef<any, any>((_, ref): any => {
                     </Spin>
                 </div>
             </ProModal>
-            <Log ref={logRef} request={getHTTPLog} title="服务日志"/>
+            <Log ref={logRef} request={requestHTTPLog} title="服务日志"/>
         </>
     );
 });

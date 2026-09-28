@@ -29,10 +29,6 @@ func FastCGI(c *context.Context) {
 			c.SuccessWithData("获取成功", data)
 		}
 	} else {
-		if form.Config == nil {
-			c.Error("PHP-FPM配置不能为空")
-			return
-		}
 		err := service.Site.UpdateFastCGI(form.Id, form.Config)
 		if err != nil {
 			c.Error(err.Error())

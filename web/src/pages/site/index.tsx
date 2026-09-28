@@ -1,7 +1,7 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react";
 import {Body, PageTable} from "sinking-antd";
 import TypeManager, {TypeManagerRef} from "@/pages/components/type-manager";
-import {getAllTypes} from "@/service/api/type";
+import {getTypeList} from "@/service/api/type";
 import useEnum from "@/utils/enum";
 import useSiteHeader from "./components/header";
 import useSiteTable from "./components/table";
@@ -16,7 +16,7 @@ import useStyles from "./styles";
 const defaultTypeData = {"0": "静态网站", "1": "反向代理", "2": "通用网站", "3": "PHP网站"};
 const defaultStatusData = {"0": "已启用", "1": "已停用"};
 
-export default (): React.ReactNode => {
+export default (): React.ReactNode | any => {
     const {styles} = useStyles();
     const [enumData, enumLoading] = useEnum("site");
     const formRef = useRef<any>({});
@@ -39,7 +39,7 @@ export default (): React.ReactNode => {
     useEffect(() => {
         let active = true;
         const version = typeVersionRef.current;
-        void getAllTypes("site").then((response) => {
+        void getTypeList({body: {module: "site", order_by_field: "sort", order_by_type: "asc"}}).then((response) => {
             if (!active || typeVersionRef.current !== version || response?.code !== 200) {
                 return;
             }

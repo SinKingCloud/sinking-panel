@@ -29,10 +29,6 @@ func TrafficLimit(c *context.Context) {
 			c.SuccessWithData("获取成功", data)
 		}
 	} else {
-		if form.Config == nil {
-			c.Error("流量限制不能为空")
-			return
-		}
 		err := service.Site.UpdateTrafficLimit(form.Id, form.Config)
 		if err != nil {
 			c.Error(err.Error())

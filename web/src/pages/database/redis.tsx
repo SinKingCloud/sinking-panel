@@ -21,22 +21,18 @@ import {
 } from "antd";
 import {Icon} from "sinking-antd";
 import {
-    clearRedisLog,
-    getRedisConfig,
-    getRedisLog,
-    getRedisPersistence,
-    getRedisPerformance,
     getRedisStatus,
     installRedis,
     parseRedisImage,
+    redisConfig,
+    redisLog,
+    redisPersistence,
+    redisPerformance,
     reloadRedis,
     restartRedis,
     startRedis,
     stopRedis,
     uninstallRedis,
-    updateRedisConfig,
-    updateRedisPersistence,
-    updateRedisPerformance,
 } from "@/service/api/redis";
 import ContainerTerminal from "@/pages/components/container-terminal";
 import useEnum from "@/utils/enum";
@@ -98,8 +94,8 @@ export default (): React.ReactNode => {
 
     const loadSettings = useCallback(async () => {
         const [performanceResponse, persistenceResponse] = await Promise.all([
-            getRedisPerformance(),
-            getRedisPersistence(),
+            redisPerformance({body: {action: "get"}}),
+            redisPersistence({body: {action: "get"}}),
         ]);
         if (!mountedRef.current) {
             return;
@@ -244,17 +240,17 @@ export default (): React.ReactNode => {
     }, [runAction]);
 
     const savePerformance = useCallback(async (values: any) => {
-        await runAction("performance", () => updateRedisPerformance({body: values}), "保存性能配置失败");
+        await runAction("performance", () => redisPerformance({body: {action: "set", config: values}}), "保存性能配置失败");
     }, [runAction]);
 
     const savePersistence = useCallback(async (values: any) => {
-        await runAction("persistence", () => updateRedisPersistence({body: values}), "保存持久化配置失败");
+        await runAction("persistence", () => redisPersistence({body: {action: "set", config: values}}), "保存持久化配置失败");
     }, [runAction]);
 
     const loadConfig = useCallback(async () => {
         setConfigLoading(true);
         try {
-            const response = await getRedisConfig();
+            const response = await redisConfig({body: {action: "get"}});
             if (!mountedRef.current) return;
             if (response?.code !== 200) {
                 message.error(responseError(response, "获取 Redis 配置失败"));
@@ -276,13 +272,13 @@ export default (): React.ReactNode => {
             message.warning("配置内容不能为空");
             return;
         }
-        await runAction("config", () => updateRedisConfig({body: {content: config}}), "保存 Redis 配置失败");
+        await runAction("config", () => redisConfig({body: {action: "set", content: config}}), "保存 Redis 配置失败");
     }, [config, message, runAction]);
 
     const loadLogs = useCallback(async (after = 0) => {
         setLogLoading(true);
         try {
-            const response = await getRedisLog({body: {after}});
+            const response = await redisLog({body: {action: "read", page_size: 500, after}});
             if (!mountedRef.current) return;
             if (response?.code !== 200) {
                 message.error(responseError(response, "获取 Redis 日志失败"));
@@ -303,7 +299,7 @@ export default (): React.ReactNode => {
 
     const clearLogs = useCallback(async () => {
         await runAction("clear-log", async () => {
-            const response = await clearRedisLog();
+            const response = await redisLog({body: {action: "clear"}});
             if (mountedRef.current && response?.code === 200) {
                 setLogs([]);
                 setLogCursor(0);

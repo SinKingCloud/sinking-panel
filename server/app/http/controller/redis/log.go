@@ -30,10 +30,7 @@ func Log(c *context.Context) {
 		if err != nil {
 			c.Error(err.Error())
 		} else {
-			query := c.Request.URL.Query()
-			if !query.Has("after") && !query.Has("before") {
-				service.Log.Create(c.GetRequestIp(), log_type.EventShow, "查看 Redis 日志", "查看 Redis 运行日志")
-			}
+			service.Log.Create(c.GetRequestIp(), log_type.EventShow, "查看 Redis 日志", "查看 Redis 运行日志")
 			c.SuccessWithData("获取成功", data)
 		}
 	}

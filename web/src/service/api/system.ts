@@ -1,13 +1,13 @@
 import {get, post} from "@/utils/request";
 
-/** 获取账户信息 GET /system/account */
-export async function getAccountInfo(params: API.RequestParams = {}) {
-    return get("/system/account", params?.body, params?.onSuccess, params?.onFail, params?.onFinally);
+/** 查询或修改账户 POST /system/account */
+export async function systemAccount(params: API.RequestParams = {}) {
+    return post("/system/account", params?.body, params?.onSuccess, params?.onFail, params?.onFinally);
 }
 
-/** 修改账户 POST /system/account */
-export async function updateAccount(params: API.RequestParams = {}) {
-    return post("/system/account", params?.body, params?.onSuccess, params?.onFail, params?.onFinally);
+/** 查询或设置系统时区 POST /system/timezone */
+export async function systemTimezone(params: API.RequestParams = {}) {
+    return post("/system/timezone", params?.body, params?.onSuccess, params?.onFail, params?.onFinally);
 }
 
 /** 获取操作日志 GET /system/log */
@@ -35,25 +35,9 @@ export async function getSystemIO(params: API.RequestParams = {}) {
     return get("/system/io", params?.body, params?.onSuccess, params?.onFail, params?.onFinally);
 }
 
-/** 获取 HTTP 服务状态或配置 GET /system/http */
-export async function getHTTPService(params: API.RequestParams = {}) {
-    return get("/system/http", params?.body, params?.onSuccess, params?.onFail, params?.onFinally);
-}
-
-/** 管理 HTTP 服务或修改配置 POST /system/http */
-export async function updateHTTPService(params: API.RequestParams = {}) {
+/** 查询或管理 HTTP 服务、配置及日志 POST /system/http */
+export async function systemHTTP(params: API.RequestParams = {}) {
     return post("/system/http", params?.body, params?.onSuccess, params?.onFail, params?.onFinally);
-}
-
-/** 读取或清理 HTTP 服务运行日志 GET|POST /system/http */
-export async function getHTTPLog(params: API.RequestParams = {}) {
-    const body = {...params?.body};
-    const clear = body.action === "clear";
-    delete body.id;
-    body.action = "log";
-    body.log_action = clear ? "clear" : "read";
-    const request = clear ? post : get;
-    return request("/system/http", body, params?.onSuccess, params?.onFail, params?.onFinally);
 }
 
 /** 获取系统枚举 GET /system/enum */
@@ -61,17 +45,7 @@ export async function getEnum(params: API.RequestParams = {}) {
     return get("/system/enum", params?.body, params?.onSuccess, params?.onFail, params?.onFinally);
 }
 
-/** 获取系统任务 GET /system/task */
-export async function getSystemTask(params: API.RequestParams = {}) {
-    return get("/system/task", params?.body, params?.onSuccess, params?.onFail, params?.onFinally);
-}
-
-/** 获取系统任务列表 GET /system/task */
-export async function getSystemTaskList(params: API.RequestParams = {}) {
-    return get("/system/task", params?.body, params?.onSuccess, params?.onFail, params?.onFinally);
-}
-
-/** 取消系统任务 POST /system/task */
-export async function cancelSystemTask(params: API.RequestParams = {}) {
-    return post("/system/task", {...params?.body, action: "cancel"}, params?.onSuccess, params?.onFail, params?.onFinally);
+/** 查询或管理系统任务及日志 POST /system/task */
+export async function systemTask(params: API.RequestParams = {}) {
+    return post("/system/task", params?.body, params?.onSuccess, params?.onFail, params?.onFinally);
 }

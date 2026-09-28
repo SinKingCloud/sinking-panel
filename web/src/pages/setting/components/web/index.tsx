@@ -13,7 +13,7 @@ export default ({styles, info}: any): React.ReactNode => {
     const config = useConfig("web", defaults);
 
     return (
-        <Form form={config.form} layout="vertical" onFinish={config.save}>
+        <Form form={config.form} layout="vertical" variant="filled" onFinish={config.save}>
             {config.loading ? <Loading styles={styles}/> : config.error ? (
                 <Error styles={styles} message={config.error} onRetry={config.load}/>
             ) : <>

@@ -11,7 +11,10 @@ import (
 )
 
 // UpdateDomains 更新网站域名，同名域名保留原证书绑定。
-func (s *service) UpdateDomains(id int64, domains []string) error {
+func (s *service) UpdateDomains(id int64, domains *[]string) error {
+	if domains == nil {
+		return errors.New("网站域名不能为空")
+	}
 	s.operationMu.Lock()
 	defer s.operationMu.Unlock()
 	if id <= 0 {
@@ -32,8 +35,8 @@ func (s *service) UpdateDomains(id int64, domains []string) error {
 		}
 		certificateByDomain[normalized] = domain.CertId
 	}
-	input := make([]SiteDomain, 0, len(domains))
-	for _, value := range domains {
+	input := make([]SiteDomain, 0, len(*domains))
+	for _, value := range *domains {
 		domain, normalizeErr := s.normalizeDomain(value)
 		if normalizeErr != nil {
 			return normalizeErr
@@ -352,13 +355,19 @@ func (s *service) UpdateCompression(id int64, config *CompressionUpdate) error {
 }
 
 // UpdateRedirects 更新网站重定向规则。
-func (s *service) UpdateRedirects(id int64, redirects []RedirectConfig) error {
-	return s.updateHTTPConfig(id, func(httpConfig *HTTPConfig) { httpConfig.Redirects = redirects })
+func (s *service) UpdateRedirects(id int64, redirects *[]RedirectConfig) error {
+	if redirects == nil {
+		return errors.New("重定向配置不能为空")
+	}
+	return s.updateHTTPConfig(id, func(httpConfig *HTTPConfig) { httpConfig.Redirects = *redirects })
 }
 
 // UpdateRoutes 更新网站自定义路由。
-func (s *service) UpdateRoutes(id int64, routes []RouteConfig) error {
-	return s.updateHTTPConfig(id, func(httpConfig *HTTPConfig) { httpConfig.Routes = routes })
+func (s *service) UpdateRoutes(id int64, routes *[]RouteConfig) error {
+	if routes == nil {
+		return errors.New("路由配置不能为空")
+	}
+	return s.updateHTTPConfig(id, func(httpConfig *HTTPConfig) { httpConfig.Routes = *routes })
 }
 
 // UpdateStatic 更新静态网站专属设置。

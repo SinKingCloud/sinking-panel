@@ -208,8 +208,8 @@ func Log(c *context.Context) {
 	m := service.Software.Mysql()
 	var form struct {
 		Action   string `json:"action" default:"read" validate:"oneof=read clear" label:"操作"`
-		After    int64  `json:"after" default:"0" validate:"min=0" label:"增量游标"`
-		Before   int64  `json:"before" default:"0" validate:"min=0" label:"历史游标"`
+		After    int64  `json:"after" default:"0" validate:"numeric,min=0" label:"增量游标"`
+		Before   int64  `json:"before" default:"0" validate:"numeric,min=0" label:"历史游标"`
 		PageSize int    `json:"page_size" default:"300" validate:"min=1,max=10000" label:"读取行数"`
 	}
 	if ok, msg := c.ValidatorAll(&form); !ok {

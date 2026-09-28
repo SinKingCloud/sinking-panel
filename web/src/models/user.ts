@@ -1,5 +1,5 @@
 import {useState} from "react";
-import {getAccountInfo} from "@/service/api/system";
+import {systemAccount} from "@/service/api/system";
 
 export default () => {
     const [web, setWeb] = useState<API.UserInfo>();
@@ -8,7 +8,7 @@ export default () => {
      * 获取网站用户信息
      */
     const getWebUser = async () => {
-        const resp = await getAccountInfo();
+        const resp = await systemAccount({body: {action: "account"}});
         if (resp?.code != 200 || !resp.data) {
             return undefined;
         }

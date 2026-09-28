@@ -9,7 +9,7 @@ import React, {
 } from "react";
 import {App, Button, Progress} from "antd";
 import {Icon, Title, useTheme} from "sinking-antd";
-import {cancelSystemTask, getSystemTask} from "@/service/api/system";
+import {systemTask} from "@/service/api/system";
 import {readFileStorage, updateFileStorage} from "../../hooks/file-storage";
 import useStyles from "./styles";
 
@@ -173,7 +173,7 @@ const FileTaskCenter = forwardRef<any, any>(({onSettled}, ref) => {
             try {
                 const responses = await Promise.all(pending.map(async (task) => ({
                     task,
-                    response: await getSystemTask({body: {id: task.id}}),
+                    response: await systemTask({body: {id: task.id, action: "info"}}),
                 })));
                 if (stopped) {
                     return;
@@ -242,7 +242,7 @@ const FileTaskCenter = forwardRef<any, any>(({onSettled}, ref) => {
     }, [scheduleDismiss, tasks]);
 
     const cancel = useCallback(async (id: string) => {
-        const response = await cancelSystemTask({body: {id}});
+        const response = await systemTask({body: {id, action: "cancel"}});
         if (response && response.code !== 200) {
             message.error(response.message || "取消任务失败");
         }

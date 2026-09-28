@@ -2,7 +2,7 @@ import {useCallback, useEffect, useRef, useState} from "react";
 import {App, Button, Empty, Form, Input, Select, Space, Spin, Typography} from "antd";
 import {PageTable, ProModal, Title} from "sinking-antd";
 import type {PageTableProps, PageTableRef} from "sinking-antd";
-import {listDatabases, listDatabaseUsers, updateDatabase, updateDatabaseUser} from "@/service/api/database";
+import {databaseDatabases, databaseUsers} from "@/service/api/database";
 import {formatSize} from "@/utils/string";
 import useStyles from "./styles";
 
@@ -39,7 +39,7 @@ export default ({kind, mode, ready, administrator, onBusy}: {
         if (!editor || !editingUser || editor.action !== "create") return;
         let disposed = false;
         setLoadingDatabases(true);
-        void listDatabases(kind).then((response) => {
+        void databaseDatabases(kind, {body: {action: "list"}}).then((response) => {
             if (disposed) return;
             if (response?.code !== 200) throw new Error(response?.message || "获取数据库列表失败");
             setDatabases((response.data?.list || []).filter((record: any) => !systemDatabases[kind].includes(record.name))
@@ -51,7 +51,9 @@ export default ({kind, mode, ready, administrator, onBusy}: {
     }, [editor, editingUser, kind, message]);
 
     const request = useCallback(async (params: {current: number; pageSize: number; [key: string]: unknown}) => {
-        const response = mode === "users" ? await listDatabaseUsers(kind) : await listDatabases(kind);
+        const response = mode === "users"
+            ? await databaseUsers(kind, {body: {action: "list"}})
+            : await databaseDatabases(kind, {body: {action: "list"}});
         if (response?.code !== 200) throw new Error(response?.message || "获取列表失败");
         const keyword = String(params.keyword || "").trim().toLowerCase();
         const rows = (response.data?.list || []).filter((record: any) => !keyword || record.name.toLowerCase().includes(keyword));
@@ -90,8 +92,8 @@ export default ({kind, mode, ready, administrator, onBusy}: {
     const save = async (values: any) => {
         if (!editor) return;
         const success = await execute(() => editingUser
-            ? updateDatabaseUser(kind, {body: {...editor.record, ...values, action: editor.action}})
-            : updateDatabase(kind, {body: {action: "create", name: values.name.trim()}}));
+            ? databaseUsers(kind, {body: {...editor.record, ...values, action: editor.action}})
+            : databaseDatabases(kind, {body: {action: "create", name: values.name.trim()}}));
         if (success && mounted.current) setEditor(undefined);
     };
 
@@ -103,8 +105,8 @@ export default ({kind, mode, ready, administrator, onBusy}: {
             okText: "删除", cancelText: "取消", okButtonProps: {danger: true},
             onOk: async () => {
                 const success = await execute(() => editingUser
-                    ? updateDatabaseUser(kind, {body: {...record, action: "delete"}})
-                    : updateDatabase(kind, {body: {action: "delete", name: record.name}}));
+                    ? databaseUsers(kind, {body: {...record, action: "delete"}})
+                    : databaseDatabases(kind, {body: {action: "delete", name: record.name}}));
                 if (!success) throw new Error("删除失败");
             },
         });

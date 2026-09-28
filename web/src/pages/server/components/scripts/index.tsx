@@ -7,7 +7,7 @@ import TypeManager from "@/pages/components/type-manager";
 import type {TypeManagerRef} from "@/pages/components/type-manager";
 
 import {deleteScript, getScriptInfo} from "@/service/api/script";
-import {getAllTypes} from "@/service/api/type";
+import {getTypeList} from "@/service/api/type";
 import useScripts from "../../hooks/scripts";
 import ScriptForm from "../script-form";
 
@@ -71,7 +71,7 @@ const Scripts = ({styles, collapsed, connected, selectedId, onCollapsedChange, o
 
     const loadTypes = useCallback(async () => {
         const requestId = ++typeRequestRef.current;
-        const response = await getAllTypes("script");
+        const response = await getTypeList({body: {module: "script", order_by_field: "sort", order_by_type: "asc"}});
         if (typeRequestRef.current !== requestId || !response) {
             return;
         }

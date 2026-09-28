@@ -29,10 +29,6 @@ func Header(c *context.Context) {
 			c.SuccessWithData("获取成功", data)
 		}
 	} else {
-		if form.Config == nil {
-			c.Error("请求头配置不能为空")
-			return
-		}
 		err := service.Site.UpdateHeaders(form.Id, form.Config)
 		if err != nil {
 			c.Error(err.Error())

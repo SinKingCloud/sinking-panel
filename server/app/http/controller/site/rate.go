@@ -29,10 +29,6 @@ func RateLimit(c *context.Context) {
 			c.SuccessWithData("获取成功", data)
 		}
 	} else {
-		if form.Config == nil {
-			c.Error("访问频率限制不能为空")
-			return
-		}
 		err := service.Site.UpdateRateLimit(form.Id, form.Config)
 		if err != nil {
 			c.Error(err.Error())

@@ -7,7 +7,7 @@ import {App, Button, Empty, Popover, Progress, Spin, Tooltip} from "antd";
 import {createStyles} from "antd-style";
 import Settings from "@/../config/defaultSettings";
 import {logout} from "@/service/auth/login";
-import {cancelSystemTask, getSystemTask, getSystemTaskList} from "@/service/api/system";
+import {systemTask} from "@/service/api/system";
 import TaskLog, {LogRef as TaskLogRef} from "@/pages/components/task-log";
 import defaultSettings from "@/../config/defaultSettings";
 import Title from "../title";
@@ -350,7 +350,7 @@ const RightTop: React.FC = () => {
             setTaskLoading(true);
         }
         try {
-            const response = await getSystemTaskList();
+            const response = await systemTask({body: {action: "list"}});
             if (!mountedRef.current || requestId !== taskRequestRef.current) {
                 return;
             }
@@ -406,7 +406,7 @@ const RightTop: React.FC = () => {
     }, [refreshTasks]);
 
     const cancelTask = useCallback(async (id: string) => {
-        const response = await cancelSystemTask({body: {id}});
+        const response = await systemTask({body: {id, action: "cancel"}});
         if (response?.code !== 200) {
             message.error(response?.message || "取消任务失败");
             return;
@@ -415,7 +415,7 @@ const RightTop: React.FC = () => {
     }, [message, refreshTasks]);
 
     const deleteTask = useCallback(async (id: string) => {
-        const response = await getSystemTask({body: {id, action: "delete"}});
+        const response = await systemTask({body: {id, action: "delete"}});
         if (response?.code !== 200) {
             message.error(response?.message || "删除任务失败");
             return;
@@ -427,7 +427,7 @@ const RightTop: React.FC = () => {
         taskLogRef.current?.open(task);
     }, []);
 
-    const requestSystemTaskLog = useCallback((params: API.RequestParams = {}) => getSystemTask({
+    const requestSystemTaskLog = useCallback((params: API.RequestParams = {}) => systemTask({
         ...params,
         body: {...(params.body || {}), action: "log"},
     }), []);

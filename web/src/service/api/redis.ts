@@ -40,44 +40,22 @@ export async function reloadRedis(params: API.RequestParams = {}) {
     return post("/redis/reload", params?.body, params?.onSuccess, params?.onFail, params?.onFinally);
 }
 
-/** 获取 Redis 性能配置 GET /redis/performance */
-export async function getRedisPerformance(params: API.RequestParams = {}) {
-    return get("/redis/performance", {...params?.body, action: "get"}, params?.onSuccess, params?.onFail, params?.onFinally);
+/** 读取或修改 Redis 性能配置 POST /redis/performance */
+export async function redisPerformance(params: API.RequestParams = {}) {
+    return post("/redis/performance", params?.body, params?.onSuccess, params?.onFail, params?.onFinally);
 }
 
-/** 修改 Redis 性能配置 POST /redis/performance */
-export async function updateRedisPerformance(params: API.RequestParams = {}) {
-    const body = params?.body || {};
-    return post("/redis/performance", {action: "set", config: body.config ?? body}, params?.onSuccess, params?.onFail, params?.onFinally);
+/** 读取或修改 Redis 持久化配置 POST /redis/persistence */
+export async function redisPersistence(params: API.RequestParams = {}) {
+    return post("/redis/persistence", params?.body, params?.onSuccess, params?.onFail, params?.onFinally);
 }
 
-/** 获取 Redis 持久化配置 GET /redis/persistence */
-export async function getRedisPersistence(params: API.RequestParams = {}) {
-    return get("/redis/persistence", {...params?.body, action: "get"}, params?.onSuccess, params?.onFail, params?.onFinally);
+/** 读取或修改 Redis 配置文件 POST /redis/config */
+export async function redisConfig(params: API.RequestParams = {}) {
+    return post("/redis/config", params?.body, params?.onSuccess, params?.onFail, params?.onFinally);
 }
 
-/** 修改 Redis 持久化配置 POST /redis/persistence */
-export async function updateRedisPersistence(params: API.RequestParams = {}) {
-    const body = params?.body || {};
-    return post("/redis/persistence", {action: "set", config: body.config ?? body}, params?.onSuccess, params?.onFail, params?.onFinally);
-}
-
-/** 获取 Redis 配置文件 GET /redis/config */
-export async function getRedisConfig(params: API.RequestParams = {}) {
-    return get("/redis/config", {...params?.body, action: "get"}, params?.onSuccess, params?.onFail, params?.onFinally);
-}
-
-/** 修改 Redis 配置文件 POST /redis/config */
-export async function updateRedisConfig(params: API.RequestParams = {}) {
-    return post("/redis/config", {action: "set", content: params?.body?.content || ""}, params?.onSuccess, params?.onFail, params?.onFinally);
-}
-
-/** 读取 Redis 日志 GET /redis/log */
-export async function getRedisLog(params: API.RequestParams = {}) {
-    return get("/redis/log", {action: "read", page_size: 500, ...params?.body}, params?.onSuccess, params?.onFail, params?.onFinally);
-}
-
-/** 清理 Redis 日志 POST /redis/log */
-export async function clearRedisLog(params: API.RequestParams = {}) {
-    return post("/redis/log", {action: "clear"}, params?.onSuccess, params?.onFail, params?.onFinally);
+/** 读取或清理 Redis 日志 POST /redis/log */
+export async function redisLog(params: API.RequestParams = {}) {
+    return post("/redis/log", params?.body, params?.onSuccess, params?.onFail, params?.onFinally);
 }

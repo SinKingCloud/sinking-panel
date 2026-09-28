@@ -2,9 +2,9 @@ import {memo, useCallback, useEffect, useRef, useState} from "react";
 import {App, Button, Spin} from "antd";
 import {createStyles} from "antd-style";
 import {Icon, useTheme} from "sinking-antd";
-import {controlSiteProcess, getSiteProcessStatus} from "@/service/api/site";
+import {siteProcess} from "@/service/api/site";
 
-const processStates: Record<string, {label: string; color: string}> = {
+const processStates: Record<string, { label: string; color: string }> = {
     starting: {label: "正在启动", color: "processing"},
     running: {label: "运行中", color: "success"},
     stopping: {label: "正在停止", color: "warning"},
@@ -13,7 +13,7 @@ const processStates: Record<string, {label: string; color: string}> = {
     failed: {label: "运行失败", color: "error"},
 };
 
-const useStyles = createStyles(({css, token}: any, {compact}: {compact: boolean}) => ({
+const useStyles = createStyles(({css, token}: any, {compact}: { compact: boolean }) => ({
     toolbar: css`
         min-width: 0;
         margin-bottom: ${compact ? 14 : 18}px;
@@ -52,10 +52,21 @@ const useStyles = createStyles(({css, token}: any, {compact}: {compact: boolean}
             white-space: nowrap;
         }
 
-        .status-value[data-tone="success"] { --status-color: ${token.colorSuccess}; }
-        .status-value[data-tone="processing"] { --status-color: ${token.colorPrimary}; }
-        .status-value[data-tone="warning"] { --status-color: ${token.colorWarning}; }
-        .status-value[data-tone="error"] { --status-color: ${token.colorError}; }
+        .status-value[data-tone="success"] {
+            --status-color: ${token.colorSuccess};
+        }
+
+        .status-value[data-tone="processing"] {
+            --status-color: ${token.colorPrimary};
+        }
+
+        .status-value[data-tone="warning"] {
+            --status-color: ${token.colorWarning};
+        }
+
+        .status-value[data-tone="error"] {
+            --status-color: ${token.colorError};
+        }
 
         .status-dot {
             width: 6px;
@@ -106,7 +117,9 @@ const useStyles = createStyles(({css, token}: any, {compact}: {compact: boolean}
             min-width: 0;
         }
 
-        dt { color: ${token.colorTextTertiary}; }
+        dt {
+            color: ${token.colorTextTertiary};
+        }
 
         dd {
             margin: 0;
@@ -130,8 +143,16 @@ const useStyles = createStyles(({css, token}: any, {compact}: {compact: boolean}
         font-size: 12px;
         line-height: 1.6;
 
-        > .anticon { flex: none; margin-top: 3px; }
-        > span:last-child { min-width: 0; overflow-wrap: anywhere; white-space: pre-wrap; }
+        > .anticon {
+            flex: none;
+            margin-top: 3px;
+        }
+
+        > span:last-child {
+            min-width: 0;
+            overflow-wrap: anywhere;
+            white-space: pre-wrap;
+        }
     `,
 }));
 
@@ -162,7 +183,7 @@ const ProcessControls = ({siteId, disabled = false}: any) => {
             return;
         }
         try {
-            const response = await getSiteProcessStatus({body: {id: siteRef.current}});
+            const response = await siteProcess({body: {action: "status", id: siteRef.current}});
             if (!isCurrent(version)) {
                 return;
             }
@@ -237,7 +258,7 @@ const ProcessControls = ({siteId, disabled = false}: any) => {
                     return;
                 }
                 try {
-                    const response = await controlSiteProcess({body: {id, action: nextAction}});
+                    const response = await siteProcess({body: {id, action: nextAction}});
                     if (!isCurrent(version)) {
                         return;
                     }
@@ -275,23 +296,37 @@ const ProcessControls = ({siteId, disabled = false}: any) => {
                 </span>
             </div>
             <div className={styles.actions} role="group" aria-label="进程操作">
-                <Button className="service-action" color="default" variant="filled" style={{borderColor: "transparent"}} htmlType="button" icon={<Icon type="CaretRightOutlined"/>} loading={action === "start"}
-                    disabled={unavailable || Boolean(running) || stopping} onClick={() => void control("start")}>启动</Button>
-                <Button className="service-action" color="danger" variant="filled" style={{borderColor: "transparent"}} htmlType="button" icon={<Icon type="PauseOutlined"/>} loading={action === "stop"}
-                    disabled={unavailable || stopping || !running && !status?.pid} onClick={() => void control("stop")}>停止</Button>
-                <Button className="service-action" color="default" variant="filled" style={{borderColor: "transparent"}} htmlType="button" icon={<Icon type="ReloadOutlined"/>} loading={action === "restart"}
-                    disabled={unavailable || stopping} onClick={() => void control("restart")}>重启</Button>
+                <Button className="service-action" color="default" variant="filled" style={{borderColor: "transparent"}}
+                        htmlType="button" icon={<Icon type="CaretRightOutlined"/>} loading={action === "start"}
+                        disabled={unavailable || Boolean(running) || stopping}
+                        onClick={() => void control("start")}>启动</Button>
+                <Button className="service-action" color="danger" variant="filled" style={{borderColor: "transparent"}}
+                        htmlType="button" icon={<Icon type="PauseOutlined"/>} loading={action === "stop"}
+                        disabled={unavailable || stopping || !running && !status?.pid}
+                        onClick={() => void control("stop")}>停止</Button>
+                <Button className="service-action" color="default" variant="filled" style={{borderColor: "transparent"}}
+                        htmlType="button" icon={<Icon type="ReloadOutlined"/>} loading={action === "restart"}
+                        disabled={unavailable || stopping} onClick={() => void control("restart")}>重启</Button>
             </div>
         </div>
         <dl className={styles.metadata}>
-            <div><dt>PID</dt><dd>{status?.pid || "—"}</dd></div>
-            <div><dt>重试次数</dt><dd>{status ? <>{status.restart_count}<span className="retry-limit"> / {status.max_retries}</span></> : "—"}</dd></div>
+            <div>
+                <dt>PID</dt>
+                <dd>{status?.pid || "—"}</dd>
+            </div>
+            <div>
+                <dt>重试次数</dt>
+                <dd>{status ? <>{status.restart_count}<span
+                    className="retry-limit"> / {status.max_retries}</span></> : "—"}</dd>
+            </div>
         </dl>
-        {status?.error && <div className={styles.error}><Icon type="InfoCircleOutlined"/><span>{status.error}</span></div>}
-        {loadError && <div className={styles.error} role="alert"><Icon type="InfoCircleOutlined"/><span>{loadError}</span></div>}
+        {status?.error &&
+            <div className={styles.error}><Icon type="InfoCircleOutlined"/><span>{status.error}</span></div>}
+        {loadError &&
+            <div className={styles.error} role="alert"><Icon type="InfoCircleOutlined"/><span>{loadError}</span></div>}
     </div>;
 };
 
 ProcessControls.displayName = "ProcessControls";
 
-export default memo(ProcessControls);
+export default memo(ProcessControls as any);

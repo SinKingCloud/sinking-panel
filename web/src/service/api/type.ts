@@ -5,17 +5,6 @@ export async function getTypeList(params: API.RequestParams = {}) {
     return get("/type/list", params?.body, params?.onSuccess, params?.onFail, params?.onFinally);
 }
 
-/** 获取指定模块的全部分类 */
-export async function getAllTypes(module: string, orderByField = "sort", orderByType = "asc") {
-    return getTypeList({
-        body: {
-            module,
-            order_by_field: orderByField,
-            order_by_type: orderByType,
-        },
-    });
-}
-
 /** 创建分类 POST /type/create */
 export async function createType(params: API.RequestParams = {}) {
     return post("/type/create", params?.body, params?.onSuccess, params?.onFail, params?.onFinally);

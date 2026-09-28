@@ -7,8 +7,7 @@ import type {LogRef} from "@/pages/components/task-log";
 
 import {getContainerLog} from "@/service/api/container";
 import {
-    controlDatabase, getDatabaseConfig, getDatabasePerformance, getDatabaseStatus, installDatabase,
-    parseDatabaseImage, updateDatabaseConfig, updateDatabasePerformance,
+    controlDatabase, databaseConfig, databasePerformance, getDatabaseStatus, installDatabase, parseDatabaseImage,
 } from "@/service/api/database";
 import useEnum from "@/utils/enum";
 import {formatSize} from "@/utils/string";
@@ -48,14 +47,14 @@ const Settings = ({kind, mode, onChange, busy, onBusy}: {
         const load = async () => {
             try {
                 if (mode === "performance") {
-                    const response = await getDatabasePerformance(kind);
+                    const response = await databasePerformance(kind, {body: {action: "get"}});
                     if (disposed) return;
                     if (response?.code !== 200 || !response.data) throw new Error(response?.message || "读取配置失败");
                     setFields(response.data.fields || []);
                     form.resetFields();
                     form.setFieldsValue(response.data.values || {});
                 } else {
-                    const response = await getDatabaseConfig(kind);
+                    const response = await databaseConfig(kind, {body: {action: "get"}});
                     if (disposed) return;
                     if (response?.code !== 200) throw new Error(response?.message || "读取配置失败");
                     setContent(response.data?.content || "");
@@ -75,7 +74,8 @@ const Settings = ({kind, mode, onChange, busy, onBusy}: {
         onBusy(true);
         try {
             const response = mode === "performance"
-                ? await updateDatabasePerformance(kind, {body: {config: values || {}}}) : await updateDatabaseConfig(kind, {body: {content}});
+                ? await databasePerformance(kind, {body: {action: "set", config: values || {}}})
+                : await databaseConfig(kind, {body: {action: "set", content}});
             if (!mounted.current) return;
             if (response?.code !== 200) throw new Error(response?.message || "保存配置失败");
             message.success(response.data?.restart_required ? "配置已保存，重启后生效" : "配置已保存");
@@ -282,7 +282,7 @@ export default ({kind}: {kind: string}) => {
                 <Checkbox onChange={(event) => { removeData = event.target.checked; }}>同时删除数据库和配置文件</Checkbox></>,
             okText: "卸载", cancelText: "取消", okButtonProps: {danger: true},
             onOk: async () => {
-                const success = await run("uninstall", () => controlDatabase(kind, {body: {action: "uninstall", remove_data: removeData}}), "卸载成功");
+                const success = await run("uninstall", () => controlDatabase(kind, "uninstall", {body: {remove_data: removeData}}), "卸载成功");
                 if (!success) throw new Error("卸载失败");
                 if (mounted.current) { setTerminal(false); setImage(undefined); form.resetFields(); }
             },
@@ -339,9 +339,9 @@ export default ({kind}: {kind: string}) => {
                     {running && !status.ready && <Typography.Text type="secondary">初始化中</Typography.Text>}
                 </Space>
                 <Space wrap>
-                    <Button color="default" variant="filled" loading={action === "start"} disabled={running || busy || transitioning} onClick={() => void run("start", () => controlDatabase(kind, {body: {action: "start"}}), "启动成功")}>启动</Button>
-                    <Button color="default" variant="filled" loading={action === "stop"} disabled={!running || busy || transitioning} onClick={() => void run("stop", () => controlDatabase(kind, {body: {action: "stop"}}), "停止成功")}>停止</Button>
-                    <Button color="default" variant="filled" loading={action === "restart"} disabled={busy || transitioning} onClick={() => void run("restart", () => controlDatabase(kind, {body: {action: "restart"}}), "重启成功")}>重启</Button>
+                    <Button color="default" variant="filled" loading={action === "start"} disabled={running || busy || transitioning} onClick={() => void run("start", () => controlDatabase(kind, "start", {body: {}}), "启动成功")}>启动</Button>
+                    <Button color="default" variant="filled" loading={action === "stop"} disabled={!running || busy || transitioning} onClick={() => void run("stop", () => controlDatabase(kind, "stop", {body: {}}), "停止成功")}>停止</Button>
+                    <Button color="default" variant="filled" loading={action === "restart"} disabled={busy || transitioning} onClick={() => void run("restart", () => controlDatabase(kind, "restart", {body: {}}), "重启成功")}>重启</Button>
                     <Button color="default" variant="filled" disabled={!running || busy} onClick={() => setTerminal(true)}>终端</Button>
                     <Button color="default" variant="filled" onClick={() => logRef.current?.open({id: status.id || kind})}>日志</Button>
                     <Button color="danger" variant="filled" loading={action === "uninstall"} disabled={busy} onClick={uninstall}>卸载</Button>
@@ -362,14 +362,14 @@ export default ({kind}: {kind: string}) => {
                 {key: "config", label: "配置文件", disabled: busy},
             ]} tabBarExtraContent={kind === "pgsql" && (tab === "config" || tab === "performance")
                 ? <Button color="default" variant="filled" disabled={!running || busy} loading={action === "reload"}
-                    onClick={() => void run("reload", () => controlDatabase(kind, {body: {action: "reload"}}), "配置已重载")}>重载配置</Button> : undefined}/>
+                    onClick={() => void run("reload", () => controlDatabase(kind, "reload", {body: {}}), "配置已重载")}>重载配置</Button> : undefined}/>
             {(tab === "performance" || tab === "config") ? <Settings key={tab} kind={kind} mode={tab} busy={busy}
                 onBusy={(value) => { if (mounted.current) setEditing(value); }} onChange={() => void loadStatus(true)}/>
                 : tab === "load" ? <Load status={status}/>
                     : <Records key={tab} kind={kind} mode={tab as "databases" | "users"} ready={Boolean(status.ready)} administrator={status.username || product.username}
                         onBusy={(value) => { if (mounted.current) setEditing(value); }}/>} 
         </Card>}
-        <Log ref={logRef} request={getContainerLog} title={`${product.name} 日志`}/>
+        <Log ref={logRef} request={getContainerLog} body={{action: "read"}} title={`${product.name} 日志`}/>
         <ContainerTerminal id={status.id || kind} open={terminal && installed && running} onClose={() => setTerminal(false)}/>
     </>;
 };

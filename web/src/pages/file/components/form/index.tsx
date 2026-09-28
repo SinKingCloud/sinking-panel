@@ -1,7 +1,7 @@
 import React, {forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState} from "react";
 import {App, Form as AntForm, Grid, Input} from "antd";
 import {ProModal, Title, useTheme} from "sinking-antd";
-import {createFile, renameFile} from "@/service/api/file";
+import {createFile, updateFile} from "@/service/api/file";
 import {joinFilePath, parentFilePath} from "../../utils";
 
 const FileForm = forwardRef<any, any>(({onSuccess}, ref) => {
@@ -70,7 +70,7 @@ const FileForm = forwardRef<any, any>(({onSuccess}, ref) => {
                 ? editor.targetPath || joinFilePath(editor.path, editor.record.name)
                 : undefined;
             const response = editor.mode === "rename" && editor.record
-                ? await renameFile({
+                ? await updateFile({
                     body: {
                         path: sourcePath || "",
                         name: value,

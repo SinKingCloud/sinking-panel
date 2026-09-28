@@ -43,7 +43,7 @@ func (s *service) ClearServerLog() error {
 }
 
 // ReadLog 按字节游标读取网站日志。
-func (s *service) ReadLog(id int64, logType caddy.LogType, after int64, before int64, pageSize int) (map[string]interface{}, error) {
+func (s *service) ReadLog(id int64, logType caddy.LogType, after, before int64, pageSize int) (map[string]interface{}, error) {
 	s.logMu.RLock()
 	defer s.logMu.RUnlock()
 	path, err := s.logPath(id, logType)

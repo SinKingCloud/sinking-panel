@@ -68,7 +68,7 @@ func (s *service) removeTaskLog(id string) {
 
 // TaskLog reads the newest lines, incremental lines, or older lines according
 // to the same byte-cursor contract used by scheduled-task logs.
-func (s *service) TaskLog(id string, after int64, before int64, pageSize int) (map[string]interface{}, error) {
+func (s *service) TaskLog(id string, after, before int64, pageSize int) (map[string]interface{}, error) {
 	s.logMu.RLock()
 	defer s.logMu.RUnlock()
 	return cursorLog.Read(s.taskLogPath(id), after, before, pageSize)

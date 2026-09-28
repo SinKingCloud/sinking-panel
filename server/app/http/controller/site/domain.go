@@ -28,11 +28,7 @@ func Domain(c *context.Context) {
 			c.SuccessWithData("获取成功", data)
 		}
 	} else {
-		if form.Domains == nil {
-			c.Error("网站域名不能为空")
-			return
-		}
-		err := service.Site.UpdateDomains(form.Id, *form.Domains)
+		err := service.Site.UpdateDomains(form.Id, form.Domains)
 		if err != nil {
 			c.Error(err.Error())
 		} else {

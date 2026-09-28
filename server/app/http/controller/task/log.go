@@ -34,10 +34,7 @@ func Log(c *context.Context) {
 		if err != nil {
 			c.Error(err.Error())
 		} else {
-			query := c.Request.URL.Query()
-			if !query.Has("after") && !query.Has("before") {
-				service.Log.Create(c.GetRequestIp(), log_type.EventShow, "查看任务日志", "查看计划任务["+data.Name+"]日志")
-			}
+			service.Log.Create(c.GetRequestIp(), log_type.EventShow, "查看任务日志", "查看计划任务["+data.Name+"]日志")
 			c.SuccessWithData("获取成功", logs)
 		}
 	}

@@ -5,6 +5,7 @@ import {history, useLocation, useModel} from "umi";
 import Account from "./components/account";
 import Ui from "./components/ui";
 import Web from "./components/web";
+import Timezone from "./components/timezone";
 import HeroGraphic from "@/pages/components/hero-graphic";
 import useStyles from "./styles";
 
@@ -12,6 +13,7 @@ const items = [
     {key: "web", title: "网站设置", icon: "GlobalOutlined", component: Web},
     {key: "ui", title: "界面设置", icon: "LayoutOutlined", component: Ui},
     {key: "account", title: "登录设置", icon: "SafetyCertificateOutlined", component: Account},
+    {key: "timezone", title: "时区设置", icon: "ClockCircleOutlined", component: Timezone},
 ];
 
 export default (): React.ReactNode => {

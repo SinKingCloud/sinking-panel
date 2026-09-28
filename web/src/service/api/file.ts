@@ -32,11 +32,6 @@ export async function createFile(params: API.RequestParams = {}) {
     return post("/file/create", params?.body, params?.onSuccess, params?.onFail, params?.onFinally);
 }
 
-/** 重命名文件或目录 POST /file/update */
-export async function renameFile(params: API.RequestParams = {}) {
-    return post("/file/update", params?.body, params?.onSuccess, params?.onFail, params?.onFinally);
-}
-
 /** 更新文件名称、权限或内容 POST /file/update */
 export async function updateFile(params: API.RequestParams = {}) {
     return post("/file/update", params?.body, params?.onSuccess, params?.onFail, params?.onFinally);
@@ -102,10 +97,9 @@ export async function clearRecycle(params: API.RequestParams = {}) {
     return post("/recycle/clear", params?.body, params?.onSuccess, params?.onFail, params?.onFinally);
 }
 
-/** 文件上传请求 GET|POST /file/upload */
+/** 文件上传请求 POST /file/upload */
 export function requestFileUpload<T = any>(
     endpoint: string,
-    action: "upload" | "check" | "merge" | "clear",
     signal: AbortSignal,
     params: {
         body?: FormData;
@@ -120,15 +114,10 @@ export function requestFileUpload<T = any>(
         }
         const xhr = new XMLHttpRequest();
         const url = new URL(endpoint);
-        url.searchParams.set("action", action);
         Object.entries(params.query || {}).forEach(([key, value]) => url.searchParams.set(key, value));
-        if (action === "check") {
-            // 同一上传任务每次检查都必须读取服务器当前的分片状态。
-            url.searchParams.set("_", `${Date.now()}-${Math.random().toString(36).slice(2)}`);
-        }
         const abortRequest = () => xhr.abort();
 
-        xhr.open(params.body ? "POST" : "GET", url.toString());
+        xhr.open("POST", url.toString());
         xhr.timeout = 15 * 60 * 1000;
         Object.entries(getHeaders()).forEach(([key, value]) => xhr.setRequestHeader(key, value));
         xhr.upload.onprogress = (event) => params.onProgress?.(event.loaded, event.total);

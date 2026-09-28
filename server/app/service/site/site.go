@@ -48,7 +48,7 @@ type Service interface {
 	Create(data *CreateSite) (*Site, error)
 	Update(id int64, data *UpdateSite) error
 	GetDomains(id int64) ([]*model.SiteDomain, error)
-	UpdateDomains(id int64, domains []string) error
+	UpdateDomains(id int64, domains *[]string) error
 	GetSSL(id int64) (*SSLSettings, error)
 	UpdateSSL(id int64, config *TLSUpdate, bindings []SiteDomainCertificate) error
 	GetWAF(id int64) (*caddy.WAFOptions, error)
@@ -64,9 +64,9 @@ type Service interface {
 	GetCompression(id int64) (*caddy.CompressionOptions, error)
 	UpdateCompression(id int64, config *CompressionUpdate) error
 	GetRedirects(id int64) ([]RedirectConfig, error)
-	UpdateRedirects(id int64, redirects []RedirectConfig) error
+	UpdateRedirects(id int64, redirects *[]RedirectConfig) error
 	GetRoutes(id int64) ([]RouteConfig, error)
-	UpdateRoutes(id int64, routes []RouteConfig) error
+	UpdateRoutes(id int64, routes *[]RouteConfig) error
 	GetStatic(id int64) (*StaticOptions, error)
 	UpdateStatic(id int64, config *StaticUpdate) error
 	GetProxy(id int64) (*caddy.ProxyOptions, error)
@@ -90,7 +90,7 @@ type Service interface {
 	SelectCert(where *repositoryCert.SelectCert, queryPage *page.Query) (*page.Result[*CertListItem], error)
 	ObtainCert(ctx context.Context, name string, request CertificateRequest) (*Cert, error)
 	RenewCert(ctx context.Context, id int64, request CertificateRequest) (*Cert, error)
-	ReadCertLog(after int64, before int64, pageSize int) (map[string]interface{}, error)
+	ReadCertLog(after, before int64, pageSize int) (map[string]interface{}, error)
 	ClearCertLog() error
 	ManualCert(ctx context.Context, id int64, name string, request CertificateRequest) (interface{}, error)
 }

@@ -10,10 +10,9 @@ export async function getTaskInfo(params: API.RequestParams = {}) {
     return get("/task/info", params?.body, params?.onSuccess, params?.onFail, params?.onFinally);
 }
 
-/** 读取或清理计划任务日志 GET|POST /task/log */
+/** 计划任务日志 POST /task/log */
 export async function getTaskLog(params: API.RequestParams = {}) {
-    const request = params?.body?.action === "clear" ? post : get;
-    return request("/task/log", params?.body, params?.onSuccess, params?.onFail, params?.onFinally);
+    return post("/task/log", params?.body, params?.onSuccess, params?.onFail, params?.onFinally);
 }
 
 /** 创建计划任务 POST /task/create */

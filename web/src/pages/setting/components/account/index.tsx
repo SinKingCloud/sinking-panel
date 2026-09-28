@@ -1,7 +1,7 @@
 import React, {useCallback, useEffect, useRef, useState} from "react";
 import {App, Form, Input} from "antd";
 import {useModel} from "umi";
-import {getAccountInfo, updateAccount} from "@/service/api/system";
+import {systemAccount} from "@/service/api/system";
 import Actions from "../actions";
 import Error from "../error";
 import Loading from "../loading";
@@ -23,7 +23,7 @@ export default ({styles}: any): React.ReactNode => {
         const requestId = ++requestRef.current;
         setLoading(true);
         setError("");
-        const response = await getAccountInfo();
+        const response = await systemAccount({body: {action: "account"}});
         if (!mountedRef.current || requestId !== requestRef.current) {
             return;
         }
@@ -74,7 +74,7 @@ export default ({styles}: any): React.ReactNode => {
         savingRef.current = true;
         const requestId = ++saveRequestRef.current;
         setSaving(true);
-        const response = await updateAccount({body});
+        const response = await systemAccount({body});
         if (!mountedRef.current || requestId !== saveRequestRef.current) {
             return;
         }
@@ -94,7 +94,7 @@ export default ({styles}: any): React.ReactNode => {
     }, [form, message, user]);
 
     return (
-        <Form form={form} layout="vertical" onFinish={save}>
+        <Form form={form} layout="vertical" variant="filled" onFinish={save}>
             {loading ? <Loading styles={styles}/> : error ? (
                 <Error styles={styles} message={error} onRetry={load}/>
             ) : <>

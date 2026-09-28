@@ -2,7 +2,7 @@ import {forwardRef, memo, useCallback, useEffect, useImperativeHandle, useMemo, 
 import {App, Button, ConfigProvider, Empty, Form, Grid, Progress, Spin, Switch, Tooltip} from "antd";
 import {createStyles} from "antd-style";
 import {Icon, ProModal, Title, useTheme} from "sinking-antd";
-import {getCertList, obtainCert, renewCert, requestCertManual} from "@/service/api/cert";
+import {getCertList, obtainCert, renewCert} from "@/service/api/cert";
 import {getEnum as getSystemEnum} from "@/service/api/system";
 import SecretManager from "@/pages/components/secret";
 import type {SecretChange, SecretManagerRef} from "@/pages/components/secret";
@@ -190,7 +190,7 @@ const BatchCert = forwardRef<BatchCertRef, {onChange?: () => void; secretVersion
     const cancelManual = useCallback(() => {
         const session = manualRef.current;
         manualRef.current = null;
-        if (session) void requestCertManual(session.method, {action: "cancel", session_id: session.data.session_id, id: session.id}).catch(() => undefined);
+        if (session) void (session.method === "renew" ? renewCert : obtainCert)({body: {type: 1, action: "cancel", session_id: session.data.session_id, id: session.id}}).catch(() => undefined);
     }, []);
 
     const loadSecrets = useCallback(async () => {
@@ -459,6 +459,8 @@ const BatchCert = forwardRef<BatchCertRef, {onChange?: () => void; secretVersion
                 const method = task.certificate_id ? "renew" : "obtain";
                 const body = {
                     ...(task.certificate_id ? {id: task.certificate_id} : {name: task.domain.slice(0, 100)}),
+                    action: "start",
+                    type: isManual ? 1 : 2,
                     domain: isIP ? task.domain.replace(/^\[([^\]]+)\]$/, "$1") : task.domain,
                     ...(values.ca ? {ca: values.ca} : {}),
                     challenge: verification,
@@ -476,14 +478,14 @@ const BatchCert = forwardRef<BatchCertRef, {onChange?: () => void; secretVersion
                     if (isManual) {
                         let session = activeManual;
                         if (!session) {
-                            const started = await requestCertManual(method, {...body, action: "start"});
+                            const started = await (method === "renew" ? renewCert : obtainCert)({body});
                             const data = started?.data;
                             if (!current()) {
-                                if (data?.session_id) void requestCertManual(method, {action: "cancel", session_id: data.session_id, id: task.certificate_id}).catch(() => undefined);
+                                if (data?.session_id) void (method === "renew" ? renewCert : obtainCert)({body: {type: 1, action: "cancel", session_id: data.session_id, id: task.certificate_id}}).catch(() => undefined);
                                 return;
                             }
                             if (started?.code !== 200 || !data?.session_id || !Array.isArray(data.challenges) || !Number.isFinite(data.expires_at)) {
-                                if (data?.session_id) void requestCertManual(method, {action: "cancel", session_id: data.session_id, id: task.certificate_id}).catch(() => undefined);
+                                if (data?.session_id) void (method === "renew" ? renewCert : obtainCert)({body: {type: 1, action: "cancel", session_id: data.session_id, id: task.certificate_id}}).catch(() => undefined);
                                 throw new Error(started?.code !== 200 ? started?.message || "获取验证信息失败，请重新申请" : "验证信息无效，请重新申请");
                             }
                             session = {index, data, method, id: task.certificate_id};
@@ -501,7 +503,7 @@ const BatchCert = forwardRef<BatchCertRef, {onChange?: () => void; secretVersion
                             setManual(null);
                             throw new Error("验证信息已过期，请重试获取新的验证信息");
                         }
-                        response = await requestCertManual(session.method, {action: "submit", session_id: session.data.session_id, id: session.id});
+                        response = await (session.method === "renew" ? renewCert : obtainCert)({body: {type: 1, action: "submit", session_id: session.data.session_id, id: session.id}});
                     } else {
                         response = await (task.certificate_id ? renewCert : obtainCert)({body});
                     }

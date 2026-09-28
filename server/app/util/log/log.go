@@ -20,7 +20,7 @@ const (
 
 // Read 按字节游标读取日志。首次读取最新内容，after 读取新增内容，before 读取更早内容。
 // previous 按时间顺序传入当前日志之前的滚动文件；路径安全和并发锁由调用方负责。
-// 文件不存在时返回空结果且不会创建文件。
+// 两个游标均为 0 时读取最新内容；文件不存在时返回空结果且不会创建文件。
 func Read(path string, after int64, before int64, pageSize int, previous ...string) (map[string]interface{}, error) {
 	if pageSize < 1 {
 		pageSize = 300

@@ -37,10 +37,6 @@ func Cache(c *context.Context) {
 			c.Success("清理成功")
 		}
 	} else {
-		if form.Config == nil {
-			c.Error("缓存配置不能为空")
-			return
-		}
 		err := service.Site.UpdateCache(form.Id, form.Config)
 		if err != nil {
 			c.Error(err.Error())

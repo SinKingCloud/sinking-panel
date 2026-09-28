@@ -20,7 +20,7 @@ import ActionDropdown from "@/pages/components/action-dropdown";
 import {
     createType,
     deleteType,
-    getAllTypes,
+    getTypeList,
     updateType,
 } from "@/service/api/type";
 import {clearEnumCache} from "@/utils/enum";
@@ -737,7 +737,7 @@ const TypeManager = forwardRef<TypeManagerRef, TypeManagerProps>(({module, onCha
         const requestId = ++requestRef.current;
         setLoading(true);
         try {
-            const response = await getAllTypes(module);
+            const response = await getTypeList({body: {module, order_by_field: "sort", order_by_type: "asc"}});
             if (requestRef.current !== requestId || !response) {
                 return undefined;
             }

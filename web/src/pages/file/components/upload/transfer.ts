@@ -32,7 +32,15 @@ const requestFileUpload = <T = any, >(
         query?: Record<string, string>;
         onProgress?: (loaded: number, total: number) => void;
     },
-) => requestFileUploadApi<T>(apiUrl("/file/upload"), action, signal, params);
+) => requestFileUploadApi<T>(apiUrl("/file/upload"), signal, {
+    ...params,
+    query: {
+        ...params.query,
+        action,
+        // 分片检查每次都读取服务器的最新状态。
+        ...(action === "check" ? {_: `${Date.now()}-${Math.random().toString(36).slice(2)}`} : {}),
+    },
+});
 
 const FILE_UPLOAD_CHUNK_THRESHOLD = 2 * 1024 * 1024;
 const FILE_UPLOAD_CHUNK_SIZE = 8 * 1024 * 1024;

@@ -2,7 +2,7 @@ import React, {useCallback, useEffect, useMemo, useRef, useState} from "react";
 import {Body, PageTable} from "sinking-antd";
 import useEnum from "@/utils/enum";
 import TypeManager, {TypeManagerRef} from "@/pages/components/type-manager";
-import {getAllTypes} from "@/service/api/type";
+import {getTypeList} from "@/service/api/type";
 import Form from "./components/form";
 import useTaskHeader from "./components/header";
 import Log, {LogRef} from "@/pages/components/task-log";
@@ -36,7 +36,7 @@ export default (): React.ReactNode => {
     useEffect(() => {
         let active = true;
         const version = typeVersionRef.current;
-        void getAllTypes("task").then((response) => {
+        void getTypeList({body: {module: "task", order_by_field: "sort", order_by_type: "asc"}}).then((response) => {
             if (!active || typeVersionRef.current !== version || response?.code !== 200) {
                 return;
             }

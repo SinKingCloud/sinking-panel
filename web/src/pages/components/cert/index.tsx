@@ -1,4 +1,14 @@
-import {forwardRef, memo, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState} from "react";
+import {
+    forwardRef,
+    memo,
+    useCallback,
+    useEffect,
+    useImperativeHandle,
+    useLayoutEffect,
+    useMemo,
+    useRef,
+    useState
+} from "react";
 import type {CSSProperties} from "react";
 import {
     App,
@@ -28,7 +38,6 @@ import {
     getCertList,
     getCertLog,
     obtainCert,
-    requestCertManual,
     renewCert,
     updateCert,
 } from "@/service/api/cert";
@@ -37,6 +46,11 @@ import SecretManager, {SecretManagerRef} from "@/pages/components/secret";
 import type {SecretChange} from "@/pages/components/secret";
 import Log, {LogRef} from "@/pages/components/task-log";
 import BatchCert, {BatchCertRef} from "./batch";
+
+const requestCertLog = (params: API.RequestParams) => {
+    const {id: _id, ...body} = params.body || {};
+    return getCertLog({...params, body: {action: "read", ...body}});
+};
 
 export interface CertManagerRef {
     open: () => void;
@@ -73,7 +87,8 @@ const parseCertificate = (certificate: any) => {
         if (Array.isArray(values)) {
             domains = values.filter((value: any) => typeof value === "string" && value.trim());
         }
-    } catch {}
+    } catch {
+    }
     return {
         ...certificate,
         domains,
@@ -86,8 +101,15 @@ const parseCertificate = (certificate: any) => {
 
 const useStyles = createStyles(({css, token}: any, props: any = {}) => ({
     modal: css`
-        .ant-modal { max-width: calc(100vw - 24px); outline: none; }
-        .ant-modal-body { padding: 0 !important; overflow: hidden; }
+        .ant-modal {
+            max-width: calc(100vw - 24px);
+            outline: none;
+        }
+
+        .ant-modal-body {
+            padding: 0 !important;
+            overflow: hidden;
+        }
     `,
     certificateTable: css`
         .record-name,
@@ -103,21 +125,85 @@ const useStyles = createStyles(({css, token}: any, props: any = {}) => ({
             line-height: 20px;
         }
 
-        .record-name { padding: 0; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; }
-        button.record-name { cursor: pointer; }
-        button.record-name:hover, button.record-name:focus-visible { color: ${token.colorPrimary}; }
-        .record-secret { color: ${token.colorTextSecondary}; }
-        .record-issuance { display: flex; align-items: center; gap: 8px; min-width: 0; height: 20px; }
-        .record-issuance .record-type { flex: none; }
-        .record-issuance .record-secret { flex: 0 1 auto; }
-        .record-renewal { flex: none; color: ${token.colorTextSecondary}; white-space: nowrap; }
-        .record-domains { color: ${token.colorTextSecondary}; }
-        .record-state { display: inline-flex; align-items: center; gap: 6px; line-height: 20px; white-space: nowrap; font-variant-numeric: tabular-nums; }
-        .record-state i { width: 6px; height: 6px; flex: none; border-radius: 50%; background: currentColor; }
-        .record-state.valid { color: ${token.colorSuccess}; }
-        .record-state.expiring { color: ${token.colorWarning}; }
-        .record-state.expired { color: ${token.colorError}; }
-        .record-state.unknown { color: ${token.colorTextTertiary}; }
+        .record-name {
+            padding: 0;
+            border: 0;
+            background: transparent;
+            color: inherit;
+            font: inherit;
+            text-align: left;
+        }
+
+        button.record-name {
+            cursor: pointer;
+        }
+
+        button.record-name:hover, button.record-name:focus-visible {
+            color: ${token.colorPrimary};
+        }
+
+        .record-secret {
+            color: ${token.colorTextSecondary};
+        }
+
+        .record-issuance {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            min-width: 0;
+            height: 20px;
+        }
+
+        .record-issuance .record-type {
+            flex: none;
+        }
+
+        .record-issuance .record-secret {
+            flex: 0 1 auto;
+        }
+
+        .record-renewal {
+            flex: none;
+            color: ${token.colorTextSecondary};
+            white-space: nowrap;
+        }
+
+        .record-domains {
+            color: ${token.colorTextSecondary};
+        }
+
+        .record-state {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            line-height: 20px;
+            white-space: nowrap;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .record-state i {
+            width: 6px;
+            height: 6px;
+            flex: none;
+            border-radius: 50%;
+            background: currentColor;
+        }
+
+        .record-state.valid {
+            color: ${token.colorSuccess};
+        }
+
+        .record-state.expiring {
+            color: ${token.colorWarning};
+        }
+
+        .record-state.expired {
+            color: ${token.colorError};
+        }
+
+        .record-state.unknown {
+            color: ${token.colorTextTertiary};
+        }
     `,
     loading: css`
         display: flex;
@@ -157,7 +243,10 @@ const useStyles = createStyles(({css, token}: any, props: any = {}) => ({
             margin-top: ${props?.compact ? 15 : 18}px;
             padding-top: 0;
         }
-        .ant-form-item:last-child { margin-bottom: 0; }
+
+        .ant-form-item:last-child {
+            margin-bottom: 0;
+        }
     `,
     formHints: css`
         .ant-form-item-extra,
@@ -166,8 +255,15 @@ const useStyles = createStyles(({css, token}: any, props: any = {}) => ({
         }
     `,
     pemGrid: css`
-        .ant-form-item { margin-bottom: 0; }
-        @media (max-width: 767px) { .ant-col + .ant-col { margin-top: 14px; } }
+        .ant-form-item {
+            margin-bottom: 0;
+        }
+
+        @media (max-width: 767px) {
+            .ant-col + .ant-col {
+                margin-top: 14px;
+            }
+        }
     `,
     editor: css`
         &.ant-input {
@@ -175,6 +271,7 @@ const useStyles = createStyles(({css, token}: any, props: any = {}) => ({
             overflow-y: auto;
             resize: none;
         }
+
         font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
         font-size: 12px !important;
         line-height: 1.55;
@@ -191,23 +288,118 @@ const useStyles = createStyles(({css, token}: any, props: any = {}) => ({
     `,
     verificationRecord: css`
         min-width: 0;
-        & + & { margin-top: ${props?.compact ? 18 : 22}px; padding-top: ${props?.compact ? 18 : 22}px; border-top: 1px solid ${token.colorBorderSecondary}; }
-        .verification-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: ${props?.compact ? 12 : 16}px; }
-        .verification-heading-text { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px; min-width: 0; line-height: 22px; }
-        .verification-title { color: ${token.colorText}; font-size: ${token.fontSize}px; font-weight: 500; }
-        .verification-expiry { color: ${token.colorTextSecondary}; font-size: 12px; white-space: nowrap; }
-        .verification-heading > .ant-btn { flex: none; height: 22px; padding-inline: 6px; gap: 4px; font-size: 12px; }
-        .verification-fields .ant-form-item { min-width: 0; margin-bottom: ${props?.compact ? 12 : 16}px; }
-        .verification-fields .ant-form-item:last-child { margin-bottom: 0; }
-        .verification-fields .ant-form-item-label { padding-bottom: ${props?.compact ? 4 : 6}px; }
-        .verification-fields .ant-form-item-label > label { width: 100%; }
-        .verification-field-label { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 2px 12px; width: 100%; }
-        .verification-field-label .verification-expiry { color: ${token.colorTextTertiary}; font-weight: 400; }
-        .verification-type { margin-inline-start: 6px; color: ${token.colorTextSecondary}; font-size: 12px; font-weight: 400; }
-        .verification-field-content { position: relative; min-width: 0; }
-        .verification-fields textarea.ant-input { padding-inline-end: 32px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12px; line-height: 1.65; overflow-wrap: anywhere; resize: none; }
-        .verification-copy { position: absolute; top: ${props?.compact ? 2 : 4}px; inset-inline-end: ${props?.compact ? 4 : 6}px; font-size: 12px; line-height: 22px; }
-        .verification-copy .ant-typography-copy { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; margin-inline-start: 0; }
+
+        & + & {
+            margin-top: ${props?.compact ? 18 : 22}px;
+            padding-top: ${props?.compact ? 18 : 22}px;
+            border-top: 1px solid ${token.colorBorderSecondary};
+        }
+
+        .verification-heading {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: ${props?.compact ? 12 : 16}px;
+        }
+
+        .verification-heading-text {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 4px 12px;
+            min-width: 0;
+            line-height: 22px;
+        }
+
+        .verification-title {
+            color: ${token.colorText};
+            font-size: ${token.fontSize}px;
+            font-weight: 500;
+        }
+
+        .verification-expiry {
+            color: ${token.colorTextSecondary};
+            font-size: 12px;
+            white-space: nowrap;
+        }
+
+        .verification-heading > .ant-btn {
+            flex: none;
+            height: 22px;
+            padding-inline: 6px;
+            gap: 4px;
+            font-size: 12px;
+        }
+
+        .verification-fields .ant-form-item {
+            min-width: 0;
+            margin-bottom: ${props?.compact ? 12 : 16}px;
+        }
+
+        .verification-fields .ant-form-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .verification-fields .ant-form-item-label {
+            padding-bottom: ${props?.compact ? 4 : 6}px;
+        }
+
+        .verification-fields .ant-form-item-label > label {
+            width: 100%;
+        }
+
+        .verification-field-label {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 2px 12px;
+            width: 100%;
+        }
+
+        .verification-field-label .verification-expiry {
+            color: ${token.colorTextTertiary};
+            font-weight: 400;
+        }
+
+        .verification-type {
+            margin-inline-start: 6px;
+            color: ${token.colorTextSecondary};
+            font-size: 12px;
+            font-weight: 400;
+        }
+
+        .verification-field-content {
+            position: relative;
+            min-width: 0;
+        }
+
+        .verification-fields textarea.ant-input {
+            padding-inline-end: 32px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-size: 12px;
+            line-height: 1.65;
+            overflow-wrap: anywhere;
+            resize: none;
+        }
+
+        .verification-copy {
+            position: absolute;
+            top: ${props?.compact ? 2 : 4}px;
+            inset-inline-end: ${props?.compact ? 4 : 6}px;
+            font-size: 12px;
+            line-height: 22px;
+        }
+
+        .verification-copy .ant-typography-copy {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 22px;
+            height: 22px;
+            margin-inline-start: 0;
+        }
     `,
     details: css`
         margin-bottom: ${props?.compact ? 12 : 16}px;
@@ -222,14 +414,21 @@ const useStyles = createStyles(({css, token}: any, props: any = {}) => ({
         align-items: center;
         justify-content: space-between;
         gap: 8px;
-        .ant-btn { height: 22px; padding: 0 4px; font-size: 12px; }
+
+        .ant-btn {
+            height: 22px;
+            padding: 0 4px;
+            font-size: 12px;
+        }
     `,
     pemField: css`
-        .ant-form-item-label > label { width: 100%; }
+        .ant-form-item-label > label {
+            width: 100%;
+        }
     `,
 }));
 
-const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, secretVersion = 0}, ref) => {
+const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, secretVersion = 0}, ref): any => {
     const {message, modal} = App.useApp();
     const theme = useTheme();
     const compact = Boolean(theme?.isCompactTheme?.());
@@ -250,9 +449,9 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
     const secretRequestRef = useRef(0);
     const formOpenRef = useRef(false);
     const submittingRef = useRef(false);
-    const manualSessionRef = useRef<{data: any, method: "obtain" | "renew", id?: number} | null>(null);
-    const obtainRef = useRef<{domain: string, onObtained?: (cert: any) => void} | null>(null);
-    const deployRef = useRef<{domain: string, onSelected: (cert: any) => void} | null>(null);
+    const manualSessionRef = useRef<{ data: any, method: "obtain" | "renew", id?: number } | null>(null);
+    const obtainRef = useRef<{ domain: string, onObtained?: (cert: any) => void } | null>(null);
+    const deployRef = useRef<{ domain: string, onSelected: (cert: any) => void } | null>(null);
     const suggestedNameRef = useRef("");
     const [form] = Form.useForm();
     const [active, setActive] = useState(false);
@@ -268,7 +467,7 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
     const [obtainDomain, setObtainDomain] = useState("");
     const [challenge, setChallenge] = useState("http");
     const [manualSession, setManualSession] = useState<any>(null);
-    const [secretOptions, setSecretOptions] = useState<{label: string, value: number}[]>([]);
+    const [secretOptions, setSecretOptions] = useState<{ label: string, value: number }[]>([]);
     const [secretLoading, setSecretLoading] = useState(false);
     const [secretLoadError, setSecretLoadError] = useState(false);
     const [wildcard, setWildcard] = useState(false);
@@ -289,7 +488,10 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
     const automaticDNS = challenge === "dns" && certificateType === 2;
     const renewalNeedsKey = automaticDNS && !selectedSecretId;
     const manualVerification = certificateType === 1;
-    const secretNames = useMemo(() => Object.fromEntries(secretOptions.map(({value, label}) => [value, label])), [secretOptions]);
+    const secretNames = useMemo(() => Object.fromEntries(secretOptions.map(({
+                                                                                value,
+                                                                                label
+                                                                            }) => [value, label])), [secretOptions]);
 
     useLayoutEffect(() => {
         const content = manualContentRef.current;
@@ -398,7 +600,14 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
         const session = manualSessionRef.current;
         manualSessionRef.current = null;
         if (session) {
-            void requestCertManual(session.method, {action: "cancel", session_id: session.data.session_id, id: session.id}).catch(() => undefined);
+            void (session.method === "renew" ? renewCert : obtainCert)({
+                body: {
+                    type: 1,
+                    action: "cancel",
+                    session_id: session.data.session_id,
+                    id: session.id
+                }
+            }).catch(() => undefined);
         }
     }, []);
 
@@ -462,7 +671,14 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
             setIPAddress(isIPAddress(domain));
             setChallenge(nextChallenge);
             suggestedNameRef.current = domain.slice(0, 100);
-            form.setFieldsValue({domain, name: suggestedNameRef.current, ca: "production", challenge: nextChallenge, type: 2, auto_renew: 1});
+            form.setFieldsValue({
+                domain,
+                name: suggestedNameRef.current,
+                ca: "production",
+                challenge: nextChallenge,
+                type: 2,
+                auto_renew: 1
+            });
         } else if (nextMode === "import" && deployRef.current) {
             form.setFieldValue("name", deployRef.current.domain.slice(0, 100));
         } else if (nextMode === "renew") {
@@ -530,7 +746,7 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
         });
     }, [cancelManual, closeForm, form, loadSecrets, message]);
 
-    const open = useCallback((selection?: {domain: string, onSelected: (cert: any) => void}) => {
+    const open = useCallback((selection?: { domain: string, onSelected: (cert: any) => void }) => {
         batchRef.current?.close();
         closeForm();
         deployRef.current = selection || null;
@@ -627,7 +843,14 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
         obtainRef.current = {domain: "", onObtained: onRenewed};
     }, [close, closeForm, message, openDeploy, openForm]);
 
-    useImperativeHandle(ref, () => ({open, close, openObtain, openDeploy, openRenew, refresh: loadList}), [close, loadList, open, openObtain, openDeploy, openRenew]);
+    useImperativeHandle(ref, () => ({
+        open,
+        close,
+        openObtain,
+        openDeploy,
+        openRenew,
+        refresh: loadList
+    }), [close, loadList, open, openObtain, openDeploy, openRenew]);
 
     useEffect(() => () => {
         listRequestRef.current += 1;
@@ -680,6 +903,7 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
                 const manual = Number(values.type) === 1;
                 const verification = isIP ? "http" : target.startsWith("*.") ? "dns" : values.challenge || "http";
                 const body = {
+                    action: "start",
                     name: values.name,
                     domain: isIP ? target.replace(/^\[([^\]]+)\]$/, "$1") : target,
                     ...(values.ca ? {ca: values.ca} : {}),
@@ -693,15 +917,29 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
                     if (!session) {
                         const method = mode === "renew" ? "renew" : "obtain";
                         const id = method === "renew" ? record?.id : undefined;
-                        const started = await requestCertManual(method, {...body, action: "start", id});
+                        const started = await (method === "renew" ? renewCert : obtainCert)({body: {...body, id}});
                         const data = started?.data;
                         if (formRequestRef.current !== requestId) {
-                            if (data?.session_id) void requestCertManual(method, {action: "cancel", session_id: data.session_id, id}).catch(() => undefined);
+                            if (data?.session_id) void (method === "renew" ? renewCert : obtainCert)({
+                                body: {
+                                    type: 1,
+                                    action: "cancel",
+                                    session_id: data.session_id,
+                                    id
+                                }
+                            }).catch(() => undefined);
                             return;
                         }
                         if (started?.code !== 200) throw new Error(started?.message || "获取验证信息失败");
                         if (!data?.session_id || !Array.isArray(data.challenges) || !Number.isFinite(data.expires_at)) {
-                            if (data?.session_id) void requestCertManual(method, {action: "cancel", session_id: data.session_id, id}).catch(() => undefined);
+                            if (data?.session_id) void (method === "renew" ? renewCert : obtainCert)({
+                                body: {
+                                    type: 1,
+                                    action: "cancel",
+                                    session_id: data.session_id,
+                                    id
+                                }
+                            }).catch(() => undefined);
                             throw new Error("验证信息无效，请重新申请");
                         }
                         session = {data, method, id};
@@ -717,13 +955,21 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
                         formModalRef.current?.show();
                         throw new Error("验证会话已过期，请重新申请");
                     }
-                    response = await requestCertManual(session.method, {
-                        action: "submit",
-                        session_id: session.data.session_id,
-                        id: session.id,
+                    response = await (session.method === "renew" ? renewCert : obtainCert)({
+                        body: {
+                            type: 1,
+                            action: "submit",
+                            session_id: session.data.session_id,
+                            id: session.id,
+                        }
                     });
                 } else {
-                    response = mode === "obtain" ? await obtainCert({body}) : await renewCert({body: {...body, id: record?.id}});
+                    response = mode === "obtain" ? await obtainCert({body}) : await renewCert({
+                        body: {
+                            ...body,
+                            id: record?.id
+                        }
+                    });
                 }
             }
             if (formRequestRef.current !== requestId) {
@@ -742,7 +988,8 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
             // 通知调用方失败不会改变证书已申请成功的结果。
             try {
                 void Promise.resolve(onChange?.()).catch(() => undefined);
-            } catch {}
+            } catch {
+            }
             if (formRequestRef.current !== requestId) return;
             if (directDeploy && deployRef.current === directDeploy && (mode === "import" || mode === "obtain")) {
                 const certificate = parseCertificate(response?.data);
@@ -763,7 +1010,8 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
                     close();
                     try {
                         void Promise.resolve(directDeploy.onSelected(certificate)).catch(() => undefined);
-                    } catch {}
+                    } catch {
+                    }
                     return;
                 }
                 message.warning(matches ? "证书已保存，但不在有效期内，请选择其他证书。" : "证书已保存，但不适用于当前域名，请选择其他证书。");
@@ -777,7 +1025,8 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
                 if (formRequestRef.current === requestId) {
                     void Promise.resolve(directObtain?.onObtained?.(parseCertificate(response?.data))).catch(() => undefined);
                 }
-            } catch {}
+            } catch {
+            }
         } catch (error) {
             if (formRequestRef.current === requestId) {
                 message.error(error instanceof Error ? error.message : "操作失败");
@@ -820,47 +1069,48 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
     }, [modal, remove]);
 
     const renderActions = useCallback((item: any) => deployDomain ? (
-            <Button size="small" autoInsertSpace={false} onClick={() => {
-                const selection = deployRef.current;
-                if (!selection) return;
-                const now = dayjs();
-                const starts = dayjs(String(item.start_time || ""));
-                const expires = dayjs(String(item.expire_time || ""));
-                if (!starts.isValid() || starts.isAfter(now) || !expires.isValid() || !expires.isAfter(now)) {
-                    message.warning("证书不在有效期内，请选择其他证书。");
-                    void loadList();
-                    return;
-                }
-                close();
-                try {
-                    void Promise.resolve(selection.onSelected(item)).catch(() => undefined);
-                } catch {}
-            }}>部署</Button>
+        <Button size="small" autoInsertSpace={false} onClick={() => {
+            const selection = deployRef.current;
+            if (!selection) return;
+            const now = dayjs();
+            const starts = dayjs(String(item.start_time || ""));
+            const expires = dayjs(String(item.expire_time || ""));
+            if (!starts.isValid() || starts.isAfter(now) || !expires.isValid() || !expires.isAfter(now)) {
+                message.warning("证书不在有效期内，请选择其他证书。");
+                void loadList();
+                return;
+            }
+            close();
+            try {
+                void Promise.resolve(selection.onSelected(item)).catch(() => undefined);
+            } catch {
+            }
+        }}>部署</Button>
     ) : (
-            <ActionDropdown
-                menu={{
-                    items: [
-                        {key: "view", label: "查看证书"},
-                        {key: "edit", label: "编辑证书"},
-                        {key: "renew", label: "续签证书", disabled: ![1, 2].includes(Number(item.type))},
-                        {type: "divider" as const},
-                        {key: "delete", label: "删除证书", danger: true},
-                    ],
-                    onClick: ({key}) => {
-                        if (key === "view" || key === "edit") {
-                            openForm(key, item);
-                        } else if (key === "renew" && [1, 2].includes(Number(item.type))) {
-                            openForm("renew", item);
-                        } else if (key === "delete") {
-                            confirmRemove(item);
-                        }
-                    },
-                }}>
-                <Button
-                    size="small"
-                    autoInsertSpace={false}
-                    aria-label={`操作证书 ${item?.name || ""}`}>操作</Button>
-            </ActionDropdown>
+        <ActionDropdown
+            menu={{
+                items: [
+                    {key: "view", label: "查看证书"},
+                    {key: "edit", label: "编辑证书"},
+                    {key: "renew", label: "续签证书", disabled: ![1, 2].includes(Number(item.type))},
+                    {type: "divider" as const},
+                    {key: "delete", label: "删除证书", danger: true},
+                ],
+                onClick: ({key}) => {
+                    if (key === "view" || key === "edit") {
+                        openForm(key, item);
+                    } else if (key === "renew" && [1, 2].includes(Number(item.type))) {
+                        openForm("renew", item);
+                    } else if (key === "delete") {
+                        confirmRemove(item);
+                    }
+                },
+            }}>
+            <Button
+                size="small"
+                autoInsertSpace={false}
+                aria-label={`操作证书 ${item?.name || ""}`}>操作</Button>
+        </ActionDropdown>
     ), [close, confirmRemove, deployDomain, loadList, message, openForm]);
 
     const columns = useMemo<any[]>(() => [
@@ -869,11 +1119,12 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
             dataIndex: "name",
             key: "name",
             width: 160,
-            render: (value: string, item: any) => deployDomain ? <span className="record-name" title={value}>{value || "未命名证书"}</span> : (
-                <button type="button" className="record-name" title={value} onClick={() => openForm("view", item)}>
-                    {value || "未命名证书"}
-                </button>
-            ),
+            render: (value: string, item: any) => deployDomain ?
+                <span className="record-name" title={value}>{value || "未命名证书"}</span> : (
+                    <button type="button" className="record-name" title={value} onClick={() => openForm("view", item)}>
+                        {value || "未命名证书"}
+                    </button>
+                ),
         },
         {
             title: "适用域名",
@@ -893,8 +1144,10 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
                 const secretName = item.secret_id ? secretNames[item.secret_id] || `密钥 #${item.secret_id}` : "未关联密钥";
                 return (
                     <div className="record-issuance">
-                        <span className="record-type">{item.type === 2 ? "自动" : item.type === 1 ? "手动" : "导入证书"}</span>
-                        {(item.type === 1 || item.type === 2) && <span className="record-type">{item.challenge === "dns" ? "DNS" : "HTTP"}</span>}
+                        <span
+                            className="record-type">{item.type === 2 ? "自动" : item.type === 1 ? "手动" : "导入证书"}</span>
+                        {(item.type === 1 || item.type === 2) &&
+                            <span className="record-type">{item.challenge === "dns" ? "DNS" : "HTTP"}</span>}
                         {item.type === 2 && item.challenge === "dns" && (
                             <Tooltip title={item.secret_id ? `关联密钥：${secretName}` : secretName}>
                                 <span className="record-secret">{secretName}</span>
@@ -922,7 +1175,8 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
                 const status = !knownExpiry ? "unknown" : expired ? "expired" : pending || days <= 7 ? "expiring" : "valid";
                 const text = !knownExpiry ? "有效期未知" : expired ? "已过期" : pending ? "尚未生效"
                     : days > 0 ? `剩余 ${days} 天` : "不足 1 天";
-                return <Tooltip title={knownExpiry ? `${String(item.expire_time).replace("T", " ").slice(0, 16)} 到期` : undefined}>
+                return <Tooltip
+                    title={knownExpiry ? `${String(item.expire_time).replace("T", " ").slice(0, 16)} 到期` : undefined}>
                     <span className={`record-state ${status}`}><i/>{text}</span>
                 </Tooltip>;
             },
@@ -974,15 +1228,18 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
     }[mode] || "证书配置";
 
     const verificationField = (
-        <Form.Item extra={mode === "edit" ? "用于下次续签验证，不改变当前证书。" : manualVerification ? challenge === "http" ? "自行将验证文件放到目标网站，公网需能通过 80 端口访问。" : "自行添加 TXT 解析记录，无需提供云密钥。" : ipAddress ? "公网 IP 的 80 端口需能访问本机验证服务。" : challenge === "dns" ? "自动添加 DNS 验证记录，网站无需上线。" : "域名需解析到本机，公网可访问验证端口（默认 80）。"}>
+        <Form.Item
+            extra={mode === "edit" ? "用于下次续签验证，不改变当前证书。" : manualVerification ? challenge === "http" ? "自行将验证文件放到目标网站，公网需能通过 80 端口访问。" : "自行添加 TXT 解析记录，无需提供云密钥。" : ipAddress ? "公网 IP 的 80 端口需能访问本机验证服务。" : challenge === "dns" ? "自动添加 DNS 验证记录，网站无需上线。" : "域名需解析到本机，公网可访问验证端口（默认 80）。"}>
             <Flex gap={compact ? 12 : 16}>
-                <Form.Item name="challenge" label="验证类型" style={{flex: 1, minWidth: 0, marginBottom: 0}} rules={[{required: true, message: "请选择验证类型"}]}>
+                <Form.Item name="challenge" label="验证类型" style={{flex: 1, minWidth: 0, marginBottom: 0}}
+                           rules={[{required: true, message: "请选择验证类型"}]}>
                     <Select options={[
                         {label: "HTTP", value: "http", disabled: wildcard},
                         {label: "DNS", value: "dns", disabled: ipAddress},
                     ]}/>
                 </Form.Item>
-                <Form.Item name="type" label="验证模式" style={{flex: 1, minWidth: 0, marginBottom: 0}} rules={[{required: true, message: "请选择验证模式"}]}>
+                <Form.Item name="type" label="验证模式" style={{flex: 1, minWidth: 0, marginBottom: 0}}
+                           rules={[{required: true, message: "请选择验证模式"}]}>
                     <Select options={[
                         {label: "自动", value: 2},
                         {label: "手动", value: 1},
@@ -997,7 +1254,10 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
             name="secret_id"
             label="关联密钥"
             extra={<>
-                {secretLoadError ? <span>密钥列表加载失败，<Button type="link" size="small" htmlType="button" onClick={() => void loadSecrets()}>重试</Button></span> : !secretLoading && secretOptions.length === 0 ? <span>暂无密钥，请先<Button type="link" size="small" htmlType="button" onClick={() => openSecretManager(true)}>添加密钥</Button>并填写密钥信息。</span> : mode === "edit" ? "DNS 续签前需关联密钥。" : "请选择具有该域名 DNS 解析权限的密钥。"}
+                {secretLoadError ? <span>密钥列表加载失败，<Button type="link" size="small" htmlType="button"
+                                                                  onClick={() => void loadSecrets()}>重试</Button></span> : !secretLoading && secretOptions.length === 0 ?
+                    <span>暂无密钥，请先<Button type="link" size="small" htmlType="button"
+                                               onClick={() => openSecretManager(true)}>添加密钥</Button>并填写密钥信息。</span> : mode === "edit" ? "DNS 续签前需关联密钥。" : "请选择具有该域名 DNS 解析权限的密钥。"}
                 <Button type="link" size="small" htmlType="button" onClick={() => openSecretManager()}>管理密钥</Button>
             </>}
             rules={mode === "edit" ? [] : [{required: true, message: "请选择云密钥"}]}>
@@ -1063,10 +1323,35 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
                         onClick: () => void loadList(),
                     },
                     actions: [
-                        {key: "import", type: "button", label: "导入", icon: "ImportOutlined", onClick: () => openForm("import")},
-                        {key: "obtain", type: "button", label: "申请", icon: "PlusOutlined", onClick: () => openForm("obtain")},
-                        {key: "secret", type: "button", label: "密钥", icon: "KeyOutlined", onClick: () => openSecretManager()},
-                        {key: "log", type: "button", label: "日志", icon: "FileTextOutlined", hidden: Boolean(deployDomain), onClick: () => logRef.current?.open({id: "cert-auto-renew", name: "证书自动续签"})},
+                        {
+                            key: "import",
+                            type: "button",
+                            label: "导入",
+                            icon: "ImportOutlined",
+                            onClick: () => openForm("import")
+                        },
+                        {
+                            key: "obtain",
+                            type: "button",
+                            label: "申请",
+                            icon: "PlusOutlined",
+                            onClick: () => openForm("obtain")
+                        },
+                        {
+                            key: "secret",
+                            type: "button",
+                            label: "密钥",
+                            icon: "KeyOutlined",
+                            onClick: () => openSecretManager()
+                        },
+                        {
+                            key: "log",
+                            type: "button",
+                            label: "日志",
+                            icon: "FileTextOutlined",
+                            hidden: Boolean(deployDomain),
+                            onClick: () => logRef.current?.open({id: "cert-auto-renew", name: "证书自动续签"})
+                        },
                     ],
                 }}
                 pagination={{
@@ -1083,7 +1368,11 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
                     closable: true,
                     keyboard: true,
                     mask: {closable: true},
-                    style: {top: screens.md ? 100 : 24, paddingBottom: screens.md ? 100 : 24, maxWidth: "calc(100vw - 24px)"},
+                    style: {
+                        top: screens.md ? 100 : 24,
+                        paddingBottom: screens.md ? 100 : 24,
+                        maxWidth: "calc(100vw - 24px)"
+                    },
                     focusable: {focusTriggerAfterClose: false},
                 } as any}/>
             <ProModal
@@ -1099,9 +1388,12 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
                         container: {minHeight: formMinHeight, display: "flex", flexDirection: "column"},
                         body: {flex: 1, display: "flex", flexDirection: "column"},
                     } : undefined,
-                    footer: formLoading ? null : viewing ? [<Button key="close" onClick={() => closeForm()}>关闭</Button>] : [
+                    footer: formLoading ? null : viewing ? [<Button key="close"
+                                                                    onClick={() => closeForm()}>关闭</Button>] : [
                         <Button key="cancel" onClick={() => closeForm()}>取消</Button>,
-                        <Button key="submit" type="primary" loading={submitting} disabled={(mode === "obtain" || mode === "renew") && automaticDNS && (secretLoading || secretLoadError)} onClick={form.submit}>
+                        <Button key="submit" type="primary" loading={submitting}
+                                disabled={(mode === "obtain" || mode === "renew") && automaticDNS && (secretLoading || secretLoadError)}
+                                onClick={form.submit}>
                             {mode === "import" ? "导入" : mode === "obtain" ? "申请" : mode === "renew" ? "续签" : "保存"}
                         </Button>,
                     ],
@@ -1183,17 +1475,50 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
                                         colon={false}
                                         styles={{
                                             label: {fontSize: "inherit", flexShrink: 0, whiteSpace: "nowrap"},
-                                            content: {fontSize: "inherit", minWidth: 0, overflowWrap: "anywhere", whiteSpace: "normal"},
+                                            content: {
+                                                fontSize: "inherit",
+                                                minWidth: 0,
+                                                overflowWrap: "anywhere",
+                                                whiteSpace: "normal"
+                                            },
                                         }}
                                         items={[
-                                            {key: "domains", label: "适用域名", children: (record.domains || []).join("、") || "暂无域名"},
-                                            {key: "type", label: "签发方式", children: record.type === 1 ? "手动申请" : record.type === 2 ? "自动申请" : "导入证书"},
-                                            {key: "start_time", label: "生效时间", children: record.start_time ? String(record.start_time).replace("T", " ").slice(0, 19) : "未知"},
-                                            {key: "expire_time", label: "到期时间", children: record.expire_time ? String(record.expire_time).replace("T", " ").slice(0, 19) : "未知"},
+                                            {
+                                                key: "domains",
+                                                label: "适用域名",
+                                                children: (record.domains || []).join("、") || "暂无域名"
+                                            },
+                                            {
+                                                key: "type",
+                                                label: "签发方式",
+                                                children: record.type === 1 ? "手动申请" : record.type === 2 ? "自动申请" : "导入证书"
+                                            },
+                                            {
+                                                key: "start_time",
+                                                label: "生效时间",
+                                                children: record.start_time ? String(record.start_time).replace("T", " ").slice(0, 19) : "未知"
+                                            },
+                                            {
+                                                key: "expire_time",
+                                                label: "到期时间",
+                                                children: record.expire_time ? String(record.expire_time).replace("T", " ").slice(0, 19) : "未知"
+                                            },
                                             ...([1, 2].includes(record.type) ? [
-                                                {key: "challenge", label: "验证类型", children: String(record.challenge || "http").toUpperCase()},
-                                                {key: "auto_renew", label: "自动续签", children: record.auto_renew === 1 ? "开启" : "关闭"},
-                                                ...(record.challenge === "dns" ? [{key: "secret_id", label: "关联密钥", children: record.secret_id ? secretNames[record.secret_id] || `密钥 #${record.secret_id}` : "未关联"}] : []),
+                                                {
+                                                    key: "challenge",
+                                                    label: "验证类型",
+                                                    children: String(record.challenge || "http").toUpperCase()
+                                                },
+                                                {
+                                                    key: "auto_renew",
+                                                    label: "自动续签",
+                                                    children: record.auto_renew === 1 ? "开启" : "关闭"
+                                                },
+                                                ...(record.challenge === "dns" ? [{
+                                                    key: "secret_id",
+                                                    label: "关联密钥",
+                                                    children: record.secret_id ? secretNames[record.secret_id] || `密钥 #${record.secret_id}` : "未关联"
+                                                }] : []),
                                             ] : []),
                                         ]}/>
                                 )}
@@ -1205,7 +1530,9 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
                                             {required: true, whitespace: true, message: "请输入证书名称"},
                                             {max: 100, message: "证书名称不能超过 100 个字符"},
                                         ]}>
-                                        <Input readOnly={viewing} prefix={<Icon type="SafetyCertificateOutlined"/>} maxLength={100} placeholder="例如：example.com 正式证书" autoComplete="off"/>
+                                        <Input readOnly={viewing} prefix={<Icon type="SafetyCertificateOutlined"/>}
+                                               maxLength={100} placeholder="例如：example.com 正式证书"
+                                               autoComplete="off"/>
                                     </Form.Item>
                                 </section>
                                 {mode === "edit" && (record?.type === 1 || record?.type === 2) && (
@@ -1221,8 +1548,18 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
                                             <Form.Item
                                                 className={styles.pemField}
                                                 name="certificate"
-                                                label={<span className={styles.fieldLabel}><span>证书内容</span>{(viewing || mode === "edit") && <Button type="text" icon={<Icon type="DownloadOutlined"/>} onClick={(event) => { event.preventDefault(); download("certificate"); }}>下载</Button>}</span>}
-                                                rules={viewing ? [] : [{required: true, whitespace: true, message: "请输入 PEM 证书内容"}]}>
+                                                label={<span
+                                                    className={styles.fieldLabel}><span>证书内容</span>{(viewing || mode === "edit") &&
+                                                    <Button type="text" icon={<Icon type="DownloadOutlined"/>}
+                                                            onClick={(event) => {
+                                                                event.preventDefault();
+                                                                download("certificate");
+                                                            }}>下载</Button>}</span>}
+                                                rules={viewing ? [] : [{
+                                                    required: true,
+                                                    whitespace: true,
+                                                    message: "请输入 PEM 证书内容"
+                                                }]}>
                                                 <Input.TextArea
                                                     readOnly={viewing}
                                                     className={styles.editor}
@@ -1234,8 +1571,18 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
                                             <Form.Item
                                                 className={styles.pemField}
                                                 name="private_key"
-                                                label={<span className={styles.fieldLabel}><span>私钥内容</span>{(viewing || mode === "edit") && <Button type="text" icon={<Icon type="DownloadOutlined"/>} onClick={(event) => { event.preventDefault(); download("private_key"); }}>下载</Button>}</span>}
-                                                rules={viewing ? [] : [{required: true, whitespace: true, message: "请输入 PEM 私钥内容"}]}>
+                                                label={<span
+                                                    className={styles.fieldLabel}><span>私钥内容</span>{(viewing || mode === "edit") &&
+                                                    <Button type="text" icon={<Icon type="DownloadOutlined"/>}
+                                                            onClick={(event) => {
+                                                                event.preventDefault();
+                                                                download("private_key");
+                                                            }}>下载</Button>}</span>}
+                                                rules={viewing ? [] : [{
+                                                    required: true,
+                                                    whitespace: true,
+                                                    message: "请输入 PEM 私钥内容"
+                                                }]}>
                                                 <Input.TextArea
                                                     readOnly={viewing}
                                                     className={styles.editor}
@@ -1253,18 +1600,24 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
                                     name="domain"
                                     label="域名或 IP"
                                     extra={ipAddress ? "公网 IP 使用 HTTP 验证，请留意证书有效期。" : wildcard ? "泛域名已自动切换为 DNS 验证。" : undefined}
-                                    rules={[{required: true, whitespace: true, message: "请选择或输入域名或 IP"}, {validator: async (_, value) => {
-                                        const target = String(value || "").trim();
-                                        if (target && (/[\[\]:]/.test(target) || /^[\d.]+$/.test(target)) && !isIPAddress(target)) {
-                                            throw new Error("请输入有效 IP 地址，域名无需填写端口");
+                                    rules={[{required: true, whitespace: true, message: "请选择或输入域名或 IP"}, {
+                                        validator: async (_, value) => {
+                                            const target = String(value || "").trim();
+                                            if (target && (/[\[\]:]/.test(target) || /^[\d.]+$/.test(target)) && !isIPAddress(target)) {
+                                                throw new Error("请输入有效 IP 地址，域名无需填写端口");
+                                            }
                                         }
-                                    }}]}>
+                                    }]}>
                                     {mode === "renew" ? (
                                         <Select
-                                            options={(record?.domains || []).map((domain: any) => ({label: domain, value: domain}))}
+                                            options={(record?.domains || []).map((domain: any) => ({
+                                                label: domain,
+                                                value: domain
+                                            }))}
                                             placeholder="请选择续签域名或 IP"/>
                                     ) : (
-                                        <Input readOnly={Boolean(obtainDomain)} placeholder="域名、公网 IPv4 或 IPv6" autoComplete="off"/>
+                                        <Input readOnly={Boolean(obtainDomain)} placeholder="域名、公网 IPv4 或 IPv6"
+                                               autoComplete="off"/>
                                     )}
                                 </Form.Item>
                                 {mode === "obtain" && (
@@ -1281,11 +1634,15 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
                                 {verificationField}
                                 {automaticDNS && secretField}
                                 {certificateType === 2 && renewalField}
-                                <Form.Item name="ca" label="签发环境" extra={mode === "renew" ? "留空沿用原签发环境；测试证书不受浏览器信任。" : undefined} rules={[{required: mode === "obtain"}]}>
-                                    <Select allowClear={mode === "renew"} placeholder={mode === "renew" ? "沿用原签发环境" : "请选择签发环境"} options={[
-                                        {label: "正式环境", value: "production"},
-                                        {label: "测试环境", value: "staging"},
-                                    ]}/>
+                                <Form.Item name="ca" label="签发环境"
+                                           extra={mode === "renew" ? "留空沿用原签发环境；测试证书不受浏览器信任。" : undefined}
+                                           rules={[{required: mode === "obtain"}]}>
+                                    <Select allowClear={mode === "renew"}
+                                            placeholder={mode === "renew" ? "沿用原签发环境" : "请选择签发环境"}
+                                            options={[
+                                                {label: "正式环境", value: "production"},
+                                                {label: "测试环境", value: "staging"},
+                                            ]}/>
                                 </Form.Item>
                                 {!manualVerification && ipAddress && (
                                     <Typography.Paragraph type="secondary">
@@ -1332,7 +1689,8 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
                                     <div className="verification-heading">
                                         <div className="verification-heading-text">
                                             <span className="verification-title">提交验证</span>
-                                            <span className="verification-expiry">有效至 {dayjs.unix(manualSession.expires_at).format("MM-DD HH:mm")}</span>
+                                            <span
+                                                className="verification-expiry">有效至 {dayjs.unix(manualSession.expires_at).format("MM-DD HH:mm")}</span>
                                         </div>
                                     </div>
                                     <Typography.Text type="secondary">无需添加验证信息，点击“验证”继续。</Typography.Text>
@@ -1343,10 +1701,13 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
                                     {manualChallenge.type === "HTTP" && (
                                         <div className="verification-heading">
                                             <div className="verification-heading-text">
-                                                <span className="verification-title">部署验证文件{manualSession.challenges.length > 1 ? ` ${index + 1}` : ""}</span>
-                                                {index === 0 && <span className="verification-expiry">有效至 {dayjs.unix(manualSession.expires_at).format("MM-DD HH:mm")}</span>}
+                                                <span
+                                                    className="verification-title">部署验证文件{manualSession.challenges.length > 1 ? ` ${index + 1}` : ""}</span>
+                                                {index === 0 && <span
+                                                    className="verification-expiry">有效至 {dayjs.unix(manualSession.expires_at).format("MM-DD HH:mm")}</span>}
                                             </div>
-                                            <Button size="small" color="default" variant="filled" icon={<Icon type="DownloadOutlined"/>} onClick={() => {
+                                            <Button size="small" color="default" variant="filled"
+                                                    icon={<Icon type="DownloadOutlined"/>} onClick={() => {
                                                 const url = URL.createObjectURL(new Blob([manualChallenge.value], {type: "application/octet-stream"}));
                                                 const anchor = document.createElement("a");
                                                 anchor.href = url;
@@ -1356,7 +1717,8 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
                                             }}>下载文件</Button>
                                         </div>
                                     )}
-                                    <Form component="div" layout="vertical" variant="filled" className="verification-fields">
+                                    <Form component="div" layout="vertical" variant="filled"
+                                          className="verification-fields">
                                         {(manualChallenge.type === "HTTP" ? [
                                             {label: "文件名", value: manualChallenge.name},
                                             {label: "部署路径", value: manualChallenge.path || ""},
@@ -1365,15 +1727,23 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
                                             {label: "记录名称", value: manualChallenge.name},
                                             {label: "记录值", value: manualChallenge.value},
                                         ]).map(({label, value}) => (
-                                            <Form.Item key={label} label={manualChallenge.type !== "HTTP" && label === "记录名称" ? (
-                                                <span className="verification-field-label">
-                                                    <span>{label}<span className="verification-type">TXT{manualSession.challenges.length > 1 ? ` ${index + 1}` : ""}</span></span>
-                                                    {index === 0 && <span className="verification-expiry">有效至 {dayjs.unix(manualSession.expires_at).format("MM-DD HH:mm")}</span>}
+                                            <Form.Item key={label}
+                                                       label={manualChallenge.type !== "HTTP" && label === "记录名称" ? (
+                                                           <span className="verification-field-label">
+                                                    <span>{label}<span
+                                                        className="verification-type">TXT{manualSession.challenges.length > 1 ? ` ${index + 1}` : ""}</span></span>
+                                                               {index === 0 && <span
+                                                                   className="verification-expiry">有效至 {dayjs.unix(manualSession.expires_at).format("MM-DD HH:mm")}</span>}
                                                 </span>
-                                            ) : label}>
+                                                       ) : label}>
                                                 <div className="verification-field-content">
-                                                    <Input.TextArea value={value} readOnly variant="filled" autoSize={{minRows: 1}} spellCheck={false} aria-label={label}/>
-                                                    <Typography.Text className="verification-copy" copyable={{text: value, tooltips: [`复制${label}`, "已复制"]}}/>
+                                                    <Input.TextArea value={value} readOnly variant="filled"
+                                                                    autoSize={{minRows: 1}} spellCheck={false}
+                                                                    aria-label={label}/>
+                                                    <Typography.Text className="verification-copy" copyable={{
+                                                        text: value,
+                                                        tooltips: [`复制${label}`, "已复制"]
+                                                    }}/>
                                                 </div>
                                             </Form.Item>
                                         ))}
@@ -1385,7 +1755,7 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
                 )}
             </ProModal>
             <BatchCert ref={batchRef} onChange={onChange} secretVersion={secretVersion}/>
-            <Log ref={logRef} request={getCertLog} title="续签日志"/>
+            <Log ref={logRef} request={requestCertLog} title="续签日志"/>
             <SecretManager ref={secretManagerRef} onChange={onSecretChange}/>
         </>
     );

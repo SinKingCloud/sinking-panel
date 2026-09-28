@@ -40,30 +40,14 @@ export async function removeContainer(params: API.RequestParams = {}) {
     return post("/container/remove", params?.body, params?.onSuccess, params?.onFail, params?.onFinally);
 }
 
-/** 获取镜像列表 GET /container/images */
-export async function getContainerImages(params: API.RequestParams = {}) {
-    return get("/container/images", {...params?.body, action: "list"}, params?.onSuccess, params?.onFail, params?.onFinally);
+/** 镜像管理 POST /container/images；导入本机镜像使用独立超时。 */
+export async function containerImages(params: API.RequestParams = {}) {
+    return post("/container/images", params?.body, params?.onSuccess, params?.onFail, params?.onFinally, undefined, {timeout: 300000});
 }
 
-/** 获取镜像详情 GET /container/images */
-export async function getContainerImage(params: API.RequestParams = {}) {
-    return get("/container/images", {...params?.body, action: "info"}, params?.onSuccess, params?.onFail, params?.onFinally);
-}
-
-/** 导入本机镜像 POST /container/images */
-export async function importContainerImage(params: API.RequestParams = {}) {
-    return post("/container/images", {...params?.body, action: "import"}, params?.onSuccess, params?.onFail, params?.onFinally, undefined, {timeout: 300000});
-}
-
-/** 批量删除镜像 POST /container/images，body.ids 为镜像 ID 列表。 */
-export async function removeContainerImage(params: API.RequestParams = {}) {
-    return post("/container/images", {...params?.body, action: "remove"}, params?.onSuccess, params?.onFail, params?.onFinally);
-}
-
-/** 读取或清理容器日志 GET|POST /container/log */
+/** 读取或清理容器日志 POST /container/log */
 export async function getContainerLog(params: API.RequestParams = {}) {
-    const request = params?.body?.action === "clear" ? post : get;
-    return request("/container/log", params?.body, params?.onSuccess, params?.onFail, params?.onFinally);
+    return post("/container/log", params?.body, params?.onSuccess, params?.onFail, params?.onFinally);
 }
 
 /** 执行容器命令 POST /container/exec */

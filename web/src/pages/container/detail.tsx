@@ -166,7 +166,7 @@ const ContainerDetail = forwardRef<any>((_, ref) => {
                       style: {top: screens.md ? 80 : 20, paddingBottom: 40, maxWidth: "calc(100vw - 24px)"}, mask: {closable: true}} as any}>
             {target && <DetailContent key={target.session} record={target.record} active={open} initialTab={target.tab}/>}
         </ProModal>
-        <Log ref={logRef} title="容器日志" request={getContainerLog}/>
+        <Log ref={logRef} title="容器日志" request={getContainerLog} body={{action: "read"}}/>
     </>;
 });
 

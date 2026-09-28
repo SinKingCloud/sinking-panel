@@ -26,10 +26,6 @@ func Persistence(c *context.Context) {
 			c.SuccessWithData("获取成功", data)
 		}
 	} else {
-		if form.Config == nil {
-			c.Error("持久化配置不能为空")
-			return
-		}
 		data, err := service.Software.Redis().UpdatePersistence(c.Request.Context(), form.Config)
 		if err != nil {
 			c.Error(err.Error())

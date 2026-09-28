@@ -44,18 +44,11 @@ func HTTP(c *context.Context) {
 		if err != nil {
 			c.Error(err.Error())
 		} else {
-			query := c.Request.URL.Query()
-			if !query.Has("after") && !query.Has("before") {
-				service.Log.Create(c.GetRequestIp(), log_type.EventShow, "查看服务日志", "查看网站 HTTP 服务运行日志")
-			}
+			service.Log.Create(c.GetRequestIp(), log_type.EventShow, "查看服务日志", "查看网站 HTTP 服务运行日志")
 			c.SuccessWithData("获取成功", data)
 		}
 		return
 	case "set":
-		if form.Config == nil {
-			c.Error("HTTP配置不能为空")
-			return
-		}
 		err = service.Site.UpdateHTTP(form.Config)
 	case "start":
 		err = service.Site.Start()

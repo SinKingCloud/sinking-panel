@@ -36,38 +36,23 @@ import {getCertList} from "@/service/api/cert";
 import {clearEnumCache} from "@/utils/enum";
 import {parseProxyTarget} from "../../proxy";
 import {
-    clearSiteCache,
-    getSiteCache,
-    getSiteCompression,
-    getSiteDomain,
-    getSiteFastCGI,
-    getSiteHeader,
     getSiteInfo,
     getSiteLog,
-    getSiteProcess,
-    getSiteProxy,
-    getSiteRate,
-    getSiteRedirect,
-    getSiteRoute,
-    getSiteSSL,
-    getSiteStatic,
-    getSiteTraffic,
-    getSiteWAF,
+    siteCache,
+    siteCompression,
+    siteDomain,
+    siteFastCGI,
+    siteHeaders,
+    siteProcess,
+    siteProxy,
+    siteRateLimit,
+    siteRedirects,
+    siteRoutes,
+    siteSSL,
+    siteStatic,
+    siteTrafficLimit,
+    siteWAF,
     updateSite,
-    updateSiteCache,
-    updateSiteCompression,
-    updateSiteDomain,
-    updateSiteFastCGI,
-    updateSiteHeader,
-    updateSiteProcess,
-    updateSiteProxy,
-    updateSiteRate,
-    updateSiteRedirect,
-    updateSiteRoute,
-    updateSiteSSL,
-    updateSiteStatic,
-    updateSiteTraffic,
-    updateSiteWAF,
 } from "@/service/api/site";
 
 const acePath = `${defaultSettings?.basePath || "/"}ace`;
@@ -2244,7 +2229,7 @@ const DomainPane = ({site, styles, onChange, hideHeader = false}: any) => {
         setLoading(true);
         setLoadError(false);
         try {
-            const response = await getSiteDomain({body: {action: "get", id: site.id}});
+            const response = await siteDomain({body: {action: "get", id: site.id}});
             if (requestRef.current !== requestId) return;
             if (response?.code === 200) {
                 const records = Array.isArray(response.data) ? response.data : [];
@@ -2345,7 +2330,7 @@ const DomainPane = ({site, styles, onChange, hideHeader = false}: any) => {
         setSaving(true);
         let reload = false;
         try {
-            const response = await updateSiteDomain({body: {action: "set", id: site.id, domains: values}});
+            const response = await siteDomain({body: {action: "set", id: site.id, domains: values}});
             if (requestRef.current !== requestId) return;
             if (response?.code === 200) {
                 message.success({key: formId + "-save-reminder", content: response?.message || "保存成功"});
@@ -2483,7 +2468,7 @@ const SSLPane = ({site, styles, onManageCert, onObtainCert, onDeployCert, onRene
         setLoading(true);
         setLoadError(false);
         try {
-            const response = await getSiteSSL({body: {action: "get", id: site.id}});
+            const response = await siteSSL({body: {action: "get", id: site.id}});
             if (requestRef.current !== requestId) return;
             if (response?.code !== 200) {
                 setLoadError(true);
@@ -2575,7 +2560,7 @@ const SSLPane = ({site, styles, onManageCert, onObtainCert, onDeployCert, onRene
         const requestId = ++requestRef.current;
         setSaving(true);
         try {
-            const response = await updateSiteSSL({body: {
+            const response = await siteSSL({body: {
                 action: "set",
                 id: site.id,
                 config: {
@@ -2703,7 +2688,7 @@ const SSLPane = ({site, styles, onManageCert, onObtainCert, onDeployCert, onRene
 
 const StaticPane = ({site, styles}: any) => (
     <ConfigForm
-        site={site} request={getSiteStatic} update={updateSiteStatic} title="静态网站设置" description="默认配置即可直接托管 HTML 和静态资源" styles={styles}
+        site={site} request={siteStatic} update={siteStatic} title="静态网站设置" description="默认配置即可直接托管 HTML 和静态资源" styles={styles}
         normalize={(data: any) => ({
             index: Array.isArray(data.index) ? data.index : ["index.html", "index.htm"],
             browse: Boolean(data.browse),
@@ -2822,7 +2807,7 @@ const ProxyPane = ({site, styles}: any) => {
     }, []);
     return (
         <ConfigForm
-            site={site} request={getSiteProxy} update={updateSiteProxy} title="反向代理设置" description="将网站请求转发到另一个 HTTP 服务或 UNIX 套接字" styles={styles}
+            site={site} request={siteProxy} update={siteProxy} title="反向代理设置" description="将网站请求转发到另一个 HTTP 服务或 UNIX 套接字" styles={styles}
             normalize={normalize} serialize={serialize}>
             <Form.Item name="target" label="目标地址" extra="自动识别 HTTP、HTTPS 和 UNIX 套接字；网址不填协议时使用 HTTP。"
                 rules={[{required: true, whitespace: true, message: "请输入目标地址"}, {validator: async (_, value) => {
@@ -2872,7 +2857,7 @@ const ProxyPane = ({site, styles}: any) => {
 
 const FastCGIPane = ({site, styles}: any) => (
     <ConfigForm
-        site={site} request={getSiteFastCGI} update={updateSiteFastCGI} title="PHP 设置" description="选择 PHP-FPM 服务即可运行 PHP 网站" styles={styles}
+        site={site} request={siteFastCGI} update={siteFastCGI} title="PHP 设置" description="选择 PHP-FPM 服务即可运行 PHP 网站" styles={styles}
         normalize={(data: any) => {
             const upstreams = upstreamsToForm(data.upstreams).map((item: any) => String(item).replace(/^unix(?:\+h2c)?\//, ""));
             return {
@@ -2949,8 +2934,8 @@ const GeneralPane = ({site, styles}: any) => {
         setLoadError(false);
         try {
             const [processResponse, proxyResponse] = await Promise.all([
-                getSiteProcess({body: {action: "get", id: site.id}}),
-                getSiteProxy({body: {action: "get", id: site.id}}),
+                siteProcess({body: {action: "get", id: site.id}}),
+                siteProxy({body: {action: "get", id: site.id}}),
             ]);
             if (requestRef.current !== requestId) return;
             if (processResponse?.code !== 200 || proxyResponse?.code !== 200) {
@@ -3049,7 +3034,7 @@ const GeneralPane = ({site, styles}: any) => {
         let reload = false;
         let processSaved = false;
         try {
-            const processResponse = await updateSiteProcess({body: {action: "set", id: site.id, config: {
+            const processResponse = await siteProcess({body: {action: "set", id: site.id, config: {
                 command: String(values.command || "").trim(), environment: linesToEnv(values.environment_lines),
                 max_retries: Number(values.max_retries),
                 restart_delay: duration(values.restart_delay), stop_timeout: duration(values.stop_timeout),
@@ -3060,7 +3045,7 @@ const GeneralPane = ({site, styles}: any) => {
                 return;
             }
             processSaved = true;
-            const proxyResponse = await updateSiteProxy({body: {action: "set", id: site.id, config: proxyConfig}});
+            const proxyResponse = await siteProxy({body: {action: "set", id: site.id, config: proxyConfig}});
             if (requestRef.current !== requestId) return;
             if (proxyResponse?.code === 200) {
                 message.success(proxyResponse?.message || "保存成功");
@@ -3143,8 +3128,8 @@ const WAFPane = ({site, styles, hideHeader = false}: any) => {
     const rulesRef = useRef<any>(null);
     return <ConfigForm
         site={site}
-        request={getSiteWAF}
-        update={updateSiteWAF}
+        request={siteWAF}
+        update={siteWAF}
         title="Web 防火墙"
         description="识别 SQL 注入、跨站脚本、恶意扫描等常见攻击"
         styles={styles}
@@ -3381,7 +3366,7 @@ const WAFPane = ({site, styles, hideHeader = false}: any) => {
     </ConfigForm>;
 };
 
-const RatePane = ({site, styles, hideHeader = false}: any) => <ConfigForm site={site} request={getSiteRate} update={updateSiteRate} title="访问频率" description="限制单个访客在指定时间内的请求次数" styles={styles} hideHeader={hideHeader}
+const RatePane = ({site, styles, hideHeader = false}: any) => <ConfigForm site={site} request={siteRateLimit} update={siteRateLimit} title="访问频率" description="限制单个访客在指定时间内的请求次数" styles={styles} hideHeader={hideHeader}
     normalize={(data: any) => ({...data, enabled: Boolean(data.enabled), key: !data.key || data.key === "{http.request.client_ip}" ? "{http.vars.client_ip}" : data.key, window: seconds(data.window) || 60, max_events: Number(data.max_events || 100), paths: Array.isArray(data.paths) ? data.paths : [], methods: Array.isArray(data.methods) ? data.methods : [], ipv4_prefix: data.ipv4_prefix == null ? 32 : data.ipv4_prefix, ipv6_prefix: data.ipv6_prefix == null ? 128 : data.ipv6_prefix})}
     serialize={(data: any) => ({...data, methods: splitValues(data.methods).filter((value) => value !== "*"), paths: splitValues(data.paths), window: duration(data.window)})}>
     <SettingSwitch
@@ -3415,7 +3400,7 @@ const RatePane = ({site, styles, hideHeader = false}: any) => <ConfigForm site={
     </> : null}</Form.Item>
 </ConfigForm>;
 
-const TrafficPane = ({site, styles, hideHeader = false}: any) => <ConfigForm site={site} request={getSiteTraffic} update={updateSiteTraffic} title="并发与速度" description="限制站点并发量和单个请求的传输速度" styles={styles} hideHeader={hideHeader}
+const TrafficPane = ({site, styles, hideHeader = false}: any) => <ConfigForm site={site} request={siteTrafficLimit} update={siteTrafficLimit} title="并发与速度" description="限制站点并发量和单个请求的传输速度" styles={styles} hideHeader={hideHeader}
     normalize={(data: any) => {
         const empty = !data.enabled && !data.max_connections && !data.max_connections_per_ip && !data.rate_per_request;
         return {enabled: false, ...data, max_connections: empty ? 1000 : Number(data.max_connections || 0), max_connections_per_ip: empty ? 50 : Number(data.max_connections_per_ip || 0), rate_per_request_kb: Number(data.rate_per_request || 0) / 1024};
@@ -3435,8 +3420,8 @@ const TrafficPane = ({site, styles, hideHeader = false}: any) => <ConfigForm sit
 
 const CachePane = ({site, styles, hideHeader = false}: any) => {
     const {message, modal} = App.useApp();
-    const clear = ({reload}: any) => <Button color="danger" variant="filled" style={{borderColor: "transparent"}} className={styles.settingAction} size="small" icon={<Icon type="ClearOutlined"/>} onClick={() => modal.confirm({title: "清理网站缓存", content: "确定清理这个网站的全部响应缓存吗？", okText: "清理", okButtonProps: {danger: true}, onOk: async () => {const response = await clearSiteCache({body: {action: "clear", id: site.id}}); if (response?.code === 200) {message.success(response?.message || "清理成功"); reload();} else message.error(response?.message || "清理失败");}})}>清理缓存</Button>;
-    return <ConfigForm site={site} request={getSiteCache} update={updateSiteCache} title="响应缓存" description="缓存常用响应，减少磁盘或上游服务压力" styles={styles} hideHeader={hideHeader} extra={clear}
+    const clear = ({reload}: any) => <Button color="danger" variant="filled" style={{borderColor: "transparent"}} className={styles.settingAction} size="small" icon={<Icon type="ClearOutlined"/>} onClick={() => modal.confirm({title: "清理网站缓存", content: "确定清理这个网站的全部响应缓存吗？", okText: "清理", okButtonProps: {danger: true}, onOk: async () => {const response = await siteCache({body: {action: "clear", id: site.id}}); if (response?.code === 200) {message.success(response?.message || "清理成功"); reload();} else message.error(response?.message || "清理失败");}})}>清理缓存</Button>;
+    return <ConfigForm site={site} request={siteCache} update={siteCache} title="响应缓存" description="缓存常用响应，减少磁盘或上游服务压力" styles={styles} hideHeader={hideHeader} extra={clear}
         normalize={(data: any) => ({...data, enabled: Boolean(data.enabled), ttl: seconds(data.ttl) || 120, stale: seconds(data.stale) || 30, methods: Array.isArray(data.methods) && data.methods.length ? data.methods : ["GET", "HEAD"], key_headers: Array.isArray(data.key_headers) ? data.key_headers : [], default_cache_control: data.default_cache_control || "public, max-age=120", max_size_mb: Number(data.max_size || 256 * 1024 * 1024) / 1024 / 1024})}
         serialize={(data: any) => ({enabled: Boolean(data.enabled), methods: splitValues(data.methods).filter((value) => value !== "*"), key_headers: splitValues(data.key_headers), ttl: duration(data.ttl), stale: duration(data.stale), max_size: Math.round(Number(data.max_size_mb || 0) * 1024 * 1024), default_cache_control: String(data.default_cache_control || "").trim()})}>
         <SettingSwitch
@@ -3459,7 +3444,7 @@ const CachePane = ({site, styles, hideHeader = false}: any) => {
     </ConfigForm>;
 };
 
-const CompressionPane = ({site, styles, hideHeader = false}: any) => <ConfigForm site={site} request={getSiteCompression} update={updateSiteCompression} title="响应压缩" description="自动压缩文本、脚本和样式文件" styles={styles} hideHeader={hideHeader}
+const CompressionPane = ({site, styles, hideHeader = false}: any) => <ConfigForm site={site} request={siteCompression} update={siteCompression} title="响应压缩" description="自动压缩文本、脚本和样式文件" styles={styles} hideHeader={hideHeader}
     normalize={(data: any) => ({enabled: true, min_length: 1024, ...data, algorithms: Array.isArray(data.algorithms) && data.algorithms.length ? data.algorithms : ["zstd", "gzip"]})}>
     <SettingSwitch
         name="enabled"
@@ -3494,8 +3479,8 @@ const HeaderPane = ({site, styles, hideHeader = false}: any) => {
     }, []);
     return <ConfigForm
         site={site}
-        request={getSiteHeader}
-        update={updateSiteHeader}
+        request={siteHeaders}
+        update={siteHeaders}
         title="请求与响应头"
         description="按规则追加、覆盖或删除请求头和响应头"
         styles={styles}
@@ -3746,7 +3731,7 @@ const RedirectPane = ({site, styles}: any) => {
     useEffect(() => {
         let active = true;
         setDomainOptions([]);
-        void getSiteDomain({body: {id: site.id}}).then((response) => {
+        void siteDomain({body: {action: "get", id: site.id}}).then((response) => {
             if (!active) return;
             if (response?.code === 200) {
                 setDomainOptions((Array.isArray(response.data) ? response.data : []).map((item: any) => ({
@@ -3764,8 +3749,8 @@ const RedirectPane = ({site, styles}: any) => {
 
     return <ConfigForm
         site={site}
-        request={getSiteRedirect}
-        update={updateSiteRedirect}
+        request={siteRedirects}
+        update={siteRedirects}
         title="重定向"
         description="将访客从旧域名或旧页面，自动引导到新的地址"
         styles={styles}
@@ -4015,8 +4000,8 @@ const RoutePane = ({site, styles, hideHeader = false}: any) => {
     }), []);
     return <ConfigForm
         site={site}
-        request={getSiteRoute}
-        update={updateSiteRoute}
+        request={siteRoutes}
+        update={siteRoutes}
         title="自定义路由"
         description="让不同访问路径转发到服务、读取文件或返回指定内容"
         styles={styles}

@@ -30,10 +30,6 @@ func SSL(c *context.Context) {
 			c.SuccessWithData("获取成功", data)
 		}
 	} else {
-		if form.Config == nil && len(form.Bindings) == 0 {
-			c.Error("更新内容不能为空")
-			return
-		}
 		err := service.Site.UpdateSSL(form.Id, form.Config, form.Bindings)
 		if err != nil {
 			c.Error(err.Error())
