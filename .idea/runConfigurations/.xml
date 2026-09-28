@@ -2,6 +2,7 @@
   <configuration default="false" name="面板服务" type="GoApplicationRunConfiguration" factoryName="Go Application">
     <module name="sinking-panel" />
     <working_directory value="$PROJECT_DIR$/server" />
+    <parameters value="run" />
     <kind value="PACKAGE" />
     <package value="server" />
     <directory value="$PROJECT_DIR$" />

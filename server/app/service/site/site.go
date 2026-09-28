@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -27,6 +26,9 @@ import (
 	"server/app/util/database"
 	"server/app/util/page"
 	processManager "server/app/util/process"
+
+	caddyRuntime "github.com/caddyserver/caddy/v2"
+	"go.uber.org/zap"
 )
 
 // Service 网站管理服务接口。
@@ -178,7 +180,7 @@ func NewService(repositorySite repositorySite.Interface, repositorySiteDomain re
 	if len(options) == 0 {
 		stored, exists, loadErr := result.loadHTTP()
 		if loadErr != nil {
-			log.Printf("网站 HTTP 配置损坏，已使用默认配置启动: %v", loadErr)
+			caddyRuntime.Log().Warn("网站 HTTP 配置损坏，已使用默认配置启动", zap.Error(loadErr))
 		} else if exists {
 			config.HTTP = stored
 		}
@@ -187,7 +189,7 @@ func NewService(repositorySite repositorySite.Interface, repositorySiteDomain re
 	if raw, exists := storedConfigs[constant.SiteHTTPEnabled]; exists {
 		enabled, parseErr := strconv.ParseBool(strings.TrimSpace(raw))
 		if parseErr != nil {
-			log.Printf("网站 HTTP 服务状态配置损坏，已按启用状态处理: %v", parseErr)
+			caddyRuntime.Log().Warn("网站 HTTP 服务状态配置损坏，已按启用状态处理", zap.Error(parseErr))
 		} else {
 			result.active = enabled
 		}
@@ -207,7 +209,7 @@ func NewService(repositorySite repositorySite.Interface, repositorySiteDomain re
 	}
 	httpManager, err := caddy.NewManager(root, effectiveHTTP)
 	if err != nil {
-		log.Printf("网站 HTTP 配置无法加载，已使用默认配置启动: %v", err)
+		caddyRuntime.Log().Warn("网站 HTTP 配置无法加载，已使用默认配置启动", zap.Error(err))
 		fallbackHTTP := defaultHTTP
 		fallbackHTTP.ConfigPath = ""
 		httpManager, err = caddy.NewManager(root, fallbackHTTP)

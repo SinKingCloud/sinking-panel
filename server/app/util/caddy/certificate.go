@@ -160,9 +160,11 @@ func (m *Manager) obtainCertificate(ctx context.Context, request CertificateRequ
 			return nil, err
 		}
 		var provider certmagic.DNSProvider
-		manager := certmagic.DNSManager{
-			Logger:             logger,
-			PropagationTimeout: certificateValidationTimeout,
+		solver := &certmagic.DNS01Solver{
+			DNSManager: certmagic.DNSManager{
+				Logger:             logger,
+				PropagationTimeout: certificateValidationTimeout,
+			},
 		}
 		switch providerName {
 		case DNSProviderAliDNS:
@@ -183,16 +185,16 @@ func (m *Manager) obtainCertificate(ctx context.Context, request CertificateRequ
 				AccessKeySecret: credentials.VolcengineAccessKeySecret,
 			}}
 			// 保留原有记录 TTL，传播等待与其他服务商保持一致。
-			manager.TTL = 600 * time.Second
+			solver.TTL = 600 * time.Second
 		case DNSProviderBaiduCloud:
 			provider = &baiduDNS.Provider{
 				AccessKeyID:     credentials.BaiduAccessKeyID,
 				SecretAccessKey: credentials.BaiduSecretAccessKey,
 			}
 		}
-		manager.DNSProvider = provider
+		solver.DNSProvider = provider
 		issuerOptions.DisableHTTPChallenge = true
-		issuerOptions.DNS01Solver = &certmagic.DNS01Solver{DNSManager: manager}
+		issuerOptions.DNS01Solver = solver
 	}
 	issuer := certmagic.NewACMEIssuer(magic, issuerOptions)
 	magic.Issuers = []certmagic.Issuer{issuer}

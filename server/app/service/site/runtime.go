@@ -3,7 +3,6 @@ package site
 import (
 	"errors"
 	"fmt"
-	"log"
 	"path/filepath"
 	"server/app/constant"
 	"server/app/enum/site_status"
@@ -15,6 +14,8 @@ import (
 	"strconv"
 	"strings"
 
+	caddyRuntime "github.com/caddyserver/caddy/v2"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
@@ -27,7 +28,7 @@ func (s *service) Boot() func() {
 	}
 	s.operationMu.Unlock()
 	if err != nil {
-		log.Printf("启动网站服务失败: %v", err)
+		caddyRuntime.Log().Error("启动网站服务失败", zap.Error(err))
 	}
 	return func() {
 		s.operationMu.Lock()
@@ -35,7 +36,7 @@ func (s *service) Boot() func() {
 		s.processes = nil
 		s.operationMu.Unlock()
 		if err != nil {
-			log.Printf("停止网站服务失败: %v", err)
+			caddyRuntime.Log().Error("停止网站服务失败", zap.Error(err))
 		}
 	}
 }

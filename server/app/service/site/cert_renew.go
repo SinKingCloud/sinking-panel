@@ -4,13 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"server/app/constant"
 	"server/app/enum/cert_auto_renew"
 	"server/app/enum/cert_type"
 	"server/app/util/caddy"
 	"strings"
 	"time"
+
+	caddyRuntime "github.com/caddyserver/caddy/v2"
+	"go.uber.org/zap"
 )
 
 // autoRenewCerts 每日检查临近到期的证书，每张仅续签一次，失败留待次日检查。
@@ -20,7 +22,7 @@ func (s *service) autoRenewCerts(ctx context.Context) {
 	}
 	writeLog := func(format string, args ...interface{}) {
 		if err := s.taskService.WriteLog(constant.TaskCertAutoRenew, fmt.Sprintf(format, args...)); err != nil {
-			log.Printf("写入证书续签日志失败: %v", err)
+			caddyRuntime.Log().Error("写入证书续签日志失败", zap.Error(err))
 		}
 	}
 

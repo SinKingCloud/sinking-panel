@@ -61,7 +61,7 @@ Sinking Panel 是一个面向个人服务器运维场景的轻量级 Web 管理�
 
 | 模块 | 技术 |
 | --- | --- |
-| 后端 | Go 1.25、SQLite、WebSocket、Cron、gopsutil |
+| 后端 | Go 1.27、SQLite、WebSocket、Cron、gopsutil |
 | 前端 | Umi 4、React、Ant Design、sinking-antd |
 | 终端 | xterm.js、SSH |
 | 编辑器 | Ace Editor |
@@ -181,7 +181,7 @@ CGO_ENABLED=1 go build -tags seccomp -o server .
 ./server run
 ```
 
-后端默认运行在 `http://127.0.0.1:5678`。项目要求 Go 1.25.1；在 Linux 上直接编译完整后端时还需要可用的 C 编译环境和 libseccomp 开发文件，或直接使用下方 Docker 构建方式。使用固定位置的可执行文件运行，避免 `go run` 将容器数据放入临时编译目录。
+后端默认运行在 `http://127.0.0.1:5678`。项目要求 Go 1.27.0 或更高版本；在 Linux 上直接编译完整后端时还需要可用的 C 编译环境和 libseccomp 开发文件，或直接使用下方 Docker 构建方式。使用固定位置的可执行文件运行，避免 `go run` 将容器数据放入临时编译目录。
 
 服务启动时会初始化 `global.App.Container`，正常退出时停止容器。Linux 运行时要求 root 和支持 `openat2` 的内核。首次启动会复用 root 已有的 `/etc/subuid`、`/etc/subgid` 映射，缺少时自动分配至少 65536 个连续的空闲 ID 并写入，不需要手动配置或安装额外命令；后续启动复用 `data/containers/security.json` 中保存的映射。容器目录及祖先目录需要符合运行库的 root 所有权与权限要求。安装和修改账号密码命令不会初始化容器管理器。
 
