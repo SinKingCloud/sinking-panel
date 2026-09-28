@@ -18,9 +18,8 @@ func LoadContainer() error {
 	if global.App.Container != nil {
 		return nil
 	}
-	// 普通用户仍可运行面板，只有 Linux 容器运行时需要 root。
-	if platform.IsLinux() && os.Geteuid() != 0 {
-		log.Println("当前用户非 root，跳过轻量容器初始化")
+	// 不满足容器系统或运行身份要求时，仍可使用面板的其他功能。
+	if !platform.CanRunContainer() {
 		return nil
 	}
 	executable, err := os.Executable()
