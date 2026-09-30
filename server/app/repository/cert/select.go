@@ -19,11 +19,22 @@ func (r *Repository) SelectByIds(ids []int64, tx ...*gorm.DB) ([]*model.Cert, er
 	if len(ids) == 0 {
 		return list, nil
 	}
-	db := r.Database.Db
-	if len(tx) > 0 && tx[0] != nil {
-		db = tx[0]
+	execute := func(db *gorm.DB) error {
+		return r.Database.BatchExecute(ids, 1000, func(batch interface{}) error {
+			var data []*model.Cert
+			if err := db.Where("id IN ?", batch.([]int64)).Order("id ASC").Find(&data).Error; err != nil {
+				return err
+			}
+			list = append(list, data...)
+			return nil
+		})
 	}
-	err := db.Where("id IN ?", ids).Order("id ASC").Find(&list).Error
+	var err error
+	if len(tx) > 0 && tx[0] != nil {
+		err = execute(tx[0])
+	} else {
+		err = r.Database.Transaction(execute)
+	}
 	return list, err
 }
 

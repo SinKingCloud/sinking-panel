@@ -14,6 +14,7 @@ type Interface interface {
 	Create(data *model.Server) error
 	DeleteByIds(ids []int64, tx ...*gorm.DB) error
 	FindById(id int64) (*model.Server, error)
+	SelectIdDataMapByIds(ids []int64) (map[int64]*model.Server, error)
 	Select(where *SelectServer, queryPage *page.Query) (*page.Result[*Server], error)
 	UpdateByIds(ids []int64, data *UpdateServer) error
 }

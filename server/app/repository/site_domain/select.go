@@ -17,11 +17,22 @@ func (r *Repository) SelectBySiteIds(siteIds []int64, tx ...*gorm.DB) ([]*model.
 	if len(siteIds) == 0 {
 		return list, nil
 	}
-	db := r.Database.Db
-	if len(tx) > 0 && tx[0] != nil {
-		db = tx[0]
+	execute := func(db *gorm.DB) error {
+		return r.Database.BatchExecute(siteIds, 1000, func(batch interface{}) error {
+			var data []*model.SiteDomain
+			if err := db.Where("site_id IN ?", batch.([]int64)).Order("site_id ASC, id ASC").Find(&data).Error; err != nil {
+				return err
+			}
+			list = append(list, data...)
+			return nil
+		})
 	}
-	err := db.Where("site_id IN ?", siteIds).Order("site_id ASC, id ASC").Find(&list).Error
+	var err error
+	if len(tx) > 0 && tx[0] != nil {
+		err = execute(tx[0])
+	} else {
+		err = r.Database.Transaction(execute)
+	}
 	return list, err
 }
 

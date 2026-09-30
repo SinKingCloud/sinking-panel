@@ -5,6 +5,7 @@ import (
 	repositoryServer "server/app/repository/server"
 	serviceConfig "server/app/service/config"
 	"server/app/util/page"
+	"sync"
 )
 
 // Service service接口
@@ -20,6 +21,7 @@ type Service interface {
 type service struct {
 	repositoryServer repositoryServer.Interface
 	configService    serviceConfig.Service
+	mu               sync.RWMutex // 配置和凭据的查询、组装、更新共用锁。
 }
 
 // NewService 实例化service

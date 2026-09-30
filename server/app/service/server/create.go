@@ -16,5 +16,6 @@ func (s *service) Create(data *model.Server) error {
 		return errors.New("服务器验证类型不合法")
 	}
 	data.Id = str.GetSnowWorkIns().GetId()
+	data.Password = s.encrypt(data.Ip, data.Password)
 	return s.repositoryServer.Create(data)
 }

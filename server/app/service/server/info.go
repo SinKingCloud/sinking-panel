@@ -10,11 +10,15 @@ import (
 	"server/app/model"
 )
 
-// FindById 查询信息
+// FindById 查询信息并解密凭据。
 func (s *service) FindById(id int64) (*model.Server, error) {
 	if id < 0 {
 		return nil, errors.New("服务器ID不合法")
 	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var data *model.Server
+	var err error
 	if id == 0 {
 		configs := s.configService.Group(constant.SshGroup)
 		ip := strings.TrimSpace(configs[constant.SshIP])
@@ -33,7 +37,7 @@ func (s *service) FindById(id int64) (*model.Server, error) {
 		if name == "" {
 			name = "本机终端"
 		}
-		return &model.Server{
+		data = &model.Server{
 			Id:       0,
 			Ip:       ip,
 			Port:     port,
@@ -41,7 +45,13 @@ func (s *service) FindById(id int64) (*model.Server, error) {
 			AuthType: authType,
 			Password: configs[constant.SshPassword],
 			Name:     name,
-		}, nil
+		}
+	} else {
+		data, err = s.repositoryServer.FindById(id)
+		if err != nil {
+			return nil, err
+		}
 	}
-	return s.repositoryServer.FindById(id)
+	data.Password = s.decrypt(data.Ip, data.Password)
+	return data, nil
 }
