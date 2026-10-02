@@ -47,7 +47,7 @@ func (r *Repository) Select(where *SelectSite, queryPage *page.Query) (*page.Res
 	if where != nil {
 		if where.Keyword != nil {
 			keyword := "%" + *where.Keyword + "%"
-			query = query.Where("name LIKE ? OR root LIKE ?", keyword, keyword)
+			query = query.Where("name LIKE ? OR root LIKE ? OR run_path LIKE ?", keyword, keyword, keyword)
 		}
 		if where.Name != nil {
 			query = query.Where("name LIKE ?", "%"+*where.Name+"%")
