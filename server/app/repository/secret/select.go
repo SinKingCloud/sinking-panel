@@ -9,11 +9,11 @@ import (
 func (r *Repository) Select(where *SelectSecret, queryPage *page.Query) (*page.Result[*Secret], error) {
 	query := r.Database.Db.Model(&model.Secret{})
 	if where != nil {
-		if where.Keyword != nil {
-			query = query.Where("name LIKE ?", "%"+*where.Keyword+"%")
-		}
 		if where.Provider != nil {
 			query = query.Where("provider = ?", *where.Provider)
+		}
+		if where.Keyword != nil {
+			query = query.Where("name LIKE ?", "%"+*where.Keyword+"%")
 		}
 	}
 	return r.Repository.SelectPage(query, queryPage)
@@ -23,11 +23,11 @@ func (r *Repository) Select(where *SelectSecret, queryPage *page.Query) (*page.R
 func (r *Repository) SelectIdNameMap(where *SelectSecret) (map[int64]string, error) {
 	query := r.Database.Db.Model(&model.Secret{})
 	if where != nil {
-		if where.Keyword != nil {
-			query = query.Where("name LIKE ?", "%"+*where.Keyword+"%")
-		}
 		if where.Provider != nil {
 			query = query.Where("provider = ?", *where.Provider)
+		}
+		if where.Keyword != nil {
+			query = query.Where("name LIKE ?", "%"+*where.Keyword+"%")
 		}
 	}
 	var data []struct {

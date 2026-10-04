@@ -131,7 +131,7 @@ func (d *Database) SyncSqlite(schemaSql string) error {
 	}
 	var expected []*schemaObject
 	if err = expectedDb.Db.Raw(`SELECT type, name, sql FROM sqlite_master
-		WHERE type IN ('table', 'index') AND name NOT LIKE 'sqlite_%' AND sql IS NOT NULL
+		WHERE type IN ('table', 'index') AND sql IS NOT NULL AND name NOT LIKE 'sqlite_%'
 		ORDER BY rowid`).Scan(&expected).Error; err != nil {
 		return err
 	}
@@ -165,7 +165,7 @@ func (d *Database) SyncSqlite(schemaSql string) error {
 		err = db.Transaction(func(tx *gorm.DB) error {
 			var actual []*schemaObject
 			if queryErr := tx.Raw(`SELECT type, name, sql FROM sqlite_master
-				WHERE type IN ('table', 'index') AND name NOT LIKE 'sqlite_%' AND sql IS NOT NULL
+				WHERE type IN ('table', 'index') AND sql IS NOT NULL AND name NOT LIKE 'sqlite_%'
 				ORDER BY rowid`).Scan(&actual).Error; queryErr != nil {
 				return queryErr
 			}
@@ -250,7 +250,7 @@ func (d *Database) SyncSqlite(schemaSql string) error {
 			}
 			actual = nil
 			if queryErr := tx.Raw(`SELECT type, name, sql FROM sqlite_master
-				WHERE type IN ('table', 'index') AND name NOT LIKE 'sqlite_%' AND sql IS NOT NULL
+				WHERE type IN ('table', 'index') AND sql IS NOT NULL AND name NOT LIKE 'sqlite_%'
 				ORDER BY rowid`).Scan(&actual).Error; queryErr != nil {
 				return queryErr
 			}

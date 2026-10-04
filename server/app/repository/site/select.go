@@ -45,16 +45,6 @@ func (r *Repository) SelectAll(tx ...*gorm.DB) ([]*model.Site, error) {
 func (r *Repository) Select(where *SelectSite, queryPage *page.Query) (*page.Result[*Site], error) {
 	query := r.Database.Db.Model(&model.Site{})
 	if where != nil {
-		if where.Keyword != nil {
-			keyword := "%" + *where.Keyword + "%"
-			query = query.Where("name LIKE ? OR root LIKE ? OR run_path LIKE ?", keyword, keyword, keyword)
-		}
-		if where.Name != nil {
-			query = query.Where("name LIKE ?", "%"+*where.Name+"%")
-		}
-		if where.Root != nil {
-			query = query.Where("root LIKE ?", "%"+*where.Root+"%")
-		}
 		if where.TypeId != nil {
 			query = query.Where("type_id = ?", *where.TypeId)
 		}
@@ -75,6 +65,16 @@ func (r *Repository) Select(where *SelectSite, queryPage *page.Query) (*page.Res
 		}
 		if where.UpdateTimeEnd != nil {
 			query = query.Where("update_time <= ?", *where.UpdateTimeEnd)
+		}
+		if where.Keyword != nil {
+			keyword := "%" + *where.Keyword + "%"
+			query = query.Where("name LIKE ? OR root LIKE ? OR run_path LIKE ?", keyword, keyword, keyword)
+		}
+		if where.Name != nil {
+			query = query.Where("name LIKE ?", "%"+*where.Name+"%")
+		}
+		if where.Root != nil {
+			query = query.Where("root LIKE ?", "%"+*where.Root+"%")
 		}
 	}
 	return r.Repository.SelectPage(query, queryPage)
