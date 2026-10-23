@@ -3,6 +3,7 @@ package service
 import (
 	repositoryCert "server/app/repository/cert"
 	repositoryConfig "server/app/repository/config"
+	repositoryDatabase "server/app/repository/database"
 	repositoryLog "server/app/repository/log"
 	repositoryScript "server/app/repository/script"
 	repositorySecret "server/app/repository/secret"
@@ -14,6 +15,7 @@ import (
 	serviceAuth "server/app/service/auth"
 	serviceConfig "server/app/service/config"
 	serviceContainer "server/app/service/container"
+	serviceDatabase "server/app/service/database"
 	serviceFile "server/app/service/file"
 	serviceLog "server/app/service/log"
 	serviceRecycle "server/app/service/recycle"
@@ -44,6 +46,7 @@ var (
 	Site      serviceSite.Service
 	Container serviceContainer.Service
 	Software  serviceSoftware.Service
+	Database  serviceDatabase.Service
 )
 
 // Init 初始化service
@@ -58,18 +61,20 @@ func Init() {
 	siteDomainRepository := repositorySiteDomain.NewRepository(global.App.Database)
 	certRepository := repositoryCert.NewRepository(global.App.Database)
 	secretRepository := repositorySecret.NewRepository(global.App.Database)
+	databaseRepository := repositoryDatabase.NewRepository(global.App.Database)
 
 	Config = serviceConfig.NewService(configRepository, global.App.Cache)
 	Auth = serviceAuth.NewService(Config, global.App.Cache)
 	Server = serviceServer.NewService(serverRepository, Config)
 	Secret = serviceSecret.NewService(secretRepository, certRepository, global.App.Database, global.App.Cache)
-	Type = serviceTypes.NewService(typesRepository, scriptRepository, siteRepository, taskRepository, global.App.Database, global.App.Cache)
+	Type = serviceTypes.NewService(typesRepository, scriptRepository, siteRepository, taskRepository, databaseRepository, global.App.Database, global.App.Cache)
 	Script = serviceScript.NewService(scriptRepository, Type)
 	Log = serviceLog.NewService(logRepository)
 	Task = serviceTask.NewService(taskRepository, Type)
 	File = serviceFile.NewService(global.App.Cache)
 	Recycle = serviceRecycle.NewService()
 	System = serviceSystem.NewService(File, global.App.Daemon)
+	Database = serviceDatabase.NewService(databaseRepository, Type, System)
 	Container = serviceContainer.NewManager(global.App.Container, global.App.Cache)
 	Software = serviceSoftware.NewService(Container)
 	Site, _ = serviceSite.NewService(siteRepository, siteDomainRepository, certRepository, secretRepository, Type, Config, Task, Recycle, global.App.Database, global.App.Cache)

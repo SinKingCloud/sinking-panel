@@ -29,6 +29,7 @@ func (s *service) UpdateByIds(ids []int64, data *repositoryTypes.UpdateType) err
 		scriptTypeIds := make([]int64, 0)
 		siteTypeIds := make([]int64, 0)
 		taskTypeIds := make([]int64, 0)
+		databaseTypeIds := make([]int64, 0)
 		for _, item := range types {
 			modules = append(modules, item.Module)
 			if item.Module == type_module.Script {
@@ -39,6 +40,9 @@ func (s *service) UpdateByIds(ids []int64, data *repositoryTypes.UpdateType) err
 			}
 			if item.Module == type_module.Task {
 				taskTypeIds = append(taskTypeIds, item.Id)
+			}
+			if item.Module == type_module.Database {
+				databaseTypeIds = append(databaseTypeIds, item.Id)
 			}
 		}
 		if module != "" && module != type_module.Script {
@@ -53,6 +57,11 @@ func (s *service) UpdateByIds(ids []int64, data *repositoryTypes.UpdateType) err
 		}
 		if module != "" && module != type_module.Task {
 			if err := s.repositoryTask.ClearTypeId(taskTypeIds, tx); err != nil {
+				return err
+			}
+		}
+		if module != "" && module != type_module.Database {
+			if err := s.repositoryDatabase.ClearTypeId(databaseTypeIds, tx); err != nil {
 				return err
 			}
 		}

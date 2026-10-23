@@ -27,7 +27,7 @@ type Service interface {
 	GetTask(id string) *Task
 	TaskList(status *int) ([]*Task, error)
 	TaskCreate(id, name string, data interface{}, run func(context.Context, interface{}, func(int, float64, string)))
-	TaskUpdate(id string, status int, progress float64, message string)
+	TaskUpdate(id string, status int, progress float64, message string, result ...interface{})
 	TaskCancel(id string) bool
 	TaskDelete(id string) bool
 	TaskLog(id string, after int64, before int64, pageSize int) (map[string]interface{}, error)

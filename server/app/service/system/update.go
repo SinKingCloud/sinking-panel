@@ -7,7 +7,7 @@ import (
 )
 
 // TaskUpdate 更新任务
-func (s *service) TaskUpdate(id string, status int, progress float64, message string) {
+func (s *service) TaskUpdate(id string, status int, progress float64, message string, result ...interface{}) {
 	if _, ok := system_task_status.Map()[status]; !ok {
 		return
 	}
@@ -20,6 +20,10 @@ func (s *service) TaskUpdate(id string, status int, progress float64, message st
 	}
 	terminal := task.Status == system_task_status.Completed || task.Status == system_task_status.Failed || task.Status == system_task_status.Canceled
 	if terminal && task.Status != status {
+		// 取消和执行结束可能同时发生；保持取消状态，也保留 worker 的最终统计。
+		if task.Status == system_task_status.Canceled && len(result) > 0 {
+			task.Result = result[0]
+		}
 		s.mu.Unlock()
 		return
 	}
@@ -44,6 +48,9 @@ func (s *service) TaskUpdate(id string, status int, progress float64, message st
 
 	if finalStatus {
 		task.EndTime = task.UpdateTime
+		if len(result) > 0 {
+			task.Result = result[0]
+		}
 	}
 	if shouldLog {
 		task.lastLogAt = now

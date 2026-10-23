@@ -5,6 +5,7 @@ import (
 	"server/app/enum/cert_type"
 	"server/app/enum/container_image"
 	"server/app/enum/container_status"
+	"server/app/enum/database_type"
 	"server/app/enum/file_format"
 	"server/app/enum/log_type"
 	"server/app/enum/script_type"
@@ -23,6 +24,9 @@ import (
 
 // Data 枚举信息
 var Data = map[string]interface{}{
+	"database": map[string]interface{}{
+		"type": database_type.Map(), //数据库类型
+	},
 	"container": func() interface{} {
 		return map[string]interface{}{
 			"status": container_status.Map(), //容器运行状态

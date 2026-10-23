@@ -262,3 +262,28 @@ create index if not exists cloud_site_domains_certId_index
 
 create index if not exists cloud_site_domains_updateTime_index
     on cloud_site_domains (update_time);
+
+create table if not exists cloud_databases
+(
+    id          bigint            not null
+        constraint cloud_databases_pk_id
+            primary key,
+    type_id     bigint  default 0 not null,
+    name        varchar(100)      not null,
+    type        integer           not null,
+    config      text              not null,
+    update_time text              not null,
+    create_time text              not null
+);
+
+create index if not exists cloud_databases_type_index
+    on cloud_databases (type);
+
+create index if not exists cloud_databases_typeId_index
+    on cloud_databases (type_id);
+
+create index if not exists cloud_databases_createTime_index
+    on cloud_databases (create_time);
+
+create index if not exists cloud_databases_updateTime_index
+    on cloud_databases (update_time);

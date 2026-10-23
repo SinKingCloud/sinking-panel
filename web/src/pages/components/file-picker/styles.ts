@@ -26,6 +26,10 @@ const useStyles = createStyles<{compact: boolean}>(({css, token}, props) => ({
         .ant-input {
             min-width: 0;
         }
+
+        .ant-btn-color-default:not(:disabled) .ant-btn-icon {
+            color: ${token.colorTextSecondary};
+        }
     `,
     browser: css`
         min-width: 0;

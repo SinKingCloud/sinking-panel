@@ -1,6 +1,7 @@
 import React, {forwardRef, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from "react";
 import {App, Button, ConfigProvider, Form, Grid, Input, Space, Tooltip} from "antd";
 import type {InputRef, TableRef} from "antd";
+import useVariant from "antd/es/form/hooks/useVariants";
 import {Icon, ProModal, Title, useTheme} from "sinking-antd";
 import {getFileDisks, getFileInfo, getFileList} from "@/service/api/file";
 import {
@@ -31,6 +32,8 @@ const FilePicker = forwardRef<InputRef, any>(({
     const compact = Boolean(theme?.isCompactTheme?.());
     const screens = Grid.useBreakpoint();
     const {styles} = useStyles({compact});
+    // 与 Input 一样继承 Form 和 ConfigProvider 的外观，按钮可通过 buttonProps 单独覆盖。
+    const [variant] = useVariant("input", inputProps.variant, inputProps.bordered);
     const requestRef = useRef(0);
     const selectionRequestRef = useRef(0);
     const pathRef = useRef<HTMLOListElement>(null);
@@ -325,6 +328,8 @@ const FilePicker = forwardRef<InputRef, any>(({
                     onChange={(event) => onChange?.(event.target.value)}/>
                 <Tooltip title={title}>
                     <Button
+                        color={buttonProps?.type || buttonProps?.danger ? undefined : "default"}
+                        variant={buttonProps?.type || buttonProps?.danger ? undefined : variant === "filled" ? "filled" : variant === "outlined" ? "outlined" : "text"}
                         {...buttonProps}
                         size={size}
                         disabled={disabled}
