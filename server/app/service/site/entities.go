@@ -420,3 +420,13 @@ type HTTPUpdate struct {
 	HTTPChallengePort    *int            `json:"http_challenge_port"`    // ACME HTTP-01 验证端口
 	ACMEEmail            *string         `json:"acme_email"`             // ACME 账户默认邮箱
 }
+
+type siteMutation struct {
+	Name    *string
+	TypeId  *int64
+	Status  *int
+	Root    *string
+	RunPath *string
+	Config  *string
+	Domains *[]SiteDomain
+}

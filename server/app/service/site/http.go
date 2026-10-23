@@ -56,6 +56,9 @@ func (s *service) updateHTTPLocked(config *HTTPUpdate) error {
 			if findErr != nil {
 				return fmt.Errorf("默认站点不存在: %w", findErr)
 			}
+			if record == nil {
+				return errors.New("默认站点不存在")
+			}
 			if record.Status != site_status.Enabled {
 				return errors.New("默认站点必须处于启用状态")
 			}
@@ -220,7 +223,7 @@ func (s *service) updateHTTPLocked(config *HTTPUpdate) error {
 		optionsErr := s.http.UpdateOptions(previous)
 		var syncErr error
 		if optionsErr == nil {
-			syncErr = s.syncLocked()
+			syncErr = s.syncLocked(false)
 		}
 		if optionsErr == nil && syncErr == nil {
 			return fmt.Errorf("%w，运行参数已恢复", cause)
@@ -233,7 +236,7 @@ func (s *service) updateHTTPLocked(config *HTTPUpdate) error {
 		}
 		return errors.Join(cause, optionsErr, syncErr)
 	}
-	if err = s.syncLocked(); err != nil {
+	if err = s.syncLocked(false); err != nil {
 		return rollback(fmt.Errorf("同步网站运行时失败: %w", err))
 	}
 	err = s.configService.Sets(configs)

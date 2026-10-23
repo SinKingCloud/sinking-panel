@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	standardRuntime "runtime"
 	fileLog "server/app/util/log"
+	"server/app/util/platform"
 	"strings"
 	"sync"
 	"time"
@@ -211,7 +212,9 @@ func (m *Manager) startPlatformRuntime(instance *Info, image *Image, options Run
 		config.Mounts[len(config.Mounts)-len(stagedSources)+index].Source = source
 	}
 	config.Rootfs = containerRootfs
-	for _, mount := range config.Mounts[:len(config.Mounts)-len(options.Mounts)] {
+	automaticMountCount := len(config.Mounts) - len(options.Mounts)
+	var namedTimezoneMounts []*configs.Mount
+	for _, mount := range config.Mounts[:automaticMountCount] {
 		if mount.Destination != containerTimezonePath {
 			continue
 		}
@@ -248,12 +251,29 @@ func (m *Manager) startPlatformRuntime(instance *Info, image *Image, options Run
 			return fmt.Errorf("准备容器时区数据失败: %w", err)
 		}
 		mount.Source = file.Name()
-		destination, err := m.prepareTimezoneMount(containerRootfs)
+		destination, err := m.prepareTimezoneMount(containerRootfs, containerTimezonePath)
 		if err != nil {
 			return err
 		}
 		mount.Destination = destination
 		config.Labels = append(config.Labels, timezoneMountLabel+destination)
+		// SQL Server PAL 和 JVM 需要时区名称；libc 同时需要对应的 TZif 文件。
+		// 使用同一份宿主数据，兼容镜像没有 tzdata 或镜像内规则版本不同的情况。
+		if name := m.hostTimezoneName(timezone); name != "" {
+			destination, err := m.prepareTimezoneMount(containerRootfs, "/usr/share/zoneinfo/"+name)
+			if err != nil {
+				return err
+			}
+			namedTimezoneMounts = append(namedTimezoneMounts, &configs.Mount{
+				Source: file.Name(), Destination: destination, Device: "bind", Flags: mount.Flags,
+			})
+			config.Labels = append(config.Labels, timezoneNameLabel+name, timezoneMountLabel+destination)
+		}
+	}
+	// 自动挂载放在用户挂载前，保留用户自定义 zoneinfo 挂载的覆盖顺序。
+	if len(namedTimezoneMounts) > 0 {
+		mounts := append(config.Mounts[:automaticMountCount:automaticMountCount], namedTimezoneMounts...)
+		config.Mounts = append(mounts, config.Mounts[automaticMountCount:]...)
 	}
 	container, err := libcontainer.Create(m.runtimeRoot, instance.ID, config)
 	if err != nil {
@@ -265,6 +285,9 @@ func (m *Manager) startPlatformRuntime(instance *Info, image *Image, options Run
 		return errors.Join(failure, m.abortPlatformStart(instance, container, nil, nil, failure))
 	}
 	args := append([]string(nil), image.Entrypoint...)
+	if len(options.Entrypoint) > 0 {
+		args = append([]string(nil), options.Entrypoint...)
+	}
 	command := options.Command
 	if len(command) == 0 {
 		command = image.Command
@@ -1016,10 +1039,6 @@ func (m *Manager) execPlatformCommand(id string, options ExecOptions) (*ExecResu
 		return nil, fmt.Errorf("执行容器命令失败: %w", err)
 	}
 	closeWriters()
-	type waitResult struct {
-		state *os.ProcessState
-		err   error
-	}
 	wait := make(chan waitResult, 1)
 	if !m.runBackground(func(ctx context.Context) {
 		state, err := m.waitPlatformProcess(ctx, process, m.managerOptions().StopGracePeriod)
@@ -1293,10 +1312,6 @@ func (m *Manager) killPlatformProcesses(container *libcontainer.Container) error
 			return fmt.Errorf("拒绝清理不安全的容器进程 PID: %d", pid)
 		}
 	}
-	type process struct {
-		pid int
-		fd  int
-	}
 	processes := make([]process, 0, len(pids))
 	defer func() {
 		for _, item := range processes {
@@ -1418,8 +1433,8 @@ func (m *Manager) waitContainerStopped(container *libcontainer.Container, timeou
 	}
 }
 
-// prepareTimezoneMount 只准备实例内的标准时区文件，不沿叶子链接覆盖镜像的 UTC 等时区数据。
-func (m *Manager) prepareTimezoneMount(rootfs string) (string, error) {
+// prepareTimezoneMount 只准备实例内的时区文件，不沿叶子链接覆盖镜像的其他时区数据。
+func (m *Manager) prepareTimezoneMount(rootfs, destination string) (string, error) {
 	// 调用线程已 LockOSThread + Unshare(CLONE_NEWNS)，后者隐含 CLONE_FS，
 	// 因而这里只调整线程自己的 umask，新建目录保持可遍历，现有目录权限不变。
 	umask := unix.Umask(0)
@@ -1429,7 +1444,7 @@ func (m *Manager) prepareTimezoneMount(rootfs string) (string, error) {
 		return "", err
 	}
 	defer root.Close()
-	dir, err := pathrs.MkdirAllHandle(root, "etc", 0755)
+	dir, err := pathrs.MkdirAllHandle(root, strings.TrimPrefix(filepath.Dir(destination), "/"), 0755)
 	if err != nil {
 		return "", fmt.Errorf("准备容器时区目录失败: %w", err)
 	}
@@ -1442,10 +1457,11 @@ func (m *Manager) prepareTimezoneMount(rootfs string) (string, error) {
 	if err := m.normalizePlatformPathOwnership(directory, rootfs); err != nil {
 		return "", err
 	}
+	name := filepath.Base(destination)
 	var stat unix.Stat_t
-	err = unix.Fstatat(int(dir.Fd()), "localtime", &stat, unix.AT_SYMLINK_NOFOLLOW)
+	err = unix.Fstatat(int(dir.Fd()), name, &stat, unix.AT_SYMLINK_NOFOLLOW)
 	if err == nil && stat.Mode&unix.S_IFMT == unix.S_IFLNK {
-		if err := unix.Unlinkat(int(dir.Fd()), "localtime", 0); err != nil {
+		if err := unix.Unlinkat(int(dir.Fd()), name, 0); err != nil {
 			return "", fmt.Errorf("替换容器时区链接失败: %w", err)
 		}
 		err = unix.ENOENT
@@ -1454,10 +1470,10 @@ func (m *Manager) prepareTimezoneMount(rootfs string) (string, error) {
 		return "", err
 	}
 	if err == nil && stat.Mode&unix.S_IFMT != unix.S_IFREG {
-		return "", errors.New("容器 /etc/localtime 不是普通文件或符号链接")
+		return "", fmt.Errorf("容器时区文件不是普通文件或符号链接: %s", destination)
 	}
 	if errors.Is(err, unix.ENOENT) {
-		fd, err := unix.Openat(int(dir.Fd()), "localtime", unix.O_CREAT|unix.O_EXCL|unix.O_WRONLY|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0644)
+		fd, err := unix.Openat(int(dir.Fd()), name, unix.O_CREAT|unix.O_EXCL|unix.O_WRONLY|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0644)
 		if err != nil {
 			return "", fmt.Errorf("创建容器时区挂载目标失败: %w", err)
 		}
@@ -1466,16 +1482,44 @@ func (m *Manager) prepareTimezoneMount(rootfs string) (string, error) {
 			return "", err
 		}
 	}
-	relative, err := filepath.Rel(rootfs, filepath.Join(directory, "localtime"))
+	relative, err := filepath.Rel(rootfs, filepath.Join(directory, name))
 	if err != nil {
 		return "", err
 	}
 	return "/" + filepath.ToSlash(relative), nil
 }
 
+// hostTimezoneName 仅采用与本次启动快照完全一致的系统名称，自定义 TZif 保留文件路径方式。
+func (m *Manager) hostTimezoneName(data []byte) string {
+	name, _, err := platform.TimezoneGet()
+	if err != nil {
+		return ""
+	}
+	for _, directory := range []string{"/usr/share/zoneinfo", "/etc/zoneinfo", "/usr/share/lib/zoneinfo", "/usr/lib/zoneinfo"} {
+		file := filepath.Join(directory, name)
+		if expected, err := os.ReadFile(file); err == nil && bytes.Equal(data, expected) {
+			// SQL Server 依赖别名链接解析映射；直接使用宿主解析后的名称。
+			root, rootErr := filepath.EvalSymlinks(directory)
+			resolved, resolveErr := filepath.EvalSymlinks(file)
+			if rootErr == nil && resolveErr == nil {
+				if canonical, err := filepath.Rel(root, resolved); err == nil && canonical != ".." && !strings.HasPrefix(canonical, "../") {
+					return filepath.ToSlash(canonical)
+				}
+			}
+			return name
+		}
+	}
+	return ""
+}
+
 // timezoneEnv 使用实际运行配置；标准文件也供清除 TZ 的进程直接读取。
 // 默认值覆盖镜像自带的 TZ，但仍允许实例和 Exec 显式覆盖（包括 TZ=）。
 func (m *Manager) timezoneEnv(config configs.Config) []string {
+	for _, label := range config.Labels {
+		if name, ok := strings.CutPrefix(label, timezoneNameLabel); ok && name != "" {
+			return []string{"TZ=" + name}
+		}
+	}
 	for _, label := range config.Labels {
 		if strings.HasPrefix(label, timezoneMountLabel) {
 			return []string{"TZ=:" + containerTimezonePath}

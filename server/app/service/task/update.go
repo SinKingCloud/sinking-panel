@@ -89,6 +89,9 @@ func (s *service) UpdateByIds(ids []int64, data *repositoryTask.UpdateTask) (err
 			if findErr != nil {
 				return findErr
 			}
+			if task == nil {
+				return errors.New("任务不存在")
+			}
 			execType := task.ExecType
 			content := task.Script
 			if data.ExecType != nil {

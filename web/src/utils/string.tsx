@@ -15,9 +15,9 @@ export function getRandStr(length = 16) {
 }
 
 /**
- * 格式化文件大小
+ * 格式化字节大小，默认使用 1024 进制。
  */
-export const formatSize = (size: any) => {
+export const formatSize = (size: any, base: 1000 | 1024 = 1024) => {
     const value = Number(size || 0);
     if (value <= 0) {
         return "0 B";
@@ -25,8 +25,8 @@ export const formatSize = (size: any) => {
     const units = ["B", "KB", "MB", "GB", "TB"];
     let nextValue = value;
     let index = 0;
-    while (nextValue >= 1024 && index < units.length - 1) {
-        nextValue = nextValue / 1024;
+    while (nextValue >= base && index < units.length - 1) {
+        nextValue = nextValue / base;
         index += 1;
     }
     return `${nextValue.toFixed(index === 0 ? 0 : 2)} ${units[index]}`;

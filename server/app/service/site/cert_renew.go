@@ -48,6 +48,11 @@ func (s *service) autoRenewCerts(ctx context.Context) {
 			writeLog("读取证书 #%d 失败：%v", item.Id, err)
 			continue
 		}
+		if certificate == nil {
+			failed++
+			writeLog("读取证书 #%d 失败：证书不存在", item.Id)
+			continue
+		}
 		// 自动任务执行前重新检查，避免覆盖期间已续签或已关闭自动续签的证书。
 		if certificate.Type != cert_type.Auto || certificate.AutoRenew != cert_auto_renew.Enabled || time.Time(certificate.ExpireTime).After(before) {
 			writeLog("证书 #%d 已不满足自动续签条件，本次跳过", certificate.Id)

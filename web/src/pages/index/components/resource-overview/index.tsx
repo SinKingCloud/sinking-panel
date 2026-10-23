@@ -22,7 +22,7 @@ const useStyles = createStyles(({css, token}: any) => ({
     `,
 }));
 
-const ResourceOverview = React.memo(({statis}: any) => {
+const ResourceOverview = React.memo(({statis, diskSizeBase = 1024}: any) => {
     const {styles} = useStyles();
     const {token} = antdTheme.useToken();
     const disks: any[] = statis?.disks || [];
@@ -116,6 +116,7 @@ const ResourceOverview = React.memo(({statis}: any) => {
                                 diskPercent={diskPercent}
                                 diskSummary={diskSummary}
                                 summaryDisks={summaryDisks}
+                                sizeBase={diskSizeBase}
                             />
                         )}
                     >
@@ -125,7 +126,7 @@ const ResourceOverview = React.memo(({statis}: any) => {
                                 icon="PieChartOutlined"
                                 title="磁盘使用率"
                                 value={formatPercent(diskPercent)}
-                                detail={`${formatSize(diskSummary.used)} / ${formatSize(diskSummary.total)}`}
+                                detail={`${formatSize(diskSummary.used, diskSizeBase)} / ${formatSize(diskSummary.total, diskSizeBase)}`}
                                 meta={`${summaryDisks.length} 个挂载点`}
                                 percent={percentValue(diskPercent)}
                                 detailTooltip={false}

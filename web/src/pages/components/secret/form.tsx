@@ -91,16 +91,8 @@ const SecretForm = forwardRef<SecretFormRef, SecretFormProps>(({zIndex, onSucces
         openRef.current = false;
         submittingRef.current = false;
         originalCredentialsRef.current = {};
-        form.resetFields();
-        setRecord(undefined);
-        setProviderNames({});
-        setFields([]);
-        setActive(false);
-        setLoading(false);
-        setLoadError("");
-        setSubmitting(false);
         modalRef.current?.hide();
-    }, [form]);
+    }, []);
 
     const open = useCallback((record?: any) => {
         const requestId = ++requestRef.current;
@@ -250,6 +242,17 @@ const SecretForm = forwardRef<SecretFormRef, SecretFormProps>(({zIndex, onSucces
             mask: {closable: true},
             style: {top: screens.md ? 100 : 24, paddingBottom: screens.md ? 100 : 24},
             focusable: {focusTriggerAfterClose: false},
+            afterClose: () => {
+                if (openRef.current) return;
+                form.resetFields();
+                setRecord(undefined);
+                setProviderNames({});
+                setFields([]);
+                setActive(false);
+                setLoading(false);
+                setLoadError("");
+                setSubmitting(false);
+            },
         } as any}>
         <Form form={form} layout="vertical" variant="filled" onFinish={submit}>
             {active && (loading ? <div className={styles.loading}><Spin/></div> : loadError ?

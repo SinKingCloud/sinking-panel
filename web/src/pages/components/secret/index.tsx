@@ -222,6 +222,7 @@ const SecretManager = forwardRef<SecretManagerRef, SecretManagerProps>(({zIndex 
             },
         } as any);
         confirmRef.current = confirmation;
+        void Promise.resolve(confirmation);
     }, [changed, message, modal, zIndex]);
 
     const columns = useMemo<any[]>(() => [

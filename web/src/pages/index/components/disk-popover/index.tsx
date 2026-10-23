@@ -240,6 +240,7 @@ const DiskPopover = React.memo(({
     diskPercent,
     diskSummary,
     summaryDisks,
+    sizeBase = 1024,
 }: any) => {
     const {styles} = useStyles();
     const {token} = antdTheme.useToken();
@@ -264,7 +265,7 @@ const DiskPopover = React.memo(({
                 <div className="disk-overview-head">
                     <div className="disk-overview-capacity">
                         <span>总容量</span>
-                        <strong>{formatSize(diskSummary.total)}</strong>
+                        <strong>{formatSize(diskSummary.total, sizeBase)}</strong>
                     </div>
                     <div className="disk-overview-value">
                         <span>整体使用率</span>
@@ -273,8 +274,8 @@ const DiskPopover = React.memo(({
                 </div>
                 <div className="disk-overview-track"><i/></div>
                 <div className="disk-overview-meta">
-                    <span>已使用<b>{formatSize(diskSummary.used)}</b></span>
-                    <span>可用空间<b>{formatSize(diskFree)}</b></span>
+                    <span>已使用<b>{formatSize(diskSummary.used, sizeBase)}</b></span>
+                    <span>可用空间<b>{formatSize(diskFree, sizeBase)}</b></span>
                 </div>
             </div>
             {summaryDisks.length > 0 ? (
@@ -306,11 +307,11 @@ const DiskPopover = React.memo(({
                                 </div>
                                 <div className="disk-item-meta">
                                     <span>{item.filesystem || "--"} · {item.type || "未知类型"}</span>
-                                    <span>总计 <b>{formatSize(total)}</b></span>
+                                    <span>总计 <b>{formatSize(total, sizeBase)}</b></span>
                                 </div>
                                 <div className="disk-item-capacity">
-                                    <span>已用<b>{formatSize(used)}</b></span>
-                                    <span>可用<b>{formatSize(free)}</b></span>
+                                    <span>已用<b>{formatSize(used, sizeBase)}</b></span>
+                                    <span>可用<b>{formatSize(free, sizeBase)}</b></span>
                                 </div>
                                 <div className="disk-track"><i/></div>
                             </div>

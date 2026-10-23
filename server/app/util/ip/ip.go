@@ -13,15 +13,6 @@ import (
 	"server/app/util/ip/czdb"
 )
 
-type Info struct {
-	IP        string `json:"ip"`
-	Country   string `json:"country"`
-	Province  string `json:"province"`
-	City      string `json:"city"`
-	Districts string `json:"districts"`
-	Isp       string `json:"isp"`
-}
-
 func Query(ip string) (*Info, error) {
 	parse := net.ParseIP(ip)
 	if parse == nil {

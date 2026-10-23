@@ -1169,9 +1169,6 @@ const HTTPService = forwardRef<any, any>((_, ref): any => {
 
     const close = useCallback(() => {
         requestRef.current += 1;
-        setLoading(false);
-        setSaving(false);
-        setAction("");
         modalRef.current?.hide();
     }, []);
 

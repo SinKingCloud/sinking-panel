@@ -344,3 +344,20 @@ var httpRuntime struct {
 	sync.Mutex
 	owner *Manager
 }
+
+type certificateFileConfig struct {
+	Certificate string   `json:"certificate"`
+	Key         string   `json:"key"`
+	Tags        []string `json:"tags"`
+}
+
+type certificatePEMConfig struct {
+	Certificate string   `json:"certificate"`
+	Key         string   `json:"key"`
+	Tags        []string `json:"tags"`
+}
+
+type redirectTarget struct {
+	domains []string
+	host    string
+}

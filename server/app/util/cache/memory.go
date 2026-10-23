@@ -11,7 +11,7 @@ import (
 func NewMem(defaultExpiration, cleanupInterval time.Duration) *Cache {
 	c := &Cache{
 		memory:   goCache.New(defaultExpiration, 0),
-		locks:    make(map[string]*lockInfo),
+		locks:    make(map[string]time.Time),
 		stopChan: make(chan struct{}),
 	}
 	if cleanupInterval > 0 {
@@ -21,15 +21,9 @@ func NewMem(defaultExpiration, cleanupInterval time.Duration) *Cache {
 	return c
 }
 
-type lockInfo struct {
-	mutex      sync.Mutex
-	expiration time.Time
-	locked     bool // 标记锁是否被持有
-}
-
 type Cache struct {
 	memory    *goCache.Cache
-	locks     map[string]*lockInfo
+	locks     map[string]time.Time
 	mu        sync.Mutex
 	stopChan  chan struct{}
 	closeOnce sync.Once
@@ -69,47 +63,24 @@ func (c *Cache) Lock(key string, expiration time.Duration) bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	now := time.Now()
-	info, exists := c.locks[key]
-	if exists && info.expiration.After(now) && info.locked {
+	if c.locks[key].After(now) {
 		return false
 	}
-	if !exists {
-		info = &lockInfo{}
-		c.locks[key] = info
-	}
-	info.expiration = now.Add(expiration)
-	locked := info.mutex.TryLock()
-	if !locked {
-		delete(c.locks, key)
-		return false
-	}
-	info.locked = true
+	c.locks[key] = now.Add(expiration)
 	return true
 }
 
 func (c *Cache) UnLock(key string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	info, exists := c.locks[key]
-	if !exists || !info.locked {
-		return
-	}
-	info.mutex.Unlock()
-	info.locked = false
-	if info.expiration.Before(time.Now()) {
-		delete(c.locks, key)
-	}
+	delete(c.locks, key)
 }
 
 // IsLock 检查指定键的锁是否处于上锁状态
 func (c *Cache) IsLock(key string) bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	info, exists := c.locks[key]
-	if !exists {
-		return false
-	}
-	return info.locked && info.expiration.After(time.Now())
+	return c.locks[key].After(time.Now())
 }
 
 func (c *Cache) cleanupRoutine(interval time.Duration) {
@@ -131,12 +102,8 @@ func (c *Cache) CleanExpiredLock() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	now := time.Now()
-	for key, info := range c.locks {
-		if info.expiration.Before(now) {
-			if info.locked {
-				info.mutex.Unlock()
-				info.locked = false
-			}
+	for key, expiration := range c.locks {
+		if !expiration.After(now) {
 			delete(c.locks, key)
 		}
 	}
@@ -148,11 +115,5 @@ func (c *Cache) Close() {
 	c.waitGroup.Wait()
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	for key, info := range c.locks {
-		if info.locked {
-			info.mutex.Unlock()
-			info.locked = false
-		}
-		delete(c.locks, key)
-	}
+	clear(c.locks)
 }

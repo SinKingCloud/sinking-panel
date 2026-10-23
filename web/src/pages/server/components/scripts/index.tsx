@@ -214,6 +214,7 @@ const Scripts = ({styles, collapsed, connected, selectedId, onCollapsedChange, o
                     },
                 });
                 copyModalRef.current = dialog;
+                void Promise.resolve(dialog);
             }
         } catch {
             if (copyRequestRef.current === requestId) {

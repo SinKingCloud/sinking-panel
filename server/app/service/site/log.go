@@ -8,8 +8,6 @@ import (
 	"server/app/enum/site_type"
 	"server/app/util/caddy"
 	fileLog "server/app/util/log"
-
-	"gorm.io/gorm"
 )
 
 // ReadServerLog 按字节游标读取 HTTP 服务运行日志。
@@ -78,10 +76,10 @@ func (s *service) logPath(id int64, logType caddy.LogType) (string, error) {
 	}
 	record, err := s.repositorySite.FindById(id)
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return "", errors.New("网站不存在")
-		}
 		return "", fmt.Errorf("查询网站失败: %w", err)
+	}
+	if record == nil {
+		return "", errors.New("网站不存在")
 	}
 	if logType == caddy.LogProcess && record.Type != site_type.General {
 		return "", errors.New("当前网站没有进程日志")

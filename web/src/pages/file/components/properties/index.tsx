@@ -17,13 +17,13 @@ const FileProperties = forwardRef<any, any>(({onRename, onPermissions}, ref) => 
     const stateRef = useRef<any>(undefined);
     const [state, setState] = useState<any>();
     const [info, setInfo] = useState<any>();
+    const [open, setOpen] = useState(false);
 
     const close = useCallback(() => {
         generationRef.current += 1;
         requestRef.current += 1;
         stateRef.current = undefined;
-        setState(undefined);
-        setInfo(undefined);
+        setOpen(false);
     }, []);
 
     const updateRename = useCallback((sourcePath: string, targetPath: string, name: string) => {
@@ -66,6 +66,7 @@ const FileProperties = forwardRef<any, any>(({onRename, onPermissions}, ref) => 
             stateRef.current = nextState;
             setState(nextState);
             setInfo(undefined);
+            setOpen(true);
             void getFileInfo({body: {path}}).then((response) => {
                 if (requestRef.current !== requestId || generationRef.current !== generation) {
                     return;
@@ -116,7 +117,12 @@ const FileProperties = forwardRef<any, any>(({onRename, onPermissions}, ref) => 
             width="480px"
             onCancel={close}
             modalProps={{
-                open: Boolean(state),
+                open,
+                afterClose: () => {
+                    if (stateRef.current) return;
+                    setState(undefined);
+                    setInfo(undefined);
+                },
                 rootClassName: styles.root,
                 style: {top: screens.md ? 100 : 24, paddingBottom: screens.md ? 100 : 24},
                 footer: null,

@@ -13,8 +13,8 @@ func (s *service) FindById(id int64) (*model.Type, error) {
 	if err != nil {
 		return nil, err
 	}
-	if len(data) == 0 {
-		return nil, errors.New("类型不存在")
+	if len(data) == 0 || data[0] == nil || data[0].Id <= 0 {
+		return nil, nil
 	}
 	return data[0], nil
 }

@@ -16,7 +16,7 @@ import (
 	"time"
 )
 
-func (s *service) Upload(ctx context.Context, fileHeader *multipart.FileHeader, path string) (*UploadedFile, error) {
+func (s *service) Upload(ctx context.Context, fileHeader *multipart.FileHeader, path string, overwrite bool) (*UploadedFile, error) {
 	s.cleanupExpiredUploadSessions()
 	fileName := fileHeader.Filename
 	if err := s.validateUploadFileName(fileName); err != nil {
@@ -42,7 +42,7 @@ func (s *service) Upload(ctx context.Context, fileHeader *multipart.FileHeader, 
 	destPath := filepath.Join(uploadPath, fileName)
 	targetUnlock := s.lockUploadTarget(destPath)
 	defer targetUnlock()
-	if err = s.commitUploadedFile(ctx, tempPath, destPath); err != nil {
+	if err = s.commitUploadedFile(ctx, tempPath, destPath, overwrite); err != nil {
 		return nil, fmt.Errorf("保存文件失败: %w", err)
 	}
 	return &UploadedFile{Name: fileName, Path: destPath, Size: fileHeader.Size}, nil
@@ -134,7 +134,7 @@ func (s *service) MergeUpload(ctx context.Context, meta UploadMeta) (*UploadedFi
 		return nil, false, err
 	}
 	destPath := filepath.Join(meta.Path, meta.FileName)
-	if err = s.commitUploadedFile(ctx, mergedPath, destPath); err != nil {
+	if err = s.commitUploadedFile(ctx, mergedPath, destPath, true); err != nil {
 		return nil, false, fmt.Errorf("保存合并文件失败: %w", err)
 	}
 	completed = &UploadedFile{Name: meta.FileName, Path: destPath, Size: size, FileHash: meta.FileHash}
@@ -562,7 +562,7 @@ func (s *service) mergeUploadChunks(ctx context.Context, meta UploadMeta) (strin
 	return mergedPath, size, nil
 }
 
-func (s *service) commitUploadedFile(ctx context.Context, sourcePath, destPath string) error {
+func (s *service) commitUploadedFile(ctx context.Context, sourcePath, destPath string, overwrite bool) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -571,11 +571,15 @@ func (s *service) commitUploadedFile(ctx context.Context, sourcePath, destPath s
 	}
 	if info, statErr := os.Lstat(destPath); statErr == nil && info.IsDir() {
 		return fmt.Errorf("目标路径是目录")
+	} else if statErr == nil && !overwrite {
+		return fmt.Errorf("文件已存在，不允许覆盖: %w", os.ErrExist)
 	} else if statErr != nil && !os.IsNotExist(statErr) {
 		return statErr
 	}
-	if err := s.replaceUploadedFile(sourcePath, destPath); err == nil {
-		return nil
+	if overwrite {
+		if err := s.replaceUploadedFile(sourcePath, destPath); err == nil {
+			return nil
+		}
 	}
 
 	source, err := os.Open(sourcePath)
@@ -601,7 +605,50 @@ func (s *service) commitUploadedFile(ctx context.Context, sourcePath, destPath s
 	if err != nil {
 		return err
 	}
-	if err = s.replaceUploadedFile(tempPath, destPath); err != nil {
+	if err = ctx.Err(); err != nil {
+		return err
+	}
+	if overwrite {
+		err = s.replaceUploadedFile(tempPath, destPath)
+	} else if err = os.Link(tempPath, destPath); err != nil && !os.IsExist(err) {
+		// 同目录硬链接一次发布完整文件；文件系统不支持时用 O_EXCL 防止竞争覆盖。
+		err = func() error {
+			source, err := os.Open(tempPath)
+			if err != nil {
+				return err
+			}
+			defer source.Close()
+			target, err := os.OpenFile(destPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0644)
+			if err != nil {
+				return err
+			}
+			complete := false
+			defer func() {
+				_ = target.Close()
+				if !complete {
+					_ = os.Remove(destPath)
+				}
+			}()
+			if _, err = s.copyUploadData(ctx, target, source); err == nil {
+				err = target.Sync()
+			}
+			if err == nil {
+				err = target.Chmod(0644)
+			}
+			if closeErr := target.Close(); err == nil {
+				err = closeErr
+			}
+			if err == nil {
+				err = ctx.Err()
+			}
+			complete = err == nil
+			return err
+		}()
+	}
+	if os.IsExist(err) {
+		return fmt.Errorf("文件已存在，不允许覆盖: %w", err)
+	}
+	if err != nil {
 		return err
 	}
 	_ = os.Remove(sourcePath)

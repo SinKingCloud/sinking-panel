@@ -42,6 +42,9 @@ func (s *service) Update(id int64, data *repositorySecret.UpdateSecret) error {
 		if err != nil {
 			return err
 		}
+		if previous == nil {
+			return errors.New("密钥不存在")
+		}
 		if data.Data != nil {
 			credentials, err := s.formatData(previous.Data, previous.Provider)
 			if err != nil {

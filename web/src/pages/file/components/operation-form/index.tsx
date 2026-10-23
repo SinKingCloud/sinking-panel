@@ -47,6 +47,7 @@ const FileOperationForm = forwardRef<any, any>(({onTask, onSuccess}, ref) => {
     const submittingGenerationRef = useRef<number | undefined>(undefined);
     const confirmRef = useRef<any>(undefined);
     const [operation, setOperation] = useState<any>();
+    const [visible, setVisible] = useState(false);
     const [submitting, setSubmitting] = useState(false);
 
     const cancelPendingConfirm = useCallback(() => {
@@ -59,7 +60,7 @@ const FileOperationForm = forwardRef<any, any>(({onTask, onSuccess}, ref) => {
     const close = useCallback(() => {
         generationRef.current += 1;
         cancelPendingConfirm();
-        setOperation(undefined);
+        setVisible(false);
         setSubmitting(false);
     }, [cancelPendingConfirm]);
 
@@ -89,6 +90,7 @@ const FileOperationForm = forwardRef<any, any>(({onTask, onSuccess}, ref) => {
             },
         });
         setSubmitting(false);
+        setVisible(true);
     }, [cancelPendingConfirm, message]);
 
     useImperativeHandle(ref, () => ({open, close}), [close, open]);
@@ -125,7 +127,7 @@ const FileOperationForm = forwardRef<any, any>(({onTask, onSuccess}, ref) => {
     }, [cancelPendingConfirm, modal]);
 
     const submit = useCallback(async (values: any) => {
-        if (!operation || submittingGenerationRef.current === operation.generation) {
+        if (!visible || !operation || submittingGenerationRef.current === operation.generation) {
             return;
         }
         const generation = operation.generation;
@@ -214,7 +216,7 @@ const FileOperationForm = forwardRef<any, any>(({onTask, onSuccess}, ref) => {
                 setSubmitting(false);
             }
         }
-    }, [close, confirmExtract, message, onSuccess, onTask, operation]);
+    }, [close, confirmExtract, message, onSuccess, onTask, operation, visible]);
 
     const records = operation?.context.records || [];
     const initialValues: any = operation?.mode === "compress"
@@ -234,7 +236,10 @@ const FileOperationForm = forwardRef<any, any>(({onTask, onSuccess}, ref) => {
             onOk={() => formRef.current?.submit()}
             onCancel={close}
             modalProps={{
-                open: Boolean(operation),
+                open: visible,
+                afterClose: () => {
+                    if (operation?.generation !== generationRef.current) setOperation(undefined);
+                },
                 forceRender: true,
                 rootClassName: styles.modal,
                 style: {top: screens.md ? 100 : 24, paddingBottom: screens.md ? 100 : 24},

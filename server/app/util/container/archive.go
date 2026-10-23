@@ -20,52 +20,6 @@ import (
 	"time"
 )
 
-type dockerManifest struct {
-	Config   string   `json:"Config"`
-	RepoTags []string `json:"RepoTags"`
-	Layers   []string `json:"Layers"`
-}
-
-type dockerConfig struct {
-	Architecture string `json:"architecture"`
-	OS           string `json:"os"`
-	Created      string `json:"created"`
-	Config       struct {
-		Env          []string            `json:"Env,omitempty"`
-		Entrypoint   []string            `json:"Entrypoint,omitempty"`
-		Cmd          []string            `json:"Cmd,omitempty"`
-		WorkingDir   string              `json:"WorkingDir,omitempty"`
-		User         string              `json:"User,omitempty"`
-		Labels       map[string]string   `json:"Labels,omitempty"`
-		Volumes      map[string]struct{} `json:"Volumes,omitempty"`
-		ExposedPorts map[string]struct{} `json:"ExposedPorts,omitempty"`
-	} `json:"config"`
-	Rootfs struct {
-		Type    string   `json:"type"`
-		DiffIDs []string `json:"diff_ids"`
-	} `json:"rootfs"`
-}
-
-type dockerLayerMetadata struct {
-	ID      string `json:"id"`
-	Created string `json:"created"`
-	Config  struct {
-		Env          []string            `json:"Env,omitempty"`
-		Entrypoint   []string            `json:"Entrypoint,omitempty"`
-		Cmd          []string            `json:"Cmd,omitempty"`
-		WorkingDir   string              `json:"WorkingDir,omitempty"`
-		User         string              `json:"User,omitempty"`
-		Labels       map[string]string   `json:"Labels,omitempty"`
-		Volumes      map[string]struct{} `json:"Volumes,omitempty"`
-		ExposedPorts map[string]struct{} `json:"ExposedPorts,omitempty"`
-	} `json:"config"`
-}
-
-type layerDirectoryMetadata struct {
-	path   string
-	header tar.Header
-}
-
 func (m *Manager) importSave(source string) (*Image, error) {
 	info, err := os.Lstat(source)
 	if err != nil {
@@ -961,6 +915,9 @@ func (m *Manager) commitInstance(instance *Info, name string, tags []string) (*I
 		UIDMapStart:     m.security.UIDMapStart,
 		GIDMapStart:     m.security.GIDMapStart,
 		IDMapSize:       m.security.IDMapSize,
+	}
+	if len(instance.Entrypoint) > 0 {
+		image.Entrypoint = append([]string(nil), instance.Entrypoint...)
 	}
 	if len(instance.Command) > 0 {
 		image.Command = append([]string(nil), instance.Command...)

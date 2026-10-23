@@ -9,16 +9,6 @@ import (
 	"time"
 )
 
-// File 描述文件系统对象的元数据信息
-type File struct {
-	ID         string       `json:"id"`          // 加密路径
-	Name       string       `json:"name"`        // 原始名称
-	Path       string       `json:"path"`        // 原始路径
-	Size       int64        `json:"size"`        // 文件大小（字节），目录为0
-	IsDir      bool         `json:"is_dir"`      // 是否为目录类型
-	DeleteTime str.DateTime `json:"update_time"` //删除时间
-}
-
 // Select 获取数据
 func (s *service) Select(page int, pageSize int, orderByField string, orderByType string) (list []*File, total int64, err error) {
 	s.lock.RLock()

@@ -7,6 +7,7 @@ import (
 	"server/app/service"
 	"server/app/util/context"
 	"server/app/util/jwt"
+	"server/global"
 
 	"github.com/gorilla/websocket"
 )
@@ -63,7 +64,7 @@ func CheckLogin(c *context.Context) {
 		c.Abort()
 		return
 	}
-	if key.User.LoginToken != loginToken {
+	if !global.App.IsDebug() && key.User.LoginToken != loginToken {
 		c.TokenError("您的账户已在其他设备登陆,请重新登陆", nil)
 		c.Abort()
 		return

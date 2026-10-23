@@ -18,6 +18,8 @@ func Info(c *context.Context) {
 	data, err := service.Site.FindById(form.Id)
 	if err != nil {
 		c.Error(err.Error())
+	} else if data == nil {
+		c.Error("网站不存在")
 	} else {
 		service.Log.Create(c.GetRequestIp(), log_type.EventShow, "查看网站详情", "查看网站["+data.Name+"]详情")
 		c.SuccessWithData("获取成功", data)

@@ -237,7 +237,7 @@ export default (): React.ReactNode => {
                         info={info}
                     />
                 </Col>
-                <ResourceOverview statis={statis}/>
+                <ResourceOverview statis={statis} diskSizeBase={info?.os === "darwin" ? 1000 : 1024}/>
                 <Col span={24}>
                     <MonitorOverview io={io} throughputHistory={throughputHistory}/>
                 </Col>

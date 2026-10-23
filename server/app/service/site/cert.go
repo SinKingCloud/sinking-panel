@@ -90,6 +90,9 @@ func (s *service) UpdateCert(id int64, data *repositoryCert.UpdateCert) error {
 		if err != nil {
 			return err
 		}
+		if current == nil {
+			return gorm.ErrRecordNotFound
+		}
 		previous = *current
 		candidate = *current
 		if data.Name != nil {
@@ -163,8 +166,12 @@ func (s *service) DeleteCert(id int64) error {
 	s.operationMu.Lock()
 	defer s.operationMu.Unlock()
 	err := s.database.Transaction(func(tx *gorm.DB) error {
-		if _, err := s.repositoryCert.FindById(id, tx); err != nil {
+		current, err := s.repositoryCert.FindById(id, tx)
+		if err != nil {
 			return err
+		}
+		if current == nil {
+			return gorm.ErrRecordNotFound
 		}
 		count, err := s.repositorySiteDomain.CountByCertId(id, tx)
 		if err != nil {
@@ -191,10 +198,10 @@ func (s *service) FindCert(id int64) (*Cert, error) {
 	}
 	result, err := s.repositoryCert.FindById(id)
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, errors.New("证书不存在")
-		}
 		return nil, fmt.Errorf("查询证书失败: %w", err)
+	}
+	if result == nil {
+		return nil, nil
 	}
 	return &Cert{Cert: result, StartTime: time.Time(result.StartTime), ExpireTime: time.Time(result.ExpireTime)}, nil
 }
@@ -307,15 +314,15 @@ func (s *service) ObtainCert(ctx context.Context, name string, request Certifica
 		}
 		if manual {
 			current, err := s.repositoryCert.FindById(candidate.Id, tx)
-			if err == nil {
+			if err != nil {
+				return err
+			}
+			if current != nil {
 				if current.Certificate != candidate.Certificate || current.PrivateKey != candidate.PrivateKey {
 					return errors.New("证书记录已改变，不能覆盖")
 				}
 				*candidate = *current
 				return nil
-			}
-			if !errors.Is(err, gorm.ErrRecordNotFound) {
-				return err
 			}
 		}
 		if err := s.repositoryCert.Create(candidate, tx); err != nil {
@@ -357,10 +364,10 @@ func (s *service) RenewCert(ctx context.Context, id int64, request CertificateRe
 	request.Domain = requestedDomain
 	current, err := s.repositoryCert.FindById(id)
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, errors.New("证书不存在")
-		}
 		return nil, fmt.Errorf("查询待续签证书失败: %w", err)
+	}
+	if current == nil {
+		return nil, errors.New("证书不存在")
 	}
 	if current.Type != cert_type.Manual && current.Type != cert_type.Auto {
 		return nil, errors.New("只有手动申请或自动申请的证书可以续签")
@@ -374,6 +381,9 @@ func (s *service) RenewCert(ctx context.Context, id int64, request CertificateRe
 		current, err = s.repositoryCert.FindById(id)
 		if err != nil {
 			return nil, err
+		}
+		if current == nil {
+			return nil, errors.New("证书不存在")
 		}
 		if strings.TrimSpace(current.Certificate) != strings.TrimSpace(string(request.order.Acme.CertificatePEM)) ||
 			strings.TrimSpace(current.PrivateKey) != strings.TrimSpace(string(request.order.Acme.PrivateKeyPEM)) {
@@ -442,6 +452,9 @@ func (s *service) RenewCert(ctx context.Context, id int64, request CertificateRe
 		if findErr != nil {
 			return findErr
 		}
+		if latest == nil {
+			return errors.New("证书不存在")
+		}
 		if latest.Type != cert_type.Manual && latest.Type != cert_type.Auto {
 			return errors.New("证书类型已发生变化，无法续签")
 		}
@@ -481,6 +494,9 @@ func (s *service) RenewCert(ctx context.Context, id int64, request CertificateRe
 	result, err := s.repositoryCert.FindById(id)
 	if err != nil {
 		return nil, fmt.Errorf("读取续签证书失败: %w", err)
+	}
+	if result == nil {
+		return nil, errors.New("证书不存在")
 	}
 	return &Cert{Cert: result, StartTime: time.Time(result.StartTime), ExpireTime: time.Time(result.ExpireTime)}, nil
 }
@@ -622,10 +638,10 @@ func (s *service) ManualCert(ctx context.Context, id int64, name string, request
 	if id > 0 {
 		current, err := s.repositoryCert.FindById(id)
 		if err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return nil, errors.New("证书不存在")
-			}
 			return nil, err
+		}
+		if current == nil {
+			return nil, errors.New("证书不存在")
 		}
 		if current.Type != cert_type.Manual && current.Type != cert_type.Auto {
 			return nil, errors.New("只有手动申请或自动申请的证书可以续签")
@@ -944,10 +960,10 @@ func (s *service) prepareCertificateRequest(data *model.Cert, request *Certifica
 		}
 		secret, err := s.repositorySecret.FindById(data.SecretId, tx...)
 		if err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return acme, errors.New("关联的密钥不存在")
-			}
 			return acme, fmt.Errorf("读取 DNS 密钥失败: %w", err)
+		}
+		if secret == nil {
+			return acme, errors.New("关联的密钥不存在")
 		}
 		var credentials caddy.DNSCredentials
 		var provider caddy.DNSProvider
@@ -1214,6 +1230,9 @@ func (s *service) restoreCertificate(data, expected *model.Cert) error {
 		if err != nil {
 			return err
 		}
+		if current == nil {
+			return errors.New("证书不存在")
+		}
 		restored := *data
 		if current.Type != expected.Type || current.Challenge != expected.Challenge {
 			restored.Type = current.Type
@@ -1226,10 +1245,11 @@ func (s *service) restoreCertificate(data, expected *model.Cert) error {
 			restored.AutoRenew = current.AutoRenew
 			restored.UpdateTime = current.UpdateTime
 		} else if restored.SecretId != 0 && restored.SecretId != expected.SecretId {
-			if _, err = s.repositorySecret.FindById(restored.SecretId, tx); err != nil {
-				if !errors.Is(err, gorm.ErrRecordNotFound) {
-					return err
-				}
+			secret, err := s.repositorySecret.FindById(restored.SecretId, tx)
+			if err != nil {
+				return err
+			}
+			if secret == nil {
 				restored.SecretId = 0
 				restored.AutoRenew = cert_auto_renew.Disabled
 			}
@@ -1242,13 +1262,13 @@ func (s *service) syncCertificateLocked(id int64, action string, rollback func()
 	if count, err := s.repositorySiteDomain.CountByCertId(id); err == nil && count == 0 {
 		return nil
 	}
-	if err := s.syncLocked(); err != nil {
+	if err := s.syncLocked(false); err != nil {
 		syncErr := fmt.Errorf("%s后同步网站运行时失败: %w", action, err)
 		rollbackErr := rollback()
 		if rollbackErr != nil {
 			rollbackErr = fmt.Errorf("补偿恢复证书数据失败: %w", rollbackErr)
 		}
-		restoreErr := s.syncLocked()
+		restoreErr := s.syncLocked(false)
 		if restoreErr != nil {
 			restoreErr = fmt.Errorf("补偿恢复网站运行时失败: %w", restoreErr)
 		}

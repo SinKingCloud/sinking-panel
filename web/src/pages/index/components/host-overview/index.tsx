@@ -560,6 +560,7 @@ const HostOverview = React.memo(({info, statis}: any) => {
             },
         });
         restartConfirmRef.current = confirmation;
+        void Promise.resolve(confirmation);
     };
 
     return (

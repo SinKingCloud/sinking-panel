@@ -1,9 +1,7 @@
 package auth
 
 import (
-	"server/app/constant"
 	"server/app/enum/log_type"
-	"server/app/http/middleware"
 	"server/app/service"
 	"server/app/util/context"
 )
@@ -32,20 +30,5 @@ func Login(c *context.Context) {
 	} else {
 		service.Log.Create(c.GetRequestIp(), log_type.EventLogin, "系统账户登录", "系统登录成功")
 		c.SuccessWithData("登录成功", token)
-	}
-}
-
-// Logout 退出登录
-func Logout(c *context.Context) {
-	middleware.CheckLogin(c)
-	if c.IsAborted() {
-		return
-	}
-	err := service.Auth.Logout(c.GetString(constant.JwtDeviceName))
-	if err != nil {
-		c.Error(err.Error())
-	} else {
-		service.Log.Create(c.GetRequestIp(), log_type.EventLogin, "注销账户登录", "注销登录成功")
-		c.Success("注销成功")
 	}
 }

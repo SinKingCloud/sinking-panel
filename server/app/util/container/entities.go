@@ -1,18 +1,21 @@
 package container
 
 import (
+	"archive/tar"
 	"context"
 	"io"
+	"os"
 	"sync"
 	"time"
 )
 
 const (
-	instanceLockCount       = 64                  // 实例操作锁槽位数量
-	securityMetadataVersion = 1                   // 容器安全元数据版本
-	defaultIDMapSize        = 65536               // 默认映射完整的常规容器 UID/GID 范围
-	timezoneMountLabel      = "sinking.timezone=" // 运行时系统时区挂载路径，创建镜像时排除
-	containerTimezonePath   = "/etc/localtime"    //运行时系统时区时间信息
+	instanceLockCount       = 64                       // 实例操作锁槽位数量
+	securityMetadataVersion = 1                        // 容器安全元数据版本
+	defaultIDMapSize        = 65536                    // 默认映射完整的常规容器 UID/GID 范围
+	timezoneMountLabel      = "sinking.timezone="      // 运行时系统时区挂载路径，创建镜像时排除
+	timezoneNameLabel       = "sinking.timezone.name=" // 本次运行的 IANA 时区名称，不固化到实例配置
+	containerTimezonePath   = "/etc/localtime"         //运行时系统时区时间信息
 )
 
 // ManagerOptions 控制容器运行时的轮询、日志和停止策略。
@@ -60,6 +63,7 @@ type RunOptions struct {
 	ImageID     string         // 镜像 ID、名称、标签或本机归档绝对路径；Run 解析后保存镜像 ID
 	Mounts      []Mount        // 宿主机文件或目录挂载配置
 	Env         []string       // KEY=VALUE 格式的环境变量，覆盖镜像中的同名变量
+	Entrypoint  []string       // 覆盖镜像入口程序；空值继承镜像 Entrypoint
 	Command     []string       // 覆盖镜像 Cmd，仍追加在 Entrypoint 后；空值继承镜像 Cmd
 	WorkingDir  string         // 容器内工作目录；空值继承镜像，仍为空时使用 /
 	User        string         // 空值继承镜像运行用户
@@ -188,6 +192,7 @@ type Info struct {
 	ExitCode        int            `json:"exit_code"`             // 容器主进程退出码
 	Error           string         `json:"error,omitempty"`       // 最近一次启动、运行或清理失败的信息
 	LogPath         string         `json:"log_path"`              // 实例输出日志的宿主机路径
+	Entrypoint      []string       `json:"entrypoint,omitempty"`  // 实例覆盖的入口程序；空值继承镜像
 	Command         []string       `json:"command,omitempty"`     // 实例覆盖的镜像 Cmd；空值继承镜像
 	Env             []string       `json:"env,omitempty"`         // 实例环境变量，覆盖镜像中的同名变量
 	WorkingDir      string         `json:"working_dir,omitempty"` // 容器内工作目录；空值继承镜像
@@ -247,4 +252,69 @@ type Manager struct {
 	closing        bool                          // 管理器是否已进入关闭流程
 	closeOnce      sync.Once                     // 保证 Close 只执行一次关闭流程
 	closeErr       error                         // Close 汇总的关闭错误，后续调用复用
+}
+
+type dockerManifest struct {
+	Config   string   `json:"Config"`
+	RepoTags []string `json:"RepoTags"`
+	Layers   []string `json:"Layers"`
+}
+
+type dockerConfig struct {
+	Architecture string `json:"architecture"`
+	OS           string `json:"os"`
+	Created      string `json:"created"`
+	Config       struct {
+		Env          []string            `json:"Env,omitempty"`
+		Entrypoint   []string            `json:"Entrypoint,omitempty"`
+		Cmd          []string            `json:"Cmd,omitempty"`
+		WorkingDir   string              `json:"WorkingDir,omitempty"`
+		User         string              `json:"User,omitempty"`
+		Labels       map[string]string   `json:"Labels,omitempty"`
+		Volumes      map[string]struct{} `json:"Volumes,omitempty"`
+		ExposedPorts map[string]struct{} `json:"ExposedPorts,omitempty"`
+	} `json:"config"`
+	Rootfs struct {
+		Type    string   `json:"type"`
+		DiffIDs []string `json:"diff_ids"`
+	} `json:"rootfs"`
+}
+
+type dockerLayerMetadata struct {
+	ID      string `json:"id"`
+	Created string `json:"created"`
+	Config  struct {
+		Env          []string            `json:"Env,omitempty"`
+		Entrypoint   []string            `json:"Entrypoint,omitempty"`
+		Cmd          []string            `json:"Cmd,omitempty"`
+		WorkingDir   string              `json:"WorkingDir,omitempty"`
+		User         string              `json:"User,omitempty"`
+		Labels       map[string]string   `json:"Labels,omitempty"`
+		Volumes      map[string]struct{} `json:"Volumes,omitempty"`
+		ExposedPorts map[string]struct{} `json:"ExposedPorts,omitempty"`
+	} `json:"config"`
+}
+
+type layerDirectoryMetadata struct {
+	path   string
+	header tar.Header
+}
+
+type waitResult struct {
+	state *os.ProcessState
+	err   error
+}
+
+type process struct {
+	pid int
+	fd  int
+}
+
+type nodeState struct {
+	device uint64
+	inode  uint64
+	links  uint64
+	mode   uint32
+	uid    uint32
+	gid    uint32
 }

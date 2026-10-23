@@ -322,10 +322,10 @@ const ImagesManager = forwardRef<any, any>(({onRun}, ref): any => {
                   onCancel={() => {
                       detailRequestRef.current += 1;
                       setDetailId("");
-                      setDetail(null);
                   }}
                   modalProps={{
                       open: Boolean(detailId),
+                      afterClose: () => { if (!detailId) setDetail(null); },
                       zIndex: 1100,
                       destroyOnHidden: true,
                       footer: null,

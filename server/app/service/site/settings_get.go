@@ -7,8 +7,6 @@ import (
 
 	"server/app/model"
 	"server/app/util/caddy"
-
-	"gorm.io/gorm"
 )
 
 // GetDomains 读取网站当前域名和证书绑定。
@@ -18,11 +16,12 @@ func (s *service) GetDomains(id int64) ([]*model.SiteDomain, error) {
 	if id <= 0 {
 		return nil, errors.New("网站 ID 不合法")
 	}
-	if _, err := s.repositorySite.FindById(id); err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, errors.New("网站不存在")
-		}
+	record, err := s.repositorySite.FindById(id)
+	if err != nil {
 		return nil, fmt.Errorf("查询网站失败: %w", err)
+	}
+	if record == nil {
+		return nil, errors.New("网站不存在")
 	}
 	domains, err := s.repositorySiteDomain.SelectBySiteId(id)
 	if err != nil {

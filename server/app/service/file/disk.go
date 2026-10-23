@@ -2,10 +2,12 @@ package file
 
 import (
 	"context"
-	"github.com/shirou/gopsutil/v4/disk"
 	"runtime"
 	"server/app/util/file"
+	"slices"
 	"strings"
+
+	"github.com/shirou/gopsutil/v4/disk"
 )
 
 func (s *service) GetDisks() ([]Disk, error) {
@@ -15,7 +17,7 @@ func (s *service) GetDisks() ([]Disk, error) {
 	}
 	excludedFs := map[string]struct{}{
 		"autofs": {}, "cgroup": {}, "cgroup2": {},
-		"configfs": {}, "debugfs": {}, "devpts": {},
+		"configfs": {}, "debugfs": {}, "devfs": {}, "devpts": {},
 		"devtmpfs": {}, "efivarfs": {}, "fusectl": {},
 		"hugetlbfs": {}, "mqueue": {}, "overlay": {},
 		"proc": {}, "procfs": {}, "pstore": {}, "ramfs": {},
@@ -32,10 +34,20 @@ func (s *service) GetDisks() ([]Disk, error) {
 		if _, ok := excludedFs[strings.ToLower(p.Fstype)]; ok {
 			continue
 		}
+		// macOS 的系统卷通过根目录统一访问，只列出根目录和可浏览的挂载卷。
+		if runtime.GOOS == "darwin" && p.Mountpoint != "/" &&
+			(p.Mountpoint == "/System/Volumes" || strings.HasPrefix(p.Mountpoint, "/System/Volumes/") || slices.Contains(p.Opts, "nobrowse")) {
+			continue
+		}
 		// 获取磁盘使用数据
 		usage, err := disk.Usage(p.Mountpoint)
 		if err != nil || usage.Total <= 0 {
 			continue
+		}
+		// APFS 根卷与数据卷共享容量，剩余空间反映整个容器，不能只统计只读系统卷的占用。
+		if runtime.GOOS == "darwin" && p.Mountpoint == "/" && p.Fstype == "apfs" && usage.Free <= usage.Total {
+			usage.Used = usage.Total - usage.Free
+			usage.UsedPercent = float64(usage.Used) / float64(usage.Total) * 100
 		}
 		// 构建路径格式
 		path := p.Mountpoint

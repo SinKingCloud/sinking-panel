@@ -6,8 +6,6 @@ import (
 	"fmt"
 
 	"server/app/util/caddy"
-
-	"gorm.io/gorm"
 )
 
 // UpdateDomains 更新网站域名，同名域名保留原证书绑定。
@@ -687,10 +685,10 @@ func (s *service) loadConfigLocked(id int64) (interface{}, error) {
 	}
 	record, err := s.repositorySite.FindById(id)
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, errors.New("网站不存在")
-		}
 		return nil, fmt.Errorf("查询网站失败: %w", err)
+	}
+	if record == nil {
+		return nil, errors.New("网站不存在")
 	}
 	_, config, err := s.checkConfig(record.Config, record.Type)
 	if err != nil {

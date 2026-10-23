@@ -13,6 +13,7 @@ const FilePermissions = forwardRef<any, any>(({onSuccess}, ref) => {
     const generationRef = useRef(0);
     const submittingRef = useRef(false);
     const [state, setState] = useState<any>();
+    const [open, setOpen] = useState(false);
     const [layered, setLayered] = useState(false);
     const [submitting, setSubmitting] = useState(false);
 
@@ -20,9 +21,8 @@ const FilePermissions = forwardRef<any, any>(({onSuccess}, ref) => {
         generationRef.current += 1;
         submittingRef.current = false;
         setSubmitting(false);
-        setState(undefined);
-        form.resetFields();
-    }, [form]);
+        setOpen(false);
+    }, []);
 
     useImperativeHandle(ref, () => ({
         open: (path: string, record: any, nested = false) => {
@@ -32,13 +32,14 @@ const FilePermissions = forwardRef<any, any>(({onSuccess}, ref) => {
             setSubmitting(false);
             setState({generation, path});
             form.setFieldsValue({permissions: formatFileMode(record.mode)});
+            setOpen(true);
             window.requestAnimationFrame(() => form.focusField("permissions"));
         },
         close,
     }), [close, form]);
 
     const submit = async ({permissions}: any) => {
-        if (!state || submittingRef.current) {
+        if (!open || !state || submittingRef.current) {
             return;
         }
         const generation = state.generation;
@@ -77,7 +78,12 @@ const FilePermissions = forwardRef<any, any>(({onSuccess}, ref) => {
             onOk={() => form.submit()}
             onCancel={close}
             modalProps={{
-                open: Boolean(state),
+                open,
+                afterClose: () => {
+                    if (state?.generation === generationRef.current) return;
+                    setState(undefined);
+                    form.resetFields();
+                },
                 forceRender: true,
                 zIndex: layered ? 2000 : undefined,
                 style: {top: screens.md ? 100 : 24, paddingBottom: screens.md ? 100 : 24},

@@ -53,6 +53,7 @@ interface FilePreviewPaneProps {
         path?: string;
     };
     embedded?: boolean;
+    active?: boolean;
     showFullscreen?: boolean;
     controls?: (getPopupContainer: (trigger: HTMLElement) => HTMLElement) => React.ReactNode;
 }
@@ -60,6 +61,7 @@ interface FilePreviewPaneProps {
 const FilePreviewPane = ({
     file,
     embedded = false,
+    active = true,
     showFullscreen = true,
     controls,
 }: FilePreviewPaneProps) => {
@@ -143,6 +145,7 @@ const FilePreviewPane = ({
     }, [clearControlsTimer]);
 
     useEffect(() => {
+        if (!active) return;
         setLoadedKey(resourceKey);
         if (!path || !kind) {
             requestRef.current += 1;
@@ -192,7 +195,7 @@ const FilePreviewPane = ({
                 requestRef.current += 1;
             }
         };
-    }, [kind, path, reload, resourceKey]);
+    }, [active, kind, path, reload, resourceKey]);
 
     const retry = useCallback(() => {
         requestRef.current += 1;

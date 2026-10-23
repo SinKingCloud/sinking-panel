@@ -48,7 +48,7 @@ func (s *service) FindById(id int64) (*model.Server, error) {
 		}
 	} else {
 		data, err = s.repositoryServer.FindById(id)
-		if err != nil {
+		if err != nil || data == nil {
 			return nil, err
 		}
 	}

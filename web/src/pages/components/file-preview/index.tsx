@@ -1,4 +1,4 @@
-import React, {forwardRef, memo, useCallback, useImperativeHandle, useState} from "react";
+import React, {forwardRef, memo, useCallback, useImperativeHandle, useRef, useState} from "react";
 import {App, Button, Grid, Tooltip} from "antd";
 import {Icon, ProModal, Title, useTheme} from "sinking-antd";
 import FilePreviewPane, {getFilePreviewKind, isFilePreviewable} from "./media";
@@ -21,13 +21,18 @@ const FilePreview = memo(forwardRef<any>((_, ref) => {
     const screens = Grid.useBreakpoint();
     const {styles} = useStyles({compact});
     const [session, setSession] = useState<any>();
+    const [open, setOpen] = useState(false);
+    const openRef = useRef(false);
+    const previewRef = useRef<HTMLElement | null>(null);
     const current = session?.files[session.index];
     const kind = current ? getFilePreviewKind(current.name) : undefined;
     const total = session?.files.length || 0;
     const index = session?.index || 0;
 
     const close = useCallback(() => {
-        setSession(undefined);
+        openRef.current = false;
+        previewRef.current?.querySelectorAll("video, audio").forEach((element) => (element as HTMLMediaElement).pause());
+        setOpen(false);
     }, []);
 
     useImperativeHandle(ref, () => ({
@@ -57,6 +62,8 @@ const FilePreview = memo(forwardRef<any>((_, ref) => {
                 files: available,
                 index: requestedIndex >= 0 ? requestedIndex : 0,
             });
+            openRef.current = true;
+            setOpen(true);
         },
         close,
     }), [close, message]);
@@ -81,7 +88,8 @@ const FilePreview = memo(forwardRef<any>((_, ref) => {
             width="900px"
             onCancel={close}
             modalProps={{
-                open: Boolean(session),
+                open,
+                afterClose: () => { if (!openRef.current) setSession(undefined); },
                 rootClassName: styles.root,
                 footer: null,
                 mask: {closable: true},
@@ -89,7 +97,7 @@ const FilePreview = memo(forwardRef<any>((_, ref) => {
                 style: {top: screens.md ? 100 : 24, paddingBottom: screens.md ? 100 : 24},
             }}>
             {current && kind && (
-                <section className="file-preview" aria-label="文件预览">
+                <section ref={previewRef} className="file-preview" aria-label="文件预览">
                     <div className="file-preview-meta" aria-live="polite">
                         <span className="file-preview-meta-icon">
                             <Icon type={previewIcons[kind]} aria-hidden/>
@@ -101,6 +109,7 @@ const FilePreview = memo(forwardRef<any>((_, ref) => {
                     </div>
                     <FilePreviewPane
                         file={current}
+                        active={open}
                         controls={(getPopupContainer) => total > 1 ? (
                             <>
                                 <Tooltip title="上一个" getPopupContainer={getPopupContainer}>

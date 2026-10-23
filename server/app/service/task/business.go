@@ -157,6 +157,9 @@ func (s *service) Stop(id int64) error {
 	if err != nil {
 		return err
 	}
+	if task == nil {
+		return errors.New("任务不存在")
+	}
 	entryID := task.EntryID
 	if id < 0 {
 		task.EntryID = 0
@@ -182,6 +185,9 @@ func (s *service) Restore(id int64) error {
 	task, err := s.findById(id)
 	if err != nil {
 		return err
+	}
+	if task == nil {
+		return errors.New("任务不存在")
 	}
 	j := s.internalTasks[id]
 	if j == nil {
@@ -224,6 +230,10 @@ func (s *service) Run(id int64) error {
 		s.taskLock.Unlock()
 		return err
 	}
+	if task == nil {
+		s.taskLock.Unlock()
+		return errors.New("任务不存在")
+	}
 	j := s.internalTasks[id]
 	if j == nil {
 		j = newJob(task, s)
@@ -255,6 +265,9 @@ func (s *service) Remove(ids []int64) error {
 		task, err := s.findById(id)
 		if err != nil {
 			return err
+		}
+		if task == nil {
+			return errors.New("任务不存在")
 		}
 		tasks = append(tasks, task)
 		if id >= 0 {
@@ -288,6 +301,9 @@ func (s *service) refresh(id int64) error {
 	task, err := s.findById(id)
 	if err != nil {
 		return err
+	}
+	if task == nil {
+		return errors.New("任务不存在")
 	}
 	oldEntryID := cron.EntryID(task.EntryID)
 	if task.Status != task_status.Running {
@@ -532,7 +548,7 @@ func (s *service) WriteLog(id int64, content string) error {
 
 	fileName := s.getTaskLogFilePath(id)
 	if _, err := os.Stat(fileName); id >= 0 && os.IsNotExist(err) {
-		if _, findErr := s.repositoryTask.FindById(id); findErr != nil {
+		if task, findErr := s.repositoryTask.FindById(id); findErr != nil || task == nil {
 			return nil
 		}
 	}

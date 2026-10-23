@@ -33,51 +33,10 @@ type connection struct {
 	done       chan struct{}
 }
 
-type message struct {
-	Event   string `json:"event"`
-	Content string `json:"content,omitempty"`
-	Code    string `json:"code,omitempty"`
-}
-
 var upgrader = websocket.Upgrader{
 	HandshakeTimeout: 10 * time.Second,
 	WriteBufferSize:  4096,
 	CheckOrigin:      func(*http.Request) bool { return true },
-}
-
-func (s *connection) send(messageType int, payload []byte) error {
-	select {
-	case <-s.done:
-		return websocket.ErrCloseSent
-	default:
-	}
-	s.writeMu.Lock()
-	defer s.writeMu.Unlock()
-	select {
-	case <-s.done:
-		return websocket.ErrCloseSent
-	default:
-	}
-	if err := s.connection.SetWriteDeadline(time.Now().Add(sshWriteTimeout)); err != nil {
-		return err
-	}
-	return s.connection.WriteMessage(messageType, payload)
-}
-
-func (s *connection) close() {
-	s.closeOnce.Do(func() {
-		close(s.done)
-		if s.connection != nil {
-			_ = s.connection.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseGoingAway, ""), time.Now().Add(time.Second))
-			_ = s.connection.Close()
-		}
-		if s.client != nil {
-			_ = s.client.Close()
-		}
-		if s.session != nil {
-			_ = s.session.Close()
-		}
-	})
 }
 
 func Ssh(c *context.Context) {

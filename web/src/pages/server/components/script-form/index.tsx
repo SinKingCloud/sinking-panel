@@ -130,8 +130,6 @@ const ScriptForm = forwardRef<any, any>(({typeItems, onSuccess}, ref): any => {
 
     const close = useCallback(() => {
         requestRef.current += 1;
-        setInfoLoading(false);
-        setSubmitting(false);
         modalRef.current?.hide();
     }, []);
 

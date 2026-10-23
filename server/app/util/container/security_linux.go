@@ -329,14 +329,6 @@ func (m *Manager) scanPlatformMountHandle(root string, source *os.File, prepare,
 		return errors.New("挂载源在检查期间跨越了文件系统")
 	}
 
-	type nodeState struct {
-		device uint64
-		inode  uint64
-		links  uint64
-		mode   uint32
-		uid    uint32
-		gid    uint32
-	}
 	stateOf := func(stat *unix.Stat_t) nodeState {
 		return nodeState{
 			device: uint64(stat.Dev),

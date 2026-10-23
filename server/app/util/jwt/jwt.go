@@ -6,7 +6,6 @@ import (
 	"os/exec"
 	"runtime"
 	"server/app/constant"
-	"server/app/util/str"
 	"strings"
 	"sync"
 	"time"
@@ -18,19 +17,6 @@ var (
 	jwtKey     []byte
 	jwtKeyOnce sync.Once
 )
-
-// MyClaims jwt载体
-type MyClaims struct {
-	User *User
-	jwt.RegisteredClaims
-}
-
-// User 会员用户表
-type User struct {
-	LoginToken string       ` json:"login_token"`
-	LoginIp    string       ` json:"login_ip"`
-	LoginTime  str.DateTime ` json:"login_time"`
-}
 
 // getKey 获取加密key
 func getKey() []byte {

@@ -37,6 +37,12 @@ export async function updateFile(params: API.RequestParams = {}) {
     return post("/file/update", params?.body, params?.onSuccess, params?.onFail, params?.onFinally);
 }
 
+/** 上传文件，FormData 的 Content-Type 由浏览器生成。 */
+export async function uploadFile(params: API.RequestParams = {}) {
+    return post("/file/upload", params?.body, params?.onSuccess, params?.onFail, params?.onFinally,
+        undefined, {headers: getHeaders(), timeout: 910000});
+}
+
 /** 统计文件或目录 GET /file/count */
 export async function countFile(params: API.RequestParams = {}) {
     return get("/file/count", params?.body, params?.onSuccess, params?.onFail, params?.onFinally);

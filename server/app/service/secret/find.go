@@ -10,7 +10,7 @@ func (s *service) FindById(id int64) (*Secret, error) {
 		return nil, errors.New("密钥 ID 不合法")
 	}
 	data, err := s.repositorySecret.FindById(id)
-	if err != nil {
+	if err != nil || data == nil {
 		return nil, err
 	}
 	fields, err := s.formatData(data.Data, data.Provider)

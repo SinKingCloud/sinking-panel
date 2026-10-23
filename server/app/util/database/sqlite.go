@@ -29,11 +29,6 @@ func (d *Database) SyncSqlite(schemaSql string) error {
 	if strings.TrimSpace(schemaSql) == "" {
 		return errors.New("数据库结构SQL不能为空")
 	}
-	type schemaObject struct {
-		Type string `gorm:"column:type"`
-		Name string `gorm:"column:name"`
-		SQL  string `gorm:"column:sql"`
-	}
 	normalizeSql := func(sql string) string {
 		var builder strings.Builder
 		chars := []rune(sql)
@@ -129,19 +124,23 @@ func (d *Database) SyncSqlite(schemaSql string) error {
 	}); err != nil {
 		return err
 	}
-	var expected []*schemaObject
+	var expected, actual []struct {
+		Type string `gorm:"column:type"`
+		Name string `gorm:"column:name"`
+		SQL  string `gorm:"column:sql"`
+	}
 	if err = expectedDb.Db.Raw(`SELECT type, name, sql FROM sqlite_master
 		WHERE type IN ('table', 'index') AND sql IS NOT NULL AND name NOT LIKE 'sqlite_%'
 		ORDER BY rowid`).Scan(&expected).Error; err != nil {
 		return err
 	}
-	expectedTables := make(map[string]*schemaObject)
-	expectedIndexes := make(map[string]*schemaObject)
-	for _, object := range expected {
+	expectedTables := make(map[string]int)
+	expectedIndexes := make(map[string]int)
+	for i, object := range expected {
 		if object.Type == "table" {
-			expectedTables[strings.ToLower(object.Name)] = object
+			expectedTables[strings.ToLower(object.Name)] = i
 		} else if object.Type == "index" {
-			expectedIndexes[strings.ToLower(object.Name)] = object
+			expectedIndexes[strings.ToLower(object.Name)] = i
 		}
 	}
 	if len(expectedTables) == 0 {
@@ -163,20 +162,19 @@ func (d *Database) SyncSqlite(schemaSql string) error {
 			}()
 		}
 		err = db.Transaction(func(tx *gorm.DB) error {
-			var actual []*schemaObject
 			if queryErr := tx.Raw(`SELECT type, name, sql FROM sqlite_master
 				WHERE type IN ('table', 'index') AND sql IS NOT NULL AND name NOT LIKE 'sqlite_%'
 				ORDER BY rowid`).Scan(&actual).Error; queryErr != nil {
 				return queryErr
 			}
-			actualTables := make(map[string]*schemaObject)
-			for _, object := range actual {
+			actualTables := make(map[string]int)
+			for i, object := range actual {
 				if object.Type == "table" {
-					actualTables[strings.ToLower(object.Name)] = object
+					actualTables[strings.ToLower(object.Name)] = i
 				}
 			}
 			for _, object := range actual {
-				if object.Type != "table" || expectedTables[strings.ToLower(object.Name)] != nil {
+				if _, exists := expectedTables[strings.ToLower(object.Name)]; object.Type != "table" || exists {
 					continue
 				}
 				if dropErr := tx.Exec("DROP TABLE " + tx.Statement.Quote(object.Name)).Error; dropErr != nil {
@@ -188,13 +186,14 @@ func (d *Database) SyncSqlite(schemaSql string) error {
 				if object.Type != "table" {
 					continue
 				}
-				current := actualTables[strings.ToLower(object.Name)]
-				if current == nil {
+				index, exists := actualTables[strings.ToLower(object.Name)]
+				if !exists {
 					if createErr := tx.Exec(object.SQL).Error; createErr != nil {
 						return fmt.Errorf("创建数据表%s失败: %w", object.Name, createErr)
 					}
 					continue
 				}
+				current := &actual[index]
 				if normalizeSql(current.SQL) == normalizeSql(object.SQL) {
 					continue
 				}
@@ -254,15 +253,15 @@ func (d *Database) SyncSqlite(schemaSql string) error {
 				ORDER BY rowid`).Scan(&actual).Error; queryErr != nil {
 				return queryErr
 			}
-			actualIndexes := make(map[string]*schemaObject)
-			for _, object := range actual {
+			actualIndexes := make(map[string]int)
+			for i, object := range actual {
 				if object.Type == "index" {
-					actualIndexes[strings.ToLower(object.Name)] = object
+					actualIndexes[strings.ToLower(object.Name)] = i
 				}
 			}
-			for name, object := range actualIndexes {
-				expectedIndex := expectedIndexes[name]
-				if expectedIndex != nil && normalizeSql(object.SQL) == normalizeSql(expectedIndex.SQL) {
+			for name, index := range actualIndexes {
+				object := &actual[index]
+				if expectedIndex, exists := expectedIndexes[name]; exists && normalizeSql(object.SQL) == normalizeSql(expected[expectedIndex].SQL) {
 					continue
 				}
 				if dropErr := tx.Exec("DROP INDEX " + tx.Statement.Quote(object.Name)).Error; dropErr != nil {
@@ -271,7 +270,7 @@ func (d *Database) SyncSqlite(schemaSql string) error {
 				delete(actualIndexes, name)
 			}
 			for _, object := range expected {
-				if object.Type != "index" || actualIndexes[strings.ToLower(object.Name)] != nil {
+				if _, exists := actualIndexes[strings.ToLower(object.Name)]; object.Type != "index" || exists {
 					continue
 				}
 				if createErr := tx.Exec(object.SQL).Error; createErr != nil {

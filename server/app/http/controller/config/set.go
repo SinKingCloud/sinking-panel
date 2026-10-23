@@ -11,10 +11,6 @@ import (
 
 // Set 修改配置
 func Set(c *context.Context) {
-	type Config struct {
-		Key   string `json:"key" default:"" validate:"required,max=100" label:"配置标识"`
-		Value string `json:"value" default:"" validate:"omitempty" label:"配置内容"`
-	}
 	var form struct {
 		Configs []*Config `json:"configs" default:"" validate:"required,min=1,max=1000,dive,required" label:"配置标识"`
 	}

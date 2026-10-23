@@ -24,7 +24,7 @@ func (s *service) Boot() func() {
 	s.operationMu.Lock()
 	var err error
 	if s.active {
-		err = s.syncLocked()
+		err = s.syncLocked(true)
 	}
 	s.operationMu.Unlock()
 	if err != nil {
@@ -57,10 +57,11 @@ func (s *service) Stop() error {
 
 func (s *service) setActiveLocked(active bool) error {
 	previous := s.active
+	wasRunning := s.http.Running()
 	s.active = active
 	var err error
 	if active {
-		err = s.syncLocked()
+		err = s.syncLocked(true)
 	} else {
 		err = errors.Join(s.http.Stop(), s.process.StopAll())
 		s.processes = nil
@@ -77,7 +78,7 @@ func (s *service) setActiveLocked(active bool) error {
 		return err
 	}
 	s.active = previous
-	if rollbackErr := s.syncLocked(); rollbackErr != nil {
+	if rollbackErr := s.syncLocked(wasRunning); rollbackErr != nil {
 		return errors.Join(err, fmt.Errorf("恢复网站服务状态失败: %w", rollbackErr))
 	}
 	return err
@@ -186,10 +187,11 @@ func (s *service) Sync() error {
 			return fmt.Errorf("应用 HTTP 配置失败: %w", err)
 		}
 	}
-	return s.syncLocked()
+	return s.syncLocked(false)
 }
 
-func (s *service) syncLocked() error {
+// syncLocked 同步并保存配置，仅在明确请求启动时启动已停止的服务。
+func (s *service) syncLocked(start bool) error {
 	sites, processes, err := s.runtime()
 	if err != nil {
 		return err
@@ -208,6 +210,9 @@ func (s *service) syncLocked() error {
 		return fmt.Errorf("同步网站 HTTP 配置失败: %w", err)
 	}
 	if !s.http.Running() {
+		if !start {
+			return nil
+		}
 		if err = s.http.Start(); err != nil {
 			return err
 		}

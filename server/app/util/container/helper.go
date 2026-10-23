@@ -444,6 +444,7 @@ func (m *Manager) cloneInstance(instance *Info) *Info {
 	}
 	copyInstance := *instance
 	copyInstance.Mounts = append([]Mount(nil), instance.Mounts...)
+	copyInstance.Entrypoint = append([]string(nil), instance.Entrypoint...)
 	copyInstance.Command = append([]string(nil), instance.Command...)
 	copyInstance.Env = append([]string(nil), instance.Env...)
 	return &copyInstance

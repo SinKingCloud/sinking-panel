@@ -271,7 +271,7 @@ func (s *store) set(key string, value []byte, duration time.Duration) error {
 		if duration > 0 {
 			expiresAt = time.Now().Add(duration).UnixNano()
 		}
-		return s.setRecordsTransaction(transaction, map[string]pendingRecord{key: {value: value, expiresAt: expiresAt}})
+		return s.setRecordsTransaction(transaction, map[string][]byte{key: Registry.encodeRecord(expiresAt, 0, value)})
 	})
 }
 
@@ -312,14 +312,14 @@ func (s *store) setMultiLevel(baseKey, variedKey string, value []byte, variedHea
 				}
 			}
 		}
-		return s.setRecordsTransaction(transaction, map[string]pendingRecord{
-			variedKey:  {value: compressed.Bytes(), expiresAt: expiresAt},
-			mappingKey: {value: mappingValue, expiresAt: mappingExpiresAt},
+		return s.setRecordsTransaction(transaction, map[string][]byte{
+			variedKey:  Registry.encodeRecord(expiresAt, 0, compressed.Bytes()),
+			mappingKey: Registry.encodeRecord(mappingExpiresAt, 0, mappingValue),
 		})
 	})
 }
 
-func (s *store) setRecordsTransaction(transaction *bolt.Tx, records map[string]pendingRecord) error {
+func (s *store) setRecordsTransaction(transaction *bolt.Tx, records map[string][]byte) error {
 	values := transaction.Bucket(valuesBucket)
 	order := transaction.Bucket(orderBucket)
 	meta := transaction.Bucket(metaBucket)
@@ -360,7 +360,11 @@ func (s *store) setRecordsTransaction(transaction *bolt.Tx, records map[string]p
 
 	var required uint64
 	for _, record := range records {
-		required += uint64(len(record.value))
+		_, _, value, err := Registry.decodeRecord(record)
+		if err != nil {
+			return err
+		}
+		required += uint64(len(value))
 	}
 	if s.maxSize > 0 && required > uint64(s.maxSize) {
 		return fmt.Errorf("simplefs 写入数据 %d 字节超过目录上限 %d 字节", required, s.maxSize)
@@ -393,14 +397,16 @@ func (s *store) setRecordsTransaction(transaction *bolt.Tx, records map[string]p
 	for _, key := range keys {
 		sequence++
 		record := records[key]
-		if err := values.Put([]byte(key), Registry.encodeRecord(record.expiresAt, sequence, record.value)); err != nil {
+		// 记录已携带过期时间和内容，写入时只补齐事务内分配的顺序号。
+		binary.BigEndian.PutUint64(record[8:16], sequence)
+		if err := values.Put([]byte(key), record); err != nil {
 			return err
 		}
 		if err := order.Put(Registry.uint64Bytes(sequence), []byte(key)); err != nil {
 			return err
 		}
-		total += uint64(len(record.value))
 	}
+	total += required
 	if err := meta.Put(totalKey, Registry.uint64Bytes(total)); err != nil {
 		return err
 	}
@@ -496,11 +502,6 @@ func (s *store) deleteMany(pattern string) error {
 
 func (s *store) reset() error {
 	return s.backend.reset()
-}
-
-type pendingRecord struct {
-	value     []byte
-	expiresAt int64
 }
 
 func (s *store) deleteRecord(transaction *bolt.Tx, key []byte) error {

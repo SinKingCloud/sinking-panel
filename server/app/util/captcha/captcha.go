@@ -25,11 +25,6 @@ func getIns() *captcha.Captcha {
 	return c
 }
 
-// Image 对象
-type Image struct {
-	*captcha.Image
-}
-
 // NewCaptchaCode 生成验证码图片
 // code 验证码
 func NewCaptchaCode(code string) *Image {

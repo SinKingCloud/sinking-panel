@@ -13,6 +13,7 @@ const FileForm = forwardRef<any, any>(({onSuccess}, ref) => {
     const generationRef = useRef(0);
     const submittingRef = useRef(false);
     const [editor, setEditor] = useState<any>();
+    const [open, setOpen] = useState(false);
     const [layered, setLayered] = useState(false);
     const [submitting, setSubmitting] = useState(false);
 
@@ -25,9 +26,8 @@ const FileForm = forwardRef<any, any>(({onSuccess}, ref) => {
         generationRef.current += 1;
         submittingRef.current = false;
         setSubmitting(false);
-        setEditor(undefined);
-        form.resetFields();
-    }, [form]);
+        setOpen(false);
+    }, []);
 
     useImperativeHandle(ref, () => ({
         open: (mode: any, path: string, record: any, nested = false) => {
@@ -38,6 +38,7 @@ const FileForm = forwardRef<any, any>(({onSuccess}, ref) => {
             const generation = ++generationRef.current;
             setEditor({generation, mode, path, record});
             form.setFieldsValue({name: mode === "rename" ? record?.name || "" : ""});
+            setOpen(true);
             window.requestAnimationFrame(() => form.focusField("name"));
         },
         openRename: (path: string, record: any, nested = false) => {
@@ -48,13 +49,14 @@ const FileForm = forwardRef<any, any>(({onSuccess}, ref) => {
             const generation = ++generationRef.current;
             setEditor({generation, mode: "rename", path, targetPath: path, record});
             form.setFieldsValue({name: record.name});
+            setOpen(true);
             window.requestAnimationFrame(() => form.focusField("name"));
         },
         close,
     }), [close, form]);
 
     const submit = async ({name}: any) => {
-        if (!editor || submittingRef.current) {
+        if (!open || !editor || submittingRef.current) {
             return;
         }
         const generation = editor.generation;
@@ -125,7 +127,12 @@ const FileForm = forwardRef<any, any>(({onSuccess}, ref) => {
             onOk={() => form.submit()}
             onCancel={() => close()}
             modalProps={{
-                open: Boolean(editor),
+                open,
+                afterClose: () => {
+                    if (editor?.generation === generationRef.current) return;
+                    setEditor(undefined);
+                    form.resetFields();
+                },
                 forceRender: true,
                 zIndex: layered ? 2000 : undefined,
                 closable: true,

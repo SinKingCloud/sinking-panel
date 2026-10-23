@@ -40,13 +40,12 @@ func Read(path string, after int64, before int64, pageSize int, previous ...stri
 		"has_previous": false,
 		"end":          true,
 	}
-	type segment struct {
+	paths := append(append(make([]string, 0, len(previous)+1), previous...), path)
+	segments := make([]struct {
 		file  *os.File
 		start int64
 		size  int64
-	}
-	paths := append(append(make([]string, 0, len(previous)+1), previous...), path)
-	segments := make([]segment, 0, len(paths))
+	}, 0, len(paths))
 	closeSegments := func() {
 		for _, item := range segments {
 			_ = item.file.Close()
@@ -85,7 +84,11 @@ func Read(path string, after int64, before int64, pageSize int, previous ...stri
 			closeSegments()
 			return result, fmt.Errorf("日志路径不是普通文件: %s", filepath.Base(item))
 		}
-		segments = append(segments, segment{file: file, start: size, size: stat.Size()})
+		segments = append(segments, struct {
+			file  *os.File
+			start int64
+			size  int64
+		}{file: file, start: size, size: stat.Size()})
 		size += stat.Size()
 	}
 	defer closeSegments()

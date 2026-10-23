@@ -422,6 +422,7 @@ func (m *Manager) runLocked(options RunOptions) (*Info, error) {
 		Mounts:          append([]Mount(nil), options.Mounts...),
 		CreatedAt:       createdAt,
 		LogPath:         filepath.Join(instanceDir, "container.log"),
+		Entrypoint:      append([]string(nil), options.Entrypoint...),
 		Command:         append([]string(nil), options.Command...),
 		Env:             append([]string(nil), options.Env...),
 		WorkingDir:      options.WorkingDir,
@@ -780,6 +781,7 @@ func (m *Manager) optionsFromInstance(instance *Info) RunOptions {
 		ImageID:     instance.ImageID,
 		Mounts:      append([]Mount(nil), instance.Mounts...),
 		Env:         append([]string(nil), instance.Env...),
+		Entrypoint:  append([]string(nil), instance.Entrypoint...),
 		Command:     append([]string(nil), instance.Command...),
 		WorkingDir:  instance.WorkingDir,
 		User:        instance.User,
@@ -805,6 +807,9 @@ func (m *Manager) normalizeRunOptions(options *RunOptions) error {
 	}
 	if options.WorkingDir != "" && !filepath.IsAbs(options.WorkingDir) {
 		return errors.New("工作目录必须是容器内绝对路径")
+	}
+	if len(options.Entrypoint) > 0 && strings.TrimSpace(options.Entrypoint[0]) == "" {
+		return errors.New("容器入口程序不能为空")
 	}
 	if len(options.Command) > 0 && strings.TrimSpace(options.Command[0]) == "" {
 		return errors.New("容器入口命令不能为空")

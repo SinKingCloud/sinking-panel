@@ -608,16 +608,6 @@ func (m *Manager) buildConfig(sites map[string]*Site) ([]byte, error) {
 	exactTLSPolicies := make([]interface{}, 0)
 	wildcardTLSPolicies := make([]interface{}, 0)
 	ipTLSPolicies := make([]map[string]interface{}, 0)
-	type certificateFileConfig struct {
-		Certificate string   `json:"certificate"`
-		Key         string   `json:"key"`
-		Tags        []string `json:"tags"`
-	}
-	type certificatePEMConfig struct {
-		Certificate string   `json:"certificate"`
-		Key         string   `json:"key"`
-		Tags        []string `json:"tags"`
-	}
 	certificateFiles := make(map[string]*certificateFileConfig)
 	certificatePEMs := make(map[string]*certificatePEMConfig)
 	excludedFor := func(site *Site) []string {
@@ -745,10 +735,6 @@ func (m *Manager) buildConfig(sites map[string]*Site) ([]byte, error) {
 				}
 				if httpsPort == 0 {
 					return nil, errors.New("存在多个 HTTPS 监听端口，无法确定 HTTP 跳转目标")
-				}
-				type redirectTarget struct {
-					domains []string
-					host    string
 				}
 				redirectTargets := []redirectTarget{{host: "{http.request.host}"}}
 				for _, domain := range tlsDomains {
