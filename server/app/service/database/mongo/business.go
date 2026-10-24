@@ -24,7 +24,19 @@ func (m *Manager) Collections(ctx context.Context) (result interface{}, err erro
 		bson.D{{Key: "name", Value: bson.D{{Key: "$not", Value: bson.D{{Key: "$regex", Value: "^system\\."}}}}}},
 		bson.D{{Key: "name", Value: bson.D{{Key: "$in", Value: bson.A{"system.js", "system.profile"}}}}},
 	}}}
-	cursor, e := m.database.ListCollections(ctx, filter, options.ListCollections().SetNameOnly(true).SetBatchSize(100))
+	settings := options.ListCollections().SetNameOnly(true).SetAuthorizedCollections(true).SetBatchSize(100)
+	cursor, e := m.database.ListCollections(ctx, filter, settings)
+	if e != nil {
+		var commandError client.CommandError
+		// nameOnly/authorizedCollections 从 4.0 引入；旧版本只移除不支持的参数。
+		// 不把权限、认证或连接错误当作版本差异重试。
+		if errors.As(e, &commandError) && (commandError.Code == 2 || commandError.Code == 9 || commandError.Code == 40415) {
+			text := strings.ToLower(commandError.Message)
+			if strings.Contains(text, "nameonly") || strings.Contains(text, "authorizedcollections") {
+				cursor, e = m.database.ListCollections(ctx, filter, options.ListCollections().SetBatchSize(100))
+			}
+		}
+	}
 	if e != nil {
 		return nil, e
 	}

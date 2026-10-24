@@ -14,9 +14,6 @@ func (r *Repository) UpdateByIds(ids []int64, data *UpdateScript) error {
 		return nil
 	}
 	updates := make(map[string]interface{})
-	if data.TypeId != nil {
-		updates["type_id"] = *data.TypeId
-	}
 	if data.Name != nil {
 		updates["name"] = *data.Name
 	}

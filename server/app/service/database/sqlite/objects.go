@@ -84,12 +84,12 @@ func (m *Manager) Objects(ctx context.Context, schemaName, kind string) (interfa
 		return nil, errors.New("Sqlite 不支持存储过程或持久化函数")
 	}
 	if kind == "view" || kind == "trigger" {
-		return m.records(ctx, "SELECT name, 'main' AS schema, type, tbl_name AS 'table' FROM main.sqlite_master WHERE type = ? AND name NOT LIKE 'sqlite_%' ORDER BY name", kind)
+		return m.records(ctx, "SELECT name, 'main' AS schema, type, tbl_name AS 'table' FROM main.sqlite_master WHERE type = ? AND name NOT GLOB 'sqlite_*' ORDER BY name", kind)
 	}
 	if kind != "foreign_key" {
 		return nil, errors.New("对象类型不合法")
 	}
-	tables, err := m.records(ctx, "SELECT name FROM main.sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name")
+	tables, err := m.records(ctx, "SELECT name FROM main.sqlite_master WHERE type = 'table' AND name NOT GLOB 'sqlite_*' ORDER BY name")
 	if err != nil {
 		return nil, err
 	}
@@ -329,7 +329,7 @@ func (m *Manager) SelectObjects(ctx context.Context, schema, kind, keyword strin
 	if kind != "view" && kind != "trigger" {
 		return nil, errors.New("当前数据库不支持该对象类型")
 	}
-	from := " FROM main.sqlite_master WHERE type=? AND name NOT LIKE 'sqlite_%' AND name LIKE ?"
+	from := " FROM main.sqlite_master WHERE type=? AND name NOT GLOB 'sqlite_*' AND name LIKE ?"
 	args := []interface{}{kind, "%" + keyword + "%"}
 	var total int64
 	if err := m.db.QueryRowContext(ctx, "SELECT COUNT(*)"+from, args...).Scan(&total); err != nil {

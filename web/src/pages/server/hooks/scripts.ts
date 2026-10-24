@@ -4,7 +4,7 @@ import {getScriptList} from "@/service/api/script";
 
 const pageSize = 50;
 
-const useScripts = () => {
+const useScripts = (module: string) => {
     const {message} = App.useApp();
     const requestRef = useRef(0);
     const loadingMoreRef = useRef(false);
@@ -30,7 +30,7 @@ const useScripts = () => {
         const requestId = ++requestRef.current;
         let active = true;
         const current = () => active && requestRef.current === requestId;
-        const queryKey = `${typeId}\u0000${queryKeyword}`;
+        const queryKey = `${module}\u0000${typeId}\u0000${queryKeyword}`;
         if (queryRef.current !== queryKey) {
             queryRef.current = queryKey;
             setItems([]);
@@ -45,6 +45,7 @@ const useScripts = () => {
 
         void getScriptList({
             body: {
+                module,
                 page_size: pageSize,
                 order_by_field: "id",
                 order_by_type: "desc",
@@ -81,7 +82,7 @@ const useScripts = () => {
                 loadingMoreRef.current = false;
             }
         };
-    }, [message, queryKeyword, reloadKey, typeId]);
+    }, [message, module, queryKeyword, reloadKey, typeId]);
 
     const loadMore = useCallback(async () => {
         if (loadingMoreRef.current || loading || !hasMore || !nextCursor) {
@@ -93,6 +94,7 @@ const useScripts = () => {
         try {
             const response = await getScriptList({
                 body: {
+                    module,
                     page_size: pageSize,
                     order_by_field: "id",
                     order_by_type: "desc",
@@ -111,7 +113,7 @@ const useScripts = () => {
             const list = Array.isArray(response.data?.list) ? response.data.list : [];
             setItems((current) => {
                 const ids = new Set(current.map((item) => item.id));
-                return [...current, ...list.filter((item) => !ids.has(item.id))];
+                return [...current, ...list.filter((item: any) => !ids.has(item.id))];
             });
             const cursor = String(response.data?.next_cursor_id || "");
             setHasMore(Boolean(response.data?.has_more && cursor));
@@ -122,7 +124,7 @@ const useScripts = () => {
                 setLoadingMore(false);
             }
         }
-    }, [hasMore, loading, message, nextCursor, queryKeyword, typeId]);
+    }, [hasMore, loading, message, module, nextCursor, queryKeyword, typeId]);
 
     const reload = useCallback(() => {
         requestRef.current += 1;

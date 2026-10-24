@@ -128,6 +128,7 @@ create table if not exists cloud_scripts
     id          bigint            not null
         constraint cloud_scripts_pk_id
             primary key,
+    module      varchar(50) default 'ssh' not null,
     type_id     bigint  default 0 not null,
     name        varchar(100)      not null,
     script      text              not null,
@@ -140,6 +141,9 @@ create index if not exists cloud_scripts_createTime_index
 
 create index if not exists cloud_scripts_typeId_index
     on cloud_scripts (type_id);
+
+create index if not exists cloud_scripts_module_id_index
+    on cloud_scripts (module, id);
 
 create index if not exists cloud_scripts_updateTime_index
     on cloud_scripts (update_time);

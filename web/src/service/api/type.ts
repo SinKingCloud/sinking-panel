@@ -1,5 +1,10 @@
 import {get, post} from "@/utils/request";
 
+/** 获取分类枚举 GET /type/enum */
+export async function getTypeEnum(params: API.RequestParams = {}) {
+    return get("/type/enum", params?.body, params?.onSuccess, params?.onFail, params?.onFinally);
+}
+
 /** 获取分类列表 GET /type/list */
 export async function getTypeList(params: API.RequestParams = {}) {
     return get("/type/list", params?.body, params?.onSuccess, params?.onFail, params?.onFinally);

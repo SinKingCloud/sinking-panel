@@ -114,7 +114,7 @@ AND (deptype <> 'a' OR classid NOT IN ('pg_database'::regclass, 'pg_namespace'::
 			if client != m {
 				defer client.Close()
 			}
-			schemas, err := client.records(ctx, `SELECT n.nspname AS name FROM pg_namespace n WHERE n.nspname NOT LIKE 'pg\_%' AND n.nspname <> 'information_schema' AND EXISTS (
+			schemas, err := client.records(ctx, `SELECT n.nspname AS name FROM pg_namespace n WHERE substr(n.nspname, 1, 3) <> 'pg_' AND n.nspname <> 'information_schema' AND EXISTS (
 SELECT 1 FROM pg_shdepend s WHERE s.dbid = (SELECT oid FROM pg_database WHERE datname = current_database()) AND s.refclassid = 'pg_authid'::regclass AND s.refobjid = (SELECT oid FROM pg_roles WHERE rolname = $1)
 AND s.deptype = 'a' AND (s.classid = 'pg_namespace'::regclass AND s.objid = n.oid OR s.classid = 'pg_class'::regclass AND s.objid IN (SELECT oid FROM pg_class WHERE relnamespace = n.oid))) ORDER BY n.nspname`, accountName)
 			if err != nil {
@@ -280,6 +280,13 @@ func (m *Manager) UpdatePermissions(ctx context.Context, accountName string, gra
 
 // accountPermissionObjects 读取实际 ACL；unnest(aclitem[]) 兼容旧版，不依赖较新版本的 aclexplode。
 func (m *Manager) accountPermissionObjects(ctx context.Context, accountName, databaseName, schemaName string, tx *sql.Tx) ([]accountPermissionObject, error) {
+	version, err := m.serverVersion(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if version < 80400 {
+		return nil, errors.New("账户权限管理需要 PostgreSQL 8.4 或更高版本")
+	}
 	query := `SELECT d.datname AS name, 'DATABASE'::text AS kind, d.datdba = r.oid AS owned, false AS protected, CASE WHEN pg_has_role(d.datdba, 'USAGE') THEN pg_get_userbyid(d.datdba)::text ELSE CURRENT_USER::text END AS grantor, d.datacl AS acl FROM pg_database d CROSS JOIN pg_roles r WHERE r.rolname = $1 AND d.datname = $2`
 	args := []interface{}{accountName, databaseName}
 	if schemaName != "" {

@@ -140,7 +140,7 @@ func (m *Manager) Version(ctx context.Context) (map[string]interface{}, error) {
 	}
 	return map[string]interface{}{"name": "Elasticsearch", "version": m.version, "features": map[string]bool{
 		"documents": true, "mapping": true, "settings": true, "rest": true, "accounts": false, "typed_documents": m.major < 7,
-		"typed_mapping": m.major < 7, "text_keyword_fields": m.major >= 5,
+		"typed_mapping": m.major < 7, "text_keyword_fields": m.major >= 5, "exists_query": m.major >= 2,
 		"mapping_backfill": m.major >= 5,
 		"deep_pagination":  true, "pit_pagination": m.atLeast(7, 12),
 		"multi_fields": m.major >= 1, "search_analyzer_update": m.major >= 2,

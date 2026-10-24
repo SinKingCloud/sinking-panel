@@ -4,6 +4,8 @@ import (
 	"context"
 	"server/app/model"
 	repositoryDatabase "server/app/repository/database"
+	repositoryScript "server/app/repository/script"
+	repositoryTypes "server/app/repository/types"
 	clientElasticsearch "server/app/service/database/elasticsearch"
 	clientMongo "server/app/service/database/mongo"
 	clientMySQL "server/app/service/database/mysql"
@@ -13,6 +15,8 @@ import (
 	clientSqlServer "server/app/service/database/sqlserver"
 	serviceSystem "server/app/service/system"
 	serviceTypes "server/app/service/types"
+	"server/app/util/cache"
+	utilDatabase "server/app/util/database"
 	"server/app/util/page"
 )
 
@@ -42,12 +46,24 @@ type Service interface {
 }
 
 type service struct {
-	repository    repositoryDatabase.Interface
-	typeService   serviceTypes.Service
-	systemService serviceSystem.Service
+	repository       repositoryDatabase.Interface
+	repositoryScript repositoryScript.Interface
+	repositoryTypes  repositoryTypes.Interface
+	typeService      serviceTypes.Service
+	systemService    serviceSystem.Service
+	database         *utilDatabase.Database
+	cache            cache.Interface
 }
 
 // NewService 创建数据库客户端服务。
-func NewService(repository repositoryDatabase.Interface, typeService serviceTypes.Service, systemService serviceSystem.Service) *service {
-	return &service{repository: repository, typeService: typeService, systemService: systemService}
+func NewService(repository repositoryDatabase.Interface, repositoryScript repositoryScript.Interface, repositoryTypes repositoryTypes.Interface, typeService serviceTypes.Service, systemService serviceSystem.Service, database *utilDatabase.Database, cache cache.Interface) *service {
+	return &service{
+		repository:       repository,
+		repositoryScript: repositoryScript,
+		repositoryTypes:  repositoryTypes,
+		typeService:      typeService,
+		systemService:    systemService,
+		database:         database,
+		cache:            cache,
+	}
 }

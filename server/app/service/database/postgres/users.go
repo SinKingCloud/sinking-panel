@@ -18,6 +18,13 @@ func (m *Manager) Users(ctx context.Context, schemaName, keyword string, pageNum
 	if err = ctx.Err(); err != nil {
 		return nil, err
 	}
+	version, err := m.serverVersion(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if version < 80400 {
+		return nil, errors.New("账户权限管理需要 PostgreSQL 8.4 或更高版本")
+	}
 	schema := schemaName
 	if schema == "" {
 		schema = "public"
@@ -32,7 +39,7 @@ func (m *Manager) Users(ctx context.Context, schemaName, keyword string, pageNum
 		return nil, errors.New("分页参数不合法")
 	}
 	var total int64
-	if err = m.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM pg_roles WHERE rolname NOT LIKE 'pg\\_%' AND rolname ILIKE $1", "%"+keyword+"%").Scan(&total); err != nil {
+	if err = m.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM pg_roles WHERE substr(rolname, 1, 3) <> 'pg_' AND rolname ILIKE $1", "%"+keyword+"%").Scan(&total); err != nil {
 		return nil, err
 	}
 	if total > 0 && int64((pageNumber-1)*pageSize) >= total {
@@ -51,7 +58,7 @@ func (m *Manager) Users(ctx context.Context, schemaName, keyword string, pageNum
 	}
 	records, err := m.records(ctx, `WITH accounts AS (
     SELECT oid, rolname, rolsuper, rolcreatedb, rolcreaterole, rolcanlogin
-    FROM pg_roles WHERE rolname NOT LIKE 'pg\_%' AND rolname ILIKE $2 ORDER BY rolname LIMIT $3 OFFSET $4
+    FROM pg_roles WHERE substr(rolname, 1, 3) <> 'pg_' AND rolname ILIKE $2 ORDER BY rolname LIMIT $3 OFFSET $4
 ), objects AS (
     SELECT c.oid, c.relowner FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
     WHERE n.nspname = $1 AND c.relkind IN ('r', 'v', 'm', 'f', 'p')

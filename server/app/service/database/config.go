@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"reflect"
-	"server/app/enum/database_type"
+	"server/app/enum/database_kind"
 	"server/app/service/database/elasticsearch"
 	"server/app/service/database/mongo"
 	"server/app/service/database/mysql"
@@ -23,19 +23,19 @@ func (s *service) Config(databaseType int, content string, id int64, stored stri
 	}
 	var config interface{}
 	switch databaseType {
-	case database_type.MySQL:
+	case database_kind.MySQL:
 		config = mysql.Config{}
-	case database_type.Postgres:
+	case database_kind.Postgres:
 		config = postgres.Config{}
-	case database_type.SqlServer:
+	case database_kind.SqlServer:
 		config = sqlserver.Config{}
-	case database_type.Sqlite:
+	case database_kind.Sqlite:
 		config = sqlite.Config{}
-	case database_type.Redis:
+	case database_kind.Redis:
 		config = redis.Config{}
-	case database_type.MongoDB:
+	case database_kind.MongoDB:
 		config = mongo.Config{}
-	case database_type.Elasticsearch:
+	case database_kind.Elasticsearch:
 		config = elasticsearch.Config{}
 	default:
 		return nil, errors.New("数据库类型不合法")
@@ -44,9 +44,9 @@ func (s *service) Config(databaseType int, content string, id int64, stored stri
 	// 首次配置采用各数据库推荐的连接方式，已保存的 TLS 选项保持原意。
 	if content == "" {
 		switch databaseType {
-		case database_type.Elasticsearch:
+		case database_kind.Elasticsearch:
 			content = `{"tls":"true"}`
-		case database_type.MySQL:
+		case database_kind.MySQL:
 			content = `{"tls":"preferred"}`
 		}
 	}

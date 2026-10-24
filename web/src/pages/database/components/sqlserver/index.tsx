@@ -5,6 +5,7 @@ import type {DatabaseManagerProps} from "../shared/entities";
 export type {DatabaseManagerProps} from "../shared/entities";
 
 const engine = {
+    module: "sqlserver",
     query: "SELECT @@VERSION AS version;",
     objects: [{key: "view", label: "视图", icon: "EyeOutlined"}, {key: "routine", label: "过程与函数", icon: "FunctionOutlined"}, {key: "trigger", label: "触发器", icon: "ThunderboltOutlined"}],
 };

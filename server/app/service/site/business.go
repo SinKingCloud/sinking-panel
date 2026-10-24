@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"runtime"
 	"server/app/constant"
+	"server/app/enum/site_kind"
 	"server/app/enum/site_status"
-	"server/app/enum/site_type"
 	"server/app/model"
 	repositorySite "server/app/repository/site"
 	"server/app/util/caddy"
@@ -40,7 +40,7 @@ func (s *service) Create(data *CreateSite) (*Site, error) {
 	createdRoot := false
 	var createdPages []string
 	if root == "" {
-		if len(data.Domains) == 0 && data.Type != site_type.General {
+		if len(data.Domains) == 0 && data.Type != site_kind.General {
 			return nil, errors.New("网站至少需要绑定一个域名")
 		}
 		directory := strconv.FormatInt(id, 10)
@@ -166,7 +166,7 @@ func (s *service) Create(data *CreateSite) (*Site, error) {
 		if prepareErr != nil {
 			return prepareErr
 		}
-		if record.Type == site_type.Static || record.Type == site_type.PHP {
+		if record.Type == site_kind.Static || record.Type == site_kind.PHP {
 			runRoot, pathErr := s.runRoot(record)
 			if pathErr != nil {
 				return pathErr
@@ -738,7 +738,7 @@ func (s *service) Select(where *repositorySite.SelectSite, queryPage *page.Query
 			return nil, errors.New("网站分类参数错误")
 		}
 		if where.Type != nil {
-			if _, ok := site_type.Map()[*where.Type]; !ok {
+			if _, ok := site_kind.Map()[*where.Type]; !ok {
 				return nil, errors.New("网站类型参数不合法")
 			}
 		}

@@ -12,7 +12,7 @@ type Site struct {
 	Id         int64        `gorm:"column:id;PRIMARY_KEY" json:"id"`       // 网站ID
 	TypeId     int64        `gorm:"column:type_id" json:"type_id"`         // 网站分类ID
 	Name       string       `gorm:"column:name" json:"name"`               // 网站名称
-	Type       int          `gorm:"column:type" json:"type"`               // 网站类型
+	Type       int          `gorm:"column:type" json:"type"`               // 网站类型，参见 site_kind
 	Status     int          `gorm:"column:status" json:"status"`           // 网站状态
 	Root       string       `gorm:"column:root" json:"root"`               // 网站根目录
 	RunPath    string       `gorm:"column:run_path" json:"run_path"`       // 网站运行目录

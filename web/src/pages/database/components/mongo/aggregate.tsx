@@ -1,5 +1,5 @@
 import {useEffect, useMemo, useRef, useState} from "react";
-import {App, Button, Input, Splitter, Tooltip} from "antd";
+import {App, Button, Input, Space, Splitter, Tooltip} from "antd";
 import {CopyOutlined, PlayCircleOutlined} from "@ant-design/icons";
 import {useTheme} from "sinking-antd";
 import {useDatabaseClient} from "../shared/context";
@@ -11,7 +11,7 @@ import {parseMongoShell} from "./shell";
 import useStyles from "./aggregate-styles";
 
 export default function MongoAggregate({record, collection, onChange, active = true}: any) {
-    const {operate, features = {}, Editor} = useDatabaseClient();
+    const {operate, features = {}, Editor, ScriptTools} = useDatabaseClient();
     const {message, modal} = App.useApp();
     const theme = useTheme();
     const compact = Boolean(theme?.isCompactTheme?.());
@@ -130,7 +130,14 @@ export default function MongoAggregate({record, collection, onChange, active = t
                         <div className="mongo-query-toolbar">
                             <Button color="primary" variant="filled" size="small" loading={loading} disabled={!shell.trim()}
                                 icon={<PlayCircleOutlined/>} onClick={run}>{selected ? "执行选区" : "执行查询"}</Button>
-                            <Button color="default" variant="filled" size="small" onClick={() => { setHistory(queryHistory(String(record.id))); setHistoryOpen(true); }}>查询历史</Button>
+                            <Space size={8} wrap>
+                                {ScriptTools && <ScriptTools instanceId={record.id} value={shell}
+                                    disabled={loading} mode="javascript" Editor={Editor} onUse={(statement: string) => {
+                                        if (busy.current || confirmation.current) return;
+                                        setShell(statement); setSelected(false);
+                                    }}/>}
+                                <Button color="default" variant="filled" size="small" onClick={() => { setHistory(queryHistory(String(record.id))); setHistoryOpen(true); }}>查询历史</Button>
+                            </Space>
                         </div>
                         <div className="mongo-query-editor">
                             {Editor && !fallback ? <Editor value={shell} mode="javascript" height="100%" style={{height: "100%"}} fontSize={12}

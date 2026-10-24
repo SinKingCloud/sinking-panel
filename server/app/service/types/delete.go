@@ -14,15 +14,11 @@ func (s *service) DeleteByIds(ids []int64) error {
 		if err != nil {
 			return err
 		}
-		scriptTypeIds := make([]int64, 0)
 		siteTypeIds := make([]int64, 0)
 		taskTypeIds := make([]int64, 0)
 		databaseTypeIds := make([]int64, 0)
 		for _, item := range types {
 			modules = append(modules, item.Module)
-			if item.Module == type_module.Script {
-				scriptTypeIds = append(scriptTypeIds, item.Id)
-			}
 			if item.Module == type_module.Site {
 				siteTypeIds = append(siteTypeIds, item.Id)
 			}
@@ -33,7 +29,7 @@ func (s *service) DeleteByIds(ids []int64) error {
 				databaseTypeIds = append(databaseTypeIds, item.Id)
 			}
 		}
-		if err = s.repositoryScript.ClearTypeId(scriptTypeIds, tx); err != nil {
+		if err = s.repositoryScript.ClearTypeId(ids, tx); err != nil {
 			return err
 		}
 		if err = s.repositorySite.ClearTypeId(siteTypeIds, tx); err != nil {

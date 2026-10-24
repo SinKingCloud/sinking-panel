@@ -1,27 +1,37 @@
 package types
 
 import (
-	"errors"
 	"server/app/constant"
-	"server/app/enum/type_module"
+	"strings"
 )
 
-// GetEnum 获取指定模块的类型枚举
+// GetEnum 获取分类枚举，支持 database% 这样的模块前缀查询。
 func (s *service) GetEnum(module string) (map[int64]string, error) {
-	if _, ok := type_module.Map()[module]; !ok {
-		return nil, errors.New("所属模块不合法")
+	// 模糊查询直接读取，避免任意前缀缓存无法随分类变更精确失效。
+	if strings.Contains(module, "%") {
+		return s.repositoryTypes.SelectIdNameMap(module)
 	}
-	cacheKey := constant.CacheNameWithTypeEnum + module
-	if data := s.cache.Get(cacheKey); data != nil {
-		if result, ok := data.(map[int64]string); ok {
-			return result, nil
+	modules := []string{module}
+	if base, _, scoped := strings.Cut(module, "_"); scoped {
+		modules = append(modules, base)
+	}
+	result := make(map[int64]string)
+	for _, current := range modules {
+		// 每个范围独立缓存，实例枚举实时组合，修改全局分类只需清理全局缓存。
+		cacheKey := constant.CacheNameWithTypeEnum + current
+		data, ok := s.cache.Get(cacheKey).(map[int64]string)
+		if !ok {
+			var err error
+			data, err = s.repositoryTypes.SelectIdNameMap(current)
+			if err != nil {
+				return nil, err
+			}
+			s.cache.SetWithExpire(cacheKey, data, constant.CacheTimeWithTypeEnum)
+		}
+		for id, name := range data {
+			result[id] = name
 		}
 	}
-	result, err := s.repositoryTypes.SelectIdNameMap(module)
-	if err != nil {
-		return nil, err
-	}
-	s.cache.SetWithExpire(cacheKey, result, constant.CacheTimeWithTypeEnum)
 	return result, nil
 }
 

@@ -1,5 +1,5 @@
 import {useEffect, useMemo, useRef, useState} from "react";
-import {Button, Input, Typography} from "antd";
+import {Button, Input, Space, Typography} from "antd";
 import {createStyles} from "antd-style";
 import {Icon, useTheme} from "sinking-antd";
 import {useDatabaseClient} from "../context";
@@ -23,7 +23,7 @@ const useStyles = createStyles(({css, token}) => ({
 }));
 
 export default ({initialValue, onChange, onRun, loading, record, schema, table, tables = [], columns = [], completionKey, execution}: any) => {
-    const {api, Editor: AceEditor} = useDatabaseClient();
+    const {api, Editor: AceEditor, ScriptTools} = useDatabaseClient();
     const theme = useTheme();
     const {styles} = useStyles();
     const [value, setValue] = useState(initialValue || "");
@@ -67,7 +67,11 @@ export default ({initialValue, onChange, onRun, loading, record, schema, table, 
         <div className={styles.editor}>
             <div className="query-editor-toolbar">
                 <Button color="primary" variant="filled" size="small" loading={loading} disabled={!value?.trim()} icon={<Icon type="PlayCircleOutlined"/>} onClick={run}>{selected ? "执行选区" : "执行SQL"}</Button>
-                <Button color="default" variant="filled" size="small" onClick={() => { setHistory(queryHistory(historyId)); setHistoryOpen(true); }}>查询历史</Button>
+                <Space size={8} wrap>
+                    {ScriptTools && <ScriptTools instanceId={record.id} value={value}
+                        disabled={loading} mode="sql" Editor={AceEditor} onUse={(statement: string) => { change(statement); setSelected(false); }}/>}
+                    <Button color="default" variant="filled" size="small" onClick={() => { setHistory(queryHistory(historyId)); setHistoryOpen(true); }}>查询历史</Button>
+                </Space>
             </div>
             <div className="query-editor-content">
                 {fallback || !AceEditor ? <Input.TextArea placeholder="请输入 SQL 语句" ref={textarea} value={value} onChange={(event) => change(event.target.value)} style={{height: "100%", resize: "none"}}

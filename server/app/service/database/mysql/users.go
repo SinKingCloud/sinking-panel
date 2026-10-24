@@ -277,35 +277,24 @@ func (m *Manager) ChangePassword(ctx context.Context, name, host, password strin
 	if password == "" || len(password) > 1024 || strings.ContainsRune(password, 0) {
 		return nil, false, errors.New("密码应为 1 至 1024 字节，且不能包含空字符")
 	}
+	version, maria, err := m.serverVersion(ctx)
+	if err != nil {
+		return nil, false, err
+	}
 	conn, close, err := m.accountConnection(ctx)
 	if err != nil {
 		return nil, false, err
 	}
 	defer close()
 	statement := ""
-	var version, connectedAccount string
-	if err = conn.QueryRowContext(ctx, "SELECT VERSION(), CURRENT_USER()").Scan(&version, &connectedAccount); err != nil {
+	var connectedAccount string
+	if err = conn.QueryRowContext(ctx, "SELECT CURRENT_USER()").Scan(&connectedAccount); err != nil {
 		return nil, false, err
 	}
 	if index := strings.LastIndexByte(connectedAccount, '@'); index >= 0 {
 		current = connectedAccount[:index] == name && strings.EqualFold(connectedAccount[index+1:], host)
 	}
-	var major, minor, patch int
-	maria := strings.Contains(strings.ToLower(version), "mariadb")
-	numeric := version
-	if maria {
-		for _, part := range strings.Split(version, "-") {
-			var a, b, c int
-			if _, err := fmt.Sscanf(part, "%d.%d.%d", &a, &b, &c); err == nil {
-				numeric = part
-			}
-		}
-	}
-	if _, err = fmt.Sscanf(numeric, "%d.%d.%d", &major, &minor, &patch); err != nil {
-		return nil, false, errors.New("无法识别数据库版本")
-	}
-	legacy := major < 5 || major == 5 && (minor < 7 || minor == 7 && patch < 6)
-	if maria || legacy {
+	if maria || version < 50706 {
 		// MariaDB 的 SET PASSWORD 保留 root 的多种认证方式（如 unix_socket）。
 		statement = "SET PASSWORD FOR " + account + " = PASSWORD(" + m.accountLiteral(password) + ")"
 	} else {

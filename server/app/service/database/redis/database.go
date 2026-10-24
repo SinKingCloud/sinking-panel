@@ -17,7 +17,7 @@ func (m *Manager) DatabaseInfo(ctx context.Context) (result map[string]interface
 		return nil, err
 	}
 	result = map[string]interface{}{"name": strconv.Itoa(m.database), "exists": true, "keys": keys}
-	info, infoErr := m.client.Info(ctx, "keyspace").Result()
+	info, infoErr := m.info(ctx, "keyspace")
 	if infoErr != nil {
 		// INFO 可能被 ACL 禁用，DBSIZE 成功时仍保留实际键数量。
 		if ctx.Err() != nil {

@@ -45,6 +45,10 @@ func NewManager(ctx context.Context, config, databaseName string) (*Manager, err
 		return nil, errors.New("Redis 端口不合法")
 	}
 	opts := &client.Options{Addr: net.JoinHostPort(cfg.Host, strconv.Itoa(cfg.Port)), Username: cfg.User, Password: cfg.Password, DB: cfg.DB}
+	// 单参数 AUTH 在 Redis 6+ 同样代表 default 用户，也兼容没有 ACL 的旧版本。
+	if opts.Username == "default" {
+		opts.Username = ""
+	}
 	if cfg.Socket != "" {
 		opts.Network, opts.Addr = "unix", cfg.Socket
 	}
@@ -112,7 +116,7 @@ func (m *Manager) Test(ctx context.Context) (map[string]interface{}, error) {
 		return nil, m.cleanError(err)
 	}
 	result := map[string]interface{}{"database": m.database, "connected": true}
-	if info, err := m.client.Info(ctx, "server").Result(); err == nil {
+	if info, err := m.info(ctx, "server"); err == nil {
 		for _, line := range strings.Split(info, "\n") {
 			if strings.HasPrefix(line, "redis_version:") {
 				result["version"] = strings.TrimSpace(strings.TrimPrefix(line, "redis_version:"))
@@ -153,14 +157,7 @@ func (m *Manager) Databases(ctx context.Context, keyword string, pageNumber, pag
 		}
 	}
 	if count == 0 {
-		info, err := m.client.Info(ctx, "keyspace").Result()
-		if err != nil {
-			text := strings.ToLower(err.Error())
-			if text == "err syntax error" || text == "syntax error" || strings.Contains(text, "wrong number of arguments") && strings.Contains(text, "'info'") {
-				// Redis 2.4 没有 INFO 分区参数。
-				info, err = m.client.Info(ctx).Result()
-			}
-		}
+		info, err := m.info(ctx, "keyspace")
 		if err != nil {
 			if !strings.Contains(strings.ToUpper(err.Error()), "NOPERM") {
 				return nil, m.cleanError(err)

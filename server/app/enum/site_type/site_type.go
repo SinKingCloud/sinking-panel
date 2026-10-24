@@ -1,18 +1,15 @@
 package site_type
 
-const (
-	Static  = iota // 静态网站
-	Proxy          // 反向代理
-	General        // 通用网站
-	PHP            // PHP网站
+import (
+	"server/app/enum/type_module"
+	"server/app/service"
 )
 
-// Map 网站类型数据
-func Map() map[int]string {
-	return map[int]string{
-		Static:  "静态网站",
-		Proxy:   "反向代理",
-		General: "通用网站",
-		PHP:     "PHP网站",
+// Map 网站分类数据
+func Map() map[int64]string {
+	data, err := service.Type.GetEnum(type_module.Site)
+	if err != nil {
+		return make(map[int64]string)
 	}
+	return data
 }

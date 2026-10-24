@@ -4,8 +4,9 @@ import ActionDropdown from "@/pages/components/action-dropdown";
 import FilePicker from "@/pages/components/file-picker";
 import AceEditor from "@/components/ace-editor";
 import {databaseRequests} from "@/service/api/database";
+import ScriptTools from "@/pages/components/script-tools";
 
-const components = {ActionDropdown, FilePicker, Editor: AceEditor};
+const components = {ActionDropdown, FilePicker, Editor: AceEditor, ScriptTools};
 const managers: Record<number, any> = {1: Redis, 2: Mysql, 3: Postgres, 4: Mongo, 5: SqlServer, 6: Sqlite, 7: Elasticsearch};
 
 export default (props: any) => {

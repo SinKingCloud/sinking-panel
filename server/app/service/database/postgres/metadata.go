@@ -102,7 +102,7 @@ func (m *Manager) Indexes(ctx context.Context, schemaName, tableName string) (ou
 	if err != nil {
 		return nil, err
 	}
-	query := "SELECT i.relname AS name, pg_get_indexdef(x.indexrelid, k.position + 1, TRUE) AS column_name, x.indisunique AS is_unique, x.indisprimary AS is_primary FROM pg_index x JOIN pg_class t ON t.oid = x.indrelid JOIN pg_namespace n ON n.oid = t.relnamespace JOIN pg_class i ON i.oid = x.indexrelid CROSS JOIN generate_series(0, 31) AS k(position) WHERE n.nspname = $1 AND t.relname = $2 AND k.position < x.indnatts ORDER BY i.relname, k.position"
+	query := "SELECT i.relname AS name, pg_get_indexdef(x.indexrelid, k.position + 1, TRUE) AS column_name, x.indisunique AS is_unique, x.indisprimary AS is_primary FROM pg_index x JOIN pg_class t ON t.oid = x.indrelid JOIN pg_namespace n ON n.oid = t.relnamespace JOIN pg_class i ON i.oid = x.indexrelid CROSS JOIN generate_series(0, current_setting('max_index_keys')::int - 1) AS k(position) WHERE n.nspname = $1 AND t.relname = $2 AND k.position < x.indnatts ORDER BY i.relname, k.position"
 	args := []interface{}{schema, tableName}
 	records, err := m.records(ctx, query, args...)
 	if err != nil {

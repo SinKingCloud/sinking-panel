@@ -5,6 +5,7 @@ import type {DatabaseManagerProps} from "../shared/entities";
 export type {DatabaseManagerProps} from "../shared/entities";
 
 const engine = {
+    module: "sqlite",
     query: "SELECT sqlite_version() AS version;",
     objects: [{key: "view", label: "视图", icon: "EyeOutlined"}, {key: "trigger", label: "触发器", icon: "ThunderboltOutlined"}],
 };

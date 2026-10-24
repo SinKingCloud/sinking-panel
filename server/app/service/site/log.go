@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strconv"
 
-	"server/app/enum/site_type"
+	"server/app/enum/site_kind"
 	"server/app/util/caddy"
 	fileLog "server/app/util/log"
 )
@@ -81,7 +81,7 @@ func (s *service) logPath(id int64, logType caddy.LogType) (string, error) {
 	if record == nil {
 		return "", errors.New("网站不存在")
 	}
-	if logType == caddy.LogProcess && record.Type != site_type.General {
+	if logType == caddy.LogProcess && record.Type != site_kind.General {
 		return "", errors.New("当前网站没有进程日志")
 	}
 	path, err := s.http.LogPath(strconv.FormatInt(id, 10), logType)

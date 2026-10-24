@@ -1,24 +1,15 @@
 package database_type
 
-const (
-	Redis         = iota + 1 // Redis
-	MySQL                    // MySQL
-	Postgres                 // Postgres
-	MongoDB                  // MongoDB
-	SqlServer                // SqlServer
-	Sqlite                   // Sqlite
-	Elasticsearch            // Elasticsearch
+import (
+	"server/app/enum/type_module"
+	"server/app/service"
 )
 
-// Map 数据库类型数据。
-func Map() map[int]string {
-	return map[int]string{
-		Redis:         "Redis",
-		MySQL:         "MySQL",
-		Postgres:      "Postgres",
-		MongoDB:       "MongoDB",
-		SqlServer:     "SqlServer",
-		Sqlite:        "Sqlite",
-		Elasticsearch: "Elasticsearch",
+// Map 数据库分类数据
+func Map() map[int64]string {
+	data, err := service.Type.GetEnum(type_module.Database)
+	if err != nil {
+		return make(map[int64]string)
 	}
+	return data
 }

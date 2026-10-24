@@ -30,11 +30,11 @@ export default (): React.ReactNode | any => {
     const [certVersion, setCertVersion] = useState(0);
     const [secretVersion, setSecretVersion] = useState(0);
     const [typeItems, setTypeItems] = useState<any[] | null>(null);
-    const typeData = enumData?.type || defaultTypeData;
+    const typeData = enumData?.kind || defaultTypeData;
     const statusData = enumData?.status || defaultStatusData;
-    const categoryData = useMemo(() => Object.fromEntries(
-        (typeItems || []).map((item) => [String(item.id), String(item.name)]),
-    ), [typeItems]);
+    const categoryData = useMemo(() => typeItems === null
+        ? enumData?.type || {}
+        : Object.fromEntries(typeItems.map((item) => [String(item.id), String(item.name)])), [enumData?.type, typeItems]);
 
     useEffect(() => {
         let active = true;

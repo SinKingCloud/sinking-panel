@@ -12,6 +12,7 @@ import (
 type Interface interface {
 	Create(data *model.Type) error
 	DeleteByIds(ids []int64, tx ...*gorm.DB) error
+	DeleteByModules(modules []string, tx ...*gorm.DB) error
 	SelectByIds(ids []int64, tx ...*gorm.DB) ([]*model.Type, error)
 	SelectIdNameMap(module string) (map[int64]string, error)
 	Select(where *SelectType, orderByField, orderByType string) ([]*model.Type, error)

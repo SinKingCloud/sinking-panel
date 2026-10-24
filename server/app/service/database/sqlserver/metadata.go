@@ -60,14 +60,8 @@ func (m *Manager) Columns(ctx context.Context, schemaName, tableName string) (_ 
 	if err != nil {
 		return nil, err
 	}
-	version, err := m.serverVersion(ctx)
-	if err != nil {
-		return nil, err
-	}
-	generatedKind := "0"
-	if version >= 13 {
-		generatedKind = "c.generated_always_type"
-	}
+	// Azure SQL 的主版本仍可能是 12；按字段属性读取生成类型，旧版本未知属性返回 NULL。
+	generatedKind := "COALESCE(COLUMNPROPERTY(c.object_id, c.name, 'GeneratedAlwaysType'), 0)"
 	query := "SELECT c.name, CASE WHEN t.is_user_defined = 1 THEN QUOTENAME(SCHEMA_NAME(t.schema_id)) + '.' + QUOTENAME(t.name) WHEN t.name IN ('varchar', 'char', 'varbinary', 'binary') THEN t.name + '(' + CASE WHEN c.max_length = -1 THEN 'max' ELSE CAST(c.max_length AS VARCHAR(10)) END + ')' WHEN t.name IN ('nvarchar', 'nchar') THEN t.name + '(' + CASE WHEN c.max_length = -1 THEN 'max' ELSE CAST(c.max_length / 2 AS VARCHAR(10)) END + ')' WHEN t.name IN ('decimal', 'numeric') THEN t.name + '(' + CAST(c.precision AS VARCHAR(10)) + ',' + CAST(c.scale AS VARCHAR(10)) + ')' WHEN t.name IN ('time', 'datetime2', 'datetimeoffset') THEN t.name + '(' + CAST(c.scale AS VARCHAR(10)) + ')' ELSE t.name END AS type, c.is_nullable AS nullable, c.collation_name AS collation, d.definition AS default_value, c.is_computed AS generated, c.is_computed AS computed, " + generatedKind + " AS generated_kind, c.is_identity AS identity_column, CASE WHEN EXISTS (SELECT 1 FROM sys.indexes i JOIN sys.index_columns ic ON ic.object_id = i.object_id AND ic.index_id = i.index_id WHERE i.object_id = c.object_id AND i.is_primary_key = 1 AND ic.column_id = c.column_id) THEN 1 ELSE 0 END AS primary_key, TYPE_NAME(c.system_type_id) AS base_type FROM sys.columns c JOIN sys.objects o ON o.object_id = c.object_id JOIN sys.schemas s ON s.schema_id = o.schema_id JOIN sys.types t ON t.user_type_id = c.user_type_id LEFT JOIN sys.default_constraints d ON d.object_id = c.default_object_id WHERE s.name = @p1 AND o.name = @p2 ORDER BY c.column_id"
 	records, err := m.records(ctx, query, schema, tableName)
 	if err != nil {

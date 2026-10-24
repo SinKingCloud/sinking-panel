@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strconv"
 
+	"server/app/enum/site_kind"
 	"server/app/enum/site_status"
-	"server/app/enum/site_type"
 	processManager "server/app/util/process"
 )
 
@@ -29,7 +29,7 @@ func (s *service) Process(id int64, action string) (*processManager.Status, erro
 	if record == nil {
 		return nil, errors.New("网站不存在")
 	}
-	if record.Type != site_type.General {
+	if record.Type != site_kind.General {
 		return nil, errors.New("当前网站不是通用网站")
 	}
 	processID := strconv.FormatInt(id, 10)

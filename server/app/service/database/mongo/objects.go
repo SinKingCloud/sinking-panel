@@ -59,7 +59,7 @@ func (m *Manager) CreateView(ctx context.Context, viewName, sourceCollection, pi
 	if err != nil {
 		return nil, err
 	}
-	cursor, err := m.database.ListCollections(ctx, bson.D{{Key: "name", Value: bson.D{{Key: "$in", Value: bson.A{viewName, sourceCollection}}}}}, options.ListCollections().SetNameOnly(false).SetBatchSize(2))
+	cursor, err := m.database.ListCollections(ctx, bson.D{{Key: "name", Value: bson.D{{Key: "$in", Value: bson.A{viewName, sourceCollection}}}}}, options.ListCollections().SetBatchSize(2))
 	if err != nil {
 		return nil, err
 	}
@@ -124,7 +124,7 @@ func (m *Manager) ViewDefinition(ctx context.Context, viewName string) (result i
 	if len(database)+1+len(viewName) > 255 || strings.Contains(viewName, "$") || strings.HasPrefix(viewName, "system.") || strings.Contains(viewName, ".system.") {
 		return nil, errors.New("不能访问系统视图或无效视图名称")
 	}
-	cursor, err := m.database.ListCollections(ctx, bson.D{{Key: "name", Value: viewName}}, options.ListCollections().SetNameOnly(false).SetBatchSize(1))
+	cursor, err := m.database.ListCollections(ctx, bson.D{{Key: "name", Value: viewName}}, options.ListCollections().SetBatchSize(1))
 	if err != nil {
 		return nil, err
 	}

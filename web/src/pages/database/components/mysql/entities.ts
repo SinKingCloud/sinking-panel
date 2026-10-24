@@ -24,6 +24,7 @@ export type MysqlRequest = (params: {body: Record<string, any>}) => Promise<{cod
 export type MysqlRequests = Record<MysqlOperation, MysqlRequest> & {"system/task": MysqlRequest};
 
 export interface MysqlComponents {
+    ScriptTools?: ComponentType<any>;
     FilePicker?: ComponentType<any>;
     ActionDropdown?: ComponentType<any>;
     Editor?: ComponentType<any>;
@@ -50,6 +51,7 @@ export type MysqlApi = {
 };
 
 export interface MysqlClientContext {
+    ScriptTools?: ComponentType<any>;
     api: MysqlApi;
     version?: DatabaseVersion;
     features: Record<string, boolean>;

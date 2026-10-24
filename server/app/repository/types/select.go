@@ -2,6 +2,7 @@ package types
 
 import (
 	"server/app/model"
+	"strings"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -37,12 +38,13 @@ func (r *Repository) SelectIdNameMap(module string) (map[int64]string, error) {
 		Id   int64  `gorm:"column:id" json:"id"`
 		Name string `gorm:"column:name" json:"name"`
 	}
-	err := r.Database.Db.
-		Model(&model.Type{}).
-		Select("id", "name").
-		Where("module = ?", module).
-		Order("sort ASC, id ASC").
-		Find(&data).Error
+	query := r.Database.Db.Model(&model.Type{}).Select("id", "name")
+	if strings.Contains(module, "%") {
+		query = query.Where("module LIKE ? ESCAPE '!'", strings.NewReplacer("!", "!!", "_", "!_").Replace(module))
+	} else {
+		query = query.Where("module = ?", module)
+	}
+	err := query.Order("sort ASC, id ASC").Find(&data).Error
 	if err != nil {
 		return nil, err
 	}
@@ -58,7 +60,13 @@ func (r *Repository) Select(where *SelectType, orderByField, orderByType string)
 	query := r.Database.Db.Model(&model.Type{})
 	if where != nil {
 		if where.Module != nil {
-			query = query.Where("module = ?", *where.Module)
+			if strings.Contains(*where.Module, "%") {
+				query = query.Where("module LIKE ? ESCAPE '!'", strings.NewReplacer("!", "!!", "_", "!_").Replace(*where.Module))
+			} else if module, _, scoped := strings.Cut(*where.Module, "_"); scoped {
+				query = query.Where("module IN ?", []string{module, *where.Module})
+			} else {
+				query = query.Where("module = ?", *where.Module)
+			}
 		}
 		if where.Name != nil {
 			query = query.Where("name LIKE ?", "%"+*where.Name+"%")

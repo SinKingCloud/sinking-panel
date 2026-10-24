@@ -1,8 +1,6 @@
 package types
 
 import (
-	"errors"
-	"server/app/enum/type_module"
 	"server/app/model"
 	repositoryTypes "server/app/repository/types"
 )
@@ -21,10 +19,5 @@ func (s *service) FindById(id int64) (*model.Type, error) {
 
 // Select 获取数据
 func (s *service) Select(where *repositoryTypes.SelectType, orderByField, orderByType string) ([]*model.Type, error) {
-	if where != nil && where.Module != nil {
-		if _, ok := type_module.Map()[*where.Module]; !ok {
-			return nil, errors.New("所属模块不合法")
-		}
-	}
 	return s.repositoryTypes.Select(where, orderByField, orderByType)
 }

@@ -44,7 +44,8 @@ const fallbackCopyText = (value: string) => {
 
 const Scripts = ({styles, collapsed, connected, selectedId, onCollapsedChange, onInsert}: any) => {
     const {message, modal} = App.useApp();
-    const list = useScripts();
+    const instanceModule = selectedId === undefined || selectedId === null ? undefined : `ssh_${selectedId}`;
+    const list = useScripts(instanceModule || "ssh");
     const formRef = useRef<any>({} as any);
     const typeManagerRef = useRef<TypeManagerRef>({} as TypeManagerRef);
     const typeRequestRef = useRef(0);
@@ -71,7 +72,7 @@ const Scripts = ({styles, collapsed, connected, selectedId, onCollapsedChange, o
 
     const loadTypes = useCallback(async () => {
         const requestId = ++typeRequestRef.current;
-        const response = await getTypeList({body: {module: "script", order_by_field: "sort", order_by_type: "asc"}});
+        const response = await getTypeList({body: {module: instanceModule || "ssh", order_by_field: "sort", order_by_type: "asc"}});
         if (typeRequestRef.current !== requestId || !response) {
             return;
         }
@@ -79,8 +80,10 @@ const Scripts = ({styles, collapsed, connected, selectedId, onCollapsedChange, o
             message.error(response.message || "获取脚本分类失败");
             return;
         }
-        setTypeItems(Array.isArray(response.data?.list) ? response.data.list : []);
-    }, [message]);
+        const items = Array.isArray(response.data?.list) ? response.data.list : [];
+        setTypeItems(items);
+        return items;
+    }, [instanceModule, message]);
 
     useEffect(() => {
         void loadTypes();
@@ -361,9 +364,10 @@ const Scripts = ({styles, collapsed, connected, selectedId, onCollapsedChange, o
                         ) : (
                             <div className="script-list">
                                 {list.items.map((record) => {
-                                    const typeName = record.type_id === 0
-                                        ? "全部分类"
-                                        : typeMap[String(record.type_id)] || "未知分类";
+                                    const typeName = [
+                                        record.module === "ssh" ? "全局脚本" : "实例脚本",
+                                        record.type_id ? typeMap[String(record.type_id)] || "未知分类" : "",
+                                    ].filter(Boolean).join(" · ");
                                     const copying = copyingId === record.id;
                                     return (
                                         <div
@@ -487,10 +491,14 @@ const Scripts = ({styles, collapsed, connected, selectedId, onCollapsedChange, o
                 </footer>
             </aside>
 
-            <ScriptForm ref={formRef} typeItems={typeItems} onSuccess={list.reload}/>
+            <ScriptForm ref={formRef} instanceModule={instanceModule} onSuccess={list.reload}/>
             <TypeManager
                 ref={typeManagerRef}
-                module="script"
+                module={instanceModule || "ssh"}
+                scopes={instanceModule ? [
+                    {label: "全局分类", value: "ssh"},
+                    {label: "实例分类", value: instanceModule},
+                ] : undefined}
                 onChange={handleTypesChange}
                 onMutation={list.reload}/>
         </>

@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"net"
 	"path/filepath"
+	"server/app/enum/site_kind"
 	"server/app/enum/site_status"
-	"server/app/enum/site_type"
 	"server/app/enum/type_module"
 	"server/app/model"
 	"server/app/util/str"
@@ -40,10 +40,10 @@ func (s *service) prepareSite(data *model.Site, input []SiteDomain, previous []*
 	data.Config = config
 	data.Root = strings.TrimSpace(data.Root)
 	data.RunPath = strings.TrimSpace(data.RunPath)
-	if data.Type == site_type.Proxy && data.RunPath != "" {
+	if data.Type == site_kind.Proxy && data.RunPath != "" {
 		return nil, nil, errors.New("反向代理网站不能配置运行目录")
 	}
-	if data.Root == "" && data.Type != site_type.Proxy {
+	if data.Root == "" && data.Type != site_kind.Proxy {
 		return nil, nil, errors.New("网站根目录不能为空")
 	}
 	if data.Root != "" {
@@ -73,7 +73,7 @@ func (s *service) prepareSite(data *model.Site, input []SiteDomain, previous []*
 		}
 		data.RunPath = filepath.ToSlash(relative)
 	}
-	if len(input) == 0 && data.Type != site_type.General {
+	if len(input) == 0 && data.Type != site_kind.General {
 		return nil, nil, errors.New("网站至少需要绑定一个域名")
 	}
 	previousByName := make(map[string]*model.SiteDomain, len(previous))
@@ -142,7 +142,7 @@ func (s *service) prepareSite(data *model.Site, input []SiteDomain, previous []*
 }
 
 func (s *service) validateSiteEnums(siteType, status int) error {
-	if _, ok := site_type.Map()[siteType]; !ok {
+	if _, ok := site_kind.Map()[siteType]; !ok {
 		return errors.New("网站类型不合法")
 	}
 	if _, ok := site_status.Map()[status]; !ok {

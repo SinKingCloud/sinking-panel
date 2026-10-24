@@ -13,6 +13,7 @@ import (
 type Interface interface {
 	Create(data *model.Script) error
 	DeleteByIds(ids []int64, tx ...*gorm.DB) error
+	DeleteByModules(modules []string, tx ...*gorm.DB) error
 	FindById(id int64) (*model.Script, error)
 	Select(where *SelectScript, queryPage *page.Query) (*page.Result[*Script], error)
 	ClearTypeId(typeIds []int64, tx ...*gorm.DB) error

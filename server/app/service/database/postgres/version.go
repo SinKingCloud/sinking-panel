@@ -25,7 +25,7 @@ func (m *Manager) Version(ctx context.Context) (map[string]interface{}, error) {
 		"name":    "Postgres",
 		"version": text,
 		"features": map[string]bool{
-			"accounts":           version >= 80100,
+			"accounts":           version >= 80400, // 账户权限汇总依赖 CTE 和列级权限检查。
 			"views":              true,
 			"routines":           version >= 80400,
 			"functions":          version >= 80400,

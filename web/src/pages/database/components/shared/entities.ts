@@ -55,12 +55,14 @@ export interface DatabaseManagerProps {
 
 // 使用方可接入自己的服务器文件选择器、操作菜单和代码编辑器。
 export interface DatabasePanelComponents {
+    ScriptTools?: ComponentType<any>;
     FilePicker?: ComponentType<any>;
     ActionDropdown?: ComponentType<any>;
     Editor?: ComponentType<any>;
 }
 
 export interface DatabaseClientContext {
+    ScriptTools?: ComponentType<any>;
     request: DatabasePanelRequest;
     version?: DatabaseVersion;
     features: Record<string, boolean>;

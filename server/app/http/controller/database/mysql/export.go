@@ -2,7 +2,7 @@ package mysql
 
 import (
 	stdContext "context"
-	"server/app/enum/database_type"
+	"server/app/enum/database_kind"
 	"server/app/enum/log_type"
 	"server/app/service"
 	"server/app/util/context"
@@ -22,7 +22,7 @@ func (Controller) Export(c *context.Context) {
 		c.Error(msg)
 		return
 	}
-	taskID, err := service.Database.Transfer(form.Id, database_type.MySQL, "export", form.Path, form.DatabaseName, func(ctx stdContext.Context, progress func(float64, string)) (map[string]interface{}, error) {
+	taskID, err := service.Database.Transfer(form.Id, database_kind.MySQL, "export", form.Path, form.DatabaseName, func(ctx stdContext.Context, progress func(float64, string)) (map[string]interface{}, error) {
 		manager, err := service.Database.Mysql(ctx, form.Id, form.DatabaseName)
 		if err != nil {
 			return nil, err

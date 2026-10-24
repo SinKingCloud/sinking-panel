@@ -4,6 +4,8 @@ import (
 	"errors"
 	"server/app/enum/type_module"
 	repositoryTypes "server/app/repository/types"
+	"strings"
+	"unicode/utf8"
 
 	"gorm.io/gorm"
 )
@@ -15,8 +17,8 @@ func (s *service) UpdateByIds(ids []int64, data *repositoryTypes.UpdateType) err
 	}
 	var module string
 	if data.Module != nil {
-		if _, ok := type_module.Map()[*data.Module]; !ok {
-			return errors.New("所属模块不合法")
+		if strings.TrimSpace(*data.Module) == "" || utf8.RuneCountInString(*data.Module) > 50 || strings.Contains(*data.Module, "%") {
+			return errors.New("所属模块不能为空、超过50个字符或包含通配符")
 		}
 		module = *data.Module
 	}
@@ -32,7 +34,7 @@ func (s *service) UpdateByIds(ids []int64, data *repositoryTypes.UpdateType) err
 		databaseTypeIds := make([]int64, 0)
 		for _, item := range types {
 			modules = append(modules, item.Module)
-			if item.Module == type_module.Script {
+			if module != "" && module != item.Module {
 				scriptTypeIds = append(scriptTypeIds, item.Id)
 			}
 			if item.Module == type_module.Site {
@@ -45,7 +47,7 @@ func (s *service) UpdateByIds(ids []int64, data *repositoryTypes.UpdateType) err
 				databaseTypeIds = append(databaseTypeIds, item.Id)
 			}
 		}
-		if module != "" && module != type_module.Script {
+		if len(scriptTypeIds) > 0 {
 			if err := s.repositoryScript.ClearTypeId(scriptTypeIds, tx); err != nil {
 				return err
 			}

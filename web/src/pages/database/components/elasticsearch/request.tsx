@@ -1,5 +1,5 @@
 import {useRef, useState, useEffect, useMemo} from "react";
-import {App, Button, Empty, Form, Input, Select, Spin, Splitter} from "antd";
+import {App, Button, Empty, Form, Input, Select, Space, Spin, Splitter} from "antd";
 import {Icon, useTheme} from "sinking-antd";
 import {useDatabaseClient} from "../shared/context";
 import {copyTextToClipboard} from "../shared/clipboard";
@@ -9,11 +9,12 @@ import useStyles from "./request-styles";
 
 export default ({record}: any) => {
     const {modal, message} = App.useApp();
-    const {operate, Editor: AceEditor} = useDatabaseClient();
+    const {operate, Editor: AceEditor, ScriptTools} = useDatabaseClient();
     const appearance = useTheme();
     const compact = Boolean(appearance?.isCompactTheme?.());
     const {styles} = useStyles({compact});
     const [form] = Form.useForm();
+    const values = Form.useWatch([], form);
     const [fallback, setFallback] = useState(false);
     const [result, setResult] = useState<any>();
     const [error, setError] = useState("");
@@ -72,7 +73,18 @@ export default ({record}: any) => {
                             : <Input.TextArea spellCheck={false} placeholder="请输入 JSON 请求内容，无请求内容时可留空"
                                 onKeyDown={(event) => { if ((event.ctrlKey || event.metaKey) && event.key === "Enter") { event.preventDefault(); form.submit(); } }}/>}</Form.Item></div>
                         <div className="manager-query-actions"><span>Ctrl / ⌘ + Enter 执行</span>
-                            <Button color="default" variant="filled" onClick={() => { setHistory(requestHistory(String(record.id))); setHistoryOpen(true); }}>请求历史</Button>
+                            <Space size={8} wrap>
+                                {ScriptTools && <ScriptTools instanceId={record.id}
+                                    value={`${values?.method || "GET"} ${values?.path ?? (record.name ? `/${record.name}/_search` : "/_cluster/health")}\n\n${values?.body || ""}`}
+                                    disabled={loading} mode="text" Editor={AceEditor} onUse={(script: string) => {
+                                        if (pending.current) return;
+                                        const request = /^(GET|POST|PUT|DELETE|HEAD) +([^\r\n]+)(?:\r?\n(?:\r?\n)?([\s\S]*))?$/i.exec(script);
+                                        if (!request) throw new Error("请求脚本格式应为：请求方法 路径，空行后填写请求内容");
+                                        form.setFieldsValue({method: request[1].toUpperCase(), path: request[2].trim(), body: request[3] || ""});
+                                        setResult(undefined); setError("");
+                                    }}/>}
+                                <Button color="default" variant="filled" onClick={() => { setHistory(requestHistory(String(record.id))); setHistoryOpen(true); }}>请求历史</Button>
+                            </Space>
                         </div>
                     </div>
                 </Splitter.Panel>

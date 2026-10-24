@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"path/filepath"
 	"server/app/constant"
+	"server/app/enum/site_kind"
 	"server/app/enum/site_status"
-	"server/app/enum/site_type"
 	"server/app/model"
 	"server/app/util/caddy"
 	processManager "server/app/util/process"
@@ -303,7 +303,7 @@ func (s *service) runtime() ([]caddy.Site, []processManager.Config, error) {
 }
 
 func (s *service) runtimeSite(record *model.Site, domains []*model.SiteDomain, certificates map[int64]*model.Cert, config interface{}) (caddy.Site, *processManager.Config, error) {
-	if len(domains) == 0 && record.Type != site_type.General {
+	if len(domains) == 0 && record.Type != site_kind.General {
 		return caddy.Site{}, nil, fmt.Errorf("网站 %s 没有绑定域名", record.Name)
 	}
 	runtimeSite := caddy.Site{
@@ -351,7 +351,7 @@ func (s *service) runtimeSite(record *model.Site, domains []*model.SiteDomain, c
 		return runtimeSite, nil, nil
 	}
 	runRoot := ""
-	if record.Type != site_type.Proxy && record.Type != site_type.General {
+	if record.Type != site_kind.Proxy && record.Type != site_kind.General {
 		var err error
 		runRoot, err = s.runRoot(record)
 		if err != nil {

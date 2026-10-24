@@ -3,7 +3,7 @@ package database
 import (
 	"encoding/json"
 	"errors"
-	"server/app/enum/database_type"
+	"server/app/enum/database_kind"
 	"server/app/model"
 	repositoryDatabase "server/app/repository/database"
 	"server/app/util/page"
@@ -41,7 +41,7 @@ func (s *service) FindById(id int64) (*Database, error) {
 // Select 分页查询实例。
 func (s *service) Select(where *repositoryDatabase.SelectDatabase, query *page.Query) (*page.Result[*repositoryDatabase.Database], error) {
 	if where != nil && where.Type != nil {
-		if _, ok := database_type.Map()[*where.Type]; !ok {
+		if _, ok := database_kind.Map()[*where.Type]; !ok {
 			return nil, errors.New("数据库类型不合法")
 		}
 	}
@@ -54,7 +54,7 @@ func (s *service) FindConnection(id int64, databaseType int) (*model.Database, e
 		return nil, errors.New("实例 ID 不合法")
 	}
 	if databaseType != 0 {
-		if _, ok := database_type.Map()[databaseType]; !ok {
+		if _, ok := database_kind.Map()[databaseType]; !ok {
 			return nil, errors.New("数据库类型不合法")
 		}
 	}
@@ -65,7 +65,7 @@ func (s *service) FindConnection(id int64, databaseType int) (*model.Database, e
 	if data == nil || data.Id <= 0 {
 		return nil, errors.New("实例不存在")
 	}
-	if _, ok := database_type.Map()[data.Type]; !ok {
+	if _, ok := database_kind.Map()[data.Type]; !ok {
 		return nil, errors.New("数据库类型不合法")
 	}
 	if databaseType != 0 && data.Type != databaseType {

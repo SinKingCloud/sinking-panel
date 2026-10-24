@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"server/app/enum/database_type"
+	"server/app/enum/database_kind"
 	"server/app/enum/system_task_status"
 	clientElasticsearch "server/app/service/database/elasticsearch"
 	"server/app/util/str"
@@ -18,7 +18,7 @@ func (s *service) RefreshElasticsearchFields(id int64, databaseName string) (str
 	if s.systemService == nil {
 		return "", errors.New("后台任务服务不可用")
 	}
-	data, err := s.FindConnection(id, database_type.Elasticsearch)
+	data, err := s.FindConnection(id, database_kind.Elasticsearch)
 	if err != nil {
 		return "", err
 	}

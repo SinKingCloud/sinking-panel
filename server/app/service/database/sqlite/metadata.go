@@ -29,7 +29,7 @@ func (m *Manager) Tables(ctx context.Context, schemaName string) (interface{}, e
 	if schemaName != "" && schemaName != "main" {
 		return nil, errors.New("Sqlite 仅支持 main 数据库")
 	}
-	return m.records(ctx, "SELECT name, 'main' AS schema, CASE type WHEN 'view' THEN 'VIEW' ELSE 'BASE TABLE' END AS type FROM main.sqlite_master WHERE type IN ('table','view') AND name NOT LIKE 'sqlite_%' ORDER BY name")
+	return m.records(ctx, "SELECT name, 'main' AS schema, CASE type WHEN 'view' THEN 'VIEW' ELSE 'BASE TABLE' END AS type FROM main.sqlite_master WHERE type IN ('table','view') AND name NOT GLOB 'sqlite_*' ORDER BY name")
 }
 
 // Columns 返回字段、默认值和主键信息。

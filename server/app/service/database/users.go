@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"server/app/enum/database_type"
+	"server/app/enum/database_kind"
 	repositoryDatabase "server/app/repository/database"
 	"server/app/service/database/mongo"
 	"server/app/service/database/mysql"
@@ -16,7 +16,7 @@ import (
 
 // ChangeMongoPassword 修改账户密码；当前认证账户同时更新面板保存的凭据。
 func (s *service) ChangeMongoPassword(ctx context.Context, id int64, databaseName, name, password string) (interface{}, error) {
-	connection, err := s.FindConnection(id, database_type.MongoDB)
+	connection, err := s.FindConnection(id, database_kind.MongoDB)
 	if err != nil {
 		return nil, err
 	}
@@ -47,7 +47,7 @@ func (s *service) ChangeMongoPassword(ctx context.Context, id int64, databaseNam
 	if authSource == "" {
 		authSource = "admin"
 	}
-	latest, err := s.FindConnection(id, database_type.MongoDB)
+	latest, err := s.FindConnection(id, database_kind.MongoDB)
 	if err != nil || latest.Config != connection.Config || config.User != name || data["database"] != authSource {
 		return data, nil
 	}
@@ -71,7 +71,7 @@ func (s *service) ChangeMongoPassword(ctx context.Context, id int64, databaseNam
 
 // ChangeMysqlPassword 修改账户密码；当前连接账户同时更新面板保存的凭据。
 func (s *service) ChangeMysqlPassword(ctx context.Context, id int64, databaseName, name, host, password string) (interface{}, error) {
-	connection, err := s.FindConnection(id, database_type.MySQL)
+	connection, err := s.FindConnection(id, database_kind.MySQL)
 	if err != nil {
 		return nil, err
 	}
@@ -97,7 +97,7 @@ func (s *service) ChangeMysqlPassword(ctx context.Context, id int64, databaseNam
 	}
 	// 已完成远端改密，本地保存失败只返回明确提示，避免误导用户重复改密。
 	data["warning"] = "密码已修改，但实例连接信息未保存，请在配置中填写新密码"
-	latest, err := s.FindConnection(id, database_type.MySQL)
+	latest, err := s.FindConnection(id, database_kind.MySQL)
 	if err != nil || latest.Config != connection.Config || config.User != name {
 		return data, nil
 	}
@@ -121,7 +121,7 @@ func (s *service) ChangeMysqlPassword(ctx context.Context, id int64, databaseNam
 
 // ChangePostgresPassword 修改角色密码；当前登录账户同时更新面板保存的凭据。
 func (s *service) ChangePostgresPassword(ctx context.Context, id int64, databaseName, name, password string) (interface{}, error) {
-	connection, err := s.FindConnection(id, database_type.Postgres)
+	connection, err := s.FindConnection(id, database_kind.Postgres)
 	if err != nil {
 		return nil, err
 	}
@@ -147,7 +147,7 @@ func (s *service) ChangePostgresPassword(ctx context.Context, id int64, database
 	}
 	// 远端密码已生效，配置变动或保存失败时提示补填，不返回改密失败。
 	data["warning"] = "密码已修改，但实例连接信息未保存，请在配置中填写新密码"
-	latest, err := s.FindConnection(id, database_type.Postgres)
+	latest, err := s.FindConnection(id, database_kind.Postgres)
 	if err != nil || latest.Config != connection.Config || config.User != "" && config.User != name {
 		return data, nil
 	}
@@ -171,7 +171,7 @@ func (s *service) ChangePostgresPassword(ctx context.Context, id int64, database
 
 // ChangeSqlServerPassword 修改登录密码；当前连接账户同时更新面板保存的凭据。
 func (s *service) ChangeSqlServerPassword(ctx context.Context, id int64, databaseName, name, password string) (interface{}, error) {
-	connection, err := s.FindConnection(id, database_type.SqlServer)
+	connection, err := s.FindConnection(id, database_kind.SqlServer)
 	if err != nil {
 		return nil, err
 	}
@@ -197,7 +197,7 @@ func (s *service) ChangeSqlServerPassword(ctx context.Context, id int64, databas
 	}
 	// 远端密码已生效；保留原登录名（可能大小写不同），仅在配置未变时更新密码。
 	data["warning"] = "密码已修改，但实例连接信息未保存，请在配置中填写新密码"
-	latest, err := s.FindConnection(id, database_type.SqlServer)
+	latest, err := s.FindConnection(id, database_kind.SqlServer)
 	if err != nil || latest.Config != connection.Config {
 		return data, nil
 	}

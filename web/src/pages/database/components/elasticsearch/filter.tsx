@@ -22,7 +22,8 @@ export default ({open, query, mapping, fields, version, onCancel, onApply}: {
     const candidates = useMemo(() => getFilterFields(mapping, fields), [mapping, fields]);
     const selectable = useMemo(() => candidates.filter((item) => !item.ambiguous), [candidates]);
     const candidateMap = useMemo(() => new Map(candidates.map((item) => [item.name, item])), [candidates]);
-    const options = useMemo(() => ({legacy: Number(version?.version?.split(".")[0]) === 1}), [version?.version]);
+    const options = useMemo(() => ({legacy: version?.features?.exists_query === false
+        || version?.features?.exists_query === undefined && Boolean(version?.version) && Number(version?.version?.split(".")[0]) < 2}), [version]);
     const [mode, setMode] = useState("visual");
     const [visual, setVisual] = useState<any>({logic: "all", conditions: []});
     const [dsl, setDsl] = useState("{}");

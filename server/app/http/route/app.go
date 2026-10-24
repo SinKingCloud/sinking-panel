@@ -508,6 +508,7 @@ func loadScriptRoute(s *sinking_web.Engine) {
 func loadTypeRoute(s *sinking_web.Engine) {
 	g := s.Group("/type")
 	g.Use(context.HandleFunc(middleware.CheckLogin))
+	g.ANY("/enum", context.HandleFunc(types.Enum))     //类型枚举
 	g.ANY("/list", context.HandleFunc(types.List))     //类型列表
 	g.ANY("/create", context.HandleFunc(types.Create)) //添加类型
 	g.ANY("/update", context.HandleFunc(types.Update)) //更新类型

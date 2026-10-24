@@ -70,8 +70,8 @@ export default ({record: target, initialTab, onTabChange, request, version: supp
         ...actions, request, version, features: version?.features || {},
         FilePicker: components?.FilePicker || FilePicker,
         ActionDropdown: components?.ActionDropdown || ActionDropdown,
-        Editor: components?.Editor,
-    }), [actions, request, version, components?.FilePicker, components?.ActionDropdown, components?.Editor]);
+        Editor: components?.Editor, ScriptTools: components?.ScriptTools,
+    }), [actions, request, version, components?.FilePicker, components?.ActionDropdown, components?.Editor, components?.ScriptTools]);
     return <DatabaseContext.Provider value={context}><ConfigProvider theme={{
         token: {fontSize, fontSizeSM: fontSize},
         components: {

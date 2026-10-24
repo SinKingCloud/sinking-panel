@@ -10,16 +10,16 @@
   },
   "dependencies": {
     "@ant-design/charts": "^2.6.7",
-    "@umijs/plugins": "^4.7.22",
+    "@umijs/plugins": "^4.7.27",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/xterm": "^6.0.0",
-    "acorn": "^8.18.0",
-    "antd": "^6.6.5",
+    "acorn": "^8.19.0",
+    "antd": "^6.6.7",
     "antd-style": "^4.1.0",
     "dayjs": "^1.11.23",
     "go-captcha-react": "^1.0.5",
-    "sinking-antd": "^1.2.3",
-    "umi": "^4.7.22",
+    "sinking-antd": "^1.2.4",
+    "umi": "^4.7.27",
     "umi-request": "^1.4.0"
   },
   "devDependencies": {

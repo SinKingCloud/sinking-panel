@@ -10,6 +10,7 @@ import (
 // Script 常用脚本表
 type Script struct {
 	Id         int64        `gorm:"column:id;PRIMARY_KEY" json:"id"`       // 脚本ID
+	Module     string       `gorm:"column:module" json:"module"`           // 所属模块
 	TypeId     int64        `gorm:"column:type_id" json:"type_id"`         // 类型ID
 	Name       string       `gorm:"column:name" json:"name"`               // 脚本名称
 	Script     string       `gorm:"column:script" json:"script"`           // 脚本内容

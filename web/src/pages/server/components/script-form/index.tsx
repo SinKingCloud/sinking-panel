@@ -4,6 +4,7 @@ import {createStyles} from "antd-style";
 import {ProModal, ProModalRef, Title, useTheme} from "sinking-antd";
 import defaultSettings from "@/../config/defaultSettings";
 import AceEditor from "@/components/ace-editor";
+import {getTypeList} from "@/service/api/type";
 import {
     createScript,
     getScriptInfo,
@@ -48,7 +49,7 @@ const useStyles = createStyles(({css, token}: any) => ({
     `,
 }));
 
-const ScriptForm = forwardRef<any, any>(({typeItems, onSuccess}, ref): any => {
+const ScriptForm = forwardRef<any, any>(({instanceModule, onSuccess}, ref): any => {
     const {message} = App.useApp();
     const theme = useTheme();
     const compact = Boolean(theme?.isCompactTheme?.());
@@ -60,11 +61,24 @@ const ScriptForm = forwardRef<any, any>(({typeItems, onSuccess}, ref): any => {
     const [active, setActive] = useState(false);
     const [infoLoading, setInfoLoading] = useState(false);
     const [submitting, setSubmitting] = useState(false);
+    const [scopeModule, setScopeModule] = useState<string>();
     const editing = scriptId !== undefined;
-    const typeOptions = useMemo(() => [
-        {label: "全部分类", value: 0},
-        ...typeItems.map((item: any) => ({label: item.name, value: Number(item.id)})),
-    ], [typeItems]);
+    const [categories, setCategories] = useState<Record<string, any[]>>({});
+    const selectedModule = AntForm.useWatch("module", form) || "ssh";
+    const typeOptions = useMemo(() => [{label: "全部分类", value: 0}, ...(categories[selectedModule] || [])
+        .map((item) => ({label: item.name, value: Number(item.id)}))], [categories, selectedModule]);
+
+    const loadCategories = useCallback(async () => {
+        const response = await getTypeList({body: {module: instanceModule || "ssh", order_by_field: "sort", order_by_type: "asc"}});
+        if (response?.code !== 200) {
+            throw new Error(response?.message || "获取脚本分类失败");
+        }
+        const items = Array.isArray(response.data?.list) ? response.data.list : [];
+        const modules = instanceModule ? ["ssh", instanceModule] : ["ssh"];
+        return Object.fromEntries(modules.map((module) => [module,
+            module === "ssh" ? items.filter((item: any) => item.module === "ssh") : items,
+        ]));
+    }, [instanceModule]);
 
     const reset = useCallback(() => {
         requestRef.current += 1;
@@ -76,18 +90,32 @@ const ScriptForm = forwardRef<any, any>(({typeItems, onSuccess}, ref): any => {
     }, [form]);
 
     const openCreate = useCallback((defaultTypeId = 0) => {
-        requestRef.current += 1;
+        const requestId = ++requestRef.current;
         setScriptId(undefined);
         setActive(true);
-        setInfoLoading(false);
+        setInfoLoading(true);
+        setScopeModule(instanceModule);
         form.resetFields();
-        form.setFieldsValue({
-            name: "",
-            type_id: defaultTypeId,
-            script: "",
-        });
         modalRef.current?.show();
-    }, [form]);
+        void loadCategories().then((data) => {
+            if (requestRef.current !== requestId) return;
+            const module = defaultTypeId && !data.ssh.some((item: any) => Number(item.id) === defaultTypeId) && instanceModule
+                ? instanceModule : "ssh";
+            setCategories(data);
+            form.setFieldsValue({
+                name: "",
+                type_id: data[module]?.some((item: any) => Number(item.id) === defaultTypeId) ? defaultTypeId : 0,
+                module,
+                script: "",
+            });
+        }).catch((error) => {
+            if (requestRef.current !== requestId) return;
+            modalRef.current?.hide();
+            message.error(error.message || "获取脚本分类失败");
+        }).finally(() => {
+            if (requestRef.current === requestId) setInfoLoading(false);
+        });
+    }, [form, instanceModule, loadCategories, message]);
 
     const openEdit = useCallback((record: any) => {
         const requestId = ++requestRef.current;
@@ -98,23 +126,20 @@ const ScriptForm = forwardRef<any, any>(({typeItems, onSuccess}, ref): any => {
         modalRef.current?.show();
 
         void getScriptInfo({body: {id: record.id}}).then((response) => {
-            if (requestRef.current !== requestId) {
-                return;
-            }
+            if (requestRef.current !== requestId) return;
             if (response?.code !== 200 || !response.data) {
-                modalRef.current?.hide();
-                message.error(response?.message || "获取脚本详情失败");
-                return;
+                throw new Error(response?.message || "获取脚本详情失败");
             }
             form.setFieldsValue({
                 name: String(response.data.name || ""),
-                type_id: Number(response.data.type_id || 0),
                 script: String(response.data.script || ""),
             });
+        }).catch((error) => {
+            if (requestRef.current !== requestId) return;
+            modalRef.current?.hide();
+            message.error(error.message || "获取脚本详情失败");
         }).finally(() => {
-            if (requestRef.current === requestId) {
-                setInfoLoading(false);
-            }
+            if (requestRef.current === requestId) setInfoLoading(false);
         });
     }, [form, message]);
 
@@ -137,21 +162,20 @@ const ScriptForm = forwardRef<any, any>(({typeItems, onSuccess}, ref): any => {
         const requestId = ++requestRef.current;
         const name = String(values.name || "").trim();
         const script = String(values.script || "");
-        const typeId = Number(values.type_id || 0);
         setSubmitting(true);
         try {
             const response = editing
                 ? await updateScript({
                     body: {
                         ids: [scriptId as number],
-                        type_id: String(typeId),
                         name,
                         script,
                     }
                 })
                 : await createScript({
                     body: {
-                        type_id: typeId,
+                        type_id: Number(values.type_id || 0),
+                        module: values.module,
                         name,
                         script,
                     }
@@ -199,28 +223,41 @@ const ScriptForm = forwardRef<any, any>(({typeItems, onSuccess}, ref): any => {
             <AntForm<any> form={form} layout="vertical" variant="filled" onFinish={submit}>
                 {active && (infoLoading ? (
                     <div className={styles.loading}>
-                        <Spin description="加载脚本详情..."/>
+                        <Spin/>
                     </div>
                 ) : (
                     <>
-                        <Row gutter={[16, 0]}>
-                            <Col xs={24} sm={14}>
-                                <AntForm.Item
-                                    name="name"
-                                    label="脚本名称"
-                                    rules={[
-                                        {required: true, whitespace: true, message: "请输入脚本名称"},
-                                        {max: 100, message: "脚本名称不能超过 100 个字符"},
-                                    ]}>
-                                    <Input maxLength={100} placeholder="请输入脚本名称" autoComplete="off"/>
+                        <AntForm.Item
+                            name="name"
+                            label="脚本名称"
+                            rules={[
+                                {required: true, whitespace: true, message: "请输入脚本名称"},
+                                {max: 100, message: "脚本名称不能超过 100 个字符"},
+                            ]}>
+                            <Input maxLength={100} placeholder="请输入脚本名称" autoComplete="off"/>
+                        </AntForm.Item>
+                        {!editing && <Row gutter={[16, 0]}>
+                            <Col xs={24} sm={12}>
+                                <AntForm.Item name="module" label="保存范围" rules={[{required: true, message: "请选择保存范围"}]}>
+                                    <Select
+                                        placeholder="请选择保存范围"
+                                        options={[
+                                            {label: "全局脚本", value: "ssh"},
+                                            ...(scopeModule ? [{label: "实例脚本", value: scopeModule}] : []),
+                                        ]}
+                                        onChange={(module) => {
+                                            if (!categories[module]?.some((item) => Number(item.id) === Number(form.getFieldValue("type_id")))) {
+                                                form.setFieldValue("type_id", 0);
+                                            }
+                                        }}/>
                                 </AntForm.Item>
                             </Col>
-                            <Col xs={24} sm={10}>
-                                <AntForm.Item name="type_id" label="脚本分类">
-                                    <Select options={typeOptions}/>
+                            <Col xs={24} sm={12}>
+                                <AntForm.Item name="type_id" label="脚本分类" rules={[{required: true, message: "请选择脚本分类"}]}>
+                                    <Select options={typeOptions} placeholder="请选择脚本分类"/>
                                 </AntForm.Item>
                             </Col>
-                        </Row>
+                        </Row>}
                         <AntForm.Item
                             name="script"
                             label="脚本内容"

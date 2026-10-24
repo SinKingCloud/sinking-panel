@@ -3,7 +3,7 @@ package database
 import (
 	"encoding/json"
 	"errors"
-	"server/app/enum/database_type"
+	"server/app/enum/database_kind"
 	"server/app/enum/type_module"
 	"server/app/model"
 	"server/app/util/str"
@@ -21,7 +21,7 @@ func (s *service) Create(data *model.Database) error {
 	if data.Name == "" || utf8.RuneCountInString(data.Name) > 100 {
 		return errors.New("实例名称应为 1 至 100 个字符")
 	}
-	if _, ok := database_type.Map()[data.Type]; !ok {
+	if _, ok := database_kind.Map()[data.Type]; !ok {
 		return errors.New("数据库类型不合法")
 	}
 	if data.TypeId < 0 {

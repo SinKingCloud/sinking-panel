@@ -118,7 +118,7 @@ func (m *Manager) Export(ctx context.Context, path, schema, table string, progre
 	if err != nil {
 		return nil, err
 	}
-	selected := "n.nspname NOT IN ('information_schema','pg_catalog') AND n.nspname NOT LIKE 'pg\\_%' ESCAPE '\\'"
+	selected := "n.nspname NOT IN ('information_schema','pg_catalog') AND substr(n.nspname, 1, 3) <> 'pg_'"
 	args := []interface{}{}
 	if schema != "" {
 		if schema == "information_schema" || strings.HasPrefix(schema, "pg_") {

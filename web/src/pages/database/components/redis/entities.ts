@@ -27,12 +27,13 @@ export interface RedisManagerProps {
     onConfigure?: () => void;
     refreshKey?: number;
     initialTab?: string;
-    components?: {ActionDropdown?: ComponentType<any>; Editor?: ComponentType<any>; [key: string]: any};
+    components?: {ScriptTools?: ComponentType<any>; ActionDropdown?: ComponentType<any>; Editor?: ComponentType<any>; [key: string]: any};
     className?: string;
     style?: CSSProperties;
 }
 
 export interface RedisClientContext {
+    ScriptTools?: ComponentType<any>;
     api: RedisApi;
     version?: RedisVersion;
     features: Record<string, boolean>;

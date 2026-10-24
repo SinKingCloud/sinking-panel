@@ -33,8 +33,8 @@ export default ({requests, components, ...props}: MysqlManagerProps) => {
     const context = useMemo(() => ({api, version, features: version?.features || {},
         FilePicker: components?.FilePicker || FilePicker,
         ActionDropdown: components?.ActionDropdown || ActionDropdown,
-        Editor: components?.Editor,
-    }), [api, version, components?.FilePicker, components?.ActionDropdown, components?.Editor]);
+        Editor: components?.Editor, ScriptTools: components?.ScriptTools,
+    }), [api, version, components?.FilePicker, components?.ActionDropdown, components?.Editor, components?.ScriptTools]);
 
     return <MysqlContext.Provider value={context}><ConfigProvider modal={{style: {top: screens.md ? 100 : 24, paddingBottom: screens.md ? 100 : 24}}}><App>
         <Workspace {...props} version={version} setVersion={setVersion}/>

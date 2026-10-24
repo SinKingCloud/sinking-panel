@@ -5,13 +5,14 @@ import (
 	"server/app/enum/cert_type"
 	"server/app/enum/container_image"
 	"server/app/enum/container_status"
+	"server/app/enum/database_kind"
 	"server/app/enum/database_type"
 	"server/app/enum/file_format"
 	"server/app/enum/log_type"
-	"server/app/enum/script_type"
 	"server/app/enum/secret_name"
 	"server/app/enum/secret_provider"
 	"server/app/enum/server_auth_type"
+	"server/app/enum/site_kind"
 	"server/app/enum/site_name"
 	"server/app/enum/site_status"
 	"server/app/enum/site_type"
@@ -24,8 +25,11 @@ import (
 
 // Data 枚举信息
 var Data = map[string]interface{}{
-	"database": map[string]interface{}{
-		"type": database_type.Map(), //数据库类型
+	"database": func() interface{} {
+		return map[string]interface{}{
+			"kind": database_kind.Map(), //数据库类型
+			"type": database_type.Map(), //数据库分类
+		}
 	},
 	"container": func() interface{} {
 		return map[string]interface{}{
@@ -51,14 +55,10 @@ var Data = map[string]interface{}{
 	},
 	"site": func() interface{} {
 		return map[string]interface{}{
-			"type":   site_type.Map(),   //网站类型
+			"kind":   site_kind.Map(),   //网站类型
+			"type":   site_type.Map(),   //网站分类
 			"status": site_status.Map(), //网站状态
 			"name":   site_name.Map(),   //可选默认站点
-		}
-	},
-	"script": func() interface{} {
-		return map[string]interface{}{
-			"type": script_type.Map(), //脚本类型
 		}
 	},
 	"task": func() interface{} {

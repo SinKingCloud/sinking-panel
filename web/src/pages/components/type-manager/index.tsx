@@ -13,7 +13,7 @@ import type {
     KeyboardEvent as ReactKeyboardEvent,
     PointerEvent as ReactPointerEvent,
 } from "react";
-import {App, Button, Empty, Form as AntForm, Input, Spin} from "antd";
+import {App, Button, Empty, Form as AntForm, Input, Select, Spin} from "antd";
 import {createStyles} from "antd-style";
 import {Icon, ProModal, ProModalRef, Title, useTheme} from "sinking-antd";
 import ActionDropdown from "@/pages/components/action-dropdown";
@@ -32,6 +32,8 @@ export interface TypeManagerRef {
 
 export interface TypeManagerProps {
     module: string;
+    scopes?: {label: string; value: string}[];
+    zIndex?: number;
     onChange?: (items: any[]) => void;
     onMutation?: () => void;
 }
@@ -46,6 +48,8 @@ interface DraggableRowProps {
     nameClassName: string;
     operating: boolean;
     record: any;
+    scopeLabel?: string;
+    scopeClassName?: string;
     onEdit: (record: any) => void;
     onRemove: (record: any) => void;
     onPointerDown: (id: number, event: ReactPointerEvent<HTMLButtonElement>) => void;
@@ -519,6 +523,12 @@ const useStyles = createStyles(({css, token}: any, props: { compact: boolean }) 
         justify-content: flex-end;
         gap: 2px;
     `,
+    scope: css`
+        margin-inline: 6px;
+        color: ${token.colorTextSecondary};
+        font-size: ${props.compact ? 11 : 12}px;
+        white-space: nowrap;
+    `,
     actionButton: css`
         width: ${props.compact ? 27 : 30}px;
         min-width: ${props.compact ? 27 : 30}px;
@@ -543,6 +553,8 @@ const DraggableRow = memo(({
                                nameClassName,
                                operating,
                                record,
+                               scopeLabel,
+                               scopeClassName,
                                onEdit,
                                onRemove,
                                onPointerDown,
@@ -575,6 +587,7 @@ const DraggableRow = memo(({
             </button>
             <span className={nameClassName} title={record.name}>{record.name}</span>
             <div className={actionsClassName} data-row-action>
+                {scopeLabel && <span className={scopeClassName}>{scopeLabel}</span>}
                 <ActionDropdown
                     menu={{
                         items: [
@@ -605,7 +618,7 @@ const DraggableRow = memo(({
 
 DraggableRow.displayName = "DraggableRow";
 
-const TypeManager = forwardRef<TypeManagerRef, TypeManagerProps>(({module, onChange, onMutation}, ref): any => {
+const TypeManager = forwardRef<TypeManagerRef, TypeManagerProps>(({module, scopes, zIndex, onChange, onMutation}, ref): any => {
     const {message, modal} = App.useApp();
     const theme = useTheme();
     const compact = Boolean(theme?.isCompactTheme?.());
@@ -810,6 +823,7 @@ const TypeManager = forwardRef<TypeManagerRef, TypeManagerProps>(({module, onCha
         setFormActive(false);
         setFormOpen(false);
         setFormRecord(undefined);
+        setItems([]);
         modalRef.current?.show();
         clearEnumCache(module);
         void load(true);
@@ -826,10 +840,10 @@ const TypeManager = forwardRef<TypeManagerRef, TypeManagerProps>(({module, onCha
         clearPointerDrag();
         setFormRecord(undefined);
         form.resetFields();
-        form.setFieldsValue({name: ""});
+        form.setFieldsValue({name: "", module});
         setFormActive(true);
         setFormOpen(true);
-    }, [clearPointerDrag, form]);
+    }, [clearPointerDrag, form, module]);
 
     const openEditForm = useCallback((record: any) => {
         if (
@@ -870,15 +884,16 @@ const TypeManager = forwardRef<TypeManagerRef, TypeManagerProps>(({module, onCha
         }
         const lifecycle = lifecycleRef.current;
         const name = values.name.trim();
+        const targetModule = formRecord?.module || values.module || module;
         actionRef.current = true;
         setFormSubmitting(true);
         try {
             const response = await (formRecord
                 ? updateType({body: {ids: [formRecord.id], name}})
-                : createType({body: {module, name}}));
+                : createType({body: {module: targetModule, name}}));
             if (lifecycleRef.current !== lifecycle) {
                 if (response?.code === 200) {
-                    clearEnumCache(module);
+                    clearEnumCache(targetModule);
                     onMutation?.();
                     await reloadAfterChange();
                 }
@@ -892,6 +907,7 @@ const TypeManager = forwardRef<TypeManagerRef, TypeManagerProps>(({module, onCha
                 return;
             }
             setFormOpen(false);
+            clearEnumCache(targetModule);
             message.success(response.message || (editing ? "修改成功" : "添加成功"));
             onMutation?.();
             await reloadAfterChange();
@@ -916,6 +932,7 @@ const TypeManager = forwardRef<TypeManagerRef, TypeManagerProps>(({module, onCha
         const lifecycle = lifecycleRef.current;
         modal.confirm({
             title: "删除分类",
+            zIndex: zIndex === undefined ? undefined : zIndex + 20,
             content: `删除“${record.name}”后，关联项将恢复为全部分类。`,
             okText: "删除",
             cancelText: "取消",
@@ -955,7 +972,7 @@ const TypeManager = forwardRef<TypeManagerRef, TypeManagerProps>(({module, onCha
                 }
             },
         } as any);
-    }, [message, modal, module, onMutation, reloadAfterChange]);
+    }, [message, modal, module, onMutation, reloadAfterChange, zIndex]);
 
     const persistMove = useCallback(async (
         originItems: any[],
@@ -1260,6 +1277,7 @@ const TypeManager = forwardRef<TypeManagerRef, TypeManagerProps>(({module, onCha
             width={480}
             modalProps={{
                 rootClassName: styles.modal,
+                zIndex,
                 okText: "添加",
                 cancelText: "取消",
                 closable: true,
@@ -1296,6 +1314,8 @@ const TypeManager = forwardRef<TypeManagerRef, TypeManagerProps>(({module, onCha
                                             handleClassName={styles.handle}
                                             itemClassName={styles.item}
                                             nameClassName={styles.name}
+                                            scopeLabel={scopes?.find((scope) => scope.value === record.module)?.label}
+                                            scopeClassName={styles.scope}
                                             operating={operatingId === record.id}
                                             onEdit={openEditForm}
                                             onRemove={remove}
@@ -1311,13 +1331,14 @@ const TypeManager = forwardRef<TypeManagerRef, TypeManagerProps>(({module, onCha
 
                 <ProModal
                     title={<Title>{editing ? "编辑分类" : "添加分类"}</Title>}
-                    width="360px"
+                    width="400px"
                     onOk={form.submit}
                     onCancel={closeForm}
                     okText={editing ? "保存" : "添加"}
                     afterClose={resetForm}
                     modalProps={{
                         rootClassName: styles.modal,
+                        zIndex: zIndex === undefined ? undefined : zIndex + 10,
                         open: formOpen,
                         cancelText: "取消",
                         confirmLoading: formSubmitting,
@@ -1327,7 +1348,7 @@ const TypeManager = forwardRef<TypeManagerRef, TypeManagerProps>(({module, onCha
                         forceRender: true,
                         focusable: {focusTriggerAfterClose: false},
                         styles: {body: {paddingTop: compact ? 10 : 15}},
-                    }}>
+                    } as any}>
                     <AntForm<any>
                         form={form}
                         layout="vertical"
@@ -1335,6 +1356,7 @@ const TypeManager = forwardRef<TypeManagerRef, TypeManagerProps>(({module, onCha
                         onFinish={submitForm}>
                         <AntForm.Item
                             name="name"
+                            label={!editing && scopes && scopes.length > 1 ? "分类名称" : undefined}
                             rules={[
                                 {required: true, whitespace: true, message: "请输入分类名称"},
                                 {max: 50, message: "分类名称不能超过 50 个字符"},
@@ -1346,6 +1368,11 @@ const TypeManager = forwardRef<TypeManagerRef, TypeManagerProps>(({module, onCha
                                 autoComplete="off"
                                 onPressEnter={form.submit}/>
                         </AntForm.Item>
+                        {!editing && scopes && scopes.length > 1 && (
+                            <AntForm.Item name="module" label="保存范围" rules={[{required: true, message: "请选择保存范围"}]}>
+                                <Select placeholder="请选择保存范围" options={scopes}/>
+                            </AntForm.Item>
+                        )}
                     </AntForm>
                 </ProModal>
             </>

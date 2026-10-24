@@ -7,7 +7,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
-	"server/app/enum/database_type"
+	"server/app/enum/database_kind"
 	"server/app/enum/system_task_status"
 	"server/app/util/str"
 	"strings"
@@ -45,7 +45,7 @@ func (s *service) Transfer(id int64, databaseType int, action, path, databaseNam
 		return "", err
 	}
 	taskID := str.GetSnowWorkIns().GetUuid()
-	name := label + " " + database_type.Map()[databaseType] + ": " + data.Name + "/" + databaseName
+	name := label + " " + database_kind.Map()[databaseType] + ": " + data.Name + "/" + databaseName
 	params := map[string]interface{}{"id": id, "type": databaseType, "action": action, "path": path, "database_name": databaseName}
 	s.systemService.TaskCreate(taskID, name, params, func(ctx context.Context, _ interface{}, update func(int, float64, string)) {
 		percent := float64(0)

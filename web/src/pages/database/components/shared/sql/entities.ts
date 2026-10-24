@@ -1,6 +1,7 @@
 import type {DatabasePanelRecord} from "../entities";
 
 export interface SqlEngine {
+    module: string;
     query: string;
     objects: {key: string; label: string; icon: string}[];
 }

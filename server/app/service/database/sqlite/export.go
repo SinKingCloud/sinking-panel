@@ -69,7 +69,7 @@ func (m *Manager) Export(ctx context.Context, path, schemaName, tableName string
 		return nil, err
 	}
 	defer tx.Rollback()
-	rows, err := tx.QueryContext(ctx, "SELECT type, name, tbl_name, sql FROM main.sqlite_master WHERE sql IS NOT NULL AND name NOT LIKE 'sqlite_%' AND (? = '' OR name = ? OR tbl_name = ?) ORDER BY CASE type WHEN 'table' THEN 0 WHEN 'view' THEN 1 WHEN 'index' THEN 2 ELSE 3 END, name", tableName, tableName, tableName)
+	rows, err := tx.QueryContext(ctx, "SELECT type, name, tbl_name, sql FROM main.sqlite_master WHERE sql IS NOT NULL AND name NOT GLOB 'sqlite_*' AND (? = '' OR name = ? OR tbl_name = ?) ORDER BY CASE type WHEN 'table' THEN 0 WHEN 'view' THEN 1 WHEN 'index' THEN 2 ELSE 3 END, name", tableName, tableName, tableName)
 	if err != nil {
 		return nil, err
 	}

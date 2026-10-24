@@ -7,7 +7,7 @@ import (
 	"io"
 	"net"
 	"net/url"
-	"server/app/enum/site_type"
+	"server/app/enum/site_kind"
 	"server/app/util/caddy"
 	processManager "server/app/util/process"
 	"strings"
@@ -19,22 +19,22 @@ func (s *service) createConfig(data *CreateSite) (string, error) {
 	if data == nil {
 		return "", errors.New("网站参数不能为空")
 	}
-	if data.Type != site_type.Static && data.Static != nil {
+	if data.Type != site_kind.Static && data.Static != nil {
 		return "", errors.New("当前网站类型不支持静态网站配置")
 	}
-	if data.Type != site_type.Proxy && data.Type != site_type.General && data.Proxy != nil {
+	if data.Type != site_kind.Proxy && data.Type != site_kind.General && data.Proxy != nil {
 		return "", errors.New("当前网站类型不支持反向代理配置")
 	}
-	if data.Type != site_type.PHP && data.FastCGI != nil {
+	if data.Type != site_kind.PHP && data.FastCGI != nil {
 		return "", errors.New("当前网站类型不支持 FastCGI 配置")
 	}
-	if data.Type != site_type.General && data.Process != nil {
+	if data.Type != site_kind.General && data.Process != nil {
 		return "", errors.New("当前网站类型不支持进程配置")
 	}
 
 	var config interface{}
 	switch data.Type {
-	case site_type.Static:
+	case site_kind.Static:
 		static := StaticOptions{Index: []string{"index.html", "index.htm"}}
 		if data.Static != nil {
 			static = *data.Static
@@ -46,17 +46,17 @@ func (s *service) createConfig(data *CreateSite) (string, error) {
 			Hide:          static.Hide,
 			Precompressed: static.Precompressed,
 		}
-	case site_type.Proxy:
+	case site_kind.Proxy:
 		if data.Proxy == nil {
 			return "", errors.New("反向代理配置不能为空")
 		}
 		config = ProxyConfig{Proxy: *data.Proxy}
-	case site_type.PHP:
+	case site_kind.PHP:
 		if data.FastCGI == nil {
 			return "", errors.New("FastCGI 配置不能为空")
 		}
 		config = PHPConfig{FastCGI: *data.FastCGI}
-	case site_type.General:
+	case site_kind.General:
 		if data.Proxy == nil {
 			return "", errors.New("通用网站反向代理配置不能为空")
 		}
@@ -82,13 +82,13 @@ func (s *service) formatConfig(raw string, siteType int) (interface{}, error) {
 	}
 	var target interface{}
 	switch siteType {
-	case site_type.Static:
+	case site_kind.Static:
 		target = &StaticConfig{}
-	case site_type.Proxy:
+	case site_kind.Proxy:
 		target = &ProxyConfig{}
-	case site_type.General:
+	case site_kind.General:
 		target = &GeneralConfig{}
-	case site_type.PHP:
+	case site_kind.PHP:
 		target = &PHPConfig{}
 	default:
 		return nil, errors.New("网站类型不合法")

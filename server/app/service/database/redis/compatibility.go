@@ -6,6 +6,18 @@ import (
 	"strings"
 )
 
+// info 兼容 Redis 2.4 的无分区 INFO；权限、连接错误不触发降级。
+func (m *Manager) info(ctx context.Context, section string) (string, error) {
+	info, err := m.client.Info(ctx, section).Result()
+	if err != nil {
+		text := strings.ToLower(err.Error())
+		if text == "err syntax error" || text == "syntax error" || strings.Contains(text, "wrong number of arguments") && strings.Contains(text, "'info'") {
+			return m.client.Info(ctx).Result()
+		}
+	}
+	return info, err
+}
+
 // scanKeys 使用 SCAN；Redis 2.6 没有该命令时，仅允许对小数据库生成有界快照。
 // 不把权限错误当作版本差异，也不在大数据库上回退到阻塞的 KEYS。
 func (m *Manager) scanKeys(ctx context.Context, cursor uint64, match string, count int64) ([]string, uint64, error) {

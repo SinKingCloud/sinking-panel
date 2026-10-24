@@ -1,5 +1,5 @@
 import {useEffect, useMemo, useRef, useState} from "react";
-import {App, Button, Empty, Input, Spin, Splitter, Typography} from "antd";
+import {App, Button, Empty, Input, Space, Spin, Splitter, Typography} from "antd";
 import {PlayCircleOutlined} from "@ant-design/icons";
 import {useTheme} from "sinking-antd";
 import {useRedisClient} from "./context";
@@ -8,7 +8,7 @@ import CommandHistoryModal from "./history-modal";
 import useStyles from "./command-styles";
 
 export default ({record, onChange}: any) => {
-    const {api, Editor: AceEditor} = useRedisClient();
+    const {api, Editor: AceEditor, ScriptTools} = useRedisClient();
     const {message, modal} = App.useApp();
     const appearance = useTheme();
     const compact = Boolean(appearance?.isCompactTheme?.());
@@ -129,7 +129,14 @@ export default ({record, onChange}: any) => {
             <section className="redis-command-input">
                 <div className="redis-command-input-heading redis-toolbar">
                     <Button color="primary" variant="filled" size="small" icon={<PlayCircleOutlined/>} loading={loading} disabled={!command.trim()} onClick={run}>执行命令</Button>
-                    <Button color="default" variant="filled" size="small" onClick={() => { setHistory(commandHistory(String(record.id))); setHistoryOpen(true); }}>命令历史</Button>
+                    <Space size={8} wrap>
+                        {ScriptTools && <ScriptTools instanceId={record.id} value={command}
+                            disabled={loading} mode="text" Editor={AceEditor} onUse={(value: string) => {
+                                if (busy.current || confirmation.current) return;
+                                setCommand(value); setResult(undefined); setError(""); setExecuted("");
+                            }}/>}
+                        <Button color="default" variant="filled" size="small" onClick={() => { setHistory(commandHistory(String(record.id))); setHistoryOpen(true); }}>命令历史</Button>
+                    </Space>
                 </div>
                 <div className="redis-command-editor">{AceEditor && !fallback ? <AceEditor value={command} mode="text" height="100%" style={{height: "100%"}} fontSize={12}
                     theme={appearance?.isDarkTheme?.() ? "tomorrow_night" : "textmate"} placeholder={'输入完整命令，例如 SET user:1 "张三"'}

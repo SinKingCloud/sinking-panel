@@ -47,7 +47,7 @@ export default () => {
             const [enums, groups] = await Promise.all([getEnum({body: {name: "database"}}).catch(() => undefined), getTypeList({body: {module: "database", order_by_field: "sort", order_by_type: "asc"}})]);
             if (!live.current || request !== catalogRequest.current) return;
             if (groups?.code !== 200) throw new Error(groups?.message || "获取分类失败");
-            setTypes(enums?.code === 200 ? enums.data?.type || {} : {}); setCategories(Array.isArray(groups.data?.list) ? groups.data.list : []); setReady(true);
+            setTypes(enums?.code === 200 ? enums.data?.kind || {} : {}); setCategories(Array.isArray(groups.data?.list) ? groups.data.list : []); setReady(true);
         } catch (reason: any) { if (live.current && request === catalogRequest.current) setError(reason.message || "数据加载失败"); }
         finally { if (live.current && request === catalogRequest.current) setLoading(false); }
     }, []);

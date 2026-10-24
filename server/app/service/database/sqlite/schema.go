@@ -351,10 +351,11 @@ func (m *Manager) CreateIndex(ctx context.Context, schemaName, tableName, indexN
 	fields := make([]string, 0, len(columns))
 	seen := make(map[string]bool, len(columns))
 	for _, column := range columns {
-		name, err := m.quote(column.Name)
-		if err != nil {
+		if _, err := m.quote(column.Name); err != nil {
 			return nil, err
 		}
+		// 双引号在 SQLite 兼容模式下可能退回字符串；反引号让不存在的字段正常报错。
+		name := "`" + strings.ReplaceAll(column.Name, "`", "``") + "`"
 		lower := strings.ToLower(column.Name)
 		if seen[lower] {
 			return nil, errors.New("索引字段不能重复")

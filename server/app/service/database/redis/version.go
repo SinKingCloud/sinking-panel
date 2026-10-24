@@ -9,15 +9,7 @@ import (
 
 // Version 返回服务器版本及版本支持的功能，不将账户权限视为版本能力。
 func (m *Manager) Version(ctx context.Context) (map[string]interface{}, error) {
-	info, err := m.client.Info(ctx, "server").Result()
-	if err != nil {
-		text := strings.ToLower(err.Error())
-		// Redis 2.4 不支持 INFO 的分区参数，只在参数语法错误时回退。
-		if text == "err syntax error" || text == "syntax error" ||
-			strings.Contains(text, "wrong number of arguments") && strings.Contains(text, "'info'") {
-			info, err = m.client.Info(ctx).Result()
-		}
-	}
+	info, err := m.info(ctx, "server")
 	if err != nil {
 		return nil, m.cleanError(err)
 	}
