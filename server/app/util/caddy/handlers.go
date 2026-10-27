@@ -119,11 +119,17 @@ func (m *Manager) buildSiteRoute(site *Site, domains, excludedDomains []string, 
 		stages[HandlerCache] = append(stages[HandlerCache], handler)
 	}
 	if len(routes) > 0 {
-		stages[HandlerSubroute] = append(stages[HandlerSubroute], map[string]interface{}{"handler": HandlerSubroute, "routes": routes})
+		stages[HandlerSubroute] = append(stages[HandlerSubroute], map[string]interface{}{
+			"handler": HandlerSubroute,
+			"routes":  routes,
+		})
 	}
 	handlers := make([]interface{}, 0, 10+len(site.Handlers))
 	if len(redirectRoutes) > 0 {
-		handlers = append(handlers, map[string]interface{}{"handler": HandlerSubroute, "routes": redirectRoutes})
+		handlers = append(handlers, map[string]interface{}{
+			"handler": HandlerSubroute,
+			"routes":  redirectRoutes,
+		})
 	}
 	for _, name := range site.HandlerOrder {
 		handlers = append(handlers, stages[name]...)
@@ -183,7 +189,10 @@ func (m *Manager) buildRoute(route *Route) (map[string]interface{}, error) {
 		})
 	}
 	if route.Rewrite != "" {
-		handlers = append(handlers, map[string]interface{}{"handler": HandlerRewrite, "uri": route.Rewrite})
+		handlers = append(handlers, map[string]interface{}{
+			"handler": HandlerRewrite,
+			"uri":     route.Rewrite,
+		})
 	}
 	for _, handler := range route.Handlers {
 		handlers = append(handlers, handler)
@@ -490,7 +499,10 @@ func (m *Manager) buildWAFHandler(siteID string, options WAFOptions) (map[string
 		}
 		groups := rule.Groups
 		if len(rule.Groups) == 0 {
-			groups = []WAFGroup{{Match: rule.Match, Conditions: rule.Conditions}}
+			groups = []WAFGroup{{
+				Match:      rule.Match,
+				Conditions: rule.Conditions,
+			}}
 		}
 		phase := 1
 		for _, group := range groups {
@@ -784,7 +796,10 @@ func (m *Manager) buildStaticHandler(root string, index []string, browse bool, t
 		"handle":   []interface{}{fileServer},
 		"terminal": true,
 	})
-	return map[string]interface{}{"handler": HandlerSubroute, "routes": routes}
+	return map[string]interface{}{
+		"handler": HandlerSubroute,
+		"routes":  routes,
+	}
 }
 
 func (m *Manager) buildProxyHandler(options *ProxyOptions) (map[string]interface{}, error) {
@@ -883,7 +898,10 @@ func (m *Manager) buildProxyHandler(options *ProxyOptions) (map[string]interface
 							"split_path": append([]string(nil), options.SplitPath...),
 						},
 					}},
-					"handle": []interface{}{map[string]interface{}{"handler": HandlerRewrite, "uri": "{http.matchers.file.relative}"}},
+					"handle": []interface{}{map[string]interface{}{
+						"handler": HandlerRewrite,
+						"uri":     "{http.matchers.file.relative}",
+					}},
 				},
 				map[string]interface{}{
 					"match": []interface{}{map[string]interface{}{

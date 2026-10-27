@@ -1,0 +1,305 @@
+import React, {useState} from "react";
+import {Empty, Input, Select, Typography} from "antd";
+import {createStyles} from "antd-style";
+import {Icon, useTheme} from "sinking-antd";
+import Code from "./code";
+
+const useStyles = createStyles(({css, token}, {compact}: {compact: boolean}) => ({
+    root: css`min-width: 0; color: ${token.colorText};`,
+    search: css`margin-bottom: ${compact ? 14 : 18}px;`,
+    layout: css`
+        display: grid; grid-template-columns: 156px minmax(0, 1fr); gap: ${compact ? 20 : 28}px;
+        @media (max-width: 900px) { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+    `,
+    menu: css`
+        display: flex; flex-direction: column; align-self: start; gap: 4px;
+        button { display: flex; width: 100%; border: 0; border-radius: ${token.borderRadius}px; background: transparent;
+            padding: ${compact ? "8px 10px" : "10px 12px"}; color: ${token.colorTextSecondary}; text-align: left;
+            font: inherit; font-size: ${token.fontSizeSM}px; line-height: 1.5; cursor: pointer; }
+        button:hover { color: ${token.colorText}; background: ${token.colorFillTertiary}; }
+        button[aria-current="page"] { color: ${token.colorPrimary}; background: ${token.colorPrimaryBg}; }
+        button:focus-visible { outline: 2px solid ${token.colorPrimaryBorder}; outline-offset: 2px; }
+        @media (max-width: 900px) { display: none; }
+    `,
+    mobileMenu: css`display: none; @media (max-width: 900px) { display: block; width: 100%; }`,
+    article: css`
+        min-width: 0; overflow-wrap: anywhere;
+        h3 { margin: 0 0 8px; color: ${token.colorText}; font-size: ${token.fontSizeLG}px; font-weight: 500; }
+        h4 { margin: ${compact ? 18 : 22}px 0 8px; font-size: ${token.fontSize}px; font-weight: 500; }
+        p { margin: 0 0 12px; font-size: ${token.fontSize}px; line-height: 1.8; }
+        ol, ul { padding-left: 20px; margin: 8px 0 14px; font-size: ${token.fontSize}px; line-height: 1.9; }
+        li + li { margin-top: 4px; }
+        code { padding: 1px 4px; border-radius: ${token.borderRadiusSM}px; background: ${token.colorFillQuaternary}; font-size: .9em; }
+        pre code { background: none; padding: 0; }
+    `,
+    lead: css`color: ${token.colorTextSecondary};`,
+    source: css`
+        display: flex; flex-wrap: wrap; gap: 6px; margin-top: 16px; padding-top: 12px;
+        border-top: 1px solid ${token.colorBorderSecondary}; color: ${token.colorTextSecondary}; font-size: ${token.fontSizeSM}px;
+    `,
+    table: css`
+        overflow-x: auto; border: 1px solid ${token.colorBorderSecondary}; border-radius: ${token.borderRadius}px; margin: 12px 0 16px;
+        table { width: 100%; border-spacing: 0; font-size: ${token.fontSizeSM}px; line-height: 1.7; }
+        th, td { text-align: left; padding: ${compact ? "8px 10px" : "10px 12px"}; vertical-align: top; border-bottom: 1px solid ${token.colorBorderSecondary}; }
+        th { color: ${token.colorTextSecondary}; background: ${token.colorFillQuaternary}; font-weight: 400; white-space: nowrap; }
+        tr:last-child td { border-bottom: 0; }
+        td:first-child { width: 130px; }
+    `,
+    empty: css`padding: 36px 0;`,
+}));
+
+export default function Docs({software}: {software: any}) {
+    const theme = useTheme();
+    const compact = Boolean(theme?.isCompactTheme?.());
+    const {styles} = useStyles({compact});
+    const [query, setQuery] = useState("");
+    const [active, setActive] = useState("start");
+    const id = software?.code || "demo";
+    const table = (headers: string[], rows: React.ReactNode[][]) => <div className={styles.table}><table>
+        <thead><tr>{headers.map((value) => <th key={value}>{value}</th>)}</tr></thead>
+        <tbody>{rows.map((row, index) => <tr key={index}>{row.map((value, cell) => <td key={cell}>{value}</td>)}</tr>)}</tbody>
+    </table></div>;
+    const chapters = [
+        {key: "start", title: "从示例开始", summary: "先走通一次真实的数据保存，再按相同方式添加自己的功能。", keywords: "安装 初始化 命令 更新 调试 新手", files: ["README.md", "server/plugin.go", "web/index.tsx"], content: <>
+            <ol><li>在「数据管理」新增记录，关闭并重新打开插件，确认记录仍然存在。</li><li>在「接口调试」选择只读接口并发送请求，查看参数、返回值和耗时。</li><li>在「配置缓存」保存问候语，然后调用 <code>hello</code> 观察配置生效。</li><li>提交一个后台任务，观察进度并取消，确认 HTTP 请求不会一直等待。</li></ol>
+            <Code title="开发与更新命令">{`./server plugin init ${id} ./${id} --name "开发示例"
+./server plugin install ./${id}
+./server plugin list
+
+# 修改源码后再次安装；已有相同 id 会执行 Upgrade。
+./server plugin install ./${id}
+
+# 卸载会清理插件业务数据。
+./server plugin uninstall ${id}`}</Code>
+            <p>生成命令的目标目录必须不存在。当前工程已经生成时，直接修改并安装即可。除 <code>init</code> 外，命令从面板工作目录执行；Windows 使用 <code>server.exe</code>。</p>
+            <p>安装会复制源码。修改开发目录后必须再次安装，再重新打开页面；部署服务器不需要 Go、Node 或前端构建工具。</p>
+        </>},
+        {key: "manifest", title: "软件清单", summary: "清单描述身份、入口、运行系统和软件依赖；业务配置留给页面处理。", keywords: "software.json id name version frontend platforms requires 依赖 系统", files: ["software.json"], content: <>
+            <Code title="software.json">{JSON.stringify({id, name: software?.name || "开发示例", version: "1.0.0", frontend: "web/index.tsx", platforms: [], requires: []}, null, 2)}</Code>
+            {table(["字段", "填写方式"], [
+                ["id", "唯一软件标识，小写字母开头，可含数字、下划线、连字符，最长 64 字符。决定接口地址与目录。"],
+                ["name / version", "显示名称与版本文本。再次安装同一 id 即升级，包括相同版本；面板不判断版本大小。"],
+                ["frontend", "页面入口，必须位于 web/。纯后端插件可以留空。"],
+                ["platforms", "Go 系统名数组，如 linux、windows、darwin；空数组不限制。"],
+                ["requires", "依赖软件的 id 数组。不是镜像、Go 模块或宿主能力名称，不要填写 container。"],
+            ])}
+            <p>需要容器的软件可以声明 <code>platforms: ["linux"]</code>。只有依赖其他软件插件时才填写 <code>requires</code>；依赖必须先安装，面板不会自动下载。平台声明不代替业务调用的错误处理。</p>
+            <p>后端固定放在 <code>server/</code>，不需要额外的 server、backend、sdk_version 或安装表单字段。</p>
+        </>},
+        {key: "actions", title: "接口与响应", summary: "后端注册 Actions，前端使用页面收到的 request，无需拼接鉴权或重复解包。", keywords: "API 请求 鉴权 参数 ValidatorAll Context JSON Error status endpoint", files: ["server/plugin.go", "web/components/playground.tsx"], content: <>
+            <Code title="注册一个接口">{`// New 返回的 sdk.Plugin 中注册。
+Actions: map[string]func(*sdk.Context){
+    "hello": m.hello,
+},
+
+func (m *demo) hello(c *sdk.Context) {
+    var form struct {
+        Name string \x60json:"name" default:"访客" validate:"max=100" label:"名称"\x60
+    }
+    if ok, msg := c.ValidatorAll(&form); !ok {
+        c.Error(msg)
+        return
+    }
+    c.SuccessWithData("操作成功", map[string]string{
+        "message": "你好，" + form.Name,
+    })
+}`}</Code>
+            <Code title="React 事件处理">{`// 对应 POST /software/${id}/hello。
+try {
+    const data = await request("hello", {name: "开发者"});
+    message.success(data?.message || "操作成功");
+} catch (error) {
+    message.error(error instanceof Error ? error.message : "请求失败");
+}`}</Code>
+            <p><code>request</code> 成功时已经返回响应中的 <code>data</code>，不能再读取 <code>data.data</code>。失败会抛出 Error。原始 HTTP 响应是 <code>{"{code, message, data, request_id}"}</code>，业务是否成功以 code 判断，不只看 HTTP 状态。</p>
+            <p>现有 <code>/software/{id}/方法名</code> 路由沿用面板登录验证。页面资源也需要登录。接口地址中的 <code>page</code> 为保留资源路由，不应注册为业务 Action。</p>
+            {table(["方法", "用途"], [ ["c.ValidatorAll", "绑定 JSON、查询或表单参数并验证；失败后直接返回。"], ["c.Success", "成功但不返回业务数据，例如删除。"], ["c.SuccessWithData", "成功并返回对象或分页结果。"], ["c.Error", "返回明确业务错误，随后 return。"], ["c.Request.Context()", "传给当前请求中的数据库、网络和其他可取消操作。"]])}
+        </>},
+        {key: "api", title: "Demo 接口速查", summary: "所有页面操作都连接真实接口。写入与删除只影响当前插件的示例数据。", keywords: "info hello notes settings cache task disks list create update delete 排序 批量", files: ["server/plugin.go", "server/notes.go", "server/settings.go", "server/task.go"], content: <>
+            {table(["接口 / action", "参数与结果"], [
+                ["info", "无参数。返回 instance_id、system、architecture、started、heartbeat、table、note_count、cache_exists、configured。"],
+                ["hello", "name 可省略。返回 message 和带时区的 time。"],
+                ["disks", "无参数。返回 {list:[{path}]}，只读访问面板文件服务。"],
+                ["notes / list", "keyword、page、page_size、order_by_field、order_by_type。返回 {list,total,page,page_size}。列表不包含正文。"],
+                ["notes / info", "id。返回完整记录，包含 content。详情和编辑都先读取此接口。"],
+                ["notes / create", "title、content。返回 {id}。标题必填且最多 100 字符，正文最多 10000 字符。"],
+                ["notes / update", "id、title、content。支持正文清空；记录不存在时报错。"],
+                ["notes / delete", "ids 正整数数组（最多 10000 项）或单个 id。事务内分批删除；记录已删除时仍可重复执行。"],
+                ["settings / get, set", "set 传 greeting、interval（1～60 秒）；返回当前配置。"],
+                ["cache / get, set, delete", "set 传 value、ttl（1～3600 秒）；返回 key、exists、value。"],
+                ["task / get, start, cancel", "start 传 steps（1～20）。返回 id、status、progress、message；没有任务时返回空值。"],
+            ])}
+            <Code title="分页、详情和批量删除">{`const page = await request("notes", {
+    action: "list", keyword: "部署", page: 1, page_size: 20,
+    order_by_field: "update_time", order_by_type: "desc",
+});
+const record = await request("notes", {action: "info", id: selectedID});
+// 批量删除应先给用户确认，再提交。
+await request("notes", {action: "delete", ids: selectedIDs});`}</Code>
+            <p>page 默认 1，page_size 默认 10、最大 100。允许排序的字段为 <code>id</code>、<code>title</code>、<code>create_time</code>、<code>update_time</code>，顺序为 <code>asc</code> 或 <code>desc</code>。默认 id 倒序；同值记录使用稳定顺序。</p>
+        </>},
+        {key: "data", title: "数据与事务", summary: "区分插件自身配置、业务记录、外部数据库与缓存，按需要选择存储方式。", keywords: "数据库 SQLite GORM Transaction BatchExecute Software GetConfig SetConfig Config Cache CRUD 零值 主键", files: ["server/entities.go", "server/lifecycle.go", "server/notes.go", "server/settings.go"], content: <>
+            {table(["能力", "什么时候使用"], [ ["app.Service.Software", "GetConfig/SetConfig 原样读写当前插件的配置字符串，允许为空，存储在软件记录中，不随软件详情返回。"], ["app.Database", "面板自己的 SQLite 数据库。插件业务记录可建立独立表，复用 Db、Transaction、BatchExecute。"], ["app.Service.Database", "用户配置的外部 MySQL、Postgres、Redis 等实例；不是面板本地库。"], ["app.Service.Config", "需要额外配置分组时使用。Set/Sets 同时清理配置缓存；DeleteByGroup 删除本插件的配置组。"], ["app.Cache", "短期结果、带过期时间的临时数据。不能替代持久存储。"]])}
+            <Code title="事务内批量删除">{`err := m.app.Database.Transaction(func(tx *gorm.DB) error {
+    return m.app.Database.BatchExecute(ids, 1000, func(batch interface{}) error {
+        return tx.WithContext(c.Request.Context()).Table(m.table).
+            Where("id IN ?", batch.([]int64)).Delete(&Note{}).Error
+    })
+})
+if err != nil {
+    c.Error(err.Error())
+    return
+}
+c.Success("删除成功")`}</Code>
+            <p>事务中的每一步都使用 <code>tx</code>。BatchExecute 仅负责分批，整体回滚靠外层事务。表名与排序字段由代码或白名单决定，字段值用 <code>?</code> 绑定。写入空字符串、0、false 时使用 Updates 的 map 形式。</p>
+            <Code title="插件内部配置">{`// 使用当前插件的标识，不使用软件记录的数字 ID。
+data, err := m.app.Service.Software.GetConfig(m.app.InstanceID)
+if err != nil {
+    c.Error(err.Error())
+    return
+}
+// Demo 使用 JSON，其他插件可以选择自己的存储格式。
+settings := Settings{Greeting: "你好", Interval: 5}
+if data != "" {
+    if err := json.Unmarshal([]byte(data), &settings); err != nil {
+        c.Error(err.Error())
+        return
+    }
+}
+settings.Greeting = "欢迎"
+encoded, err := json.Marshal(settings)
+if err != nil {
+    c.Error(err.Error())
+    return
+}
+if err := m.app.Service.Software.SetConfig(m.app.InstanceID, string(encoded)); err != nil {
+    c.Error(err.Error())
+    return
+}`}</Code>
+            <p>插件配置只供后端读取，接口不限制 JSON 格式。首次安装的生命周期执行前已有软件记录，Install 和 Start 可以读写配置；卸载成功后配置随软件记录删除。页面需要配置项时，由插件自己的 Action 返回需要展示的字段。</p>
+            <Code title="额外配置分组与缓存">{`group := "plugin_" + m.app.InstanceID
+// 持久配置：检查写入错误。
+if err := m.app.Service.Config.Set(group+".greeting", "欢迎"); err != nil {
+    c.Error(err.Error())
+    return
+}
+value := m.app.Service.Config.Get(group, group+".greeting")
+
+// 临时缓存：设置期限，读取时区分空值和不存在。
+key := group + ".preview"
+m.app.Cache.SetWithExpire(key, value, time.Minute)
+cached := m.app.Cache.Get(key)
+m.app.Cache.Delete(key)`}</Code>
+            <p>本 demo 的表名通过插件 ID 摘要隔离，设置保存在软件记录的 config 中，缓存使用 plugin_{id} 前缀。上面的公共配置分组仅是额外用法，demo 不把设置存入该分组。</p>
+        </>},
+        {key: "tasks", title: "生命周期与任务", summary: "区分一次请求、一次后台任务和整个插件运行期，才能正确处理取消与关闭。", keywords: "Install Upgrade Start Stop Uninstall goroutine context 后台进度 计划任务 超时 并发", files: ["server/lifecycle.go", "server/task.go", "server/entities.go"], content: <>
+            {table(["阶段", "需要做的事"], [ ["New", "创建对象、注册方法，快速返回；不启动不可取消的工作。"], ["Install", "首次安装时初始化自有表和默认配置。无需安装表单。"], ["Upgrade", "重新安装同一 ID 时执行，参数含 previous_version 与 version。数据迁移由插件负责。"], ["Start", "启动心跳、监听等长期工作。协程监听此 ctx，启动后及时返回。"], ["Stop", "宿主先取消运行 ctx，再调用 Stop；等待本插件的协程退出。"], ["Uninstall", "清理本插件拥有的数据与资源；不关闭宿主共享服务。"]])}
+            <p>同一插件的 Actions 与生命周期进入串行调用队列，不同插件互不阻塞。自行启动的协程不在这个队列里，访问共享状态仍需锁或通道。不要在 Action 中等待另一个请求来推动自己完成。</p>
+            <Code title="从页面提交并观察任务">{`const job = await request("task", {action: "start", steps: 10});
+const state = await request("task", {action: "get"});
+if (state?.id) {
+    console.log(state.progress, state.message);
+}
+await request("task", {action: "cancel"});`}</Code>
+            <p>任务状态：0 等待、1 运行、2 完成、3 失败、4 取消。后台回调使用 System.TaskCreate 提供的 ctx，并主动回报状态。轮询要串行，完成后停止，页面卸载时清理定时器。</p>
+            <p>关闭页面仅停止前端轮询，不取消已经提交的后台任务。取消请求是协作式的，后台代码仍需监听 ctx.Done。安装、卸载或面板停止期间，demo 会取消并等待自己的工作退出。</p>
+            <p>周期任务使用 <code>app.Service.Task.Add</code>；一次性进度任务使用 <code>app.Service.System.TaskCreate</code>。完整调用与日志示例见生成工程 README 的「后台任务与计划任务」。</p>
+        </>},
+        {key: "sdk", title: "面板能力与 SDK", summary: "直接调用注入的业务服务，复用面板数据库与缓存，不需要再请求一次 HTTP。", keywords: "App Service sdk entities methods File Container Software Log Secret Site 系统", files: ["sdk/entities.go", "sdk/methods.go", "server/plugin.go"], content: <>
+            {table(["对象", "用途"], [ ["app.InstanceID", "软件标识，等于清单 id，适合命名表、缓存和任务。"], ["app.Log", "程序日志，例如 app.Log.Printf。解释器标准输出默认被丢弃。"], ["app.Config", "面板运行配置，区别于用户持久配置表。"], ["app.Service", "Config、Auth、Server、Script、Secret、Type、Log、Task、File、Recycle、System、Site、Container、Software、Database。"], ["sdk/entities.go", "公开结构体、接口、字段和可获取的注释。"], ["sdk/methods.go", "当前面板实际暴露的方法和准确参数。"]])}
+            <Code title="复用文件服务">{`paths, err := m.app.Service.File.GetDiskPaths()
+if err != nil {
+    c.Error(err.Error())
+    return
+}
+c.SuccessWithData("获取成功", map[string]interface{}{"list": paths})`}</Code>
+            <p>生成 SDK 是开发声明，不包含闭源面板实现。运行时由宿主绑定真实对象，不要单独运行 SDK，也不要修改 SDK 声明来增加不存在的方法。类型可调用不代表同包的所有变量、常量和函数都已导出；例如当前不提供 gorm.ErrRecordNotFound，详情查询使用 Limit(1).Find 后检查主键。</p>
+            <p>只管理插件自己创建的资源。数据库连接池、共享缓存、系统调度器等由面板初始化和关闭；不要调用它们的全局 Close、Start 等管理方法。</p>
+            <p>前端的 <code>import ... from "sdk"</code> 提供组件和工具，后端的 <code>import "sdk"</code> 提供 Go API。两者同名但用途不同，不需要下载 npm 的同名包。</p>
+        </>},
+        {key: "frontend", title: "页面、表格与弹窗", summary: "默认导出普通 React 组件，沿用宿主主题和现成的表格、表单、日志等组件。", keywords: "React TSX modal ProModal PageTable width 移动 暗色 紧凑 token CSS onClose", files: ["web/index.tsx", "web/styles.ts", "web/components/notes.tsx", "web/sdk.d.ts"], content: <>
+            <Code title="自定义当前插件的管理弹窗">{`import React from "react";
+import {Button} from "antd";
+import type {PluginModal} from "sdk";
+import type {PluginPageProps} from "./types";
+
+export const modal: PluginModal = ({compact, mobile, token}) => ({
+    width: mobile ? "calc(100vw - 24px)" : compact ? 940 : 1080,
+    styles: {
+        body: {padding: 0, background: token.colorBgContainer},
+    },
+});
+
+export default function Page({onClose}: PluginPageProps) {
+    return <Button onClick={onClose}>关闭</Button>;
+}`}</Code>
+            <p>modal 可以是原生 Modal 属性对象，也可以是同步配置函数。参数包含 software、compact、mobile、token、onClose。函数不能调用 Hooks 或返回 Promise；页面逻辑仍放在组件中。</p>
+            <p>software 提供 id、name、code、version、status、create_time、update_time 和 frontend。读取标识使用 software.code，版本使用 software.version；不会下发插件内部 config，也不包含重复的 manifest 对象。</p>
+            <p>可设置 width、title、footer、style、styles、classNames、centered、mask 等。打开、关闭和销毁由宿主管理；页面内关闭调用 onClose，资源清理放在 effect 返回函数中。</p>
+            <Code title="让 PageTable 管理请求、搜索与分页">{`// import {PageTable} from "sinking-antd";
+// 放在接收 request 属性的页面组件中：
+<PageTable
+    rowKey="id"
+    defaultPageSize={20}
+    search={{placeholder: "搜索标题或内容"}}
+    request={async ({current, pageSize, keyword}, sort) => {
+        const [field, direction] = Object.entries(sort || {})[0] || [];
+        const result = await request("notes", {
+            action: "list", page: current, page_size: pageSize, keyword,
+            ...(field ? {order_by_field: field,
+                order_by_type: direction === "ascend" ? "asc" : "desc"} : {}),
+        });
+        return {data: result?.list || [], total: result?.total || 0, success: true};
+    }}
+    columns={[{title: "标题", dataIndex: "title", sorter: true}]}
+/>`}</Code>
+            <p>表单使用 <code>Form variant="filled"</code>，按钮保持原生尺寸，颜色和圆角使用主题 token。后台返回空值时使用可选访问，失败在 onRequestError 或事件 catch 中处理。</p>
+        </>},
+        {key: "modules", title: "多文件与依赖", summary: "插件交付源码；服务器不下载 Go 依赖，浏览器不安装 npm 包。", keywords: "go.mod vendor module 多文件 import lazy dynamic css Babel 构建 npm", files: ["server/go.mod", "web/index.tsx", "web/tsconfig.json"], content: <>
+            <Code title="多文件导入">{`// Go：server/ 同目录使用同一 package，子包按 go.mod 模块路径导入。
+import "plugin.local/${id}/internal/helper"
+
+// React：相对路径允许省略后缀，也支持动态 import。
+import Notes from "./components/notes";
+const Details = React.lazy(() => import("./components/details"));`}</Code>
+            <p>前端支持 ts、tsx、js、jsx、mjs、json。共享依赖为 react、antd、sinking-antd、antd-style、dayjs、sdk 与 React JSX runtime。不要使用面板源码的 @/ 别名。</p>
+            <p>CSS、Less、Sass 不能作为模块导入，使用 antd-style 或内联样式。web 下的图片等静态资源通过 <code>/software/{id}/page/资源路径</code> 访问；URL 不再增加 web 层。</p>
+            <Code title="开发机准备额外 Go 依赖">{`cd ${id}/server
+go mod tidy
+go mod vendor
+
+# 发布时保留 server/vendor，不需要在部署服务器执行上述命令。`}</Code>
+            <p>只调用宿主已暴露的 SDK、GORM 等类型无需把整套宿主依赖打包。额外第三方源码按需 vendor；纯 Go 也不代表 Yaegi 一定支持，安装前应验证实际解释执行。CGO 依赖不由源码解释器编译。</p>
+        </>},
+        {key: "release", title: "升级、卸载与排错", summary: "确认源码安装、生效和资源清理的完整路径，避免把修改开发文件误认为已发布。", keywords: "打包 ZIP 安装 卸载 Upgrade 回滚 错误 404 Cannot module 关闭 日志", files: ["README.md", "server/lifecycle.go", "software.json"], content: <>
+            <Code title="ZIP 根目录直接包含运行文件">{`cd ${id}
+zip -r ../${id}-1.0.0.zip software.json server web
+
+# 回到面板工作目录执行。
+./server plugin install /path/to/${id}-1.0.0.zip
+./server plugin uninstall ${id}`}</Code>
+            <p>也可直接安装服务器上的源码目录，面板只打包 software.json、server、web。README 和根目录 SDK 是开发资料；软件页面需要的文档应放进 web。当前不提供软件包上传接口。</p>
+            <p>同 ID 升级执行 Upgrade 并保留内部配置；失败时恢复旧代码及旧版本 Stop 完成后的配置。业务表、公共配置组和外部资源变更需要插件自行处理回滚。</p>
+            <p>卸载默认清理插件数据，由 Uninstall 清理自己拥有的表、配置、缓存与其他资源。未加载时尝试加载源码执行清理，不调用 Start；源码加载失败仍会删除软件记录与代码，无法识别的外部资源需按插件说明另行清理。</p>
+            {table(["现象", "检查位置"], [ ["修改未生效", "再次安装开发目录，成功后关闭并重新打开管理页。"], ["页面资源 404", "frontend、文件大小写、包内文件是否齐全，以及 URL 是否多写了一层 web。"], ["找不到 Go 依赖", "server/go.mod 的模块路径和 server/vendor；宿主不会联网执行 go mod。"], ["列表为空但接口有数据", "request 已解包 data；检查是否错误地使用 result.data.list。"], ["没有日志", "使用 app.Log.Printf；不要依赖 fmt.Println。"], ["后台任务一直运行", "回调必须上报完成/失败，并监听 ctx；页面轮询停止不代表任务结束。"], ["useForm 警告", "先挂载 Form 再操作，或在 ProModal 使用 forceRender；不要把表单实例脱离 Form。"], ["卸载被依赖阻止", "先卸载 requires 中依赖本软件的其他插件。"]])}
+        </>},
+    ];
+    const normalized = query.trim().toLowerCase();
+    const visible = chapters.filter((chapter) => `${chapter.title} ${chapter.summary} ${chapter.keywords}`.toLowerCase().includes(normalized));
+    const selected = visible.find((chapter) => chapter.key === active) || visible[0];
+    return <section className={styles.root}>
+        <Input className={styles.search} variant="filled" allowClear prefix={<Icon type="SearchOutlined"/>}
+            value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索开发文档，如：事务、弹窗、打包"/>
+        {!selected ? <div className={styles.empty}><Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无数据"/></div> : <div className={styles.layout}>
+            <nav className={styles.menu} aria-label="开发文档章节">{visible.map((chapter) => <button key={chapter.key} type="button"
+                aria-current={chapter.key === selected.key ? "page" : undefined} onClick={() => setActive(chapter.key)}>{chapter.title}</button>)}</nav>
+            <Select className={styles.mobileMenu} variant="filled" value={selected.key} onChange={setActive}
+                placeholder="选择文档章节" options={visible.map((chapter) => ({value: chapter.key, label: chapter.title}))}/>
+            <article className={styles.article} key={selected.key}>
+                <h3>{selected.title}</h3><p className={styles.lead}>{selected.summary}</p>
+                {selected.content}
+                <div className={styles.source}><span>对应源码</span>{selected.files.map((file) => <Typography.Text code key={file}>{file}</Typography.Text>)}</div>
+            </article>
+        </div>}
+    </section>;
+}

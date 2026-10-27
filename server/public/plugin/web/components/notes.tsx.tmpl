@@ -1,0 +1,127 @@
+import React, {useEffect, useRef, useState} from "react";
+import {App, Button, Empty, Form, Grid, Input, Spin, Typography} from "antd";
+import {Icon, PageTable, ProModal, Title, useTheme} from "sinking-antd";
+import type {PageTableRef} from "sinking-antd";
+import {ActionDropdown} from "sdk";
+import useStyles from "../styles";
+import type {Note, PluginPageProps} from "../types";
+
+// PageTable 接管请求、搜索、排序和分页；列表不返回大文本，详情与编辑按需读取。
+export default function Notes({request}: Pick<PluginPageProps, "request">) {
+    const {message, modal} = App.useApp();
+    const theme = useTheme();
+    const compact = Boolean(theme?.isCompactTheme?.());
+    const screens = Grid.useBreakpoint();
+    const {styles} = useStyles({compact});
+    const table = useRef<PageTableRef<Note>>(null);
+    const [form] = Form.useForm();
+    const [editor, setEditor] = useState(false);
+    const [editingID, setEditingID] = useState<number>();
+    const [detail, setDetail] = useState(false);
+    const [record, setRecord] = useState<Note>();
+    const [loading, setLoading] = useState(false);
+    const [saving, setSaving] = useState(false);
+    const [removing, setRemoving] = useState(false);
+    const [listError, setListError] = useState("");
+    const live = useRef(true);
+    const version = useRef(0);
+    const pending = useRef(false);
+    const confirm = useRef<{destroy: () => void} | null>(null);
+    useEffect(() => {
+        live.current = true;
+        return () => { live.current = false; version.current++; confirm.current?.destroy(); };
+    }, []);
+    const close = () => {
+        if (pending.current) return;
+        version.current++; setEditor(false); setDetail(false);
+    };
+    const show = async (mode: "edit" | "detail", item?: Note) => {
+        const current = ++version.current;
+        setRecord(undefined); setLoading(Boolean(item));
+        if (mode === "edit") { setEditingID(item?.id); setEditor(true); form.resetFields(); }
+        else setDetail(true);
+        if (!item) return;
+        try {
+            const data = await request("notes", {action: "info", id: item.id});
+            if (!live.current || current !== version.current) return;
+            if (!data?.id) throw new Error("记录不存在，请刷新列表");
+            setRecord(data);
+            if (mode === "edit") form.setFieldsValue({title: data.title, content: data.content});
+        } catch (reason: any) {
+            if (live.current && current === version.current) { setEditor(false); setDetail(false); message.error(reason?.message || "读取记录失败"); }
+        } finally { if (live.current && current === version.current) setLoading(false); }
+    };
+    const save = async (values: {title: string; content: string}) => {
+        if (pending.current) return;
+        pending.current = true; setSaving(true);
+        try {
+            await request("notes", {action: editingID ? "update" : "create", ...(editingID ? {id: editingID} : {}),
+                title: values.title.trim(), content: values.content || ""});
+            if (!live.current) return;
+            message.success("保存成功"); setEditor(false); table.current?.reload();
+        } catch (reason: any) { if (live.current) message.error(reason?.message || "保存失败"); }
+        finally { pending.current = false; if (live.current) setSaving(false); }
+    };
+    const remove = (ids: number[]) => {
+        if (!ids.length || pending.current) return;
+        confirm.current = modal.confirm({title: "删除记录", content: `确定删除选中的 ${ids.length} 条记录吗？`, zIndex: 1250,
+            okText: "删除", cancelText: "取消", okButtonProps: {danger: true},
+            onOk: async () => {
+                if (pending.current) return;
+                pending.current = true; setRemoving(true);
+                try {
+                    await request("notes", {action: "delete", ids});
+                    if (!live.current) return;
+                    message.success("删除成功"); table.current?.clearSelectedRows(); table.current?.reload();
+                } catch (reason: any) { if (live.current) message.error(reason?.message || "删除失败"); }
+                finally { pending.current = false; if (live.current) setRemoving(false); }
+            },
+        });
+    };
+    return <>
+        <div className={styles.heading}><div><h3>数据管理</h3><p>使用独立数据表保存记录，列表、详情和编辑均调用真实接口。</p></div></div>
+        <PageTable<Note> ref={table} rowKey="id" ariaLabel="插件业务记录" defaultPageSize={10} pagination={{pageSizeOptions: [10, 20, 50, 100]}}
+            search={{placeholder: "搜索标题或内容", maxLength: 100}} scroll={{x: 680}}
+            request={async (params, sort) => {
+                const [field, order] = Object.entries(sort)[0] || [];
+                const result = await request("notes", {action: "list", keyword: params.keyword || "", page: params.current, page_size: params.pageSize,
+                    ...(field ? {order_by_field: field, order_by_type: order === "ascend" ? "asc" : "desc"} : {})});
+                if (!Array.isArray(result?.list)) throw new Error("未返回有效的记录列表");
+                return {data: result.list.filter((item: any) => item?.id), total: Number(result?.total) || 0, success: true};
+            }} onLoad={() => setListError("")} onRequestError={(reason) => { if (live.current) { setListError(reason.message); message.error(reason.message); } }}
+            emptyContent={listError ? <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="数据加载失败"/> : undefined}
+            toolbar={{actions: [{key: "create", type: "button", label: "新增", icon: "PlusOutlined", onClick: () => void show("edit")}], refresh: true}}
+            rowSelection={{preserveSelectedRowKeys: false, actions: (keys) => [{key: "remove", type: "button", label: "删除", icon: "DeleteOutlined",
+                danger: true, loading: removing, onClick: () => remove(keys.map(Number))}]}}
+            columns={[
+                {title: "ID", dataIndex: "id", width: 70, sorter: true},
+                {title: "标题", dataIndex: "title", width: 220, ellipsis: true, sorter: true,
+                    render: (value, item) => <Typography.Link style={{fontSize: "inherit"}} onClick={() => void show("detail", item)}>{value}</Typography.Link>},
+                {title: "更新时间", dataIndex: "update_time", width: 165, sorter: true},
+                {title: "创建时间", dataIndex: "create_time", width: 165, sorter: true},
+                {title: "操作", key: "action", width: 76, align: "center", fixed: "right", render: (_, item) => <ActionDropdown menu={{items: [
+                    {key: "detail", label: "详情", onClick: () => void show("detail", item)},
+                    {key: "edit", label: "编辑", onClick: () => void show("edit", item)},
+                    {key: "delete", label: "删除", danger: true, onClick: () => remove([item.id])},
+                ]}}><Button size="small" disabled={removing}>操作</Button></ActionDropdown>},
+            ]}/>
+        <ProModal title={<Title>{editingID ? "编辑记录" : "新增记录"}</Title>} onOk={form.submit} onCancel={close} modalProps={{
+            open: editor, forceRender: true, width: compact ? 440 : 500, zIndex: 1200, okText: "保存", cancelText: "取消", confirmLoading: saving,
+            okButtonProps: {disabled: loading}, closable: !saving, keyboard: !saving, mask: {closable: !saving}, cancelButtonProps: {disabled: saving},
+            style: {top: screens.md ? 100 : 24, paddingBottom: screens.md ? 100 : 24, maxWidth: "calc(100vw - 24px)"},
+        } as any}>
+            <Spin spinning={loading}><Form form={form} layout="vertical" variant="filled" onFinish={save} disabled={loading || saving}>
+                <Form.Item name="title" label="标题" rules={[{required: true, whitespace: true, message: "请输入标题"}, {max: 100, message: "最多100个字符"}]}><Input placeholder="请输入记录标题" maxLength={100}/></Form.Item>
+                <Form.Item name="content" label="内容" rules={[{max: 10000, message: "最多10000个字符"}]}><Input.TextArea rows={6} placeholder="填写记录内容，可以留空" maxLength={10000} showCount/></Form.Item>
+            </Form></Spin>
+        </ProModal>
+        <ProModal title={<Title>记录详情</Title>} onCancel={close} modalProps={{open: detail, width: compact ? 440 : 500, zIndex: 1200,
+            footer: null, mask: {closable: true}, style: {top: screens.md ? 100 : 24, paddingBottom: screens.md ? 100 : 24, maxWidth: "calc(100vw - 24px)"}} as any}>
+            {loading ? <div className={styles.empty}><Spin/></div> : record && <>
+                <div className={styles.sectionTitle}><h4>{record.title}</h4><Typography.Text copyable={{text: record.content || "", tooltips: false, icon: [<span key="copy">复制</span>, <span key="done">已复制</span>]}}/></div>
+                <p className={styles.noteText}>{record.content || "暂无内容"}</p>
+                <div className={styles.status}>更新于 {record.update_time}</div>
+            </>}
+        </ProModal>
+    </>;
+}

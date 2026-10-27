@@ -3,19 +3,22 @@ package constant
 const (
 	BasePath = "." //基础目录
 
-	RuntimePath = BasePath + "/runtime"    //运行数据目录
-	CmdPath     = RuntimePath + "/cmd"     //脚本执行临时目录
-	CronPath    = RuntimePath + "/cron"    //计划任务日志目录
-	TaskPath    = RuntimePath + "/task"    //系统任务日志目录
-	RecyclePath = RuntimePath + "/recycle" //回收站默认目录
-	UploadPath  = RuntimePath + "/upload"  //上传临时文件目录
-	IPPath      = RuntimePath + "/ip"      //IP 数据库目录
-	SitePath    = RuntimePath + "/site"    //站点服务运行目录
-	ServerPath  = RuntimePath + "/server"  //HTTP 服务运行目录
+	RuntimePath       = BasePath + "/runtime"    //运行数据目录
+	CmdPath           = RuntimePath + "/cmd"     //脚本执行临时目录
+	CronPath          = RuntimePath + "/cron"    //计划任务日志目录
+	TaskPath          = RuntimePath + "/task"    //系统任务日志目录
+	RecyclePath       = RuntimePath + "/recycle" //回收站默认目录
+	UploadPath        = RuntimePath + "/upload"  //上传临时文件目录
+	IPPath            = RuntimePath + "/ip"      //IP 数据库目录
+	SitePath          = RuntimePath + "/site"    //站点服务运行目录
+	ServerPath        = RuntimePath + "/server"  //HTTP 服务运行目录
+	DaemonPath        = RuntimePath + "/daemon"  //面板进程本机通信目录
+	PluginCommandPath = RuntimePath + "/plugin"  //插件命令本机通信目录
 
 	SiteRootPath  = BasePath + "/data/site"       //网站数据根目录
 	AcmePath      = BasePath + "/data/acme"       //ACME 账户和签发数据目录
 	ContainerPath = BasePath + "/data/containers" //轻量容器数据目录
+	SoftwarePath  = BasePath + "/data/software"   //软件包目录
 	PanelDataPath = BasePath + "/data/server"     //面板配置和数据库目录
 
 	ServerDataPath   = ServerPath + "/data"        //HTTP 服务数据目录

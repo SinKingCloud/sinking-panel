@@ -58,7 +58,10 @@ func (s *service) GetSSL(id int64) (*SSLSettings, error) {
 		copy := *domain
 		result = append(result, &copy)
 	}
-	return &SSLSettings{Config: config.TLS, Domains: result}, nil
+	return &SSLSettings{
+		Config:  config.TLS,
+		Domains: result,
+	}, nil
 }
 
 // GetWAF 读取网站 WAF 设置。

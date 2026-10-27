@@ -18,7 +18,11 @@ func (m *Manager) RefreshFields(ctx context.Context, progress func(float64, stri
 	if err != nil {
 		return nil, err
 	}
-	query := url.Values{"wait_for_completion": {"false"}, "conflicts": {"proceed"}, "refresh": {"true"}}
+	query := url.Values{
+		"wait_for_completion": {"false"},
+		"conflicts":           {"proceed"},
+		"refresh":             {"true"},
+	}
 	// 6.5 起才支持默认管道和 _none；旧版会把 _none 当作不存在的管道执行。
 	if m.atLeast(6, 5) {
 		query.Set("pipeline", "_none")

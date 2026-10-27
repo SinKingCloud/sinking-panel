@@ -195,7 +195,10 @@ func (s *service) Create(data *CreateSite) (*Site, error) {
 				}
 			}
 			pages := s.http.Options()
-			for _, page := range []struct{ name, body string }{
+			for _, page := range []struct {
+				name string
+				body string
+			}{
 				{"index.html", pages.InitialPage.Body},
 				{"404.html", pages.NotFoundPage.Body},
 			} {
@@ -343,7 +346,10 @@ func (s *service) updateLocked(id int64, data *siteMutation) error {
 	} else {
 		domainInput = make([]SiteDomain, 0, len(previousDomains))
 		for _, domain := range previousDomains {
-			domainInput = append(domainInput, SiteDomain{Domain: domain.Domain, CertId: domain.CertId})
+			domainInput = append(domainInput, SiteDomain{
+				Domain: domain.Domain,
+				CertId: domain.CertId,
+			})
 		}
 	}
 	previousDefault := s.http.Options().DefaultSite

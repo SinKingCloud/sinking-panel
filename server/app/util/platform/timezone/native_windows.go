@@ -16,7 +16,8 @@ type windowsTimezoneInformation struct {
 
 // windowsAPI 持有本次设置所需的 DLL 和原生方法，使用后统一释放。
 type windowsAPI struct {
-	kernel, security *windows.DLL
+	kernel           *windows.DLL
+	security         *windows.DLL
 	enumerate        *windows.Proc
 	systemTime       *windows.Proc
 	localTime        *windows.Proc
@@ -31,7 +32,10 @@ func loadWindowsLibrary(name string) (*windows.DLL, error) {
 	if err != nil {
 		return nil, fmt.Errorf("加载 Windows 系统库 %s 失败: %w", name, err)
 	}
-	return &windows.DLL{Name: name, Handle: handle}, nil
+	return &windows.DLL{
+		Name:   name,
+		Handle: handle,
+	}, nil
 }
 
 func openWindowsAPI() (*windowsAPI, error) {
@@ -44,7 +48,10 @@ func openWindowsAPI() (*windowsAPI, error) {
 		kernel.Release()
 		return nil, err
 	}
-	api := &windowsAPI{kernel: kernel, security: security}
+	api := &windowsAPI{
+		kernel:   kernel,
+		security: security,
+	}
 	for _, entry := range []struct {
 		library *windows.DLL
 		name    string

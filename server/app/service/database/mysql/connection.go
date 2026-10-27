@@ -21,7 +21,10 @@ func (m *Manager) ConnectionInfo(ctx context.Context) (result map[string]interfa
 		values[strings.ToLower(fmt.Sprint(record["variable_name"]))] = fmt.Sprint(record["value"])
 	}
 	items := make([]map[string]string, 0, 3)
-	for _, field := range []struct{ key, label string }{{"bind_address", "监听地址"}, {"port", "监听端口"}, {"skip_networking", "TCP 连接"}} {
+	for _, field := range []struct {
+		key   string
+		label string
+	}{{"bind_address", "监听地址"}, {"port", "监听端口"}, {"skip_networking", "TCP 连接"}} {
 		if value, ok := values[field.key]; ok {
 			if field.key == "skip_networking" {
 				if value == "1" || strings.EqualFold(value, "ON") {
@@ -30,8 +33,14 @@ func (m *Manager) ConnectionInfo(ctx context.Context) (result map[string]interfa
 					value = "已启用"
 				}
 			}
-			items = append(items, map[string]string{"label": field.label, "value": value})
+			items = append(items, map[string]string{
+				"label": field.label,
+				"value": value,
+			})
 		}
 	}
-	return map[string]interface{}{"items": items, "note": "连接来源控制账号允许从哪里登录；远程连接还需要服务器监听目标地址，并放行对应端口。"}, nil
+	return map[string]interface{}{
+		"items": items,
+		"note":  "连接来源控制账号允许从哪里登录；远程连接还需要服务器监听目标地址，并放行对应端口。",
+	}, nil
 }

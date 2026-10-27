@@ -1,0 +1,93 @@
+import React, {useEffect, useRef, useState} from "react";
+import {App, Button, Empty, Form, Input, InputNumber, Spin, Tag, Typography} from "antd";
+import {Icon, useTheme} from "sinking-antd";
+import useStyles from "../styles";
+import type {PluginPageProps} from "../types";
+
+export default function Settings({request}: Pick<PluginPageProps, "request">) {
+    const {message} = App.useApp();
+    const theme = useTheme();
+    const {styles} = useStyles({compact: Boolean(theme?.isCompactTheme?.())});
+    const [form] = Form.useForm();
+    const [cacheForm] = Form.useForm();
+    const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
+    const [error, setError] = useState("");
+    const [revision, setRevision] = useState(0);
+    const [cache, setCache] = useState<any>();
+    const [cacheAction, setCacheAction] = useState("");
+    const live = useRef(true);
+    const pending = useRef(false);
+    const cachePending = useRef(false);
+    useEffect(() => { live.current = true; return () => { live.current = false; }; }, []);
+    useEffect(() => {
+        let active = true;
+        setLoading(true); setError("");
+        void request("settings", {action: "get"}).then((data) => {
+            if (active) form.setFieldsValue({greeting: data?.greeting || "你好", interval: Number(data?.interval) || 5});
+        }).catch((reason) => { if (active) setError(reason?.message || "读取配置失败"); })
+            .finally(() => { if (active) setLoading(false); });
+        return () => { active = false; };
+    }, [form, request, revision]);
+    const save = async (values: {greeting: string; interval: number}) => {
+        if (pending.current) return;
+        pending.current = true; setSaving(true);
+        try {
+            await request("settings", {action: "set", greeting: values.greeting.trim(), interval: values.interval});
+            if (live.current) message.success("配置已保存");
+        } catch (reason: any) { if (live.current) message.error(reason?.message || "保存配置失败"); }
+        finally { pending.current = false; if (live.current) setSaving(false); }
+    };
+    const operateCache = async (action: "get" | "set" | "delete", values?: {value: string; ttl: number}) => {
+        if (cachePending.current) return;
+        cachePending.current = true; setCacheAction(action);
+        try {
+            const data = await request("cache", {action, ...(values || {})});
+            if (!live.current) return;
+            setCache(data || {exists: false});
+            if (action !== "get") message.success(action === "set" ? "缓存已写入" : "缓存已删除");
+        } catch (reason: any) { if (live.current) message.error(reason?.message || "缓存操作失败"); }
+        finally { cachePending.current = false; if (live.current) setCacheAction(""); }
+    };
+    return <>
+        <div className={styles.heading}><div><h3>配置缓存</h3><p>持久配置随插件保存，临时数据到期自动失效。</p></div>
+            <Button color="default" variant="filled" aria-label="刷新配置" icon={<Icon type="ReloadOutlined"/>} loading={loading}
+                disabled={saving} onClick={() => setRevision((value) => value + 1)}/></div>
+        <div className={styles.grid}>
+            <section className={styles.panel}>
+                <div className={styles.sectionTitle}><h4>持久配置</h4><span>Service.Software</span></div>
+                <span className={styles.hint}>问候语用于接口调试；间隔控制运行概览中的后台心跳。</span>
+                {error && <div className={styles.status}><Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={error}/></div>}
+                <Spin spinning={loading}>
+                    <Form form={form} layout="vertical" variant="filled" onFinish={save} disabled={loading || saving || Boolean(error)}>
+                        <Form.Item name="greeting" label="问候语" rules={[{required: true, whitespace: true, message: "请输入问候语"}, {max: 100, message: "最多100个字符"}]}><Input maxLength={100} placeholder="例如：你好"/></Form.Item>
+                        <Form.Item name="interval" label="心跳间隔（秒）" rules={[{required: true, message: "请输入心跳间隔"}]}><InputNumber min={1} max={60} precision={0} style={{width: "100%"}} placeholder="1 到 60 秒"/></Form.Item>
+                        <Form.Item><Button type="primary" htmlType="submit" loading={saving}>保存配置</Button></Form.Item>
+                    </Form>
+                </Spin>
+                <div className={styles.status}>重启后保留。心跳间隔会在后台循环的下一轮生效。</div>
+            </section>
+            <section className={styles.panel}>
+                <div className={styles.sectionTitle}><h4>临时缓存</h4><span>Cache</span></div>
+                <span className={styles.hint}>写入一段内容，稍后再次读取，验证有效期和缓存隔离。</span>
+                <Form form={cacheForm} layout="vertical" variant="filled" initialValues={{value: "来自插件的临时数据", ttl: 60}}
+                    onFinish={(values) => void operateCache("set", values)} disabled={Boolean(cacheAction)}>
+                    <Form.Item name="value" label="缓存内容" rules={[{max: 10000, message: "最多10000个字符"}]}><Input maxLength={10000} placeholder="请输入临时保存的内容，可以留空"/></Form.Item>
+                    <Form.Item name="ttl" label="有效期（秒）" rules={[{required: true, message: "请输入有效期"}]}><InputNumber min={1} max={3600} precision={0} style={{width: "100%"}} placeholder="1 到 3600 秒"/></Form.Item>
+                    <Form.Item><div className={styles.actions}>
+                        <Button color="default" variant="filled" htmlType="submit" loading={cacheAction === "set"}>写入</Button>
+                        <Button color="default" variant="filled" loading={cacheAction === "get"} onClick={() => void operateCache("get")}>读取</Button>
+                        <Button color="danger" variant="filled" loading={cacheAction === "delete"} onClick={() => void operateCache("delete")}>删除</Button>
+                    </div></Form.Item>
+                </Form>
+                <div className={styles.status}>
+                    {cache === undefined ? "读取缓存后，会在这里显示当前内容和有效状态。" : <>
+                        <div style={{marginBottom: cache?.exists ? 8 : 0}}><Tag variant="filled" color={cache?.exists ? "success" : "default"}>{cache?.exists ? "缓存有效" : "不存在或已过期"}</Tag></div>
+                        {cache?.exists && <div><Typography.Text copyable={{tooltips: false}}>{String(cache?.value ?? "") || "（空字符串）"}</Typography.Text></div>}
+                        {cache?.key && <div style={{marginTop: 8, wordBreak: "break-all"}}>{cache.key}</div>}
+                    </>}
+                </div>
+            </section>
+        </div>
+    </>;
+}

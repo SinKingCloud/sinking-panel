@@ -54,15 +54,27 @@ func NewManager(ctx context.Context, config, databaseName string) (*Manager, err
 	if databaseName == "" {
 		databaseName = "postgres"
 	}
-	m := &Manager{config: config, secrets: []string{connection.Password}}
-	u := &url.URL{Scheme: "postgres", Host: net.JoinHostPort(connection.Host, strconv.Itoa(connection.Port)), Path: "/" + databaseName, User: url.UserPassword(connection.User, connection.Password)}
+	m := &Manager{
+		config:  config,
+		secrets: []string{connection.Password},
+	}
+	u := &url.URL{
+		Scheme: "postgres",
+		Host:   net.JoinHostPort(connection.Host, strconv.Itoa(connection.Port)),
+		Path:   "/" + databaseName,
+		User:   url.UserPassword(connection.User, connection.Password),
+	}
 	q := u.Query()
 	mode := connection.SSLMode
 	if mode == "" {
 		mode = "prefer"
 	}
 	q.Set("sslmode", mode)
-	for key, value := range map[string]string{"sslrootcert": connection.SSLRootCert, "sslcert": connection.SSLCert, "sslkey": connection.SSLKey} {
+	for key, value := range map[string]string{
+		"sslrootcert": connection.SSLRootCert,
+		"sslcert":     connection.SSLCert,
+		"sslkey":      connection.SSLKey,
+	} {
 		if value != "" {
 			q.Set(key, value)
 		}
@@ -120,7 +132,10 @@ func (m *Manager) Test(ctx context.Context) (map[string]interface{}, error) {
 	if err := m.db.QueryRowContext(ctx, "SELECT version()").Scan(&version); err != nil {
 		return nil, m.safeError(err)
 	}
-	return map[string]interface{}{"version": version, "database": m.database}, nil
+	return map[string]interface{}{
+		"version":  version,
+		"database": m.database,
+	}, nil
 }
 
 // Databases 按名称搜索并分页返回当前账户可访问的数据库，默认隐藏模板库。
@@ -187,7 +202,10 @@ func (m *Manager) Databases(ctx context.Context, keyword string, pageNumber, pag
 	if err = rows.Err(); err != nil {
 		return nil, err
 	}
-	return page.New(&page.Query{Page: pageNumber, PageSize: pageSize}, total, result), nil
+	return page.New(&page.Query{
+		Page:     pageNumber,
+		PageSize: pageSize,
+	}, total, result), nil
 }
 
 func (m *Manager) quote(name string) (string, error) {

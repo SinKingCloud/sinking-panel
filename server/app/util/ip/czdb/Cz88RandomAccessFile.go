@@ -35,7 +35,10 @@ func NewRandomAccessFile(name string, offset int64) (*RandomAccessFile, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &RandomAccessFile{File: file, offset: offset}, nil
+	return &RandomAccessFile{
+		File:   file,
+		offset: offset,
+	}, nil
 }
 
 // Seek1 设置下一次读取或写入操作的文件指针偏移量，从文件开头开始计算。

@@ -32,11 +32,10 @@ func (u *Daemon) Restart() (result error) {
 	if err != nil {
 		return err
 	}
-	pid, err := u.readPidFile()
-	if err != nil {
-		return fmt.Errorf("读取当前服务 PID 失败: %w", err)
-	}
-	if pid != os.Getpid() {
+	u.mu.Lock()
+	address := u.address
+	u.mu.Unlock()
+	if address == "" {
 		return errors.New("Restart 只能在当前运行的服务中调用，外部重启请使用 Reload")
 	}
 	if u.systemdInstalled() {
@@ -154,9 +153,12 @@ exec "$@"`, "daemon-restart", strconv.Itoa(os.Getpid()), strconv.FormatInt(int64
 	if !filepath.IsAbs(systemRoot) {
 		return nil, errors.New("无法获取 Windows 系统目录")
 	}
-	stopFile, err := filepath.Abs(u.PidFileName + ".stop")
-	if err != nil {
-		return nil, fmt.Errorf("解析服务停止通知路径失败: %w", err)
+	u.mu.Lock()
+	address := u.address
+	u.mu.Unlock()
+	pipe := strings.TrimPrefix(address, `\\.\pipe\`)
+	if pipe == address || pipe == "" {
+		return nil, errors.New("服务命名管道尚未就绪")
 	}
 	// 按 Windows 命令行规则转义，保留空参数、引号和末尾反斜杠。
 	arguments := make([]string, len(options.Arguments))
@@ -191,7 +193,15 @@ try {
     $previous = [System.Diagnostics.Process]::GetProcessById(%d)
     try {
         $null = $previous.Handle
-        [System.IO.File]::WriteAllText(%s, '%d')
+        $pipe = New-Object System.IO.Pipes.NamedPipeClientStream('.', %s, [System.IO.Pipes.PipeDirection]::Out)
+        try {
+            $pipe.Connect(5000)
+            $bytes = [System.Text.Encoding]::UTF8.GetBytes("stop %d`+"`n"+`")
+            $pipe.Write($bytes, 0, $bytes.Length)
+            $pipe.Flush()
+        } finally {
+            $pipe.Dispose()
+        }
         if (-not $previous.WaitForExit(%d)) { throw '等待服务停止超时' }
     } finally {
         $previous.Dispose()
@@ -212,7 +222,7 @@ try {
 } catch {
     [Console]::Error.WriteLine($_.Exception.Message)
     exit 1
-}`, os.Getpid(), quote(stopFile), os.Getpid(), min(timeout.Milliseconds(), int64(1<<31-1)),
+}`, os.Getpid(), quote(pipe), os.Getpid(), min(timeout.Milliseconds(), int64(1<<31-1)),
 		quote(options.Executable), quote(strings.Join(arguments, " ")), quote(options.WorkingDirectory))
 	return exec.Command(filepath.Join(systemRoot, "System32", "WindowsPowerShell", "v1.0", "powershell.exe"),
 		"-NoProfile", "-NonInteractive", "-Command", script), nil
@@ -247,8 +257,13 @@ func (u *Daemon) detachRestart(command *exec.Cmd) (*exec.Cmd, error) {
 		flags.SetUint(flags.Uint() &^ createBreakawayFromJob)
 		// Start 失败的 Cmd 也不能再次使用；重新创建，保留参数、环境和日志句柄。
 		command = &exec.Cmd{
-			Path: command.Path, Args: command.Args, Dir: command.Dir, Env: command.Env,
-			Stdin: command.Stdin, Stdout: command.Stdout, Stderr: command.Stderr,
+			Path:        command.Path,
+			Args:        command.Args,
+			Dir:         command.Dir,
+			Env:         command.Env,
+			Stdin:       command.Stdin,
+			Stdout:      command.Stdout,
+			Stderr:      command.Stderr,
 			SysProcAttr: command.SysProcAttr,
 		}
 		err = command.Start()

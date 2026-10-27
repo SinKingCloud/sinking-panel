@@ -59,7 +59,13 @@ func (m *Manager) CreateView(ctx context.Context, viewName, sourceCollection, pi
 	if err != nil {
 		return nil, err
 	}
-	cursor, err := m.database.ListCollections(ctx, bson.D{{Key: "name", Value: bson.D{{Key: "$in", Value: bson.A{viewName, sourceCollection}}}}}, options.ListCollections().SetBatchSize(2))
+	cursor, err := m.database.ListCollections(ctx, bson.D{{
+		Key: "name",
+		Value: bson.D{{
+			Key:   "$in",
+			Value: bson.A{viewName, sourceCollection},
+		}},
+	}}, options.ListCollections().SetBatchSize(2))
 	if err != nil {
 		return nil, err
 	}
@@ -102,11 +108,18 @@ func (m *Manager) CreateView(ctx context.Context, viewName, sourceCollection, pi
 	if err = m.database.CreateView(ctx, viewName, sourceCollection, pipeline, settings); err != nil {
 		return nil, err
 	}
-	decoded, _, err := m.decode(bson.D{{Key: "pipeline", Value: pipeline}})
+	decoded, _, err := m.decode(bson.D{{
+		Key:   "pipeline",
+		Value: pipeline,
+	}})
 	if err != nil {
 		return nil, err
 	}
-	return map[string]interface{}{"name": viewName, "source": sourceCollection, "pipeline": decoded.(map[string]interface{})["pipeline"]}, nil
+	return map[string]interface{}{
+		"name":     viewName,
+		"source":   sourceCollection,
+		"pipeline": decoded.(map[string]interface{})["pipeline"],
+	}, nil
 }
 
 // ViewDefinition 返回现有视图的源名称和管道，普通集合不会被误认为视图。
@@ -124,7 +137,10 @@ func (m *Manager) ViewDefinition(ctx context.Context, viewName string) (result i
 	if len(database)+1+len(viewName) > 255 || strings.Contains(viewName, "$") || strings.HasPrefix(viewName, "system.") || strings.Contains(viewName, ".system.") {
 		return nil, errors.New("不能访问系统视图或无效视图名称")
 	}
-	cursor, err := m.database.ListCollections(ctx, bson.D{{Key: "name", Value: viewName}}, options.ListCollections().SetBatchSize(1))
+	cursor, err := m.database.ListCollections(ctx, bson.D{{
+		Key:   "name",
+		Value: viewName,
+	}}, options.ListCollections().SetBatchSize(1))
 	if err != nil {
 		return nil, err
 	}
@@ -153,14 +169,21 @@ func (m *Manager) ViewDefinition(ctx context.Context, viewName string) (result i
 			return nil, errors.New("服务器返回的视图管道格式不正确")
 		}
 	}
-	decoded, length, err := m.decode(bson.D{{Key: "pipeline", Value: pipeline}})
+	decoded, length, err := m.decode(bson.D{{
+		Key:   "pipeline",
+		Value: pipeline,
+	}})
 	if err != nil {
 		return nil, err
 	}
 	if length > 1<<20 {
 		return nil, errors.New("视图定义超过 1 MB")
 	}
-	return map[string]interface{}{"name": viewName, "source": source, "pipeline": decoded.(map[string]interface{})["pipeline"]}, nil
+	return map[string]interface{}{
+		"name":     viewName,
+		"source":   source,
+		"pipeline": decoded.(map[string]interface{})["pipeline"],
+	}, nil
 }
 
 // UpdateView 使用 collMod 修改原视图管道，保留源对象及原排序规则。
@@ -178,12 +201,31 @@ func (m *Manager) UpdateView(ctx context.Context, viewName, pipelineJSON string)
 	}
 	source := current.(map[string]interface{})["source"].(string)
 	var document bson.Raw
-	if err = m.database.RunCommand(ctx, bson.D{{Key: "collMod", Value: viewName}, {Key: "viewOn", Value: source}, {Key: "pipeline", Value: pipeline}, {Key: "maxTimeMS", Value: 25000}}).Decode(&document); err != nil {
+	if err = m.database.RunCommand(ctx, bson.D{{
+		Key:   "collMod",
+		Value: viewName,
+	}, {
+		Key:   "viewOn",
+		Value: source,
+	}, {
+		Key:   "pipeline",
+		Value: pipeline,
+	}, {
+		Key:   "maxTimeMS",
+		Value: 25000,
+	}}).Decode(&document); err != nil {
 		return nil, err
 	}
-	decoded, _, err := m.decode(bson.D{{Key: "pipeline", Value: pipeline}})
+	decoded, _, err := m.decode(bson.D{{
+		Key:   "pipeline",
+		Value: pipeline,
+	}})
 	if err != nil {
 		return nil, err
 	}
-	return map[string]interface{}{"name": viewName, "source": source, "pipeline": decoded.(map[string]interface{})["pipeline"]}, nil
+	return map[string]interface{}{
+		"name":     viewName,
+		"source":   source,
+		"pipeline": decoded.(map[string]interface{})["pipeline"],
+	}, nil
 }

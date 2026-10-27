@@ -14,7 +14,10 @@ func (m *Manager) ConnectionInfo(ctx context.Context) (result map[string]interfa
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	var config bson.M
-	if err = m.client.Database("admin").RunCommand(ctx, bson.D{{Key: "getCmdLineOpts", Value: 1}}).Decode(&config); err != nil {
+	if err = m.client.Database("admin").RunCommand(ctx, bson.D{{
+		Key:   "getCmdLineOpts",
+		Value: 1,
+	}}).Decode(&config); err != nil {
 		return nil, err
 	}
 	parsed, _ := config["parsed"].(bson.M)
@@ -22,12 +25,21 @@ func (m *Manager) ConnectionInfo(ctx context.Context) (result map[string]interfa
 	security, _ := parsed["security"].(bson.M)
 	items := make([]map[string]string, 0, 3)
 	if value, ok := network["bindIp"]; ok {
-		items = append(items, map[string]string{"label": "监听地址", "value": fmt.Sprint(value)})
+		items = append(items, map[string]string{
+			"label": "监听地址",
+			"value": fmt.Sprint(value),
+		})
 	} else if all, ok := network["bindIpAll"].(bool); ok && all {
-		items = append(items, map[string]string{"label": "监听地址", "value": "所有地址"})
+		items = append(items, map[string]string{
+			"label": "监听地址",
+			"value": "所有地址",
+		})
 	}
 	if value, ok := network["port"]; ok {
-		items = append(items, map[string]string{"label": "监听端口", "value": fmt.Sprint(value)})
+		items = append(items, map[string]string{
+			"label": "监听端口",
+			"value": fmt.Sprint(value),
+		})
 	}
 	if value, ok := security["authorization"]; ok {
 		text := fmt.Sprint(value)
@@ -36,7 +48,13 @@ func (m *Manager) ConnectionInfo(ctx context.Context) (result map[string]interfa
 		} else if text == "disabled" {
 			text = "未启用"
 		}
-		items = append(items, map[string]string{"label": "访问认证", "value": text})
+		items = append(items, map[string]string{
+			"label": "访问认证",
+			"value": text,
+		})
 	}
-	return map[string]interface{}{"items": items, "note": "账户创建在所选数据库，连接时应将其作为认证库。远程连接还需设置服务器 bindIp、访问认证和端口放行规则。"}, nil
+	return map[string]interface{}{
+		"items": items,
+		"note":  "账户创建在所选数据库，连接时应将其作为认证库。远程连接还需设置服务器 bindIp、访问认证和端口放行规则。",
+	}, nil
 }

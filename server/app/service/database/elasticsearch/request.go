@@ -56,7 +56,23 @@ func (m *Manager) Request(ctx context.Context, method, path, body string) (map[s
 				}
 			}
 		} else if len(decoded) > 1 {
-			allowed := map[string]bool{"_search": true, "_count": true, "_analyze": true, "_mapping": true, "_settings": true, "_doc": true, "_create": true, "_update": true, "_refresh": true, "_flush": true, "_forcemerge": true, "_open": true, "_close": true, "_validate": true, "_explain": true}
+			allowed := map[string]bool{
+				"_search":     true,
+				"_count":      true,
+				"_analyze":    true,
+				"_mapping":    true,
+				"_settings":   true,
+				"_doc":        true,
+				"_create":     true,
+				"_update":     true,
+				"_refresh":    true,
+				"_flush":      true,
+				"_forcemerge": true,
+				"_open":       true,
+				"_close":      true,
+				"_validate":   true,
+				"_explain":    true,
+			}
 			if !allowed[decoded[1]] && !(m.major < 7 && !strings.HasPrefix(decoded[1], "_") && len(decoded) <= 3) {
 				return nil, errors.New("REST 写入路径不支持此操作；批量、跨索引和按查询删除均未开放")
 			}
@@ -91,5 +107,8 @@ func (m *Manager) Request(ctx context.Context, method, path, body string) (map[s
 			}
 		}
 	}
-	return map[string]interface{}{"status": status, "data": data}, nil
+	return map[string]interface{}{
+		"status": status,
+		"data":   data,
+	}, nil
 }

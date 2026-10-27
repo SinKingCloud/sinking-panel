@@ -46,7 +46,10 @@ func (m *Manager) foreignKeyDefinition(key ForeignKeyDefinition) (string, error)
 		definition = "CONSTRAINT " + name + " "
 	}
 	definition += "FOREIGN KEY (" + strings.Join(columns, ", ") + ") REFERENCES " + reference + " (" + strings.Join(references, ", ") + ")"
-	for _, action := range []struct{ name, value string }{{"DELETE", key.OnDelete}, {"UPDATE", key.OnUpdate}} {
+	for _, action := range []struct {
+		name  string
+		value string
+	}{{"DELETE", key.OnDelete}, {"UPDATE", key.OnUpdate}} {
 		value := strings.ToUpper(strings.TrimSpace(action.value))
 		if value == "" || value == "RESTRICT" {
 			value = "NO ACTION"
@@ -78,7 +81,11 @@ func (m *Manager) CreateForeignKey(ctx context.Context, schemaName, tableName st
 	if _, err = m.db.ExecContext(ctx, "ALTER TABLE "+table+" WITH CHECK ADD "+definition); err != nil {
 		return nil, err
 	}
-	return &Result{Columns: []string{}, Rows: [][]interface{}{}, ElapsedMs: time.Since(started).Milliseconds()}, nil
+	return &Result{
+		Columns:   []string{},
+		Rows:      [][]interface{}{},
+		ElapsedMs: time.Since(started).Milliseconds(),
+	}, nil
 }
 
 // DropForeignKey 只删除属于当前用户表的外键约束。
@@ -105,7 +112,11 @@ func (m *Manager) DropForeignKey(ctx context.Context, schemaName, tableName, nam
 	if _, err = m.db.ExecContext(ctx, "ALTER TABLE "+table+" DROP CONSTRAINT "+constraint); err != nil {
 		return nil, err
 	}
-	return &Result{Columns: []string{}, Rows: [][]interface{}{}, ElapsedMs: time.Since(started).Milliseconds()}, nil
+	return &Result{
+		Columns:   []string{},
+		Rows:      [][]interface{}{},
+		ElapsedMs: time.Since(started).Milliseconds(),
+	}, nil
 }
 
 // Objects 返回视图、存储过程/函数、触发器或外键的真实目录信息。
@@ -214,7 +225,15 @@ func (m *Manager) ObjectDefinition(ctx context.Context, schemaName, kind, name s
 			continue
 		}
 		if kind == "foreign_key" {
-			key := ForeignKeyDefinition{Name: name, Columns: record["columns"].([]string), ReferenceSchema: fmt.Sprint(record["reference_schema"]), ReferenceTable: fmt.Sprint(record["reference_table"]), ReferenceColumns: record["reference_columns"].([]string), OnDelete: fmt.Sprint(record["on_delete"]), OnUpdate: fmt.Sprint(record["on_update"])}
+			key := ForeignKeyDefinition{
+				Name:             name,
+				Columns:          record["columns"].([]string),
+				ReferenceSchema:  fmt.Sprint(record["reference_schema"]),
+				ReferenceTable:   fmt.Sprint(record["reference_table"]),
+				ReferenceColumns: record["reference_columns"].([]string),
+				OnDelete:         fmt.Sprint(record["on_delete"]),
+				OnUpdate:         fmt.Sprint(record["on_update"]),
+			}
 			definition, err := m.foreignKeyDefinition(key)
 			if err != nil {
 				return "", err
@@ -356,7 +375,11 @@ func (m *Manager) SaveObject(ctx context.Context, schemaName, kind, name, defini
 	if _, err = m.db.ExecContext(ctx, definition); err != nil {
 		return nil, err
 	}
-	return &Result{Columns: []string{}, Rows: [][]interface{}{}, ElapsedMs: time.Since(started).Milliseconds()}, nil
+	return &Result{
+		Columns:   []string{},
+		Rows:      [][]interface{}{},
+		ElapsedMs: time.Since(started).Milliseconds(),
+	}, nil
 }
 
 // DropObject 依对象的真实类型删除模块，拒绝系统对象与类型不匹配。
@@ -404,7 +427,11 @@ func (m *Manager) DropObject(ctx context.Context, schemaName, kind, name string)
 	if _, err = m.db.ExecContext(ctx, "DROP "+command+" "+target); err != nil {
 		return nil, err
 	}
-	return &Result{Columns: []string{}, Rows: [][]interface{}{}, ElapsedMs: time.Since(started).Milliseconds()}, nil
+	return &Result{
+		Columns:   []string{},
+		Rows:      [][]interface{}{},
+		ElapsedMs: time.Since(started).Milliseconds(),
+	}, nil
 }
 
 // SelectObjects 按名称搜索并分页查询对象摘要；定义在详情接口按需读取。
@@ -452,5 +479,10 @@ func (m *Manager) SelectObjects(ctx context.Context, schema, kind, keyword strin
 	if err != nil {
 		return nil, m.safeError(err)
 	}
-	return map[string]interface{}{"list": list, "total": total, "page": pageNumber, "page_size": pageSize}, nil
+	return map[string]interface{}{
+		"list":      list,
+		"total":     total,
+		"page":      pageNumber,
+		"page_size": pageSize,
+	}, nil
 }

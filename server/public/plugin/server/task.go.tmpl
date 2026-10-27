@@ -1,0 +1,100 @@
+package app
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"sdk"
+)
+
+// task 把耗时工作交给面板后台任务；HTTP 请求返回任务信息，不等待执行结束。
+// 状态：0 等待，1 运行，2 成功，3 失败，4 取消；progress 为 0 到 100。
+func (m *demo) task(c *sdk.Context) {
+	var form struct {
+		Action string `json:"action" default:"get" validate:"oneof=get start cancel" label:"操作"`
+		Steps  int    `json:"steps" default:"10" validate:"min=1,max=20" label:"步骤数"`
+	}
+	if ok, message := c.ValidatorAll(&form); !ok {
+		c.Error(message)
+		return
+	}
+	system := m.app.Service.System
+	m.mu.Lock()
+	job := m.job
+	if form.Action == "start" {
+		if !m.started || m.runContext == nil || m.runContext.Err() != nil {
+			m.mu.Unlock()
+			c.Error("插件尚未启动")
+			return
+		}
+		if job != nil {
+			current := system.GetTask(job.ID)
+			if job.Running || (current != nil && (current.Status == 0 || current.Status == 1)) {
+				m.mu.Unlock()
+				c.Error("已有任务正在执行")
+				return
+			}
+		}
+		job = &demoTask{
+			ID:   fmt.Sprintf("%s-demo-%d", m.app.InstanceID, time.Now().UnixNano()),
+			Done: make(chan struct{}),
+		}
+		m.job = job
+		runContext := m.runContext
+		steps := form.Steps
+		system.TaskCreate(job.ID, [[quote .Name]]+" · 示例任务", nil, func(ctx context.Context, data interface{}, update func(int, float64, string)) {
+			m.mu.Lock()
+			if ctx.Err() != nil || runContext.Err() != nil || !m.started {
+				m.mu.Unlock()
+				close(job.Done)
+				return
+			}
+			job.Running = true
+			m.mu.Unlock()
+			defer func() {
+				m.mu.Lock()
+				job.Running = false
+				close(job.Done)
+				m.mu.Unlock()
+			}()
+			for step := 1; step <= steps; step++ {
+				timer := time.NewTimer(500 * time.Millisecond)
+				select {
+				case <-ctx.Done():
+					timer.Stop()
+					return
+				case <-runContext.Done():
+					timer.Stop()
+					return
+				case <-timer.C:
+				}
+				update(1, float64(step)*100/float64(steps), fmt.Sprintf("已完成 %d / %d 步", step, steps))
+			}
+			update(2, 100, "示例任务已完成")
+		})
+	}
+	m.mu.Unlock()
+	if job == nil {
+		c.SuccessWithData("获取成功", nil)
+		return
+	}
+	if form.Action == "cancel" {
+		system.TaskCancel(job.ID)
+	}
+	current := system.GetTask(job.ID)
+	if current == nil {
+		if form.Action == "start" {
+			c.Error("任务服务未启动，请稍后重试")
+			return
+		}
+		c.SuccessWithData("获取成功", nil)
+		return
+	}
+	c.SuccessWithData("操作成功", map[string]interface{}{
+		"id":       current.ID,
+		"status":   current.Status,
+		"progress": current.Progress,
+		"message":  current.Message,
+	})
+}

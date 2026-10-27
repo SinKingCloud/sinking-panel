@@ -26,9 +26,12 @@ func Exec(c *context.Context) {
 		return
 	}
 	data, err := service.Container.Exec(form.Id, runtimeContainer.ExecOptions{
-		Command: form.Command, Env: form.Env, WorkingDir: form.WorkingDir,
-		Timeout: time.Duration(form.Timeout) * time.Second, MaxOutput: form.MaxOutput,
-		Stdin: strings.NewReader(form.Stdin),
+		Command:    form.Command,
+		Env:        form.Env,
+		WorkingDir: form.WorkingDir,
+		Timeout:    time.Duration(form.Timeout) * time.Second,
+		MaxOutput:  form.MaxOutput,
+		Stdin:      strings.NewReader(form.Stdin),
 	})
 	if err != nil && data == nil {
 		c.Error(err.Error())

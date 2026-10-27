@@ -52,7 +52,11 @@ func (m *Manager) indexStats(ctx context.Context, index string) (map[string]inte
 
 // metadataIndices 仅用于旧版缺失索引详情接口的补充，0.90 支持按索引过滤元数据。
 func (m *Manager) metadataIndices(ctx context.Context, index string) (map[string]interface{}, error) {
-	query := url.Values{"filter_nodes": {"true"}, "filter_routing_table": {"true"}, "filter_blocks": {"true"}}
+	query := url.Values{
+		"filter_nodes":         {"true"},
+		"filter_routing_table": {"true"},
+		"filter_blocks":        {"true"},
+	}
 	if index != "" {
 		if err := ValidateIndexName(index, false); err != nil {
 			return nil, err
@@ -133,9 +137,15 @@ func (m *Manager) legacyIndices(ctx context.Context, keyword string) ([]Index, e
 		indexSettings := object(entry["settings"])
 		primary := object(object(stats[name])["primaries"])
 		total := object(object(stats[name])["total"])
-		list = append(list, Index{Name: name, Health: indexHealth, Status: state,
-			Documents: number(object(primary["docs"])["count"]), SizeBytes: number(object(total["store"])["size_in_bytes"]),
-			PrimaryShards: int(number(indexSetting(indexSettings, "number_of_shards"))), Replicas: int(number(indexSetting(indexSettings, "number_of_replicas")))})
+		list = append(list, Index{
+			Name:          name,
+			Health:        indexHealth,
+			Status:        state,
+			Documents:     number(object(primary["docs"])["count"]),
+			SizeBytes:     number(object(total["store"])["size_in_bytes"]),
+			PrimaryShards: int(number(indexSetting(indexSettings, "number_of_shards"))),
+			Replicas:      int(number(indexSetting(indexSettings, "number_of_replicas"))),
+		})
 	}
 	return list, nil
 }

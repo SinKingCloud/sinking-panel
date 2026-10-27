@@ -47,7 +47,11 @@ func (m *Manager) Stop(id string) error {
 	defer m.operationMu.Unlock()
 	m.mu.Lock()
 	if m.processes[id] == nil {
-		m.processes[id] = &managedProcess{config: Config{ID: id}, state: StateStopped, exitCode: -1}
+		m.processes[id] = &managedProcess{
+			config:   Config{ID: id},
+			state:    StateStopped,
+			exitCode: -1,
+		}
 	}
 	m.mu.Unlock()
 	return m.stopByID(id)

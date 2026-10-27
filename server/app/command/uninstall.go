@@ -17,7 +17,7 @@ import (
 	"server/app/util/platform"
 )
 
-func readUninstallChoices(input io.Reader, output io.Writer) (confirmed, keepContainers bool, err error) {
+func (s *Server) readUninstallChoices(input io.Reader, output io.Writer) (confirmed, keepContainers bool, err error) {
 	reader := bufio.NewReader(input)
 	fmt.Fprint(output, "将停止服务并删除自启动、程序及配置，网站数据会保留，输入 yes 确认卸载: ")
 	confirmation, err := reader.ReadString('\n')
@@ -44,7 +44,7 @@ func readUninstallChoices(input io.Reader, output io.Writer) (confirmed, keepCon
 
 // uninstall 在删除软件前要求明确确认，避免误操作。
 func (s *Server) uninstall() error {
-	confirmed, keepContainers, err := readUninstallChoices(os.Stdin, os.Stdout)
+	confirmed, keepContainers, err := s.readUninstallChoices(os.Stdin, os.Stdout)
 	if err != nil || !confirmed {
 		return err
 	}
@@ -60,8 +60,6 @@ func (s *Server) uninstall() error {
 
 	files := []string{
 		executable,
-		filepath.Join(root, pidFileName),
-		filepath.Join(root, pidFileName+".stop"),
 		filepath.Join(root, logFileName),
 	}
 	// 面板配置和数据库位于 data/server，网站文件所在目录保留。

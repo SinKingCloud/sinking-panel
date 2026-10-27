@@ -50,7 +50,11 @@ func (m *Manager) allocateIDMap(path string, size int64) (int64, error) {
 			if startErr != nil || countErr != nil || count == 0 || start+count > math.MaxUint32+1 {
 				return 0, fmt.Errorf("%s 第 %d 行映射范围无效", path, index+1)
 			}
-			values = append(values, userUtil.SubID{Name: fields[0], SubID: int64(start), Count: int64(count)})
+			values = append(values, userUtil.SubID{
+				Name:  fields[0],
+				SubID: int64(start),
+				Count: int64(count),
+			})
 		}
 		for _, value := range values {
 			if (value.Name == root.Name || value.Name == "0") && value.Count >= size &&
@@ -94,7 +98,10 @@ func (m *Manager) allocateIDMap(path string, size int64) (int64, error) {
 			return 0, err
 		}
 		for _, user := range users {
-			values = append(values, userUtil.SubID{SubID: int64(user.Uid), Count: 1})
+			values = append(values, userUtil.SubID{
+				SubID: int64(user.Uid),
+				Count: 1,
+			})
 		}
 	} else {
 		groups, err := userUtil.ParseGroupFile(filepath.Join(filepath.Dir(path), "group"))
@@ -102,7 +109,10 @@ func (m *Manager) allocateIDMap(path string, size int64) (int64, error) {
 			return 0, err
 		}
 		for _, group := range groups {
-			values = append(values, userUtil.SubID{SubID: int64(group.Gid), Count: 1})
+			values = append(values, userUtil.SubID{
+				SubID: int64(group.Gid),
+				Count: 1,
+			})
 		}
 	}
 	sort.Slice(values, func(i, j int) bool { return values[i].SubID < values[j].SubID })

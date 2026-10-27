@@ -29,7 +29,8 @@ func List(c *context.Context) {
 		return
 	}
 	where := &serviceContainer.SelectContainer{
-		AutoRestart: form.AutoRestart, ManualStop: form.ManualStop,
+		AutoRestart: form.AutoRestart,
+		ManualStop:  form.ManualStop,
 	}
 	if form.CreateTimeStart != "" {
 		value, err := time.ParseInLocation(time.DateTime, form.CreateTimeStart, time.Local)

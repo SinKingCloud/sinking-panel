@@ -120,7 +120,12 @@ func (m *Manager) Indexes(ctx context.Context, schemaName, tableName string) (in
 				names = append(names, fmt.Sprint(column["name"]))
 			}
 		}
-		result = append(result, map[string]interface{}{"name": name, "columns": names, "unique": m.truth(record["unique"]), "primary": record["origin"] == "pk"})
+		result = append(result, map[string]interface{}{
+			"name":    name,
+			"columns": names,
+			"unique":  m.truth(record["unique"]),
+			"primary": record["origin"] == "pk",
+		})
 	}
 	return result, nil
 }

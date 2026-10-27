@@ -43,7 +43,14 @@ func (m *Manager) Import(ctx context.Context, path string, progress ...func(floa
 		return nil, err
 	}
 	noBackslash := strings.Contains(strings.ToUpper(mode), "NO_BACKSLASH_ESCAPES")
-	out = map[string]interface{}{"path": filepath.Clean(path), "size": stat.Size(), "total": int64(0), "success": int64(0), "affected": int64(0), "unit": "语句"}
+	out = map[string]interface{}{
+		"path":     filepath.Clean(path),
+		"size":     stat.Size(),
+		"total":    int64(0),
+		"success":  int64(0),
+		"affected": int64(0),
+		"unit":     "语句",
+	}
 	var total, success, affected int64
 	line, startLine := 1, 1
 	defer func() {

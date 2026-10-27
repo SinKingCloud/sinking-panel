@@ -2,6 +2,7 @@ package route
 
 import (
 	"path"
+	"server/app/util/platform"
 	"strings"
 
 	"server/app/http/controller/auth"
@@ -10,21 +11,17 @@ import (
 	"server/app/http/controller/container"
 	"server/app/http/controller/database"
 	"server/app/http/controller/file"
-	"server/app/http/controller/mongo"
-	"server/app/http/controller/mysql"
-	"server/app/http/controller/pgsql"
 	"server/app/http/controller/recycle"
-	"server/app/http/controller/redis"
 	"server/app/http/controller/script"
 	"server/app/http/controller/secret"
 	"server/app/http/controller/server"
 	"server/app/http/controller/site"
+	"server/app/http/controller/software"
 	"server/app/http/controller/system"
 	"server/app/http/controller/task"
 	"server/app/http/controller/types"
 	"server/app/http/middleware"
 	"server/app/util/context"
-	"server/app/util/platform"
 	"server/public"
 
 	"github.com/SinKingCloud/sinking-go/sinking-web"
@@ -45,14 +42,8 @@ func loadApp(s *sinking_web.Engine) {
 	loadCertRoute(s)
 	loadSecretRoute(s)
 	loadDatabaseRoute(s)
-	// 支持轻量容器时才注册容器及依赖它的软件接口。
-	if platform.CanRunContainer() {
-		loadRedisRoute(s)
-		loadMysqlRoute(s)
-		loadPgsqlRoute(s)
-		loadMongoRoute(s)
-		loadContainerRoute(s)
-	}
+	loadSoftwareRoute(s)
+	loadContainerRoute(s)
 	loadStaticRoute(s)
 }
 
@@ -368,86 +359,25 @@ func loadDatabaseRoute(s *sinking_web.Engine) {
 	}
 }
 
-// loadRedisRoute Redis 管理路由。
-func loadRedisRoute(s *sinking_web.Engine) {
-	g := s.Group("/redis")
+// loadSoftwareRoute 软件包统一管理，运行能力按软件声明检查。
+func loadSoftwareRoute(s *sinking_web.Engine) {
+	g := s.Group("/software")
 	g.Use(context.HandleFunc(middleware.CheckLogin))
-	g.ANY("/image", context.HandleFunc(redis.Image))             // 解析本机镜像
-	g.ANY("/install", context.HandleFunc(redis.Install))         // 导入镜像并安装
-	g.ANY("/uninstall", context.HandleFunc(redis.Uninstall))     // 卸载并删除实例
-	g.ANY("/start", context.HandleFunc(redis.Start))             // 启动服务
-	g.ANY("/stop", context.HandleFunc(redis.Stop))               // 停止服务
-	g.ANY("/restart", context.HandleFunc(redis.Restart))         // 重启服务
-	g.ANY("/reload", context.HandleFunc(redis.Reload))           // 重载配置
-	g.ANY("/performance", context.HandleFunc(redis.Performance)) // 性能配置
-	g.ANY("/persistence", context.HandleFunc(redis.Persistence)) // 持久化配置
-	g.ANY("/config", context.HandleFunc(redis.Config))           // 配置文件
-	g.ANY("/status", context.HandleFunc(redis.Status))           // 运行状态
-	g.ANY("/log", context.HandleFunc(redis.Log))                 // 运行日志
-}
-
-// loadMysqlRoute MySQL 安装、调优和数据库管理。
-func loadMysqlRoute(s *sinking_web.Engine) {
-	g := s.Group("/mysql")
-	g.Use(context.HandleFunc(middleware.CheckLogin))
-	g.Use(context.HandleFunc(func(c *context.Context) { c.SetHeader("Cache-Control", "no-store") }))
-	g.ANY("/image", context.HandleFunc(mysql.Image))             // 解析镜像
-	g.ANY("/install", context.HandleFunc(mysql.Install))         // 安装服务
-	g.ANY("/uninstall", context.HandleFunc(mysql.Uninstall))     // 卸载服务
-	g.ANY("/start", context.HandleFunc(mysql.Start))             // 启动
-	g.ANY("/stop", context.HandleFunc(mysql.Stop))               // 停止
-	g.ANY("/restart", context.HandleFunc(mysql.Restart))         // 重启
-	g.ANY("/status", context.HandleFunc(mysql.Status))           // 状态与负载
-	g.ANY("/performance", context.HandleFunc(mysql.Performance)) // 可视化调优
-	g.ANY("/config", context.HandleFunc(mysql.Config))           // 配置文件
-	g.ANY("/reload", context.HandleFunc(mysql.Reload))           // 重载配置
-	g.ANY("/log", context.HandleFunc(mysql.Log))                 // 运行日志
-	g.ANY("/databases", context.HandleFunc(mysql.Databases))     // 数据库管理
-	g.ANY("/users", context.HandleFunc(mysql.Users))             // 账号管理
-}
-
-// loadPgsqlRoute PostgreSQL 安装、调优和数据库管理。
-func loadPgsqlRoute(s *sinking_web.Engine) {
-	g := s.Group("/pgsql")
-	g.Use(context.HandleFunc(middleware.CheckLogin))
-	g.Use(context.HandleFunc(func(c *context.Context) { c.SetHeader("Cache-Control", "no-store") }))
-	g.ANY("/image", context.HandleFunc(pgsql.Image))             // 解析镜像
-	g.ANY("/install", context.HandleFunc(pgsql.Install))         // 安装服务
-	g.ANY("/uninstall", context.HandleFunc(pgsql.Uninstall))     // 卸载服务
-	g.ANY("/start", context.HandleFunc(pgsql.Start))             // 启动
-	g.ANY("/stop", context.HandleFunc(pgsql.Stop))               // 停止
-	g.ANY("/restart", context.HandleFunc(pgsql.Restart))         // 重启
-	g.ANY("/status", context.HandleFunc(pgsql.Status))           // 状态与负载
-	g.ANY("/performance", context.HandleFunc(pgsql.Performance)) // 可视化调优
-	g.ANY("/config", context.HandleFunc(pgsql.Config))           // 配置文件
-	g.ANY("/reload", context.HandleFunc(pgsql.Reload))           // 重载配置
-	g.ANY("/log", context.HandleFunc(pgsql.Log))                 // 运行日志
-	g.ANY("/databases", context.HandleFunc(pgsql.Databases))     // 数据库管理
-	g.ANY("/users", context.HandleFunc(pgsql.Users))             // 账号管理
-}
-
-// loadMongoRoute MongoDB 安装、调优和数据库管理。
-func loadMongoRoute(s *sinking_web.Engine) {
-	g := s.Group("/mongo")
-	g.Use(context.HandleFunc(middleware.CheckLogin))
-	g.Use(context.HandleFunc(func(c *context.Context) { c.SetHeader("Cache-Control", "no-store") }))
-	g.ANY("/image", context.HandleFunc(mongo.Image))             // 解析镜像
-	g.ANY("/install", context.HandleFunc(mongo.Install))         // 安装服务
-	g.ANY("/uninstall", context.HandleFunc(mongo.Uninstall))     // 卸载服务
-	g.ANY("/start", context.HandleFunc(mongo.Start))             // 启动
-	g.ANY("/stop", context.HandleFunc(mongo.Stop))               // 停止
-	g.ANY("/restart", context.HandleFunc(mongo.Restart))         // 重启
-	g.ANY("/status", context.HandleFunc(mongo.Status))           // 状态与负载
-	g.ANY("/performance", context.HandleFunc(mongo.Performance)) // 可视化调优
-	g.ANY("/config", context.HandleFunc(mongo.Config))           // 配置文件
-	g.ANY("/reload", context.HandleFunc(mongo.Reload))           // 重载配置
-	g.ANY("/log", context.HandleFunc(mongo.Log))                 // 运行日志
-	g.ANY("/databases", context.HandleFunc(mongo.Databases))     // 数据库管理
-	g.ANY("/users", context.HandleFunc(mongo.Users))             // 账号管理
+	g.ANY("/list", context.HandleFunc(software.List))
+	g.ANY("/info", context.HandleFunc(software.Info))
+	g.ANY("/install", context.HandleFunc(software.Install))
+	g.ANY("/update", context.HandleFunc(software.Update))
+	g.ANY("/uninstall", context.HandleFunc(software.Uninstall))
+	g.ANY("/:code/page", context.HandleFunc(software.Page))
+	g.ANY("/:code/page/*path", context.HandleFunc(software.Page))
+	g.ANY("/:code/:method", context.HandleFunc(software.Invoke))
 }
 
 // loadContainerRoute 容器通用操作。
 func loadContainerRoute(s *sinking_web.Engine) {
+	if !platform.CanRunContainer() {
+		return
+	}
 	g := s.Group("/container")
 	g.Use(context.HandleFunc(middleware.CheckLogin))
 	g.ANY("/list", context.HandleFunc(container.List))         // 容器列表

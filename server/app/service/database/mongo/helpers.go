@@ -78,5 +78,11 @@ func (m *Manager) readCursor(ctx context.Context, cursor *client.Cursor, max, pa
 	if e := cursor.Err(); e != nil {
 		return nil, e
 	}
-	return map[string]interface{}{"documents": documents, "has_more": more, "page": page, "page_size": max, "truncated": truncated}, nil
+	return map[string]interface{}{
+		"documents": documents,
+		"has_more":  more,
+		"page":      page,
+		"page_size": max,
+		"truncated": truncated,
+	}, nil
 }

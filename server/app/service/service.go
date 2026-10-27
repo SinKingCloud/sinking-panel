@@ -1,6 +1,7 @@
 package service
 
 import (
+	"server/app/constant"
 	repositoryCert "server/app/repository/cert"
 	repositoryConfig "server/app/repository/config"
 	repositoryDatabase "server/app/repository/database"
@@ -10,6 +11,7 @@ import (
 	repositoryServer "server/app/repository/server"
 	repositorySite "server/app/repository/site"
 	repositorySiteDomain "server/app/repository/site_domain"
+	repositorySoftware "server/app/repository/software"
 	repositoryTask "server/app/repository/task"
 	repositoryTypes "server/app/repository/types"
 	serviceAuth "server/app/service/auth"
@@ -24,6 +26,7 @@ import (
 	serviceServer "server/app/service/server"
 	serviceSite "server/app/service/site"
 	serviceSoftware "server/app/service/software"
+	"server/app/service/software/sdk"
 	serviceSystem "server/app/service/system"
 	serviceTask "server/app/service/task"
 	serviceTypes "server/app/service/types"
@@ -76,8 +79,25 @@ func Init() {
 	System = serviceSystem.NewService(File, global.App.Daemon)
 	Database = serviceDatabase.NewService(databaseRepository, scriptRepository, typesRepository, Type, System, global.App.Database, global.App.Cache)
 	Container = serviceContainer.NewManager(global.App.Container, global.App.Cache)
-	Software = serviceSoftware.NewService(Container)
 	Site, _ = serviceSite.NewService(siteRepository, siteDomainRepository, certRepository, secretRepository, Type, Config, Task, Recycle, global.App.Database, global.App.Cache)
+	services := &sdk.Service{
+		Config:    Config,
+		Auth:      Auth,
+		Server:    Server,
+		Script:    Script,
+		Secret:    Secret,
+		Type:      Type,
+		Log:       Log,
+		Task:      Task,
+		File:      File,
+		Recycle:   Recycle,
+		System:    System,
+		Site:      Site,
+		Container: Container,
+		Database:  Database,
+	}
+	Software = serviceSoftware.NewService(repositorySoftware.NewRepository(global.App.Database), System, sdk.NewManager(constant.SoftwarePath, services))
+	services.Software = Software
 }
 
 // Boot 启动服务运行时，并返回统一的清理函数。
@@ -88,7 +108,10 @@ func Boot() func() {
 		stopSite = Site.Boot()
 	}
 	Task.Start()
+	Software.Boot()
 	return func() {
+		// 插件先停止，清理钩子仍可使用计划任务、网站和系统服务。
+		Software.Close()
 		Task.Close()
 		if stopSite != nil {
 			stopSite()

@@ -45,5 +45,9 @@ func (m *Manager) UpdateForeignKey(ctx context.Context, schemaName, tableName, o
 	if err = tx.Commit(); err != nil {
 		return nil, err
 	}
-	return &Result{Columns: []string{}, Rows: [][]interface{}{}, ElapsedMs: time.Since(started).Milliseconds()}, nil
+	return &Result{
+		Columns:   []string{},
+		Rows:      [][]interface{}{},
+		ElapsedMs: time.Since(started).Milliseconds(),
+	}, nil
 }

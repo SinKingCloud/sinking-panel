@@ -18,7 +18,14 @@ import (
 
 // Import 逐文档读取 mongodump 的单集合 BSON 文件，不加载整个备份或自动重试写入。
 func (m *Manager) Import(ctx context.Context, path, collectionName string, progress ...func(float64, string)) (result map[string]interface{}, err error) {
-	result = map[string]interface{}{"path": path, "size": int64(0), "total": int64(0), "success": int64(0), "failed": int64(0), "unit": "文档"}
+	result = map[string]interface{}{
+		"path":    path,
+		"size":    int64(0),
+		"total":   int64(0),
+		"success": int64(0),
+		"failed":  int64(0),
+		"unit":    "文档",
+	}
 	defer func() { err = m.cleanError(err) }()
 	lastProgress, lastUpdate := -1.0, time.Time{}
 	report := func(percent float64, message string, values ...interface{}) {

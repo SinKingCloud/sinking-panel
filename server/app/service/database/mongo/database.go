@@ -19,7 +19,10 @@ func (m *Manager) DatabaseInfo(ctx context.Context) (result map[string]interface
 	defer cancel()
 	defer func() { err = m.cleanError(err) }()
 	name := m.database.Name()
-	names, err := m.client.ListDatabaseNames(ctx, bson.D{{Key: "name", Value: name}}, options.ListDatabases().SetNameOnly(true))
+	names, err := m.client.ListDatabaseNames(ctx, bson.D{{
+		Key:   "name",
+		Value: name,
+	}}, options.ListDatabases().SetNameOnly(true))
 	if err != nil {
 		return nil, err
 	}
@@ -27,14 +30,25 @@ func (m *Manager) DatabaseInfo(ctx context.Context) (result map[string]interface
 		return nil, errors.New("MongoDB 数据库不存在或当前账号无权访问")
 	}
 	var stats bson.M
-	if err = m.database.RunCommand(ctx, bson.D{{Key: "dbStats", Value: 1}}).Decode(&stats); err != nil {
+	if err = m.database.RunCommand(ctx, bson.D{{
+		Key:   "dbStats",
+		Value: 1,
+	}}).Decode(&stats); err != nil {
 		return nil, err
 	}
-	result = map[string]interface{}{"name": name, "exists": true}
+	result = map[string]interface{}{
+		"name":   name,
+		"exists": true,
+	}
 	for source, target := range map[string]string{
-		"collections": "collections", "views": "views", "objects": "objects",
-		"dataSize": "data_size", "storageSize": "storage_size", "indexes": "indexes",
-		"indexSize": "index_size", "avgObjSize": "avg_object_size",
+		"collections": "collections",
+		"views":       "views",
+		"objects":     "objects",
+		"dataSize":    "data_size",
+		"storageSize": "storage_size",
+		"indexes":     "indexes",
+		"indexSize":   "index_size",
+		"avgObjSize":  "avg_object_size",
 	} {
 		if value, ok := stats[source]; ok {
 			result[target] = value
@@ -59,7 +73,16 @@ func (m *Manager) CreateDatabase(ctx context.Context, collectionName string) (er
 		return errors.New("请填写有效的初始集合名称，不能使用系统集合")
 	}
 	// MongoDB 不允许仅用大小写区分数据库；在创建前检查同名数据库。
-	filter := bson.D{{Key: "name", Value: bson.D{{Key: "$regex", Value: "^" + regexp.QuoteMeta(name) + "$"}, {Key: "$options", Value: "i"}}}}
+	filter := bson.D{{
+		Key: "name",
+		Value: bson.D{{
+			Key:   "$regex",
+			Value: "^" + regexp.QuoteMeta(name) + "$",
+		}, {
+			Key:   "$options",
+			Value: "i",
+		}},
+	}}
 	names, err := m.client.ListDatabaseNames(ctx, filter, options.ListDatabases().SetNameOnly(true))
 	if err != nil {
 		return err

@@ -39,7 +39,10 @@ func (s *service) UpdateDomains(id int64, domains *[]string) error {
 		if normalizeErr != nil {
 			return normalizeErr
 		}
-		input = append(input, SiteDomain{Domain: domain, CertId: certificateByDomain[domain]})
+		input = append(input, SiteDomain{
+			Domain: domain,
+			CertId: certificateByDomain[domain],
+		})
 	}
 	return s.updateLocked(id, &siteMutation{Domains: &input})
 }
@@ -84,7 +87,10 @@ func (s *service) UpdateSSL(id int64, config *TLSUpdate, bindings []SiteDomainCe
 				continue
 			}
 			indices[domain.Id] = len(updated)
-			updated = append(updated, SiteDomain{Domain: domain.Domain, CertId: domain.CertId})
+			updated = append(updated, SiteDomain{
+				Domain: domain.Domain,
+				CertId: domain.CertId,
+			})
 		}
 		seen := make(map[int64]struct{}, len(bindings))
 		for _, binding := range bindings {
@@ -703,5 +709,8 @@ func (s *service) saveConfigLocked(id int64, config interface{}, domains *[]Site
 		return fmt.Errorf("网站配置格式化失败: %w", err)
 	}
 	raw := string(encoded)
-	return s.updateLocked(id, &siteMutation{Config: &raw, Domains: domains})
+	return s.updateLocked(id, &siteMutation{
+		Config:  &raw,
+		Domains: domains,
+	})
 }

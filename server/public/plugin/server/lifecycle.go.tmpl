@@ -1,0 +1,144 @@
+package app
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"time"
+)
+
+// install 使用面板数据库建立自有业务表，不需要用户先填写安装参数。
+// 表名只由插件标识的摘要组成；用户输入始终作为查询参数传递。
+func (m *demo) install(ctx context.Context, params string) (interface{}, error) {
+	if err := m.app.Database.Db.WithContext(ctx).Exec("CREATE TABLE IF NOT EXISTS " + m.table + ` (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT NOT NULL,
+        content TEXT NOT NULL DEFAULT '',
+        create_time TEXT NOT NULL,
+        update_time TEXT NOT NULL
+    )`).Error; err != nil {
+		return nil, err
+	}
+	raw, err := m.app.Service.Software.GetConfig(m.app.InstanceID)
+	if err != nil {
+		return nil, err
+	}
+	if raw == "" || raw == "{}" {
+		data, err := json.Marshal(Settings{
+			Greeting: "你好",
+			Interval: 5,
+		})
+		if err != nil {
+			return nil, err
+		}
+		if err = m.app.Service.Software.SetConfig(m.app.InstanceID, string(data)); err != nil {
+			return nil, err
+		}
+	}
+	m.app.Log.Printf("[%s] 示例数据表与配置已就绪", m.app.InstanceID)
+	return map[string]string{"table": m.table}, nil
+}
+
+// upgrade 可按 previous_version 迁移数据；示例执行幂等初始化。
+// 宿主可回滚代码目录，外部数据的迁移需由插件自行保证兼容和事务。
+func (m *demo) upgrade(ctx context.Context, params string) (interface{}, error) {
+	var versions struct {
+		PreviousVersion string `json:"previous_version"`
+		Version         string `json:"version"`
+	}
+	if err := json.Unmarshal([]byte(params), &versions); err != nil {
+		return nil, err
+	}
+	result, err := m.install(ctx, params)
+	if err == nil {
+		m.app.Log.Printf("[%s] 示例升级 %s -> %s", m.app.InstanceID, versions.PreviousVersion, versions.Version)
+	}
+	return result, err
+}
+
+// start 的 ctx 在插件停止时取消，不能使用 HTTP 请求的 ctx 替代它。
+func (m *demo) start(ctx context.Context, params string) (interface{}, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.started {
+		return nil, nil
+	}
+	runContext, cancel := context.WithCancel(ctx)
+	done := make(chan struct{})
+	m.runContext = runContext
+	m.cancel = cancel
+	m.done = done
+	m.started = true
+	m.heartbeat = time.Now().Format(time.RFC3339)
+	go func() {
+		defer close(done)
+		for {
+			settings := m.readSettings()
+			timer := time.NewTimer(time.Duration(settings.Interval) * time.Second)
+			select {
+			case <-runContext.Done():
+				timer.Stop()
+				return
+			case <-timer.C:
+				m.mu.Lock()
+				m.heartbeat = time.Now().Format(time.RFC3339)
+				m.mu.Unlock()
+			}
+		}
+	}()
+	m.app.Log.Printf("[%s] 示例插件已启动", m.app.InstanceID)
+	return nil, nil
+}
+
+// stop 等待本插件的后台工作结束，不关闭宿主的共享服务。
+func (m *demo) stop(ctx context.Context, params string) (interface{}, error) {
+	m.mu.Lock()
+	m.started = false
+	cancel := m.cancel
+	done := m.done
+	job := m.job
+	var taskDone chan struct{}
+	if job != nil && job.Running {
+		taskDone = job.Done
+	}
+	m.mu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
+	if job != nil {
+		m.app.Service.System.TaskCancel(job.ID)
+	}
+	wait := func(finished chan struct{}) error {
+		if finished == nil {
+			return nil
+		}
+		select {
+		case <-finished:
+			return nil
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+	if err := wait(done); err != nil {
+		return nil, err
+	}
+	if err := wait(taskDone); err != nil {
+		return nil, err
+	}
+	m.app.Log.Printf("[%s] 示例插件已停止", m.app.InstanceID)
+	return nil, nil
+}
+
+// uninstall 清理当前插件自己的数据，不影响其他插件与宿主的共享服务。
+// 未加载插件会尝试加载后执行此回调，但不会启动后台任务。
+func (m *demo) uninstall(ctx context.Context, params string) (interface{}, error) {
+	if _, err := m.stop(ctx, params); err != nil {
+		return nil, err
+	}
+	m.app.Cache.Delete(m.group + ".cache")
+	if err := m.app.Database.Db.WithContext(ctx).Exec("DROP TABLE IF EXISTS " + m.table).Error; err != nil {
+		return nil, fmt.Errorf("清理示例数据失败: %w", err)
+	}
+	// 软件记录删除时会一并删除 Config，无需另外清空或操作公共配置表。
+	return nil, nil
+}

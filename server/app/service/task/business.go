@@ -49,7 +49,10 @@ func (s *service) checkContent(content string, execType int) (string, error) {
 	case task_exec_type.Request:
 		data := Request{}
 		if err := json.Unmarshal([]byte(content), &data); err != nil {
-			data = Request{Method: http.MethodGet, Url: strings.TrimSpace(content)}
+			data = Request{
+				Method: http.MethodGet,
+				Url:    strings.TrimSpace(content),
+			}
 		}
 		data.Method = strings.ToUpper(strings.TrimSpace(data.Method))
 		if data.Method == "" {
@@ -396,7 +399,11 @@ func (s *service) Add(data *model.Task, run ...func(context.Context)) error {
 		task.CreateTime = str.DateTime(time.Now())
 		task.UpdateTime = task.CreateTime
 		id := task.Id
-		j := &job{Task: &task, service: s, ctx: s.ctx}
+		j := &job{
+			Task:    &task,
+			service: s,
+			ctx:     s.ctx,
+		}
 		// 复用同一执行包装，改周期、暂停恢复和手动执行都不会重叠运行。
 		j.run = cron.NewChain(
 			cron.SkipIfStillRunning(cron.DiscardLogger),

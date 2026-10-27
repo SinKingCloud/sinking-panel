@@ -1,0 +1,83 @@
+import React, {useEffect, useRef, useState} from "react";
+import {App, Button, Empty, Form, InputNumber, Progress, Spin, Tag, Typography} from "antd";
+import {Icon, useTheme} from "sinking-antd";
+import useStyles from "../styles";
+import type {PluginPageProps} from "../types";
+
+export default function Tasks({request}: Pick<PluginPageProps, "request">) {
+    const {message} = App.useApp();
+    const theme = useTheme();
+    const {styles} = useStyles({compact: Boolean(theme?.isCompactTheme?.())});
+    const [task, setTask] = useState<any>();
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState("");
+    const [action, setAction] = useState("");
+    const [revision, setRevision] = useState(0);
+    const live = useRef(true);
+    const pending = useRef(false);
+    const readVersion = useRef(0);
+    const running = Boolean(task?.id) && [0, 1].includes(Number(task?.status));
+    useEffect(() => { live.current = true; return () => { live.current = false; }; }, []);
+    useEffect(() => {
+        let active = true;
+        const version = ++readVersion.current;
+        let timer: ReturnType<typeof setTimeout>;
+        setLoading(true); setError("");
+        const read = async () => {
+            if (!active || version !== readVersion.current) return;
+            try {
+                const data = await request("task", {action: "get"});
+                if (!active || version !== readVersion.current) return;
+                setTask(data?.id ? data : null); setError("");
+                // 请求完成后再等一秒；离开页面或任务结束就停止，不堆积轮询。
+                if (data?.id && [0, 1].includes(Number(data?.status))) timer = setTimeout(() => void read(), 1000);
+            } catch (reason: any) { if (active && version === readVersion.current) setError(reason?.message || "读取任务失败"); }
+            finally { if (active && version === readVersion.current) setLoading(false); }
+        };
+        void read();
+        return () => { active = false; clearTimeout(timer); };
+    }, [request, revision]);
+    const operate = async (value: "start" | "cancel", values?: {steps: number}) => {
+        if (pending.current) return;
+        pending.current = true; setAction(value); readVersion.current++;
+        try {
+            const data = await request("task", {action: value, ...(values || {})});
+            if (!live.current) return;
+            setTask(data?.id ? data : null);
+            message.success(value === "start" ? "任务已提交" : "已请求取消任务");
+        } catch (reason: any) { if (live.current) message.error(reason?.message || "任务操作失败"); }
+        finally { pending.current = false; if (live.current) { setAction(""); setRevision((current) => current + 1); } }
+    };
+    const labels: Record<number, string> = {0: "等待执行", 1: "执行中", 2: "已完成", 3: "执行失败", 4: "已取消"};
+    return <>
+        <div className={styles.heading}><div><h3>后台任务</h3><p>提交后立即返回，在面板后台任务中跟踪同一条任务。</p></div>
+            <Button color="default" variant="filled" aria-label="刷新任务" icon={<Icon type="ReloadOutlined"/>} loading={loading}
+                disabled={Boolean(action)} onClick={() => { if (!pending.current) setRevision((value) => value + 1); }}/></div>
+        <Form layout="inline" variant="filled" initialValues={{steps: 10}} onFinish={(values) => void operate("start", values)} style={{gap: 10, marginBottom: 22}}>
+            <Form.Item name="steps" label="执行步骤" rules={[{required: true, message: "请输入步骤数"}]} style={{margin: 0}}>
+                <InputNumber min={1} max={20} precision={0} style={{width: 128}} placeholder="1 到 20 步" disabled={running || Boolean(action)}/>
+            </Form.Item>
+            <Form.Item style={{margin: 0}}><div className={styles.actions}>
+                <Button type="primary" htmlType="submit" disabled={loading || running || Boolean(action && action !== "start")} loading={action === "start"} icon={<Icon type="PlayCircleOutlined"/>}>开始任务</Button>
+                {running && <Button color="danger" variant="filled" disabled={Boolean(action && action !== "cancel")} loading={action === "cancel"} onClick={() => void operate("cancel")}>取消任务</Button>}
+            </div></Form.Item>
+        </Form>
+        <section className={styles.taskProgress}>
+            {loading && task === undefined ? <div className={styles.empty}><Spin/></div> : error ? <div className={styles.empty}><Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={error}/></div>
+                : !task?.id ? <div className={styles.empty}><Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="还没有任务"/></div> : <>
+                    <div className={styles.sectionTitle}><h4>{task?.message || "等待任务更新"}</h4>
+                        <Tag variant="filled" color={Number(task.status) === 2 ? "success" : Number(task.status) === 3 ? "error" : running ? "processing" : "default"}>{labels[Number(task.status)] || "未知状态"}</Tag></div>
+                    <Progress percent={Math.max(0, Math.min(100, Number(task.progress) || 0))} status={Number(task.status) === 3 ? "exception" : Number(task.status) === 2 ? "success" : running ? "active" : "normal"}/>
+                    <dl className={styles.details}>
+                        <div><dt>任务编号</dt><dd><Typography.Text copyable={{tooltips: false}}>{String(task.id)}</Typography.Text></dd></div>
+                        <div><dt>更新方式</dt><dd>{running ? "每秒读取一次，前一次请求完成后再继续" : "任务已结束，停止轮询"}</dd></div>
+                    </dl>
+                </>}
+        </section>
+        <div className={styles.timeline}>
+            <div><strong>1. 提交任务</strong><span>HTTP 返回任务编号，工作在后台执行。</span></div>
+            <div><strong>2. 更新进度</strong><span>每步约半秒，支持主动取消。</span></div>
+            <div><strong>3. 释放资源</strong><span>切换页面停轮询，停止插件停任务。</span></div>
+        </div>
+    </>;
+}

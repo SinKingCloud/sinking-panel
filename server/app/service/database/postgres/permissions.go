@@ -24,7 +24,12 @@ func (m *Manager) Permissions(ctx context.Context, accountName string) (out inte
 	grants := []DatabasePrivileges{}
 	retained := false
 	result := func() interface{} {
-		return map[string]interface{}{"privileges": privileges, "database_privileges": databasePrivileges, "grants": grants, "retained": retained}
+		return map[string]interface{}{
+			"privileges":          privileges,
+			"database_privileges": databasePrivileges,
+			"grants":              grants,
+			"retained":            retained,
+		}
 	}
 	if accountName == "" {
 		return result(), nil
@@ -53,7 +58,11 @@ AND (deptype <> 'a' OR classid NOT IN ('pg_database'::regclass, 'pg_namespace'::
 		if schema == "" {
 			allowed = databasePrivileges
 		}
-		grant := DatabasePrivileges{Database: database, Schema: schema, Privileges: []string{}}
+		grant := DatabasePrivileges{
+			Database:   database,
+			Schema:     schema,
+			Privileges: []string{},
+		}
 		for _, privilege := range allowed {
 			count, granted := 0, 0
 			for _, object := range objects {
@@ -224,12 +233,21 @@ func (m *Manager) UpdatePermissions(ctx context.Context, accountName string, gra
 						grantable, exists := object.Privileges[privilege]
 						if desired && !exists {
 							statements = append(statements, "GRANT "+privilege+" ON "+object.Kind+" "+object.Name+" TO "+account)
-							changes[grant.Schema] = append(changes[grant.Schema], accountPermissionChange{Name: object.Name, Kind: object.Kind, Privilege: privilege, Granted: true})
+							changes[grant.Schema] = append(changes[grant.Schema], accountPermissionChange{
+								Name:      object.Name,
+								Kind:      object.Kind,
+								Privilege: privilege,
+								Granted:   true,
+							})
 						} else if !desired && exists && (object.Protected || grantable || !uniform) {
 							retained = true
 						} else if !desired && uniform && exists {
 							statements = append(statements, "REVOKE "+privilege+" ON "+object.Kind+" "+object.Name+" FROM "+account)
-							changes[grant.Schema] = append(changes[grant.Schema], accountPermissionChange{Name: object.Name, Kind: object.Kind, Privilege: privilege})
+							changes[grant.Schema] = append(changes[grant.Schema], accountPermissionChange{
+								Name:      object.Name,
+								Kind:      object.Kind,
+								Privilege: privilege,
+							})
 						}
 					}
 				}
@@ -271,7 +289,10 @@ func (m *Manager) UpdatePermissions(ctx context.Context, accountName string, gra
 		}
 		completed = append(completed, database)
 	}
-	result := map[string]interface{}{"affected": 0, "elapsed_ms": time.Since(started).Milliseconds()}
+	result := map[string]interface{}{
+		"affected":   0,
+		"elapsed_ms": time.Since(started).Milliseconds(),
+	}
 	if retained {
 		result["warning"] = "权限已保存，独立对象、列级或可转授的权限已保留"
 	}
@@ -311,7 +332,19 @@ FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace CROSS JOIN pg_role
 	objects := []accountPermissionObject{}
 	indices := map[string]int{}
 	count := 0
-	letters := map[byte]string{'a': "INSERT", 'r': "SELECT", 'w': "UPDATE", 'd': "DELETE", 'D': "TRUNCATE", 'x': "REFERENCES", 't': "TRIGGER", 'U': "USAGE", 'C': "CREATE", 'T': "TEMPORARY", 'c': "CONNECT"}
+	letters := map[byte]string{
+		'a': "INSERT",
+		'r': "SELECT",
+		'w': "UPDATE",
+		'd': "DELETE",
+		'D': "TRUNCATE",
+		'x': "REFERENCES",
+		't': "TRIGGER",
+		'U': "USAGE",
+		'C': "CREATE",
+		'T': "TEMPORARY",
+		'c': "CONNECT",
+	}
 	for rows.Next() {
 		count++
 		if count > 100000 {
@@ -341,7 +374,13 @@ FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace CROSS JOIN pg_role
 			}
 			index = len(objects)
 			indices[key] = index
-			objects = append(objects, accountPermissionObject{Name: quoted, Kind: kind, Owned: owned, Protected: protected, Privileges: map[string]bool{}})
+			objects = append(objects, accountPermissionObject{
+				Name:       quoted,
+				Kind:       kind,
+				Owned:      owned,
+				Protected:  protected,
+				Privileges: map[string]bool{},
+			})
 		}
 		// ACL 角色名可能包含 =、/、双引号，必须按标识符引号找到真正的分隔符。
 		quoted, separator := false, -1

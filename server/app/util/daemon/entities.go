@@ -10,3 +10,9 @@ type AutoStartOptions struct {
 	Arguments          []string
 	KeepChildProcesses bool // Linux 服务退出时保留子进程，由应用决定如何清理。
 }
+
+// controlResponse 为本机进程控制响应，PID 不参与持久化。
+type controlResponse struct {
+	Pid   int    `json:"pid"`
+	Error string `json:"error,omitempty"`
+}

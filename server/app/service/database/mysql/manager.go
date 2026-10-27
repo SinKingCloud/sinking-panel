@@ -55,7 +55,10 @@ func NewManager(ctx context.Context, config string, databaseName string) (*Manag
 	if databaseName == "" {
 		databaseName = connection.Database
 	}
-	m := &Manager{database: databaseName, secrets: []string{connection.Password}}
+	m := &Manager{
+		database: databaseName,
+		secrets:  []string{connection.Password},
+	}
 	// 多字符集仅由内部固定参数配置，依次协商 utf8mb4、utf8。
 	cfg, err := mysqlDriver.ParseDSN("/?charset=utf8mb4,utf8")
 	if err != nil {
@@ -71,7 +74,10 @@ func NewManager(ctx context.Context, config string, databaseName string) (*Manag
 	cfg.Timeout, cfg.ReadTimeout, cfg.WriteTimeout = 5*time.Second, 0, 0
 	cfg.ClientFoundRows, cfg.MultiStatements, cfg.AllowAllFiles = true, false, false
 	if mode := strings.ToLower(connection.TLS); mode != "" && mode != "false" && mode != "disable" {
-		cfg.TLS = &tls.Config{ServerName: connection.Host, MinVersion: tls.VersionTLS12}
+		cfg.TLS = &tls.Config{
+			ServerName: connection.Host,
+			MinVersion: tls.VersionTLS12,
+		}
 		// 与 MySQL 客户端的 preferred 一致；指定证书后必须使用 TLS 并验证服务器。
 		cfg.AllowFallbackToPlaintext = mode == "preferred" && connection.SSLCA == "" && connection.SSLCert == "" && connection.SSLKey == ""
 		cfg.TLS.InsecureSkipVerify = mode == "skip-verify" || mode == "require" || cfg.AllowFallbackToPlaintext
@@ -165,7 +171,10 @@ func (m *Manager) Test(ctx context.Context) (map[string]interface{}, error) {
 	if err := m.db.QueryRowContext(ctx, "SELECT version()").Scan(&version); err != nil {
 		return nil, m.safeError(err)
 	}
-	return map[string]interface{}{"version": version, "database": m.database}, nil
+	return map[string]interface{}{
+		"version":  version,
+		"database": m.database,
+	}, nil
 }
 
 // Databases 按名称分页查询当前账户有权访问的数据库，默认隐藏系统库。
@@ -227,7 +236,10 @@ func (m *Manager) Databases(ctx context.Context, keyword string, pageNumber, pag
 	if err = rows.Err(); err != nil {
 		return nil, err
 	}
-	return page.New(&page.Query{Page: pageNumber, PageSize: pageSize}, total, result), nil
+	return page.New(&page.Query{
+		Page:     pageNumber,
+		PageSize: pageSize,
+	}, total, result), nil
 }
 
 // quote 转义 MySQL 标识符，点号作为名称本身处理。

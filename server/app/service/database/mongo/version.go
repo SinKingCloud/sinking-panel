@@ -12,7 +12,10 @@ import (
 // Version 返回服务器版本和功能支持情况；读取失败时保留真实错误。
 func (m *Manager) Version(ctx context.Context) (map[string]interface{}, error) {
 	var info bson.M
-	if err := m.database.RunCommand(ctx, bson.D{{Key: "buildInfo", Value: 1}}).Decode(&info); err != nil {
+	if err := m.database.RunCommand(ctx, bson.D{{
+		Key:   "buildInfo",
+		Value: 1,
+	}}).Decode(&info); err != nil {
 		return nil, m.cleanError(err)
 	}
 	version, _ := info["version"].(string)

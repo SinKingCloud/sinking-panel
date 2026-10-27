@@ -1,0 +1,15 @@
+import React from "react";
+import {Typography} from "antd";
+import {useTheme} from "sinking-antd";
+import useStyles from "../styles";
+
+// Typography 的复制实现可在非 HTTPS 面板上使用，不只依赖 navigator.clipboard。
+export default function Code({children, title = "示例代码", compact}: {children: string; title?: string; compact?: boolean}) {
+    const theme = useTheme();
+    const {styles} = useStyles({compact: compact ?? Boolean(theme?.isCompactTheme?.())});
+    return <div className={styles.code}>
+        <div className="code-toolbar"><span>{title}</span><Typography.Text copyable={{text: children, tooltips: false,
+            icon: [<span key="copy">复制</span>, <span key="done">已复制</span>]}}/></div>
+        <pre><code>{children}</code></pre>
+    </div>;
+}

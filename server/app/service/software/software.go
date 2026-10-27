@@ -1,34 +1,48 @@
 package software
 
 import (
-	serviceContainer "server/app/service/container"
-	serviceMongo "server/app/service/software/mongo"
-	serviceMysql "server/app/service/software/mysql"
-	servicePgsql "server/app/service/software/pgsql"
-	serviceRedis "server/app/service/software/redis"
+	repositorySoftware "server/app/repository/software"
+	serviceSystem "server/app/service/system"
+	"server/app/util/context"
+	"server/app/util/page"
+	"server/app/util/plugin"
+	"sync"
+	"sync/atomic"
 )
 
-// Service 内置软件管理入口，容器和镜像操作交由注入的容器服务处理。
+// Service 软件包管理。软件实现从独立包加载，不再编译进面板。
 type Service interface {
-	Redis() *serviceRedis.Manager // 获取 Redis 管理器
-	Mysql() *serviceMysql.Manager // 获取 MySQL 管理器
-	Pgsql() *servicePgsql.Manager // 获取 PostgreSQL 管理器
-	Mongo() *serviceMongo.Manager // 获取 MongoDB 管理器
+	Init(string, string, string) error
+	Select(*repositorySoftware.SelectSoftware, *page.Query) (*page.Result[*repositorySoftware.Software], error)
+	Info(int64) (*Info, error)
+	Install(string) (*Info, error)
+	Uninstall(string) (int64, error)
+	Update(int64, string) error
+	GetConfig(string) (string, error)
+	SetConfig(string, string) error
+	Invoke(*context.Context, string, string) error
+	Page(string, string) ([]byte, string, string, error)
+	Boot()
+	Close()
 }
 
 type service struct {
-	redis *serviceRedis.Manager
-	mysql *serviceMysql.Manager
-	pgsql *servicePgsql.Manager
-	mongo *serviceMongo.Manager
+	repository repositorySoftware.Interface
+	system     serviceSystem.Service
+	plugins    *plugin.Manager
+	mu         sync.Mutex
+	entries    map[int64]*entry
+	importing  sync.Mutex
+	closed     bool
+	booted     atomic.Bool
 }
 
-// NewService 将同一个容器服务注入各软件管理器。
-func NewService(containerService serviceContainer.Service) *service {
+// NewService 注入仓储、系统任务与已配置业务能力的插件管理器。
+func NewService(repository repositorySoftware.Interface, system serviceSystem.Service, plugins *plugin.Manager) *service {
 	return &service{
-		redis: serviceRedis.NewManager(containerService, "redis"),
-		mysql: serviceMysql.NewManager(containerService, "mysql"),
-		pgsql: servicePgsql.NewManager(containerService, "pgsql"),
-		mongo: serviceMongo.NewManager(containerService, "mongo"),
+		repository: repository,
+		system:     system,
+		plugins:    plugins,
+		entries:    make(map[int64]*entry),
 	}
 }

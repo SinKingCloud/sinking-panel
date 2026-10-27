@@ -1,0 +1,100 @@
+import React, {useEffect, useRef, useState} from "react";
+import {App, Button, Collapse, Empty, Form, Input, Select, Tag} from "antd";
+import {Icon, useTheme} from "sinking-antd";
+import Code from "./code";
+import useStyles from "../styles";
+import type {PluginPageProps} from "../types";
+
+const examples = [
+    {key: "info", label: "读取运行信息", method: "info", params: {}},
+    {key: "hello", label: "校验参数与读取配置", method: "hello", params: {name: "开发者"}},
+    {key: "list", label: "分页搜索记录", method: "notes", params: {action: "list", keyword: "", page: 1, page_size: 10, order_by_field: "id", order_by_type: "desc"}},
+    {key: "detail", label: "读取记录详情", method: "notes", params: {action: "info", id: 1}},
+    {key: "create", label: "添加业务记录", method: "notes", params: {action: "create", title: "第一条业务记录", content: "这条内容由接口调试创建。"}},
+    {key: "update", label: "修改业务记录", method: "notes", params: {action: "update", id: 1, title: "更新后的标题", content: "更新后的内容"}},
+    {key: "delete", label: "批量删除记录", method: "notes", params: {action: "delete", ids: [1, 2]}},
+    {key: "settings", label: "读取持久配置", method: "settings", params: {action: "get"}},
+    {key: "save-settings", label: "保存持久配置", method: "settings", params: {action: "set", greeting: "你好", interval: 5}},
+    {key: "cache", label: "读取临时缓存", method: "cache", params: {action: "get"}},
+    {key: "write-cache", label: "写入带有效期的缓存", method: "cache", params: {action: "set", value: "临时结果", ttl: 60}},
+    {key: "delete-cache", label: "清理临时缓存", method: "cache", params: {action: "delete"}},
+    {key: "task", label: "读取任务进度", method: "task", params: {action: "get"}},
+    {key: "start-task", label: "提交后台任务", method: "task", params: {action: "start", steps: 10}},
+    {key: "cancel-task", label: "取消后台任务", method: "task", params: {action: "cancel"}},
+    {key: "disks", label: "调用面板文件服务", method: "disks", params: {}},
+];
+
+// 请求只访问当前插件注册的 Action；进入页面和切换示例不会自动执行请求。
+export default function Playground({software, request}: Pick<PluginPageProps, "software" | "request">) {
+    const {message, modal} = App.useApp();
+    const theme = useTheme();
+    const {styles} = useStyles({compact: Boolean(theme?.isCompactTheme?.())});
+    const [selected, setSelected] = useState("info");
+    const [source, setSource] = useState("{}");
+    const [busy, setBusy] = useState(false);
+    const [result, setResult] = useState<{output: string; error: boolean; duration: number; method: string; params: any}>();
+    const live = useRef(true);
+    const pending = useRef(false);
+    const confirm = useRef<{destroy: () => void} | null>(null);
+    useEffect(() => { live.current = true; return () => { live.current = false; confirm.current?.destroy(); }; }, []);
+    const sample = examples.find((item) => item.key === selected) || examples[0];
+    const code = software?.code || "demo";
+    const parse = () => {
+        const data = JSON.parse(source);
+        if (!data || typeof data !== "object" || Array.isArray(data)) throw new Error("请求参数需要是 JSON 对象");
+        return data;
+    };
+    const execute = async (method: string, params: Record<string, unknown>) => {
+        if (pending.current) return;
+        pending.current = true; setBusy(true);
+        const start = performance.now();
+        try {
+            const data = await request(method, params);
+            if (live.current) setResult({output: JSON.stringify(data ?? null, null, 2), error: false, duration: Math.round(performance.now() - start), method, params});
+        } catch (reason: any) {
+            if (live.current) setResult({output: reason?.message || "请求失败", error: true, duration: Math.round(performance.now() - start), method, params});
+        } finally { pending.current = false; if (live.current) setBusy(false); }
+    };
+    const submit = () => {
+        if (pending.current) return;
+        let params: Record<string, unknown>;
+        try { params = parse(); } catch (reason: any) { message.error(reason?.message || "请填写有效的 JSON"); return; }
+        const action = String(params.action || (sample.method === "notes" ? "list" : "get"));
+        const reads = ["info", "hello", "disks"].includes(sample.method) || ["get", "list", "info"].includes(action);
+        if (reads) { void execute(sample.method, params); return; }
+        // 参数也能改变 action，因此按最终请求判断，不能只信任预置示例的名称。
+        confirm.current?.destroy();
+        confirm.current = modal.confirm({title: action === "delete" ? "确认删除数据" : "确认执行操作", zIndex: 1250,
+            content: "这会实际修改当前插件的数据、配置或任务，请先确认请求参数。", okText: "执行", cancelText: "取消",
+            okButtonProps: {danger: action === "delete"}, onOk: () => execute(sample.method, params)});
+    };
+    const format = () => {
+        try { setSource(JSON.stringify(parse(), null, 2)); } catch (reason: any) { message.error(reason?.message || "请填写有效的 JSON"); }
+    };
+    return <>
+        <div className={styles.heading}><div><h3>接口调试</h3><p>选择一个请求示例，修改参数，查看服务端的实际响应。</p></div></div>
+        <Form layout="vertical" variant="filled">
+            <Form.Item label="请求示例" style={{marginBottom: 0}}>
+                <Select value={selected} disabled={busy} placeholder="请选择请求示例" options={examples.map((item) => ({value: item.key, label: item.label}))}
+                    onChange={(value) => { const item = examples.find((example) => example.key === value)!; setSelected(value); setSource(JSON.stringify(item.params, null, 2)); setResult(undefined); }}/>
+            </Form.Item>
+        </Form>
+        <div className={styles.requestLine}><span>POST</span><span>/software/{code}/{sample.method}</span></div>
+        <div className={styles.sectionTitle}><h4>请求参数</h4><div className={styles.actions}>
+            <Button color="default" variant="filled" disabled={busy} onClick={() => setSource(JSON.stringify(sample.params, null, 2))}>重置</Button>
+            <Button color="default" variant="filled" disabled={busy} onClick={format}>格式化</Button>
+            <Button type="primary" loading={busy} onClick={submit} icon={<Icon type="PlayCircleOutlined"/>}>发送请求</Button>
+        </div></div>
+        <div className={styles.editor}><Input.TextArea variant="filled" value={source} onChange={(event) => setSource(event.target.value)} disabled={busy}
+            placeholder='请输入 JSON 对象，例如 {"name":"开发者"}' rows={7} aria-label="接口请求参数"/></div>
+        <div className={styles.resultHead}><strong>响应结果</strong>{result && <span><Tag variant="filled" color={result.error ? "error" : "success"}>{result.error ? "请求失败" : "请求成功"}</Tag>{result.duration} ms</span>}</div>
+        {result ? <Code title={result.error ? "错误信息" : "响应 data"}>{result.output}</Code> : <div className={styles.empty} style={{minHeight: 140}}><Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="发送请求后查看结果"/></div>}
+        {result && <Collapse ghost style={{marginTop: 12}} items={[{key: "code", label: "对应的前端调用", children: <Code title="React / TypeScript">{`try {
+    const data = await request(${JSON.stringify(result.method)}, ${JSON.stringify(result.params, null, 4)});
+    // request 已解包 data，不需要再读取 data.data。
+    console.log(data);
+} catch (error) {
+    message.error(error instanceof Error ? error.message : "请求失败");
+}`}</Code>} ]}/>}
+    </>;
+}

@@ -83,12 +83,19 @@ ORDER BY id, role`)
 	list := make([]map[string]interface{}, 0, len(records))
 	for _, record := range records {
 		list = append(list, map[string]interface{}{
-			"name": record["name"], "login_name": record["login_name"],
-			"roles": strings.Join(permissions[fmt.Sprint(record["id"])], ", "), "protected": m.truth(record["protected"]),
+			"name":              record["name"],
+			"login_name":        record["login_name"],
+			"roles":             strings.Join(permissions[fmt.Sprint(record["id"])], ", "),
+			"protected":         m.truth(record["protected"]),
 			"password_editable": m.truth(record["password_editable"]),
 		})
 	}
-	return map[string]interface{}{"list": list, "total": total, "page": pageNumber, "page_size": pageSize}, nil
+	return map[string]interface{}{
+		"list":      list,
+		"total":     total,
+		"page":      pageNumber,
+		"page_size": pageSize,
+	}, nil
 }
 
 // CreateUser 在事务内创建登录和当前数据库用户。
@@ -138,7 +145,10 @@ func (m *Manager) CreateUser(ctx context.Context, accountName, accountPassword s
 		return nil, err
 	}
 
-	return map[string]interface{}{"name": accountName, "action": "create"}, nil
+	return map[string]interface{}{
+		"name":   accountName,
+		"action": "create",
+	}, nil
 }
 
 // ChangePassword 修改 SQL 登录密码，返回是否为当前连接登录，供调用方同步连接凭据。
@@ -195,7 +205,11 @@ FROM sys.server_principals WHERE name = @p1 AND type = 'S' AND name NOT LIKE '##
 		return nil, false, err
 	}
 
-	return &Result{Columns: []string{}, Rows: [][]interface{}{}, ElapsedMs: time.Since(started).Milliseconds()}, current, nil
+	return &Result{
+		Columns:   []string{},
+		Rows:      [][]interface{}{},
+		ElapsedMs: time.Since(started).Milliseconds(),
+	}, current, nil
 }
 
 // Grant 在当前数据库内授予指定权限。
@@ -236,7 +250,10 @@ func (m *Manager) Grant(ctx context.Context, accountName string, permissions []s
 		return nil, err
 	}
 
-	return map[string]interface{}{"name": name, "action": "grant"}, nil
+	return map[string]interface{}{
+		"name":   name,
+		"action": "grant",
+	}, nil
 }
 
 // Revoke 在当前数据库内撤销指定权限。
@@ -277,7 +294,10 @@ func (m *Manager) Revoke(ctx context.Context, accountName string, permissions []
 		return nil, err
 	}
 
-	return map[string]interface{}{"name": name, "action": "revoke"}, nil
+	return map[string]interface{}{
+		"name":   name,
+		"action": "revoke",
+	}, nil
 }
 
 // DeleteUser 在同一事务中清理登录的全部数据库用户，再删除登录。
@@ -313,7 +333,10 @@ func (m *Manager) DeleteUser(ctx context.Context, accountName string) (_ interfa
 	if err = tx.Commit(); err != nil {
 		return nil, err
 	}
-	return map[string]interface{}{"name": userName, "action": "delete"}, nil
+	return map[string]interface{}{
+		"name":   userName,
+		"action": "delete",
+	}, nil
 }
 
 // deleteUserMappings 按 SID 清理实际用户名称，保留数据对象及其他账号的显式权限。
@@ -454,7 +477,15 @@ func (m *Manager) password(value string) error {
 
 // userPrivileges 仅接受当前库可以授予的业务权限。
 func (m *Manager) userPrivileges(values []string) ([]string, error) {
-	allowed := map[string]bool{"SELECT": true, "INSERT": true, "UPDATE": true, "DELETE": true, "EXECUTE": true, "CREATE TABLE": true, "CREATE VIEW": true}
+	allowed := map[string]bool{
+		"SELECT":       true,
+		"INSERT":       true,
+		"UPDATE":       true,
+		"DELETE":       true,
+		"EXECUTE":      true,
+		"CREATE TABLE": true,
+		"CREATE VIEW":  true,
+	}
 	privileges := make([]string, 0, len(values))
 	seen := make(map[string]bool)
 	for _, value := range values {
@@ -501,5 +532,8 @@ func (m *Manager) SetPrivileges(ctx context.Context, accountName string, permiss
 	if err = tx.Commit(); err != nil {
 		return nil, err
 	}
-	return map[string]interface{}{"name": name, "action": "permissions"}, nil
+	return map[string]interface{}{
+		"name":   name,
+		"action": "permissions",
+	}, nil
 }

@@ -116,7 +116,12 @@ func (m *Manager) Indexes(ctx context.Context, schemaName, tableName string) (ou
 		if !ok {
 			position = len(result)
 			positions[name] = position
-			result = append(result, map[string]interface{}{"name": name, "columns": []string{}, "unique": m.truth(record["is_unique"]), "primary": m.truth(record["is_primary"])})
+			result = append(result, map[string]interface{}{
+				"name":    name,
+				"columns": []string{},
+				"unique":  m.truth(record["is_unique"]),
+				"primary": m.truth(record["is_primary"]),
+			})
 		}
 		column := "(expression)"
 		if record["column_name"] != nil {

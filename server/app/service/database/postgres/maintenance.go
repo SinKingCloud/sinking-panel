@@ -122,5 +122,10 @@ func (m *Manager) executeMaintenance(ctx context.Context, statement string) (*Re
 	if err != nil {
 		return nil, err
 	}
-	return &Result{Columns: []string{}, Rows: [][]interface{}{}, Affected: affected, ElapsedMs: time.Since(started).Milliseconds()}, nil
+	return &Result{
+		Columns:   []string{},
+		Rows:      [][]interface{}{},
+		Affected:  affected,
+		ElapsedMs: time.Since(started).Milliseconds(),
+	}, nil
 }

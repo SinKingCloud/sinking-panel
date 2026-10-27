@@ -115,6 +115,8 @@ http://服务器IP:5678
 
 `run` 和 `start` 无需安装系统服务。`install` 会交互设置账号密码，将启动参数保存到系统自启动项，随后直接执行启动流程。已安装 Linux 系统服务时，`start`、`restart` 不传新启动配置会沿用安装时的配置；显式传入时更新配置。普通后台运行和 Windows 命令行启动时，需要重新传入希望覆盖的参数；从面板页面重启则保留当前启动参数和工作目录。
 
+面板通过本机 Socket（Linux/macOS）或命名管道（Windows）提供运行状态和停止通知，不再创建根目录 `server.pid`。通信端点覆盖启动初始化与退出清理全过程，防止重复运行；`start` 在未运行时创建进程，`stop` 等待清理完成，`restart` 先停止再启动。
+
 面板启动时接管运行中的轻量容器，并启动已停止的容器，包括未开启自动保活的实例。`stop`、`restart` 默认保留运行中的容器；传入 `--containers`（或 `--containers=true`）才会同时停止容器，重启随后通过正常启动流程重新运行容器。该参数仅影响本次操作，不改变实例的自动保活配置。面板停止期间，容器继续运行，但保活和日志轮转暂停。
 
 首页支持重启面板和服务器。面板重启兼容普通后台进程、Linux systemd 和 macOS launchd；服务器重启根据操作系统调用正常的重启命令，运行账户需要具备对应权限。
@@ -140,7 +142,7 @@ http://服务器IP:5678
 | `runtime/recycle/` | 文件回收站 |
 | `runtime/cron/` | 计划任务日志 |
 | `runtime/task/` | 系统异步任务日志 |
-| `server.pid` | 后台进程 PID |
+| `runtime/daemon` | 面板本机通信与运行互斥目录，不保存 PID |
 | `server.log` | 后台运行日志 |
 
 程序不会自动创建 `config` 目录或 `application.yml`。数据库首次打开时会创建 `data/server` 目录和数据库文件。无需配置文件即可启动，默认值为 `mode=release`、`host=0.0.0.0`、`port=5678`。
@@ -158,17 +160,22 @@ server:
 
 备份面板时至少应保留整个 `data/server` 目录。需要保留回收站和计划任务日志时，同时备份 `runtime` 目录；系统异步任务日志属于运行期日志，服务初始化时可能被清理。
 
-## 数据库软件管理
+## 软件插件
 
-Linux 的「数据管理」页面按 Redis、MySQL、PostgreSQL、MongoDB 分页签管理。各软件在 `server/app/service/container/` 下独立封装 `Manager`，通过 `service.Container.Redis()`、`Mysql()`、`Pgsql()`、`Mongo()` 调用。接口分别使用 `/redis/*`、`/mysql/*`、`/pgsql/*`、`/mongo/*`，仅在 Linux 注册并要求登录。
+「软件管理」页面选择服务器上的源码目录或 ZIP 路径完成插件安装，业务配置由插件在使用时提供。后端由 `util/plugin` 使用 Yaegi 加载，通过 `Plugin` 生命周期处理安装、卸载、升级和面板启停；插件通过 `Actions: map[string]func(*sdk.Context)` 注册 `/software/<软件标识>/<方法名>` 接口，沿用面板登录验证。接口像面板控制器一样使用 `c.ValidatorAll` 校验参数、`c.SuccessWithData` 或 `c.Error` 返回响应，耗时操作使用 `c.Request.Context()`；前端直接传 JSON 或表单参数。`/software/<软件标识>/page` 直接读取清单中的前端入口，多文件资源使用 `/software/<软件标识>/page/<资源路径>`，路径相对插件的 `web/` 目录，例如 `/software/demo/page/components.js` 对应 `web/components.js`；标识和路径各段分别 URL 编码。`page` 是保留资源路由，不交给 `Actions` 处理。插件可声明适用系统和依赖软件，并通过 `Start` / `Stop` 在面板启停时启动、回收异步任务。软件安装后即可使用，不再单独设置启用状态；`app.InstanceID` 直接使用清单 ID，插件内部配置通过 `app.Service.Software.GetConfig(app.InstanceID)` 和 `SetConfig(app.InstanceID, data)` 读写软件记录的 `config` 字符串；详情接口不返回该字段，目录与依赖不存入配置。
 
-MySQL、PostgreSQL、MongoDB 支持本机官方镜像解析安装、启停重启、终端、日志、负载、可视化调优、配置原文、数据库和业务账户管理。根据镜像版本适配初始化、认证、管理命令和配置，不再限制为 MySQL 8.0+、PostgreSQL 14+、MongoDB 6+。PostgreSQL 自动处理旧版 MD5 与新版 SCRAM 认证，以及 18 起的数据卷位置；MongoDB 自动选择 `mongo` / `mongosh`，按版本和存储引擎提供调优项；Redis 按版本处理配置指令、在线修改和 AOF。
+插件模板保存在 `server/public/plugin` 并嵌入程序。使用面板二进制即可初始化插件工程和匹配的独立 SDK，不需要面板源码或额外生成命令：
 
-已实测 MySQL 5.5、5.6、5.7、9.7，PostgreSQL 9.3、9.4、9.6、10、18，MongoDB 3.6、4.4、8.3，Redis 3.2、5、8 的代表版本，并使用官方源码构建的 Redis 2.6 验证旧版配置与管理命令。适配针对官方 Linux 镜像，镜像架构必须与服务器一致；未逐一验证全部历史补丁版本，旧镜像自身的 CPU、内核与入口程序限制仍需满足。
+```sh
+./server plugin init my-plugin ./my-plugin --name "我的插件"
+./server plugin install ./my-plugin
+./server plugin list
+./server plugin uninstall my-plugin
+```
 
-安装默认仅监听 `127.0.0.1`，管理员密码通过只读文件传给官方镜像。数据保存在容器管理器的 `volumes/<实例 ID>/` 下。卸载默认保留数据、配置和管理凭据，再次安装使用原镜像恢复；显式选择删除数据才会一并清除。配置保存不会自动重启，页面会显示待重启状态；PostgreSQL 支持重载可在线应用的配置。
+初始化命令可独立运行；其余命令从面板工作目录执行。列表直接读取本地软件服务；安装和卸载在面板运行时通过本机进程通信交给面板执行，停止时直接调用本地服务，无需手动切换。通信使用 Unix socket 或 Windows 命名管道，不依赖面板 HTTP 接口、端口或登录 token。在线安装会启动插件，卸载会先停止插件后台任务。安装、卸载分别统一调用 software service 的 `Install`、`Uninstall`，打包、生命周期和卸载任务等待都由 service 处理。安装支持目录或 ZIP，卸载会清理插件业务数据、代码目录和软件记录，不再提供保留数据选项。插件后端和前端均无需手动构建。
 
-`server/data/images/` 已准备 Linux amd64 归档：MySQL 9.7.2 LTS、PostgreSQL 18.6、MongoDB 8.3.11、Redis 8.10.1。镜像版本、来源、平台和摘要记录在 `manifest.json` 与 `SHA256SUMS`。将所需归档复制到目标服务器，在安装表单填写服务器上的绝对路径即可；面板运行数据库不依赖 Docker。
+`plugin init` 生成的工程包含 Go 后端、React TSX 多文件页面和独立 SDK，不依赖容器。前端默认导出普通 React 组件，使用标准 `import`、Hooks 和 `antd-style`；浏览器通过 Babel Standalone 按需转换并缓存，React、Ant Design、sinking-antd 和主题能力复用面板已有实例。共享模块之外的 npm 包不会自动安装，当前不支持 CSS、Less、Sass 模块导入。模板位于 [server/public/plugin](server/public/plugin)，运行机制与完整命令说明见 [插件说明](server/app/util/plugin/README.md)。原数据库软件源码及分发包已归档到 `backups/`，待插件系统完善后再继续维护。
 
 ## 本地开发
 

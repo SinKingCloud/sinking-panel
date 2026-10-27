@@ -55,7 +55,18 @@ func (m *Manager) Objects(ctx context.Context, schemaName, kind, keyword string,
 			if !ok {
 				position = len(result)
 				positions[key] = position
-				result = append(result, map[string]interface{}{"name": record["name"], "schema": record["schema"], "type": "FOREIGN KEY", "table": record["table"], "columns": []string{}, "reference_schema": record["reference_schema"], "reference_table": record["reference_table"], "reference_columns": []string{}, "on_delete": record["on_delete"], "on_update": record["on_update"]})
+				result = append(result, map[string]interface{}{
+					"name":              record["name"],
+					"schema":            record["schema"],
+					"type":              "FOREIGN KEY",
+					"table":             record["table"],
+					"columns":           []string{},
+					"reference_schema":  record["reference_schema"],
+					"reference_table":   record["reference_table"],
+					"reference_columns": []string{},
+					"on_delete":         record["on_delete"],
+					"on_update":         record["on_update"],
+				})
 			}
 			result[position]["columns"] = append(result[position]["columns"].([]string), fmt.Sprint(record["column_name"]))
 			result[position]["reference_columns"] = append(result[position]["reference_columns"].([]string), fmt.Sprint(record["reference_column"]))
@@ -88,7 +99,10 @@ func (m *Manager) Objects(ctx context.Context, schemaName, kind, keyword string,
 	if err != nil {
 		return nil, err
 	}
-	return page.New(&page.Query{Page: pageNumber, PageSize: pageSize}, total, list), nil
+	return page.New(&page.Query{
+		Page:     pageNumber,
+		PageSize: pageSize,
+	}, total, list), nil
 }
 
 // ObjectDefinition 返回服务器的对象定义，保留存储程序及触发器正文。
@@ -150,7 +164,15 @@ func (m *Manager) ObjectDefinition(ctx context.Context, schemaName, kind, name s
 			if record["name"] != name {
 				continue
 			}
-			key := ForeignKeyDefinition{Name: name, Columns: record["columns"].([]string), ReferenceSchema: fmt.Sprint(record["reference_schema"]), ReferenceTable: fmt.Sprint(record["reference_table"]), ReferenceColumns: record["reference_columns"].([]string), OnDelete: fmt.Sprint(record["on_delete"]), OnUpdate: fmt.Sprint(record["on_update"])}
+			key := ForeignKeyDefinition{
+				Name:             name,
+				Columns:          record["columns"].([]string),
+				ReferenceSchema:  fmt.Sprint(record["reference_schema"]),
+				ReferenceTable:   fmt.Sprint(record["reference_table"]),
+				ReferenceColumns: record["reference_columns"].([]string),
+				OnDelete:         fmt.Sprint(record["on_delete"]),
+				OnUpdate:         fmt.Sprint(record["on_update"]),
+			}
 			clause, buildErr := m.foreignKeySQL(schema, key)
 			if buildErr != nil {
 				return "", buildErr
@@ -526,7 +548,12 @@ func (m *Manager) SaveObject(ctx context.Context, schemaName, kind, name, defini
 	if err != nil {
 		return nil, err
 	}
-	return &Result{Columns: []string{}, Rows: [][]interface{}{}, Affected: affected, ElapsedMs: time.Since(started).Milliseconds()}, nil
+	return &Result{
+		Columns:   []string{},
+		Rows:      [][]interface{}{},
+		Affected:  affected,
+		ElapsedMs: time.Since(started).Milliseconds(),
+	}, nil
 }
 
 // DropObject 删除真实视图、存储程序或触发器，外键仍定位到所属表后删除。

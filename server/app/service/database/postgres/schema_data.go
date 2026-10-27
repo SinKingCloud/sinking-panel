@@ -49,7 +49,10 @@ func (m *Manager) foreignKeySQL(schemaName string, key ForeignKeyDefinition) (st
 		references = append(references, reference)
 	}
 	clause := "CONSTRAINT " + name + " FOREIGN KEY (" + strings.Join(columns, ",") + ") REFERENCES " + schema + "." + table + " (" + strings.Join(references, ",") + ")"
-	for _, rule := range []struct{ name, value string }{{"DELETE", key.OnDelete}, {"UPDATE", key.OnUpdate}} {
+	for _, rule := range []struct {
+		name  string
+		value string
+	}{{"DELETE", key.OnDelete}, {"UPDATE", key.OnUpdate}} {
 		value := strings.ToUpper(strings.Join(strings.Fields(rule.value), " "))
 		if value == "" {
 			continue

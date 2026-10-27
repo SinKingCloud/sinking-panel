@@ -62,7 +62,11 @@ func (s *service) CreateCert(data *model.Cert) (*Cert, error) {
 		return nil, fmt.Errorf("创建证书失败: %w", err)
 	}
 	*data = candidate
-	return &Cert{Cert: data, StartTime: time.Time(data.StartTime), ExpireTime: time.Time(data.ExpireTime)}, nil
+	return &Cert{
+		Cert:       data,
+		StartTime:  time.Time(data.StartTime),
+		ExpireTime: time.Time(data.ExpireTime),
+	}, nil
 }
 
 // UpdateCert 更新证书。域名和有效期始终从实际证书内容重新提取。
@@ -112,7 +116,11 @@ func (s *service) UpdateCert(id int64, data *repositoryCert.UpdateCert) error {
 		}
 		// 单独关闭自动续签不依赖原密钥仍然存在或有效。
 		if data.Type != nil || data.Challenge != nil || data.SecretId != nil || (data.AutoRenew != nil && candidate.AutoRenew != cert_auto_renew.Disabled) {
-			request := CertificateRequest{Type: data.Type, SecretId: data.SecretId, AutoRenew: data.AutoRenew}
+			request := CertificateRequest{
+				Type:      data.Type,
+				SecretId:  data.SecretId,
+				AutoRenew: data.AutoRenew,
+			}
 			if data.Challenge != nil {
 				request.Challenge = caddy.CertificateChallenge(*data.Challenge)
 			}
@@ -203,7 +211,11 @@ func (s *service) FindCert(id int64) (*Cert, error) {
 	if result == nil {
 		return nil, nil
 	}
-	return &Cert{Cert: result, StartTime: time.Time(result.StartTime), ExpireTime: time.Time(result.ExpireTime)}, nil
+	return &Cert{
+		Cert:       result,
+		StartTime:  time.Time(result.StartTime),
+		ExpireTime: time.Time(result.ExpireTime),
+	}, nil
 }
 
 // SelectCert 分页查询证书。
@@ -248,11 +260,20 @@ func (s *service) SelectCert(where *repositoryCert.SelectCert, queryPage *page.Q
 	}
 	list := make([]*CertListItem, len(result.List))
 	for i, item := range result.List {
-		list[i] = &CertListItem{Cert: item, StartTime: time.Time(item.StartTime), ExpireTime: time.Time(item.ExpireTime)}
+		list[i] = &CertListItem{
+			Cert:       item,
+			StartTime:  time.Time(item.StartTime),
+			ExpireTime: time.Time(item.ExpireTime),
+		}
 	}
 	return &page.Result[*CertListItem]{
-		Total: result.Total, Page: result.Page, PageSize: result.PageSize, List: list,
-		HasMore: result.HasMore, NextCursorId: result.NextCursorId, NextCursorLastId: result.NextCursorLastId,
+		Total:            result.Total,
+		Page:             result.Page,
+		PageSize:         result.PageSize,
+		List:             list,
+		HasMore:          result.HasMore,
+		NextCursorId:     result.NextCursorId,
+		NextCursorLastId: result.NextCursorLastId,
 	}, nil
 }
 
@@ -343,7 +364,11 @@ func (s *service) ObtainCert(ctx context.Context, name string, request Certifica
 	}); err != nil {
 		return nil, err
 	}
-	return &Cert{Cert: candidate, StartTime: time.Time(candidate.StartTime), ExpireTime: time.Time(candidate.ExpireTime)}, nil
+	return &Cert{
+		Cert:       candidate,
+		StartTime:  time.Time(candidate.StartTime),
+		ExpireTime: time.Time(candidate.ExpireTime),
+	}, nil
 }
 
 // RenewCert 续签 ACME 证书并更新现有记录。
@@ -392,7 +417,11 @@ func (s *service) RenewCert(ctx context.Context, id int64, request CertificateRe
 		if err = s.syncCertificateLocked(id, "部署续签证书", func() error { return nil }); err != nil {
 			return nil, err
 		}
-		return &Cert{Cert: current, StartTime: time.Time(current.StartTime), ExpireTime: time.Time(current.ExpireTime)}, nil
+		return &Cert{
+			Cert:       current,
+			StartTime:  time.Time(current.StartTime),
+			ExpireTime: time.Time(current.ExpireTime),
+		}, nil
 	}
 	var domains []string
 	if err = json.Unmarshal([]byte(current.Domains), &domains); err != nil {
@@ -498,7 +527,11 @@ func (s *service) RenewCert(ctx context.Context, id int64, request CertificateRe
 	if result == nil {
 		return nil, errors.New("证书不存在")
 	}
-	return &Cert{Cert: result, StartTime: time.Time(result.StartTime), ExpireTime: time.Time(result.ExpireTime)}, nil
+	return &Cert{
+		Cert:       result,
+		StartTime:  time.Time(result.StartTime),
+		ExpireTime: time.Time(result.ExpireTime),
+	}, nil
 }
 
 // ManualCert 通过普通 HTTP 分步申请证书，使用缓存锁保护共享的 JSON 订单。
@@ -568,7 +601,11 @@ func (s *service) ManualCert(ctx context.Context, id int64, name string, request
 			return nil, errors.New("手动验证订单已过期或取消，请重新申请")
 		}
 		if order.Result != nil {
-			return &Cert{Cert: order.Result, StartTime: time.Time(order.Result.StartTime), ExpireTime: time.Time(order.Result.ExpireTime)}, nil
+			return &Cert{
+				Cert:       order.Result,
+				StartTime:  time.Time(order.Result.StartTime),
+				ExpireTime: time.Time(order.Result.ExpireTime),
+			}, nil
 		}
 		ctx, cancel := context.WithDeadline(ctx, order.ExpiresAt)
 		defer cancel()
@@ -633,7 +670,10 @@ func (s *service) ManualCert(ctx context.Context, id int64, name string, request
 		return nil, fmt.Errorf("证书域名无效: %w", err)
 	}
 	request.Domain = domain
-	candidate := &model.Cert{Name: name, Type: cert_type.Auto}
+	candidate := &model.Cert{
+		Name: name,
+		Type: cert_type.Auto,
+	}
 	var previous *model.Cert
 	if id > 0 {
 		current, err := s.repositoryCert.FindById(id)
@@ -697,7 +737,11 @@ func (s *service) ManualCert(ctx context.Context, id int64, name string, request
 			if ip := net.ParseIP(host); ip != nil && ip.To4() == nil {
 				host = "[" + host + "]"
 			}
-			address := url.URL{Scheme: "http", Host: host, Path: challenge.HTTP01ResourcePath()}
+			address := url.URL{
+				Scheme: "http",
+				Host:   host,
+				Path:   challenge.HTTP01ResourcePath(),
+			}
 			value["name"], value["type"], value["value"] = challenge.Token, "HTTP", challenge.KeyAuthorization
 			value["path"], value["url"] = address.Path, address.String()
 		case acmeTypes.ChallengeTypeDNS01:
@@ -715,11 +759,20 @@ func (s *service) ManualCert(ctx context.Context, id int64, name string, request
 		certificateId = str.GetSnowWorkIns().GetId()
 	}
 	order := &certificateOrder{
-		Acme: client, Id: id, CertificateId: certificateId, SessionId: sessionId, ExpiresAt: expiresAt,
-		Name: candidate.Name, Previous: previous,
+		Acme:          client,
+		Id:            id,
+		CertificateId: certificateId,
+		SessionId:     sessionId,
+		ExpiresAt:     expiresAt,
+		Name:          candidate.Name,
+		Previous:      previous,
 		Request: CertificateRequest{
-			Domain: domain, CA: client.CA, Type: &certificateType,
-			Challenge: acmeRequest.Challenge, SecretId: &secretId, AutoRenew: &autoRenew,
+			Domain:    domain,
+			CA:        client.CA,
+			Type:      &certificateType,
+			Challenge: acmeRequest.Challenge,
+			SecretId:  &secretId,
+			AutoRenew: &autoRenew,
 		},
 	}
 	encoded, err := json.Marshal(order)
@@ -738,7 +791,11 @@ func (s *service) ManualCert(ctx context.Context, id int64, name string, request
 	if saved, _ := s.cache.Get(key).(string); saved != string(encoded) {
 		return nil, errors.New("保存验证订单失败，请重试")
 	}
-	return map[string]interface{}{"session_id": sessionId, "challenges": values, "expires_at": expiresAt.Unix()}, nil
+	return map[string]interface{}{
+		"session_id": sessionId,
+		"challenges": values,
+		"expires_at": expiresAt.Unix(),
+	}, nil
 }
 
 // prepareCertificateRequest 合并证书申请设置，并从关联密钥读取 DNS 凭据。
@@ -835,9 +892,13 @@ func (s *service) prepareCertificateRequest(data *model.Cert, request *Certifica
 							email = strings.TrimPrefix(account.Contact[0], "mailto:")
 						}
 						request.acme = &caddy.Acme{
-							Domain: request.Domain, CA: caName, Email: email,
-							AccountURL: account.Location, AccountPrivateKeyPEM: accountPrivateKeyPEM,
-							CertificatePEM: []byte(data.Certificate), PrivateKeyPEM: []byte(data.PrivateKey),
+							Domain:               request.Domain,
+							CA:                   caName,
+							Email:                email,
+							AccountURL:           account.Location,
+							AccountPrivateKeyPEM: accountPrivateKeyPEM,
+							CertificatePEM:       []byte(data.Certificate),
+							PrivateKeyPEM:        []byte(data.PrivateKey),
 						}
 						break
 					}
@@ -1040,7 +1101,11 @@ func (s *service) checkCertificateSave(data *model.Cert, request caddy.Certifica
 			return errors.New("保存签发进度失败，请重试")
 		}
 	}
-	settings := &CertificateRequest{Domain: request.Domain, CA: request.CA, order: order}
+	settings := &CertificateRequest{
+		Domain: request.Domain,
+		CA:     request.CA,
+		order:  order,
+	}
 	if data.Type == cert_type.Auto && data.Challenge == string(caddy.CertificateChallengeDNS) && data.SecretId == 0 {
 		// 密钥在续签期间被删除时，保留解除关联的结果，仍可保存已签发的证书。
 		settings.Domain = ""
@@ -1057,7 +1122,11 @@ func (s *service) checkCertificateSave(data *model.Cert, request caddy.Certifica
 		renewal = order.Acme
 	}
 	if renewal == nil {
-		renewal = &caddy.Acme{Domain: request.Domain, CA: request.CA, Email: request.Email}
+		renewal = &caddy.Acme{
+			Domain: request.Domain,
+			CA:     request.CA,
+			Email:  request.Email,
+		}
 	}
 	encoded, err := json.Marshal(renewal)
 	if err != nil {

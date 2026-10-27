@@ -17,7 +17,14 @@ import (
 
 // Import 流式执行 Redis RESP/AOF 命令，兼容 redis-cli --pipe 使用的二进制命令格式。
 func (m *Manager) Import(ctx context.Context, path string, progress ...func(float64, string)) (result map[string]interface{}, err error) {
-	result = map[string]interface{}{"path": path, "size": int64(0), "total": int64(0), "success": int64(0), "failed": int64(0), "unit": "命令"}
+	result = map[string]interface{}{
+		"path":    path,
+		"size":    int64(0),
+		"total":   int64(0),
+		"success": int64(0),
+		"failed":  int64(0),
+		"unit":    "命令",
+	}
 	defer func() { err = m.cleanError(err) }()
 	lastProgress, lastUpdate := -1.0, time.Time{}
 	report := func(percent float64, message string, values ...interface{}) {

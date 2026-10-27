@@ -45,7 +45,11 @@ func (s *service) Upload(ctx context.Context, fileHeader *multipart.FileHeader, 
 	if err = s.commitUploadedFile(ctx, tempPath, destPath, overwrite); err != nil {
 		return nil, fmt.Errorf("保存文件失败: %w", err)
 	}
-	return &UploadedFile{Name: fileName, Path: destPath, Size: fileHeader.Size}, nil
+	return &UploadedFile{
+		Name: fileName,
+		Path: destPath,
+		Size: fileHeader.Size,
+	}, nil
 }
 
 func (s *service) UploadChunk(fileHeader *multipart.FileHeader, meta UploadMeta, chunkIndex int) (*UploadedFile, bool, error) {
@@ -137,7 +141,12 @@ func (s *service) MergeUpload(ctx context.Context, meta UploadMeta) (*UploadedFi
 	if err = s.commitUploadedFile(ctx, mergedPath, destPath, true); err != nil {
 		return nil, false, fmt.Errorf("保存合并文件失败: %w", err)
 	}
-	completed = &UploadedFile{Name: meta.FileName, Path: destPath, Size: size, FileHash: meta.FileHash}
+	completed = &UploadedFile{
+		Name:     meta.FileName,
+		Path:     destPath,
+		Size:     size,
+		FileHash: meta.FileHash,
+	}
 	if err = s.writeCompletedUpload(meta.UploadID, completed); err != nil {
 		return nil, false, fmt.Errorf("记录上传结果失败: %w", err)
 	}

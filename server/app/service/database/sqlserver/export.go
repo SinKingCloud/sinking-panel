@@ -17,7 +17,14 @@ import (
 
 // Export 生成 SSMS/sqlcmd 可执行的 SQL；数据逐行写入，外键与触发器在数据后恢复。
 func (m *Manager) Export(ctx context.Context, path, schemaName, tableName string, progress ...func(float64, string)) (result map[string]interface{}, err error) {
-	result = map[string]interface{}{"path": path, "size": int64(0), "total": int64(0), "success": int64(0), "failed": 0, "unit": "记录"}
+	result = map[string]interface{}{
+		"path":    path,
+		"size":    int64(0),
+		"total":   int64(0),
+		"success": int64(0),
+		"failed":  0,
+		"unit":    "记录",
+	}
 	defer func() { err = m.safeError(err) }()
 	lastProgress, lastUpdate := -1.0, time.Time{}
 	report := func(percent float64, message string, values ...interface{}) {

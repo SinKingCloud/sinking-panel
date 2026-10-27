@@ -27,10 +27,18 @@ func Run(c *context.Context) {
 		return
 	}
 	data, err := service.Container.Run(runtimeContainer.RunOptions{
-		ID: form.Id, Name: form.Name, ImageID: form.ImageId,
-		Mounts: form.Mounts, Env: form.Env, Command: form.Command,
-		WorkingDir: form.WorkingDir, User: form.User, Resources: form.Resources,
-		AutoRestart: form.AutoRestart, ReadOnly: form.ReadOnly, CreateOnly: true,
+		ID:          form.Id,
+		Name:        form.Name,
+		ImageID:     form.ImageId,
+		Mounts:      form.Mounts,
+		Env:         form.Env,
+		Command:     form.Command,
+		WorkingDir:  form.WorkingDir,
+		User:        form.User,
+		Resources:   form.Resources,
+		AutoRestart: form.AutoRestart,
+		ReadOnly:    form.ReadOnly,
+		CreateOnly:  true,
 	})
 	if err != nil {
 		c.Error(err.Error())

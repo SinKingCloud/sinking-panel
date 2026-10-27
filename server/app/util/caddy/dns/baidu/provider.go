@@ -118,7 +118,10 @@ func (p *Provider) DeleteRecords(ctx context.Context, zone string, records []lib
 			if err := ctx.Err(); err != nil {
 				return deleted, err
 			}
-			page, err := client.ListRecord(zone, &dns.ListRecordRequest{Rr: rr.Name, Marker: marker})
+			page, err := client.ListRecord(zone, &dns.ListRecordRequest{
+				Rr:     rr.Name,
+				Marker: marker,
+			})
 			if err != nil {
 				return deleted, fmt.Errorf("baiducloud: list records in %q: %w", zone, err)
 			}

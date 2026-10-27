@@ -16,13 +16,29 @@ func (s *service) GetDisks() ([]Disk, error) {
 		return nil, err
 	}
 	excludedFs := map[string]struct{}{
-		"autofs": {}, "cgroup": {}, "cgroup2": {},
-		"configfs": {}, "debugfs": {}, "devfs": {}, "devpts": {},
-		"devtmpfs": {}, "efivarfs": {}, "fusectl": {},
-		"hugetlbfs": {}, "mqueue": {}, "overlay": {},
-		"proc": {}, "procfs": {}, "pstore": {}, "ramfs": {},
-		"securityfs": {}, "squashfs": {}, "sysfs": {},
-		"tmpfs": {}, "tracefs": {}, "vfat": {},
+		"autofs":     {},
+		"cgroup":     {},
+		"cgroup2":    {},
+		"configfs":   {},
+		"debugfs":    {},
+		"devfs":      {},
+		"devpts":     {},
+		"devtmpfs":   {},
+		"efivarfs":   {},
+		"fusectl":    {},
+		"hugetlbfs":  {},
+		"mqueue":     {},
+		"overlay":    {},
+		"proc":       {},
+		"procfs":     {},
+		"pstore":     {},
+		"ramfs":      {},
+		"securityfs": {},
+		"squashfs":   {},
+		"sysfs":      {},
+		"tmpfs":      {},
+		"tracefs":    {},
+		"vfat":       {},
 	}
 	var disks []Disk
 	for _, p := range partitions {

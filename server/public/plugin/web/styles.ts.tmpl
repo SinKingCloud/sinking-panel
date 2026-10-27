@@ -1,0 +1,135 @@
+import {createStyles} from "antd-style";
+
+// 与宿主共用主题 token，普通/紧凑模式只调整密度，不覆盖原生表单与弹窗按钮。
+export default createStyles(({css, token}, {compact = false}: {compact?: boolean} = {}) => ({
+    shell: css`
+        display: flex; min-width: 0; height: min(${compact ? 590 : 650}px, calc(100dvh - 210px)); min-height: 360px;
+        border-top: 1px solid ${token.colorBorderSecondary}; color: ${token.colorText}; font-size: ${token.fontSize}px;
+        @media (max-width: 767px) { flex-direction: column; height: calc(100dvh - 112px); min-height: 280px; }
+    `,
+    sidebar: css`
+        flex: 0 0 ${compact ? 156 : 176}px; display: flex; flex-direction: column; min-height: 0;
+        background: ${token.colorFillQuaternary}; border-right: 1px solid ${token.colorBorderSecondary};
+        @media (max-width: 767px) { flex: none; border-right: 0; border-bottom: 1px solid ${token.colorBorderSecondary}; background: transparent; }
+    `,
+    sidebarCaption: css`
+        padding: ${compact ? 18 : 22}px 20px 10px; color: ${token.colorTextQuaternary}; font-size: ${token.fontSizeSM}px;
+        @media (max-width: 767px) { display: none; }
+    `,
+    navigation: css`
+        display: flex; flex-direction: column; gap: 4px; padding: 0 10px;
+        button { border: 0; border-radius: ${token.borderRadius}px; background: none; font: inherit; color: ${token.colorTextSecondary}; cursor: pointer;
+            display: flex; align-items: center; gap: 10px; min-height: ${compact ? 36 : 40}px; padding: 0 12px; text-align: left; white-space: nowrap; }
+        button:hover { color: ${token.colorText}; background: ${token.colorFillTertiary}; }
+        button[aria-current="page"] { color: ${token.colorPrimary}; background: ${token.colorPrimaryBg}; }
+        button:focus-visible { outline: 2px solid ${token.colorPrimaryBorder}; outline-offset: 1px; }
+        @media (max-width: 767px) { flex-direction: row; overflow-x: auto; padding: 8px 12px; gap: 4px;
+            button { flex: none; min-height: 32px; gap: 6px; padding: 0 10px; font-size: ${token.fontSizeSM}px; } }
+    `,
+    sidebarFooter: css`
+        margin-top: auto; padding: 18px 20px; display: flex; flex-direction: column; gap: 4px; overflow-wrap: anywhere;
+        span { color: ${token.colorTextSecondary}; font-size: ${token.fontSizeSM}px; }
+        small { color: ${token.colorTextQuaternary}; font-size: ${token.fontSizeSM}px; }
+        @media (max-width: 767px) { display: none; }
+    `,
+    main: css`
+        flex: 1; min-width: 0; overflow: auto; padding: ${compact ? 20 : 26}px;
+        .ant-table-cell:is(.ant-table-cell-fix, .ant-table-cell-fix-start, .ant-table-cell-fix-end, .ant-table-cell-fix-left, .ant-table-cell-fix-right) {
+            transition-property: background-color, color, border-color, box-shadow;
+        }
+        @supports (width: 1cqi) {
+            .ant-table-has-fix-end :is(.ant-table-header, .ant-table-body, .ant-table-content, .ant-table-tbody-virtual-holder) { container-type: inline-size; }
+            .ant-table-cell-fix-end { inset-inline-end: calc(100% - 100cqi) !important; }
+        }
+        @media (max-width: 767px) { padding: 18px 16px; }
+    `,
+    heading: css`
+        display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: ${compact ? 18 : 22}px;
+        h3 { margin: 0; font-size: ${token.fontSizeLG}px; font-weight: 500; line-height: 1.5; }
+        p { margin: 5px 0 0; color: ${token.colorTextSecondary}; font-size: ${token.fontSizeSM}px; line-height: 1.6; }
+        > .ant-btn { flex: none; height: ${compact ? 24 : 28}px; width: ${compact ? 24 : 28}px; font-size: ${compact ? 11 : 12}px; padding: 0; }
+    `,
+    summary: css`
+        display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border: 1px solid ${token.colorBorderSecondary};
+        border-radius: ${token.borderRadiusLG}px; overflow: hidden; margin-bottom: ${compact ? 22 : 28}px;
+        > div { padding: ${compact ? 14 : 18}px; min-width: 0; }
+        > div + div { border-left: 1px solid ${token.colorBorderSecondary}; }
+        span { display: block; color: ${token.colorTextSecondary}; font-size: ${token.fontSizeSM}px; margin-bottom: 7px; }
+        strong { font-size: ${compact ? 17 : 19}px; font-weight: 500; }
+        @media (max-width: 575px) { > div { padding: 12px 10px; } strong { font-size: 16px; } }
+    `,
+    section: css`min-width: 0; & + & { margin-top: ${compact ? 24 : 30}px; }`,
+    sectionTitle: css`
+        display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px;
+        h4 { margin: 0; font-size: ${token.fontSize}px; font-weight: 500; }
+        > span { color: ${token.colorTextQuaternary}; font-size: ${token.fontSizeSM}px; }
+    `,
+    shortcuts: css`
+        display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px;
+        button { display: flex; align-items: center; gap: 12px; text-align: left; cursor: pointer; padding: ${compact ? 12 : 15}px;
+            border: 1px solid ${token.colorBorderSecondary}; border-radius: ${token.borderRadius}px; background: ${token.colorBgContainer}; color: ${token.colorText}; font: inherit; }
+        button > .anticon { color: ${token.colorPrimary}; font-size: 17px; flex: none; }
+        button > div { min-width: 0; flex: 1; }
+        strong { display: block; font-size: ${token.fontSize}px; font-weight: 400; }
+        small { display: block; color: ${token.colorTextSecondary}; font-size: ${token.fontSizeSM}px; margin-top: 4px; line-height: 1.6; }
+        button > .anticon:last-child { color: ${token.colorTextQuaternary}; font-size: 11px; }
+        button:hover { border-color: ${token.colorPrimaryBorder}; background: ${token.colorFillQuaternary}; }
+        @media (max-width: 575px) { grid-template-columns: minmax(0, 1fr); }
+    `,
+    details: css`
+        margin: 0;
+        > div { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 14px; padding: 9px 0; }
+        > div + div { border-top: 1px solid ${token.colorBorderSecondary}; }
+        dt { color: ${token.colorTextSecondary}; font-size: ${token.fontSizeSM}px; }
+        dd { margin: 0; min-width: 0; overflow-wrap: anywhere; font-size: ${token.fontSizeSM}px; }
+    `,
+    grid: css`
+        display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: ${compact ? 24 : 30}px;
+        @media (max-width: 767px) { grid-template-columns: minmax(0, 1fr); gap: 24px; }
+    `,
+    panel: css`min-width: 0;`,
+    panelTitle: css`
+        display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px;
+        strong { font-size: ${token.fontSize}px; font-weight: 500; }
+    `,
+    hint: css`display: block; color: ${token.colorTextSecondary}; font-size: ${token.fontSizeSM}px; line-height: 1.7; margin: 0 0 16px;`,
+    actions: css`display: flex; align-items: center; flex-wrap: wrap; gap: 8px; .ant-btn { height: ${compact ? 24 : 28}px; font-size: ${compact ? 11 : 12}px; padding-inline: ${compact ? 9 : 11}px; }`,
+    status: css`
+        margin-top: 18px; padding: 12px 14px; background: ${token.colorFillQuaternary}; border-radius: ${token.borderRadius}px;
+        color: ${token.colorTextSecondary}; font-size: ${token.fontSizeSM}px; line-height: 1.7; overflow-wrap: anywhere;
+        .ant-typography { font-size: inherit; margin: 0; }
+    `,
+    empty: css`display: flex; flex-direction: column; gap: 14px; align-items: center; justify-content: center; min-height: ${compact ? 200 : 230}px;`,
+    noteText: css`white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.8; margin: 0; font-size: ${token.fontSize}px;`,
+    code: css`
+        min-width: 0; border: 1px solid ${token.colorBorderSecondary}; border-radius: ${token.borderRadius}px; overflow: hidden;
+        .code-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 8px 12px; background: ${token.colorFillQuaternary}; border-bottom: 1px solid ${token.colorBorderSecondary}; }
+        .code-toolbar > span { font-size: ${token.fontSizeSM}px; color: ${token.colorTextSecondary}; }
+        .code-toolbar .ant-typography { margin: 0; font-size: ${token.fontSizeSM}px; }
+        pre { margin: 0; padding: 14px; overflow: auto; max-height: 320px; font-size: ${token.fontSizeSM}px; line-height: 1.75; tab-size: 4; font-family: ${token.fontFamilyCode}; }
+    `,
+    editor: css`
+        textarea { font-family: ${token.fontFamilyCode}; font-size: ${token.fontSizeSM}px; line-height: 1.7; resize: vertical; }
+    `,
+    requestLine: css`
+        display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 16px 0; padding: 10px 12px;
+        border-radius: ${token.borderRadius}px; background: ${token.colorFillQuaternary}; font-family: ${token.fontFamilyCode}; font-size: ${token.fontSizeSM}px;
+        span:first-child { color: ${token.colorPrimary}; } span:last-child { overflow-wrap: anywhere; }
+    `,
+    resultHead: css`
+        display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 22px 0 12px;
+        strong { font-size: ${token.fontSize}px; font-weight: 500; } > span { color: ${token.colorTextSecondary}; font-size: ${token.fontSizeSM}px; }
+    `,
+    taskProgress: css`
+        border: 1px solid ${token.colorBorderSecondary}; border-radius: ${token.borderRadiusLG}px; padding: ${compact ? 18 : 22}px;
+        .ant-progress { margin: 16px 0; } h4 { margin: 0 0 6px; font-size: ${token.fontSize}px; font-weight: 500; }
+    `,
+    timeline: css`
+        display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 24px;
+        > div { border-top: 2px solid ${token.colorBorderSecondary}; padding-top: 10px; }
+        strong { display: block; font-size: ${token.fontSizeSM}px; font-weight: 500; margin-bottom: 4px; }
+        span { color: ${token.colorTextSecondary}; font-size: ${token.fontSizeSM}px; line-height: 1.6; }
+        @media (max-width: 575px) { gap: 10px; }
+    `,
+    docs: css`min-width: 0;`,
+}));

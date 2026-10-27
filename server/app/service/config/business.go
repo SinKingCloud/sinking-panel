@@ -67,3 +67,16 @@ func (s *service) Get(group string, key string) string {
 	temp := s.Group(group)
 	return temp[key]
 }
+
+// DeleteByGroup 删除整组配置并清理缓存，供业务卸载时回收自有配置。
+func (s *service) DeleteByGroup(group string) error {
+	if strings.TrimSpace(group) == "" {
+		return errors.New("配置组不能为空")
+	}
+	if !s.cache.Lock(constant.LockConfigSet, constant.LockTimeConfigSet) {
+		return errors.New("获取并发锁失败")
+	}
+	defer s.cache.UnLock(constant.LockConfigSet)
+	defer s.cache.Delete(constant.CacheNameWithSysConfig + group)
+	return s.repositoryConfig.DeleteByGroup(group)
+}

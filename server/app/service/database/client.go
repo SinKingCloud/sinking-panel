@@ -108,7 +108,7 @@ func (s *service) Test(ctx context.Context, id int64, databaseType int, config s
 }
 
 // Mysql 按实例和库名创建独立连接，使用后由调用方关闭。
-func (s *service) Mysql(ctx context.Context, id int64, databaseName string) (*clientMySQL.Manager, error) {
+func (s *service) Mysql(ctx context.Context, id int64, databaseName string) (clientMySQL.Interface, error) {
 	connection, err := s.FindConnection(id, database_kind.MySQL)
 	if err != nil {
 		return nil, err
@@ -116,11 +116,15 @@ func (s *service) Mysql(ctx context.Context, id int64, databaseName string) (*cl
 	if len(databaseName) > 1024 || strings.ContainsRune(databaseName, 0) {
 		return nil, errors.New("数据库名称不合法")
 	}
-	return clientMySQL.NewManager(ctx, connection.Config, databaseName)
+	manager, err := clientMySQL.NewManager(ctx, connection.Config, databaseName)
+	if err != nil {
+		return nil, err
+	}
+	return manager, nil
 }
 
 // Postgres 按实例和库名创建独立连接，使用后由调用方关闭。
-func (s *service) Postgres(ctx context.Context, id int64, databaseName string) (*clientPostgres.Manager, error) {
+func (s *service) Postgres(ctx context.Context, id int64, databaseName string) (clientPostgres.Interface, error) {
 	connection, err := s.FindConnection(id, database_kind.Postgres)
 	if err != nil {
 		return nil, err
@@ -128,11 +132,15 @@ func (s *service) Postgres(ctx context.Context, id int64, databaseName string) (
 	if len(databaseName) > 1024 || strings.ContainsRune(databaseName, 0) {
 		return nil, errors.New("数据库名称不合法")
 	}
-	return clientPostgres.NewManager(ctx, connection.Config, databaseName)
+	manager, err := clientPostgres.NewManager(ctx, connection.Config, databaseName)
+	if err != nil {
+		return nil, err
+	}
+	return manager, nil
 }
 
 // Sqlserver 按实例和库名创建独立连接，使用后由调用方关闭。
-func (s *service) Sqlserver(ctx context.Context, id int64, databaseName string) (*clientSqlServer.Manager, error) {
+func (s *service) Sqlserver(ctx context.Context, id int64, databaseName string) (clientSqlServer.Interface, error) {
 	connection, err := s.FindConnection(id, database_kind.SqlServer)
 	if err != nil {
 		return nil, err
@@ -140,11 +148,15 @@ func (s *service) Sqlserver(ctx context.Context, id int64, databaseName string) 
 	if len(databaseName) > 1024 || strings.ContainsRune(databaseName, 0) {
 		return nil, errors.New("数据库名称不合法")
 	}
-	return clientSqlServer.NewManager(ctx, connection.Config, databaseName)
+	manager, err := clientSqlServer.NewManager(ctx, connection.Config, databaseName)
+	if err != nil {
+		return nil, err
+	}
+	return manager, nil
 }
 
 // Sqlite 按实例和库名创建独立连接，使用后由调用方关闭。
-func (s *service) Sqlite(ctx context.Context, id int64, databaseName string) (*clientSqlite.Manager, error) {
+func (s *service) Sqlite(ctx context.Context, id int64, databaseName string) (clientSqlite.Interface, error) {
 	connection, err := s.FindConnection(id, database_kind.Sqlite)
 	if err != nil {
 		return nil, err
@@ -152,11 +164,15 @@ func (s *service) Sqlite(ctx context.Context, id int64, databaseName string) (*c
 	if len(databaseName) > 1024 || strings.ContainsRune(databaseName, 0) {
 		return nil, errors.New("数据库名称不合法")
 	}
-	return clientSqlite.NewManager(ctx, connection.Config, databaseName)
+	manager, err := clientSqlite.NewManager(ctx, connection.Config, databaseName)
+	if err != nil {
+		return nil, err
+	}
+	return manager, nil
 }
 
 // Redis 按实例和库名创建独立连接，使用后由调用方关闭。
-func (s *service) Redis(ctx context.Context, id int64, databaseName string) (*clientRedis.Manager, error) {
+func (s *service) Redis(ctx context.Context, id int64, databaseName string) (clientRedis.Interface, error) {
 	connection, err := s.FindConnection(id, database_kind.Redis)
 	if err != nil {
 		return nil, err
@@ -164,11 +180,15 @@ func (s *service) Redis(ctx context.Context, id int64, databaseName string) (*cl
 	if len(databaseName) > 1024 || strings.ContainsRune(databaseName, 0) {
 		return nil, errors.New("数据库名称不合法")
 	}
-	return clientRedis.NewManager(ctx, connection.Config, databaseName)
+	manager, err := clientRedis.NewManager(ctx, connection.Config, databaseName)
+	if err != nil {
+		return nil, err
+	}
+	return manager, nil
 }
 
 // Mongo 按实例和库名创建独立连接，使用后由调用方关闭。
-func (s *service) Mongo(ctx context.Context, id int64, databaseName string) (*clientMongo.Manager, error) {
+func (s *service) Mongo(ctx context.Context, id int64, databaseName string) (clientMongo.Interface, error) {
 	connection, err := s.FindConnection(id, database_kind.MongoDB)
 	if err != nil {
 		return nil, err
@@ -176,14 +196,22 @@ func (s *service) Mongo(ctx context.Context, id int64, databaseName string) (*cl
 	if len(databaseName) > 1024 || strings.ContainsRune(databaseName, 0) {
 		return nil, errors.New("数据库名称不合法")
 	}
-	return clientMongo.NewManager(ctx, connection.Config, databaseName)
+	manager, err := clientMongo.NewManager(ctx, connection.Config, databaseName)
+	if err != nil {
+		return nil, err
+	}
+	return manager, nil
 }
 
 // Elasticsearch 将工作区数据库名称解释为具体索引，使用后由调用方关闭。
-func (s *service) Elasticsearch(ctx context.Context, id int64, databaseName string) (*clientElasticsearch.Manager, error) {
+func (s *service) Elasticsearch(ctx context.Context, id int64, databaseName string) (clientElasticsearch.Interface, error) {
 	connection, err := s.FindConnection(id, database_kind.Elasticsearch)
 	if err != nil {
 		return nil, err
 	}
-	return clientElasticsearch.NewManager(ctx, connection.Config, databaseName)
+	manager, err := clientElasticsearch.NewManager(ctx, connection.Config, databaseName)
+	if err != nil {
+		return nil, err
+	}
+	return manager, nil
 }

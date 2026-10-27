@@ -134,7 +134,10 @@ func (m *Manager) Status(ctx context.Context) (map[string]interface{}, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	result := map[string]interface{}{"health": data, "version": m.root}
+	result := map[string]interface{}{
+		"health":  data,
+		"version": m.root,
+	}
 	if statsErr != nil {
 		result["stats_error"] = statsErr.Error()
 	} else {

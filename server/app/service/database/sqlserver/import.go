@@ -56,7 +56,14 @@ func (m *Manager) Import(ctx context.Context, path string, progress ...func(floa
 		_, _ = reader.Discard(3)
 	}
 	boundary := regexp.MustCompile(`(?i)^\s*GO(?:\s+([0-9]+))?\s*(?:(?:--.*)|(?:/\*.*\*/))?\s*$`)
-	result := map[string]interface{}{"path": path, "size": info.Size(), "total": int64(0), "success": int64(0), "failed": 0, "unit": "批次"}
+	result := map[string]interface{}{
+		"path":    path,
+		"size":    info.Size(),
+		"total":   int64(0),
+		"success": int64(0),
+		"failed":  0,
+		"unit":    "批次",
+	}
 	var batch bytes.Buffer
 	var quote byte
 	depth := 0

@@ -6,6 +6,7 @@ import {Icon, ProModal, Title, useTheme} from "sinking-antd";
 interface TerminalModalProps {
     title: string;
     open: boolean;
+    zIndex?: number;
     onClose: () => void;
     destroyOnHidden?: boolean;
     loading?: boolean;
@@ -161,7 +162,7 @@ const useStyles = createStyles(({css, token}: any, {compact}: {compact: boolean}
 });
 
 const TerminalModal = ({
-    title, open, onClose, destroyOnHidden = false, loading = false, closable = true, toolbarRef, children,
+    title, open, zIndex, onClose, destroyOnHidden = false, loading = false, closable = true, toolbarRef, children,
 }: TerminalModalProps) => {
     const theme = useTheme();
     const compact = Boolean(theme?.isCompactTheme?.());
@@ -186,6 +187,7 @@ const TerminalModal = ({
         onCancel={onClose}
         modalProps={{
             open,
+            zIndex,
             rootClassName: styles.modal,
             destroyOnHidden,
             style: {

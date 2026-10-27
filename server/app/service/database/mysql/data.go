@@ -129,7 +129,10 @@ func (m *Manager) read(rows *sql.Rows, limit int) (*Result, error) {
 	if err != nil {
 		return nil, err
 	}
-	result := &Result{Columns: columns, Rows: make([][]interface{}, 0)}
+	result := &Result{
+		Columns: columns,
+		Rows:    make([][]interface{}, 0),
+	}
 	binaryColumns := make(map[string]bool)
 	binaryTypes := make([]bool, len(types))
 	for index, columnType := range types {
@@ -179,7 +182,10 @@ func (m *Manager) read(rows *sql.Rows, limit int) (*Result, error) {
 					truncated = append(truncated, [2]int{len(result.Rows), index})
 				}
 				if binary {
-					values[index] = map[string]string{"encoding": "base64", "data": base64.StdEncoding.EncodeToString(value)}
+					values[index] = map[string]string{
+						"encoding": "base64",
+						"data":     base64.StdEncoding.EncodeToString(value),
+					}
 					binaryColumns[columns[index]] = true
 				} else {
 					for !utf8.Valid(value) && len(value) > 0 {
@@ -321,7 +327,15 @@ func (m *Manager) Rows(ctx context.Context, schemaName, tableName, filtersJSON, 
 				where = append(where, column+" IN ("+strings.Join(positions, ",")+")")
 				continue
 			}
-			op, ok := map[string]string{"eq": "=", "ne": "<>", "gt": ">", "gte": ">=", "lt": "<", "lte": "<=", "like": "LIKE"}[filter.Operator]
+			op, ok := map[string]string{
+				"eq":   "=",
+				"ne":   "<>",
+				"gt":   ">",
+				"gte":  ">=",
+				"lt":   "<",
+				"lte":  "<=",
+				"like": "LIKE",
+			}[filter.Operator]
 			if !ok {
 				return nil, errors.New("不支持的筛选操作符")
 			}
@@ -711,5 +725,9 @@ func (m *Manager) executeRow(ctx context.Context, query string, args []interface
 	if err = tx.Commit(); err != nil {
 		return nil, err
 	}
-	return &Result{Columns: []string{}, Rows: [][]interface{}{}, Affected: affected}, nil
+	return &Result{
+		Columns:  []string{},
+		Rows:     [][]interface{}{},
+		Affected: affected,
+	}, nil
 }

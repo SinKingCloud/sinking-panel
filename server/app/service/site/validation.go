@@ -106,7 +106,12 @@ func (s *service) prepareSite(data *model.Site, input []SiteDomain, previous []*
 		if old := previousByName[domain]; old != nil {
 			id = old.Id
 		}
-		result = append(result, &model.SiteDomain{Id: id, SiteId: data.Id, CertId: item.CertId, Domain: domain})
+		result = append(result, &model.SiteDomain{
+			Id:     id,
+			SiteId: data.Id,
+			CertId: item.CertId,
+			Domain: domain,
+		})
 		if item.CertId > 0 {
 			certIds[item.CertId] = struct{}{}
 		}

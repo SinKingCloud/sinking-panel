@@ -1,0 +1,16 @@
+// request 已完成鉴权并解包响应 data；接口失败时抛出 Error。
+export type PluginRequest = (action: string, params?: Record<string, unknown>) => Promise<any>;
+
+export interface PluginPageProps {
+    software: any;
+    request: PluginRequest;
+    onClose: () => void;
+}
+
+export interface Note {
+    id: number;
+    title: string;
+    content: string;
+    create_time: string;
+    update_time: string;
+}

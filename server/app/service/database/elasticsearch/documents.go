@@ -193,15 +193,24 @@ func (m *Manager) Documents(ctx context.Context, query, pagination, searchID, cu
 				return nil, errors.New("部分分片无法创建快照，请恢复分片后重新查询")
 			}
 		}
-		body["pit"] = map[string]interface{}{"id": searchID, "keep_alive": "2m"}
+		body["pit"] = map[string]interface{}{
+			"id":         searchID,
+			"keep_alive": "2m",
+		}
 		data, status, err = m.doRequest(ctx, http.MethodPost, "/_search", body)
 	case "scroll":
 		if searchID == "" {
 			data, status, err = m.doRequest(ctx, http.MethodPost, path+"/_search?scroll=2m", body)
 		} else if m.major < 2 {
-			data, status, err = m.doRequest(ctx, http.MethodPost, "/_search/scroll?"+url.Values{"scroll": {"2m"}, "scroll_id": {searchID}}.Encode(), nil)
+			data, status, err = m.doRequest(ctx, http.MethodPost, "/_search/scroll?"+url.Values{
+				"scroll":    {"2m"},
+				"scroll_id": {searchID},
+			}.Encode(), nil)
 		} else {
-			data, status, err = m.doRequest(ctx, http.MethodPost, "/_search/scroll", map[string]interface{}{"scroll": "2m", "scroll_id": searchID})
+			data, status, err = m.doRequest(ctx, http.MethodPost, "/_search/scroll", map[string]interface{}{
+				"scroll":    "2m",
+				"scroll_id": searchID,
+			})
 		}
 	default:
 		data, status, err = m.doRequest(ctx, http.MethodPost, path+"/_search", body)
@@ -280,8 +289,18 @@ func (m *Manager) Documents(ctx context.Context, query, pagination, searchID, cu
 		hasMore = hasMore && (page+1)*pageSize <= 10000
 	}
 	completed = true
-	return &DocumentPage{Documents: documents, Total: total, TotalRelation: relation, Page: page, PageSize: pageSize,
-		HasMore: hasMore, ElapsedMS: number(result["took"]), Pagination: pagination, SearchID: searchID, NextCursor: nextCursor}, nil
+	return &DocumentPage{
+		Documents:     documents,
+		Total:         total,
+		TotalRelation: relation,
+		Page:          page,
+		PageSize:      pageSize,
+		HasMore:       hasMore,
+		ElapsedMS:     number(result["took"]),
+		Pagination:    pagination,
+		SearchID:      searchID,
+		NextCursor:    nextCursor,
+	}, nil
 }
 
 func validateDocumentID(id string) error {
@@ -360,7 +379,10 @@ func (m *Manager) Insert(ctx context.Context, documentID, document, documentType
 		path += "/" + url.PathEscape(documentID)
 		method = http.MethodPut
 	}
-	params := url.Values{"op_type": {"create"}, "refresh": {"true"}}
+	params := url.Values{
+		"op_type": {"create"},
+		"refresh": {"true"},
+	}
 	if routing != "" {
 		params.Set("routing", routing)
 	}

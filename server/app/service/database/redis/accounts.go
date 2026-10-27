@@ -53,7 +53,12 @@ func (m *Manager) Users(ctx context.Context) (result interface{}, err error) {
 		}
 		rows = append(rows, row)
 	}
-	return map[string]interface{}{"list": rows, "total": len(rows), "scope": "server", "message": "Redis ACL 权限作用于整个实例，不能限制为单个逻辑库"}, nil
+	return map[string]interface{}{
+		"list":    rows,
+		"total":   len(rows),
+		"scope":   "server",
+		"message": "Redis ACL 权限作用于整个实例，不能限制为单个逻辑库",
+	}, nil
 }
 
 // CreateUser 一次创建账户及其数据权限，避免创建成功但授权失败。
@@ -239,7 +244,10 @@ func (m *Manager) privileges(values []string) ([]string, error) {
 	if len(values) == 0 || len(values) > 16 {
 		return nil, errors.New("请选择有效的账户权限")
 	}
-	allowed := map[string]string{"read": "@read", "write": "@write"}
+	allowed := map[string]string{
+		"read":  "@read",
+		"write": "@write",
+	}
 	roles := make([]string, 0, len(values))
 	for _, value := range values {
 		role, ok := allowed[value]
@@ -285,11 +293,20 @@ func (m *Manager) parseAccount(name, current string, value interface{}) (map[str
 		}
 	}
 	inspect(fields)
-	return map[string]interface{}{"name": name, "roles": commands, "protected": protected}, nil
+	return map[string]interface{}{
+		"name":      name,
+		"roles":     commands,
+		"protected": protected,
+	}, nil
 }
 
 func (m *Manager) persistAccount(ctx context.Context) interface{} {
-	result := map[string]interface{}{"changed": true, "persisted": true, "scope": "server", "message": "账户操作成功"}
+	result := map[string]interface{}{
+		"changed":   true,
+		"persisted": true,
+		"scope":     "server",
+		"message":   "账户操作成功",
+	}
 	// ACL 文件与 redis.conf 使用不同保存机制；持久化失败必须说明运行态已经改变。
 	err := m.client.Do(ctx, "ACL", "SAVE").Err()
 	if err != nil && strings.Contains(strings.ToLower(err.Error()), "not configured") && strings.Contains(strings.ToLower(err.Error()), "acl") {

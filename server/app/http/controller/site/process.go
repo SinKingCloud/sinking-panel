@@ -27,7 +27,11 @@ func Process(c *context.Context) {
 		} else {
 			msg := "获取成功"
 			if form.Action != "status" {
-				action := map[string]string{"start": "启动", "stop": "停止", "restart": "重启"}[form.Action]
+				action := map[string]string{
+					"start":   "启动",
+					"stop":    "停止",
+					"restart": "重启",
+				}[form.Action]
 				service.Log.Create(c.GetRequestIp(), log_type.EventUpdate, action+"项目进程", action+"网站["+strconv.FormatInt(form.Id, 10)+"]进程")
 				msg = action + "成功"
 			}

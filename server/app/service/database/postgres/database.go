@@ -28,7 +28,14 @@ func (m *Manager) DatabaseInfo(ctx context.Context, name string) (_ map[string]i
 	if err != nil {
 		return nil, err
 	}
-	return map[string]interface{}{"name": databaseName, "owner": owner, "encoding": encoding, "collation": collation, "allow_connections": allowConnections, "size": size}, nil
+	return map[string]interface{}{
+		"name":              databaseName,
+		"owner":             owner,
+		"encoding":          encoding,
+		"collation":         collation,
+		"allow_connections": allowConnections,
+		"size":              size,
+	}, nil
 }
 
 // CreateDatabase 创建真实数据库，继承服务器模板库的默认配置。

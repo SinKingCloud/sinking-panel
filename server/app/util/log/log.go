@@ -88,7 +88,11 @@ func Read(path string, after int64, before int64, pageSize int, previous ...stri
 			file  *os.File
 			start int64
 			size  int64
-		}{file: file, start: size, size: stat.Size()})
+		}{
+			file:  file,
+			start: size,
+			size:  stat.Size(),
+		})
 		size += stat.Size()
 	}
 	defer closeSegments()

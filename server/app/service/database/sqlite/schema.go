@@ -207,7 +207,11 @@ func (m *Manager) CreateTable(ctx context.Context, schemaName, tableName string,
 	if err = tx.Commit(); err != nil {
 		return nil, err
 	}
-	return &Result{Columns: []string{}, Rows: [][]interface{}{}, ElapsedMs: time.Since(started).Milliseconds()}, nil
+	return &Result{
+		Columns:   []string{},
+		Rows:      [][]interface{}{},
+		ElapsedMs: time.Since(started).Milliseconds(),
+	}, nil
 }
 
 // RenameTable 使用原生改名，索引、触发器和外键由 Sqlite 一并维护。
@@ -229,7 +233,11 @@ func (m *Manager) RenameTable(ctx context.Context, schemaName, tableName, newNam
 	if _, err = m.db.ExecContext(ctx, "ALTER TABLE "+table+" RENAME TO "+name); err != nil {
 		return nil, err
 	}
-	return &Result{Columns: []string{}, Rows: [][]interface{}{}, ElapsedMs: time.Since(started).Milliseconds()}, nil
+	return &Result{
+		Columns:   []string{},
+		Rows:      [][]interface{}{},
+		ElapsedMs: time.Since(started).Milliseconds(),
+	}, nil
 }
 
 // AddColumn 添加字段，依赖引擎校验已有数据与默认值，不重建数据表。
@@ -251,7 +259,11 @@ func (m *Manager) AddColumn(ctx context.Context, schemaName, tableName string, c
 	if _, err = m.db.ExecContext(ctx, "ALTER TABLE "+table+" ADD COLUMN "+definition); err != nil {
 		return nil, err
 	}
-	return &Result{Columns: []string{}, Rows: [][]interface{}{}, ElapsedMs: time.Since(started).Milliseconds()}, nil
+	return &Result{
+		Columns:   []string{},
+		Rows:      [][]interface{}{},
+		ElapsedMs: time.Since(started).Milliseconds(),
+	}, nil
 }
 
 // UpdateColumn 单纯改名走原生语法，类型/默认值/非空变更采用事务迁移并保留依赖。
@@ -304,7 +316,11 @@ func (m *Manager) UpdateColumn(ctx context.Context, schemaName, tableName, colum
 			return nil, err
 		}
 	}
-	return &Result{Columns: []string{}, Rows: [][]interface{}{}, ElapsedMs: time.Since(started).Milliseconds()}, nil
+	return &Result{
+		Columns:   []string{},
+		Rows:      [][]interface{}{},
+		ElapsedMs: time.Since(started).Milliseconds(),
+	}, nil
 }
 
 // DropColumn 使用原生删除；字段被索引、外键或触发器引用时由引擎拒绝。
@@ -323,7 +339,11 @@ func (m *Manager) DropColumn(ctx context.Context, schemaName, tableName, columnN
 	if _, err = m.db.ExecContext(ctx, "ALTER TABLE "+table+" DROP COLUMN "+column); err != nil {
 		return nil, err
 	}
-	return &Result{Columns: []string{}, Rows: [][]interface{}{}, ElapsedMs: time.Since(started).Milliseconds()}, nil
+	return &Result{
+		Columns:   []string{},
+		Rows:      [][]interface{}{},
+		ElapsedMs: time.Since(started).Milliseconds(),
+	}, nil
 }
 
 // CreateIndex 创建普通或唯一索引；已有表的主键不能通过索引接口替换。
@@ -375,7 +395,11 @@ func (m *Manager) CreateIndex(ctx context.Context, schemaName, tableName, indexN
 	if _, err = m.db.ExecContext(ctx, prefix+`"main".`+index+" ON "+table+" ("+strings.Join(fields, ", ")+")"); err != nil {
 		return nil, err
 	}
-	return &Result{Columns: []string{}, Rows: [][]interface{}{}, ElapsedMs: time.Since(started).Milliseconds()}, nil
+	return &Result{
+		Columns:   []string{},
+		Rows:      [][]interface{}{},
+		ElapsedMs: time.Since(started).Milliseconds(),
+	}, nil
 }
 
 // DropIndex 确认索引属于当前表，只删除显式创建的索引。
@@ -404,7 +428,11 @@ func (m *Manager) DropIndex(ctx context.Context, schemaName, tableName, indexNam
 	if _, err = m.db.ExecContext(ctx, `DROP INDEX "main".`+index); err != nil {
 		return nil, err
 	}
-	return &Result{Columns: []string{}, Rows: [][]interface{}{}, ElapsedMs: time.Since(started).Milliseconds()}, nil
+	return &Result{
+		Columns:   []string{},
+		Rows:      [][]interface{}{},
+		ElapsedMs: time.Since(started).Milliseconds(),
+	}, nil
 }
 
 // DDL 返回真实建表或视图语句，并保留表的索引和触发器定义。
@@ -468,5 +496,9 @@ func (m *Manager) CreateView(ctx context.Context, schemaName, viewName, statemen
 	if _, err = m.db.ExecContext(ctx, "CREATE VIEW "+view+" AS "+statement); err != nil {
 		return nil, err
 	}
-	return &Result{Columns: []string{}, Rows: [][]interface{}{}, ElapsedMs: time.Since(started).Milliseconds()}, nil
+	return &Result{
+		Columns:   []string{},
+		Rows:      [][]interface{}{},
+		ElapsedMs: time.Since(started).Milliseconds(),
+	}, nil
 }

@@ -16,7 +16,7 @@ import (
 
 // Service 暴露方法。
 type Service interface {
-	Start()
+	Start(monitor ...bool)
 	Close()
 	Restart(action string, containers bool) error                            // 重启面板或服务器，可选同时重启容器
 	GetInfo() map[string]interface{}                                         // 主机、系统和运行时信息
@@ -114,22 +114,27 @@ func NewService(fileService serviceFile.Service, daemon *daemon.Daemon) *service
 	return s
 }
 
-// Start 启动任务 worker 和系统监控。
-func (s *service) Start() {
+// Start 启动任务 worker；命令行传入 false 时保留日志且不启动系统监控。
+func (s *service) Start(monitor ...bool) {
 	s.lifecycleMu.Lock()
 	defer s.lifecycleMu.Unlock()
 	if s.started || s.closed {
 		return
 	}
-	// 系统任务仅保存在内存中，启动时清理上一次进程遗留的日志。
-	_ = os.RemoveAll(s.systemTaskLogDirectory)
+	background := len(monitor) == 0 || monitor[0]
+	// 只有面板正常启动才清理上一次进程遗留的任务日志。
+	if background {
+		_ = os.RemoveAll(s.systemTaskLogDirectory)
+	}
 	_ = os.MkdirAll(s.systemTaskLogDirectory, 0755)
 	s.started = true
 	s.wait.Add(s.maxTaskWorkers)
 	for i := 0; i < s.maxTaskWorkers; i++ {
 		go s.taskWorker()
 	}
-	s.startMonitor()
+	if background {
+		s.startMonitor()
+	}
 }
 
 // Close 停止后台任务并等待全部协程退出。

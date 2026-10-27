@@ -251,7 +251,10 @@ func (m *Manager) CreateTable(ctx context.Context, schemaName, tableName string,
 	if err = tx.Commit(); err != nil {
 		return nil, err
 	}
-	return &Result{Columns: []string{}, Rows: [][]interface{}{}}, nil
+	return &Result{
+		Columns: []string{},
+		Rows:    [][]interface{}{},
+	}, nil
 }
 
 // RenameTable 重命名表、视图或物化视图。
@@ -442,7 +445,11 @@ func (m *Manager) UpdateColumn(ctx context.Context, schemaName, tableName, colum
 	if err = tx.Commit(); err != nil {
 		return nil, err
 	}
-	return &Result{Columns: []string{}, Rows: [][]interface{}{}, ElapsedMs: time.Since(started).Milliseconds()}, nil
+	return &Result{
+		Columns:   []string{},
+		Rows:      [][]interface{}{},
+		ElapsedMs: time.Since(started).Milliseconds(),
+	}, nil
 }
 
 // DropColumn 删除字段，不自动 CASCADE 删除依赖对象。

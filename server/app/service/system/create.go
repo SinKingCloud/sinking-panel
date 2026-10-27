@@ -31,7 +31,12 @@ func (s *service) TaskCreate(id, name string, data interface{}, run func(context
 	s.appendTaskLog(id, system_task_status.Pending, 0, "任务已创建，等待执行")
 
 	s.queueMu.Lock()
-	s.jobs[id] = &job{id: id, ctx: ctx, data: data, run: run}
+	s.jobs[id] = &job{
+		id:   id,
+		ctx:  ctx,
+		data: data,
+		run:  run,
+	}
 	s.queue = append(s.queue, id)
 	s.queueCond.Signal()
 	s.queueMu.Unlock()

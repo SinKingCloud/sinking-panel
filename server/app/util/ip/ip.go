@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"server/app/constant"
 	"server/app/util/file"
@@ -18,6 +19,15 @@ func Query(ip string) (*Info, error) {
 	if parse == nil {
 		return nil, errors.New("ip格式不正确")
 	}
+	// 首次查询时加载，插件初始化等命令无需创建 IP 数据文件。
+	initialize.Do(func() {
+		if path, err := initIPFile("ipv4"); err == nil && path != "" {
+			v4Search, _ = czdb.NewDbSearcher(path, "MEMORY", key)
+		}
+		if path, err := initIPFile("ipv6"); err == nil && path != "" {
+			v6Search, _ = czdb.NewDbSearcher(path, "MEMORY", key)
+		}
+	})
 	var txt string
 	var err error
 	if parse.To4() != nil {
@@ -68,22 +78,12 @@ func Query(ip string) (*Info, error) {
 }
 
 var (
-	v4Search *czdb.DbSearcher //ipv4查询
-	v6Search *czdb.DbSearcher //ipv6查询
+	initialize sync.Once
+	v4Search   *czdb.DbSearcher //ipv4查询
+	v6Search   *czdb.DbSearcher //ipv6查询
 )
 
 const key = "SFdbti7sFbLvmjxB/W179A==" //纯真IP库key
-
-func init() {
-	v4, err := initIPFile("ipv4")
-	if err == nil && v4 != "" {
-		v4Search, err = czdb.NewDbSearcher(v4, "MEMORY", key)
-	}
-	v6, err := initIPFile("ipv6")
-	if err == nil && v6 != "" {
-		v6Search, err = czdb.NewDbSearcher(v6, "MEMORY", key)
-	}
-}
 
 // initIPFile 初始化ip文件
 func initIPFile(name string) (string, error) {

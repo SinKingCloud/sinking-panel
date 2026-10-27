@@ -1,0 +1,32 @@
+// 前端 sdk 是面板运行时提供的共享模块，不是工程根目录的 Go sdk 包。
+// 这里只提供编辑器提示，不会执行代码，也不需要从 npm 下载同名包。
+declare module "sdk" {
+    import type {ComponentType, ForwardRefExoticComponent, RefAttributes} from "react";
+    import type {DropdownProps, GlobalToken, ModalProps} from "antd";
+
+    /** 插件弹窗沿用 Ant Design 属性，打开、关闭与资源释放由面板管理。 */
+    export type PluginModalProps = Omit<ModalProps,
+        "open" | "onCancel" | "afterClose" | "afterOpenChange" | "destroyOnHidden" |
+        "destroyOnClose" | "forceRender" | "getContainer" | "children" | "loading">;
+    /** 配置函数会随主题与屏幕断点变化重新计算，不可在函数内调用 Hooks。 */
+    export interface PluginModalContext {
+        software: any;
+        compact: boolean;
+        mobile: boolean;
+        token: GlobalToken;
+        onClose: () => void;
+    }
+    /** 在页面入口命名导出 modal，可以使用属性对象或同步配置函数。 */
+    export type PluginModal = PluginModalProps | ((context: PluginModalContext) => PluginModalProps);
+
+    /** 面板统一操作菜单，沿用 Ant Design Dropdown 的属性。 */
+    export const ActionDropdown: ForwardRefExoticComponent<DropdownProps & RefAttributes<HTMLElement>>;
+    /** 面板日志组件；按宿主组件提供的属性使用。 */
+    export const Log: ForwardRefExoticComponent<any>;
+    /** 面板容器终端，仅在宿主支持容器时使用。 */
+    export const ContainerTerminal: ComponentType<any>;
+    /** 面板动态表单字段。 */
+    export const FormField: ComponentType<any>;
+    /** 格式化字节数；默认采用 1024 进制。 */
+    export function formatSize(size: any, base?: 1000 | 1024): string;
+}

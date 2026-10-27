@@ -57,10 +57,17 @@ func Ssh(c *context.Context) {
 	if err != nil {
 		return
 	}
-	ssh := &connection{connection: socket, done: make(chan struct{})}
+	ssh := &connection{
+		connection: socket,
+		done:       make(chan struct{}),
+	}
 	serverData, err := service.Server.FindById(form.Id)
 	if err != nil || serverData == nil {
-		response, marshalErr := json.Marshal(message{Event: "error", Code: "server_not_found", Content: "获取服务器信息失败"})
+		response, marshalErr := json.Marshal(message{
+			Event:   "error",
+			Code:    "server_not_found",
+			Content: "获取服务器信息失败",
+		})
 		if marshalErr == nil {
 			_ = ssh.send(websocket.BinaryMessage, response)
 		}
@@ -110,7 +117,11 @@ func Ssh(c *context.Context) {
 		}
 	}
 	if code != "" {
-		response, marshalErr := json.Marshal(message{Event: "error", Code: code, Content: errorMessage})
+		response, marshalErr := json.Marshal(message{
+			Event:   "error",
+			Code:    code,
+			Content: errorMessage,
+		})
 		if marshalErr == nil {
 			_ = ssh.send(websocket.BinaryMessage, response)
 		}
@@ -182,7 +193,10 @@ func Ssh(c *context.Context) {
 		}
 		switch data.Event {
 		case "ping":
-			response, err = json.Marshal(message{Event: "pong", Content: strconv.FormatInt(time.Now().Unix(), 10)})
+			response, err = json.Marshal(message{
+				Event:   "pong",
+				Content: strconv.FormatInt(time.Now().Unix(), 10),
+			})
 			if err == nil {
 				err = ssh.send(websocket.BinaryMessage, response)
 			}

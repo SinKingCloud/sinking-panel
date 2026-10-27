@@ -667,9 +667,13 @@ func (m *Manager) List() []*Instance {
 	result := make([]*Instance, 0, len(m.instances))
 	for _, instance := range m.instances {
 		item := &Instance{
-			ID: instance.ID, Name: instance.Name, ImageID: instance.ImageID,
-			Status: instance.Status, CreatedAt: instance.CreatedAt,
-			AutoRestart: instance.AutoRestart, ManualStop: instance.ManualStop,
+			ID:          instance.ID,
+			Name:        instance.Name,
+			ImageID:     instance.ImageID,
+			Status:      instance.Status,
+			CreatedAt:   instance.CreatedAt,
+			AutoRestart: instance.AutoRestart,
+			ManualStop:  instance.ManualStop,
 		}
 		if image := m.images[instance.ImageID]; image != nil {
 			item.ImageName = image.Name

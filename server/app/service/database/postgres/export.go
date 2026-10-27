@@ -708,5 +708,12 @@ func (m *Manager) Export(ctx context.Context, path, schema, table string, progre
 		return nil, err
 	}
 	report(99, "SQL 文件已导出")
-	return map[string]interface{}{"path": path, "size": stat.Size(), "total": count, "success": count, "statements": statements, "unit": "记录"}, nil
+	return map[string]interface{}{
+		"path":       path,
+		"size":       stat.Size(),
+		"total":      count,
+		"success":    count,
+		"statements": statements,
+		"unit":       "记录",
+	}, nil
 }

@@ -14,7 +14,10 @@ func (m *Manager) DatabaseInfo(ctx context.Context) (map[string]interface{}, err
 		return nil, err
 	}
 	defer conn.Close()
-	result := map[string]interface{}{"name": "main", "exists": true}
+	result := map[string]interface{}{
+		"name":   "main",
+		"exists": true,
+	}
 	for key, query := range map[string]string{
 		"page_size":  "PRAGMA main.page_size",
 		"page_count": "PRAGMA main.page_count",

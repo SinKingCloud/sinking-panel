@@ -33,7 +33,11 @@ func newJob(task *model.Task, service *service) *job {
 		return nil
 	}
 	task.Script = content
-	return &job{Task: task, service: service, ctx: service.ctx}
+	return &job{
+		Task:    task,
+		service: service,
+		ctx:     service.ctx,
+	}
 }
 
 func (j *job) Run() {

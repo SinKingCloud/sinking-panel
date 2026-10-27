@@ -1,0 +1,64 @@
+import React, {useEffect, useState} from "react";
+import {Button, Empty, Spin, Tag, Typography} from "antd";
+import {Icon, useTheme} from "sinking-antd";
+import useStyles from "../styles";
+import type {PluginPageProps} from "../types";
+
+export default function Overview({software, request, onNavigate}: PluginPageProps & {onNavigate: (key: string) => void}) {
+    const theme = useTheme();
+    const {styles} = useStyles({compact: Boolean(theme?.isCompactTheme?.())});
+    const [info, setInfo] = useState<any>();
+    const [error, setError] = useState("");
+    const [loading, setLoading] = useState(true);
+    const [refresh, setRefresh] = useState(0);
+    useEffect(() => {
+        let active = true;
+        setLoading(true); setError("");
+        void request("info").then((data) => {
+            if (!active) return;
+            if (!data?.instance_id) throw new Error("未返回完整的插件信息");
+            setInfo(data);
+        }).catch((reason) => { if (active) setError(reason?.message || "获取运行信息失败"); })
+            .finally(() => { if (active) setLoading(false); });
+        return () => { active = false; };
+    }, [request, refresh]);
+
+    return <>
+        <div className={styles.heading}><div><h3>运行概览</h3><p>从一个可运行的业务，了解插件的完整开发流程。</p></div>
+            <Button color="default" variant="filled" aria-label="刷新运行信息" icon={<Icon type="ReloadOutlined"/>} loading={loading} onClick={() => setRefresh((value) => value + 1)}/></div>
+        {loading && !info ? <div className={styles.empty}><Spin/></div> : error ? <div className={styles.empty}>
+            <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={error}/>
+            <Button color="default" variant="filled" onClick={() => setRefresh((value) => value + 1)}>重新加载</Button>
+        </div> : <>
+            <div className={styles.summary}>
+                <div><span>插件状态</span><strong>{info?.started ? "运行中" : "已停止"}</strong></div>
+                <div><span>业务记录</span><strong>{Number(info?.note_count) || 0}<small style={{fontSize: "0.65em", marginLeft: 5}}>条</small></strong></div>
+                <div><span>临时缓存</span><strong>{info?.cache_exists ? "已写入" : "未设置"}</strong></div>
+            </div>
+            <section className={styles.section}>
+                <div className={styles.sectionTitle}><h4>开始体验</h4><span>操作与源码一一对应</span></div>
+                <div className={styles.shortcuts}>
+                    {[
+                        {key: "notes", icon: "DatabaseOutlined", title: "管理业务数据", text: "分页、搜索、排序、事务与批量操作"},
+                        {key: "settings", icon: "ControlOutlined", title: "保存配置与缓存", text: "持久配置、缓存有效期与实时读取"},
+                        {key: "tasks", icon: "ScheduleOutlined", title: "执行后台任务", text: "异步执行、进度更新与取消"},
+                        {key: "playground", icon: "ApiOutlined", title: "调试真实接口", text: "切换请求示例，查看实际结果与耗时"},
+                    ].map((item) => <button type="button" key={item.key} onClick={() => onNavigate(item.key)}>
+                        <Icon type={item.icon}/><div><strong>{item.title}</strong><small>{item.text}</small></div><Icon type="RightOutlined"/>
+                    </button>)}
+                </div>
+            </section>
+            <section className={styles.section}>
+                <div className={styles.sectionTitle}><h4>运行信息</h4><Button type="text" size="small" onClick={() => onNavigate("docs")}>查看开发文档 <Icon type="ArrowRightOutlined"/></Button></div>
+                <dl className={styles.details}>
+                    <div><dt>插件标识</dt><dd><Typography.Text copyable={{tooltips: false}}>{info?.instance_id || "—"}</Typography.Text></dd></div>
+                    <div><dt>当前版本</dt><dd>{software?.version || "—"}</dd></div>
+                    <div><dt>运行平台</dt><dd>{info?.system || "—"} / {info?.architecture || "—"}</dd></div>
+                    <div><dt>最近心跳</dt><dd>{info?.heartbeat ? new Date(info.heartbeat).toLocaleString() : "尚未启动"}</dd></div>
+                    <div><dt>持久配置</dt><dd><Tag variant="filled" color={info?.configured ? "success" : "default"}>{info?.configured ? "已初始化" : "未初始化"}</Tag></dd></div>
+                    <div><dt>业务数据表</dt><dd><Typography.Text copyable={{tooltips: false}}>{info?.table || "—"}</Typography.Text></dd></div>
+                </dl>
+            </section>
+        </>}
+    </>;
+}

@@ -82,9 +82,10 @@ func (m *Manager) rebuildTable(ctx context.Context, schemaName, tableName string
 	}
 	// 只在本方法中保留 token 的原文位置，避免重写不相关的 SQL 片段。
 	type token struct {
-		text       string
-		start, end int
-		quoted     bool
+		text   string
+		start  int
+		end    int
+		quoted bool
 	}
 	number := regexp.MustCompile(`(?i)^(?:0x[0-9a-f](?:_?[0-9a-f])*|(?:[0-9](?:_?[0-9])*(?:\.(?:[0-9](?:_?[0-9])*)?)?|\.[0-9](?:_?[0-9])*)(?:e[+-]?[0-9](?:_?[0-9])*)?)`)
 	tokenize := func(text string) ([]token, error) {
@@ -140,7 +141,12 @@ func (m *Manager) rebuildTable(ctx context.Context, schemaName, tableName string
 				if !closed {
 					return nil, errors.New("数据表定义存在未闭合引号")
 				}
-				result = append(result, token{text: value.String(), start: start, end: index, quoted: true})
+				result = append(result, token{
+					text:   value.String(),
+					start:  start,
+					end:    index,
+					quoted: true,
+				})
 				continue
 			}
 			if value := number.FindString(text[index:]); value != "" {
@@ -152,7 +158,11 @@ func (m *Manager) rebuildTable(ctx context.Context, schemaName, tableName string
 					index++
 				}
 			}
-			result = append(result, token{text: strings.ToUpper(text[start:index]), start: start, end: index})
+			result = append(result, token{
+				text:  strings.ToUpper(text[start:index]),
+				start: start,
+				end:   index,
+			})
 		}
 		return result, nil
 	}
@@ -281,8 +291,10 @@ func (m *Manager) rebuildTable(ctx context.Context, schemaName, tableName string
 		fields = append([]string{quoted}, fields...)
 	}
 	type part struct {
-		clause, start, end int
-		name               string
+		clause int
+		start  int
+		end    int
+		name   string
 	}
 	foreignParts := make([]part, 0)
 	changedColumn := false
@@ -327,7 +339,11 @@ func (m *Manager) rebuildTable(ctx context.Context, schemaName, tableName string
 			} else if item.text == ")" {
 				level--
 			} else if level == 0 && item.text == "REFERENCES" {
-				foreign := part{clause: clauseIndex, start: 0, end: len(original)}
+				foreign := part{
+					clause: clauseIndex,
+					start:  0,
+					end:    len(original),
+				}
 				if isTableConstraint {
 					if items[0].text == "CONSTRAINT" && len(items) > 1 {
 						foreign.name = items[1].text
@@ -406,8 +422,9 @@ func (m *Manager) rebuildTable(ctx context.Context, schemaName, tableName string
 			return nil, err
 		}
 		type replacement struct {
-			start, end int
-			text       string
+			start int
+			end   int
+			text  string
 		}
 		edits := make([]replacement, 0)
 		if !strings.EqualFold(strings.TrimSpace(types[lower]), strings.TrimSpace(column.Type)) {
@@ -415,7 +432,11 @@ func (m *Manager) rebuildTable(ctx context.Context, schemaName, tableName string
 			if constraintStart < len(items) {
 				end = items[constraintStart].start
 			}
-			edits = append(edits, replacement{start: items[0].end, end: end, text: " " + strings.TrimSpace(column.Type) + " "})
+			edits = append(edits, replacement{
+				start: items[0].end,
+				end:   end,
+				text:  " " + strings.TrimSpace(column.Type) + " ",
+			})
 		}
 		currentDefault := defaults[lower]
 		defaultSame := !currentDefault.Valid && column.Default == nil
@@ -502,7 +523,10 @@ func (m *Manager) rebuildTable(ctx context.Context, schemaName, tableName string
 					end++
 				}
 				if !defaultSame {
-					edits = append(edits, replacement{start: start, end: items[end-1].end})
+					edits = append(edits, replacement{
+						start: start,
+						end:   items[end-1].end,
+					})
 				}
 				index = end - 1
 			} else if !nullableSame && ((item.text == "NOT" && index+1 < len(items) && items[index+1].text == "NULL") || item.text == "NULL") {
@@ -513,7 +537,10 @@ func (m *Manager) rebuildTable(ctx context.Context, schemaName, tableName string
 				if end+2 < len(items) && items[end].text == "ON" && items[end+1].text == "CONFLICT" {
 					end += 3
 				}
-				edits = append(edits, replacement{start: start, end: items[end-1].end})
+				edits = append(edits, replacement{
+					start: start,
+					end:   items[end-1].end,
+				})
 				index = end - 1
 			}
 		}
@@ -717,5 +744,9 @@ func (m *Manager) rebuildTable(ctx context.Context, schemaName, tableName string
 	if err = tx.Commit(); err != nil {
 		return nil, fmt.Errorf("结构修改提交结果未确认，请重新读取结构：%w", err)
 	}
-	return &Result{Columns: []string{}, Rows: [][]interface{}{}, ElapsedMs: time.Since(started).Milliseconds()}, nil
+	return &Result{
+		Columns:   []string{},
+		Rows:      [][]interface{}{},
+		ElapsedMs: time.Since(started).Milliseconds(),
+	}, nil
 }

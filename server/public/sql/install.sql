@@ -291,3 +291,26 @@ create index if not exists cloud_databases_createTime_index
 
 create index if not exists cloud_databases_updateTime_index
     on cloud_databases (update_time);
+
+create table if not exists cloud_software
+(
+    id          bigint                  not null
+        constraint cloud_software_pk_id
+            primary key,
+    name        varchar(100) default ''  not null,
+    code        varchar(100)             not null,
+    version     varchar(50)  default ''  not null,
+    status      integer      default 0  not null,
+    config      text        default '{}' not null,
+    update_time text                    not null,
+    create_time text                    not null
+);
+
+create unique index if not exists cloud_software_code_index
+    on cloud_software (code);
+
+create index if not exists cloud_software_createTime_index
+    on cloud_software (create_time);
+
+create index if not exists cloud_software_updateTime_index
+    on cloud_software (update_time);

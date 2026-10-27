@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"time"
 
-	"server/app/service"
 	"server/global"
 
 	"github.com/SinKingCloud/sinking-go/sinking-web"
@@ -20,21 +19,23 @@ func loadErrorHandle(s *sinking_web.Engine) {
 	s.SetErrorHandle(&sinking_web.ErrorHandel{
 		//资源不存在错误
 		NotFound: func(c *sinking_web.Context) {
-			c.JSON(404, sinking_web.H{"code": 404, "message": "请求资源不存在"})
+			c.JSON(404, sinking_web.H{
+				"code":    404,
+				"message": "请求资源不存在",
+			})
 		},
 		//系统错误
 		Fail: func(c *sinking_web.Context, code int, message string) {
-			c.JSON(500, sinking_web.H{"code": code, "message": message})
+			c.JSON(500, sinking_web.H{
+				"code":    code,
+				"message": message,
+			})
 		},
 	})
 }
 
 // Init 初始化server
 func Init(stop <-chan struct{}) {
-	service.Init()
-	shutdown := service.Boot()
-	defer shutdown()
-
 	//实例化一个http server
 	r := sinking_web.Default()
 	//设置是否以debug模式运行

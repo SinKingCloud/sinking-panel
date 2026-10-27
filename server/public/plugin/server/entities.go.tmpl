@@ -1,0 +1,53 @@
+package app
+
+import (
+	"context"
+	"sync"
+
+	"sdk"
+)
+
+// demo 的资源只属于当前插件。通过 InstanceID 隔离表名、配置和缓存。
+type demo struct {
+	app        *sdk.App
+	group      string
+	table      string
+	mu         sync.Mutex
+	started    bool
+	heartbeat  string
+	runContext context.Context
+	cancel     context.CancelFunc
+	done       chan struct{}
+	job        *demoTask
+}
+
+// Note 是示例业务数据，字段与插件自己的 SQLite 表对应。
+type Note struct {
+	ID         int64  `json:"id" gorm:"column:id;primaryKey;autoIncrement"`
+	Title      string `json:"title" gorm:"column:title"`
+	Content    string `json:"content" gorm:"column:content"`
+	CreateTime string `json:"create_time" gorm:"column:create_time"`
+	UpdateTime string `json:"update_time" gorm:"column:update_time"`
+}
+
+// NoteSummary 是列表摘要；内容只在详情中读取，分页大小不受正文长度影响。
+type NoteSummary struct {
+	ID         int64  `json:"id" gorm:"column:id"`
+	Title      string `json:"title" gorm:"column:title"`
+	CreateTime string `json:"create_time" gorm:"column:create_time"`
+	UpdateTime string `json:"update_time" gorm:"column:update_time"`
+}
+
+// Settings 存在 Config 业务服务中，不是面板启动配置 App.Config。
+type Settings struct {
+	Greeting string `json:"greeting"`
+	Interval int    `json:"interval"`
+}
+
+// demoTask 跟踪当前任务，便于 Stop 取消并等待正在执行的回调。
+// 排队任务取消后不会调用回调，所以 Stop 只等待 Running=true 的任务。
+type demoTask struct {
+	ID      string
+	Done    chan struct{}
+	Running bool
+}

@@ -56,7 +56,14 @@ func (m *Manager) Import(ctx context.Context, path string, progress ...func(floa
 		defer libc.Xfree(tls, text)
 		return sqlite3.Xsqlite3_complete(tls, text) != 0, nil
 	}
-	result := map[string]interface{}{"path": path, "size": info.Size(), "total": int64(0), "success": int64(0), "failed": 0, "unit": "语句"}
+	result := map[string]interface{}{
+		"path":    path,
+		"size":    info.Size(),
+		"total":   int64(0),
+		"success": int64(0),
+		"failed":  0,
+		"unit":    "语句",
+	}
 	reader := bufio.NewReaderSize(file, 64<<10)
 	if bom, _ := reader.Peek(3); bytes.Equal(bom, []byte{0xef, 0xbb, 0xbf}) {
 		_, _ = reader.Discard(3)

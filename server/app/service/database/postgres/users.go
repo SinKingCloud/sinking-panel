@@ -81,7 +81,10 @@ FROM accounts r ORDER BY r.rolname`, schema, "%"+keyword+"%", pageSize, (pageNum
 	list := make([]map[string]interface{}, 0, len(records))
 	for _, record := range records {
 		roles := make([]string, 0)
-		for _, attribute := range []struct{ key, label string }{
+		for _, attribute := range []struct {
+			key   string
+			label string
+		}{
 			{"rolsuper", "SUPERUSER"}, {"rolcreatedb", "CREATEDB"}, {"rolcreaterole", "CREATEROLE"}, {"rolcanlogin", "LOGIN"},
 			{"connect_priv", "CONNECT"}, {"temporary_priv", "TEMPORARY"}, {"schema_usage", "USAGE"}, {"object_owner", "OWNER"},
 		} {
@@ -99,9 +102,19 @@ FROM accounts r ORDER BY r.rolname`, schema, "%"+keyword+"%", pageSize, (pageNum
 		}
 		name := fmt.Sprint(record["name"])
 		protected := m.truth(record["rolsuper"]) || m.truth(record["current_account"]) || name == "postgres" || strings.HasPrefix(name, "pg_")
-		list = append(list, map[string]interface{}{"name": record["name"], "roles": strings.Join(roles, ", "), "protected": protected, "password_editable": m.truth(record["password_editable"])})
+		list = append(list, map[string]interface{}{
+			"name":              record["name"],
+			"roles":             strings.Join(roles, ", "),
+			"protected":         protected,
+			"password_editable": m.truth(record["password_editable"]),
+		})
 	}
-	return map[string]interface{}{"list": list, "total": total, "page": pageNumber, "page_size": pageSize}, nil
+	return map[string]interface{}{
+		"list":      list,
+		"total":     total,
+		"page":      pageNumber,
+		"page_size": pageSize,
+	}, nil
 }
 
 // CreateUser 创建登录角色，不自动授予对象权限。
@@ -134,7 +147,12 @@ func (m *Manager) CreateUser(ctx context.Context, accountName, accountPassword s
 	if err != nil {
 		return nil, err
 	}
-	return &Result{Columns: []string{}, Rows: [][]interface{}{}, Affected: affected, ElapsedMs: time.Since(started).Milliseconds()}, nil
+	return &Result{
+		Columns:   []string{},
+		Rows:      [][]interface{}{},
+		Affected:  affected,
+		ElapsedMs: time.Since(started).Milliseconds(),
+	}, nil
 }
 
 // ChangePassword 修改角色密码，由 Postgres 校验权限；返回是否修改了当前登录账户。
@@ -175,7 +193,12 @@ func (m *Manager) ChangePassword(ctx context.Context, accountName, accountPasswo
 	if err != nil {
 		return nil, false, err
 	}
-	return &Result{Columns: []string{}, Rows: [][]interface{}{}, Affected: affected, ElapsedMs: time.Since(started).Milliseconds()}, current, nil
+	return &Result{
+		Columns:   []string{},
+		Rows:      [][]interface{}{},
+		Affected:  affected,
+		ElapsedMs: time.Since(started).Milliseconds(),
+	}, current, nil
 }
 
 // Grant 在事务中授予当前数据库、模式和现有表的权限。
@@ -335,7 +358,18 @@ func (m *Manager) accountPrivileges(ctx context.Context, schemaName string, perm
 	if err != nil {
 		return nil, err
 	}
-	allowed := map[string]bool{"CONNECT": true, "USAGE": true, "SELECT": true, "INSERT": true, "UPDATE": true, "DELETE": true, "TRUNCATE": true, "REFERENCES": true, "TRIGGER": true, "CREATE": true}
+	allowed := map[string]bool{
+		"CONNECT":    true,
+		"USAGE":      true,
+		"SELECT":     true,
+		"INSERT":     true,
+		"UPDATE":     true,
+		"DELETE":     true,
+		"TRUNCATE":   true,
+		"REFERENCES": true,
+		"TRIGGER":    true,
+		"CREATE":     true,
+	}
 	if len(permissions) == 0 || len(permissions) > len(allowed) {
 		return nil, errors.New("请选择有效的数据库权限")
 	}
@@ -373,7 +407,10 @@ func (m *Manager) accountPrivileges(ctx context.Context, schemaName string, perm
 		if err != nil {
 			return nil, err
 		}
-		for target, relations := range map[string][]string{"ALL TABLES IN SCHEMA " + schema: tables, "ALL SEQUENCES IN SCHEMA " + schema: sequences} {
+		for target, relations := range map[string][]string{
+			"ALL TABLES IN SCHEMA " + schema:    tables,
+			"ALL SEQUENCES IN SCHEMA " + schema: sequences,
+		} {
 			privileges := targets[target]
 			delete(targets, target)
 			if len(privileges) == 0 {
@@ -431,7 +468,11 @@ func (m *Manager) accountTransaction(ctx context.Context, statements []string) (
 	if err = tx.Commit(); err != nil {
 		return nil, err
 	}
-	return &Result{Columns: []string{}, Rows: [][]interface{}{}, ElapsedMs: time.Since(started).Milliseconds()}, nil
+	return &Result{
+		Columns:   []string{},
+		Rows:      [][]interface{}{},
+		ElapsedMs: time.Since(started).Milliseconds(),
+	}, nil
 }
 
 // SetPrivileges 原子更新当前数据库和架构的权限方案，不修改角色身份和其他数据库。

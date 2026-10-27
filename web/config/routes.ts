@@ -52,12 +52,12 @@ export default [
         component: "@/pages/database",
     },
     {
-        path: "container",
-        title: "容器管理",
-        name: "container",
-        icon: "CodeSandboxOutlined",
+        path: "software",
+        title: "软件管理",
+        name: "software",
+        icon: "AppstoreOutlined",
         hideInMenu: false,
-        component: "@/pages/container",
+        component: "@/pages/software",
     },
     {
         path: "log",

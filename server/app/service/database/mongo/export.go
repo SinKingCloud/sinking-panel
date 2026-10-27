@@ -16,7 +16,13 @@ import (
 // Export 将一个集合逐文档写入标准 BSON 文件，可交给 mongorestore 恢复。
 // 此文件仅包含文档，集合选项和索引由独立的结构管理功能维护。
 func (m *Manager) Export(ctx context.Context, path, collectionName string, progress ...func(float64, string)) (result map[string]interface{}, err error) {
-	result = map[string]interface{}{"path": path, "size": int64(0), "total": int64(0), "success": int64(0), "unit": "文档"}
+	result = map[string]interface{}{
+		"path":    path,
+		"size":    int64(0),
+		"total":   int64(0),
+		"success": int64(0),
+		"unit":    "文档",
+	}
 	defer func() { err = m.cleanError(err) }()
 	lastProgress, lastUpdate := -1.0, time.Time{}
 	report := func(percent float64, message string, values ...interface{}) {

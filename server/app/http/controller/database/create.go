@@ -19,7 +19,11 @@ func Create(c *context.Context) {
 		c.Error(msg)
 		return
 	}
-	data := &model.Database{Name: form.Name, Type: form.Type, TypeId: form.TypeId}
+	data := &model.Database{
+		Name:   form.Name,
+		Type:   form.Type,
+		TypeId: form.TypeId,
+	}
 	if err := service.Database.Create(data); err != nil {
 		c.Error(err.Error())
 		return

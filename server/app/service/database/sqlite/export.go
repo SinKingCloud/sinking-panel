@@ -20,7 +20,14 @@ func (m *Manager) Export(ctx context.Context, path, schemaName, tableName string
 	var count int64
 	defer func() {
 		if err != nil {
-			result = map[string]interface{}{"path": path, "success": count, "total": count, "failed": 1, "unit": "记录", "error": err.Error()}
+			result = map[string]interface{}{
+				"path":    path,
+				"success": count,
+				"total":   count,
+				"failed":  1,
+				"unit":    "记录",
+				"error":   err.Error(),
+			}
 		}
 	}()
 	if !filepath.IsAbs(path) || (schemaName != "" && schemaName != "main") {
@@ -91,7 +98,11 @@ func (m *Manager) Export(ctx context.Context, path, schemaName, tableName string
 			err = errors.New("单个对象的 SQL 超过 32 MB，请使用 SQLite 原生备份工具")
 			break
 		}
-		objects = append(objects, map[string]string{"type": kind, "name": name, "sql": statement})
+		objects = append(objects, map[string]string{
+			"type": kind,
+			"name": name,
+			"sql":  statement,
+		})
 	}
 	if err == nil {
 		err = rows.Err()
@@ -376,5 +387,12 @@ func (m *Manager) Export(ctx context.Context, path, schemaName, tableName string
 		return nil, err
 	}
 	report(99, "SQL 文件已保存")
-	return map[string]interface{}{"path": path, "size": info.Size(), "total": count, "success": count, "failed": 0, "unit": "记录"}, nil
+	return map[string]interface{}{
+		"path":    path,
+		"size":    info.Size(),
+		"total":   count,
+		"success": count,
+		"failed":  0,
+		"unit":    "记录",
+	}, nil
 }

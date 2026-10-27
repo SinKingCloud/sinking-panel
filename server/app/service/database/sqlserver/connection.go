@@ -21,18 +21,33 @@ func (m *Manager) ConnectionInfo(ctx context.Context) (result map[string]interfa
 	}
 	items := make([]map[string]string, 0, 4)
 	if address.Valid {
-		items = append(items, map[string]string{"label": "当前连接地址", "value": address.String})
+		items = append(items, map[string]string{
+			"label": "当前连接地址",
+			"value": address.String,
+		})
 	}
 	if port.Valid {
-		items = append(items, map[string]string{"label": "当前连接端口", "value": strconv.FormatInt(port.Int64, 10)})
+		items = append(items, map[string]string{
+			"label": "当前连接端口",
+			"value": strconv.FormatInt(port.Int64, 10),
+		})
 	}
 	if transport.Valid {
-		items = append(items, map[string]string{"label": "连接协议", "value": transport.String})
+		items = append(items, map[string]string{
+			"label": "连接协议",
+			"value": transport.String,
+		})
 	}
 	authentication := "SQL Server 和 Windows 认证"
 	if windowsOnly == 1 {
 		authentication = "仅 Windows 认证"
 	}
-	items = append(items, map[string]string{"label": "认证模式", "value": authentication})
-	return map[string]interface{}{"items": items, "note": "远程连接需在数据库服务器启用 TCP/IP 并放行端口；数据库用户与服务器登录关联，修改密码会影响该登录的其他连接。"}, nil
+	items = append(items, map[string]string{
+		"label": "认证模式",
+		"value": authentication,
+	})
+	return map[string]interface{}{
+		"items": items,
+		"note":  "远程连接需在数据库服务器启用 TCP/IP 并放行端口；数据库用户与服务器登录关联，修改密码会影响该登录的其他连接。",
+	}, nil
 }

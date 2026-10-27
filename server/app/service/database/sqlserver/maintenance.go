@@ -49,7 +49,11 @@ func (m *Manager) Check(ctx context.Context, schemaName, tableName string) (_ in
 	if _, err = m.db.ExecContext(ctx, "DBCC CHECKTABLE (N'"+strings.ReplaceAll(table, "'", "''")+"') WITH NO_INFOMSGS"); err != nil {
 		return nil, err
 	}
-	return &Result{Columns: []string{}, Rows: [][]interface{}{}, ElapsedMs: time.Since(started).Milliseconds()}, nil
+	return &Result{
+		Columns:   []string{},
+		Rows:      [][]interface{}{},
+		ElapsedMs: time.Since(started).Milliseconds(),
+	}, nil
 }
 
 // Analyze 更新所选表的统计信息。
@@ -68,7 +72,11 @@ func (m *Manager) Analyze(ctx context.Context, schemaName, tableName string) (_ 
 	if _, err = m.db.ExecContext(ctx, "UPDATE STATISTICS "+table); err != nil {
 		return nil, err
 	}
-	return &Result{Columns: []string{}, Rows: [][]interface{}{}, ElapsedMs: time.Since(started).Milliseconds()}, nil
+	return &Result{
+		Columns:   []string{},
+		Rows:      [][]interface{}{},
+		ElapsedMs: time.Since(started).Milliseconds(),
+	}, nil
 }
 
 // Optimize 重建所选表的索引。
@@ -87,7 +95,11 @@ func (m *Manager) Optimize(ctx context.Context, schemaName, tableName string) (_
 	if _, err = m.db.ExecContext(ctx, "ALTER INDEX ALL ON "+table+" REBUILD"); err != nil {
 		return nil, err
 	}
-	return &Result{Columns: []string{}, Rows: [][]interface{}{}, ElapsedMs: time.Since(started).Milliseconds()}, nil
+	return &Result{
+		Columns:   []string{},
+		Rows:      [][]interface{}{},
+		ElapsedMs: time.Since(started).Milliseconds(),
+	}, nil
 }
 
 // Truncate 清空所选表并保留结构。
@@ -106,7 +118,11 @@ func (m *Manager) Truncate(ctx context.Context, schemaName, tableName string) (_
 	if _, err = m.db.ExecContext(ctx, "TRUNCATE TABLE "+table); err != nil {
 		return nil, err
 	}
-	return &Result{Columns: []string{}, Rows: [][]interface{}{}, ElapsedMs: time.Since(started).Milliseconds()}, nil
+	return &Result{
+		Columns:   []string{},
+		Rows:      [][]interface{}{},
+		ElapsedMs: time.Since(started).Milliseconds(),
+	}, nil
 }
 
 // Drop 删除所选用户表或视图。
@@ -141,5 +157,9 @@ func (m *Manager) Drop(ctx context.Context, schemaName, tableName string) (_ int
 	if _, err = m.db.ExecContext(ctx, command+table); err != nil {
 		return nil, err
 	}
-	return &Result{Columns: []string{}, Rows: [][]interface{}{}, ElapsedMs: time.Since(started).Milliseconds()}, nil
+	return &Result{
+		Columns:   []string{},
+		Rows:      [][]interface{}{},
+		ElapsedMs: time.Since(started).Milliseconds(),
+	}, nil
 }

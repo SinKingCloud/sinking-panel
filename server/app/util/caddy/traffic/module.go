@@ -190,7 +190,10 @@ func (r *stateRegistry) acquire(scope string) *state {
 	defer r.Unlock()
 	current := r.items[scope]
 	if current == nil {
-		current = &state{scope: scope, seed: maphash.MakeSeed()}
+		current = &state{
+			scope: scope,
+			seed:  maphash.MakeSeed(),
+		}
 		r.items[scope] = current
 	}
 	current.refs++

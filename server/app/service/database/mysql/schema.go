@@ -569,7 +569,10 @@ func (m *Manager) UpdateIndex(ctx context.Context, schemaName, tableName, indexN
 		return nil, err
 	}
 	if saved == comment {
-		return &Result{Columns: []string{}, Rows: [][]interface{}{}}, nil
+		return &Result{
+			Columns: []string{},
+			Rows:    [][]interface{}{},
+		}, nil
 	}
 	var mode string
 	var quoted bool
@@ -761,7 +764,12 @@ func (m *Manager) UpdateIndex(ctx context.Context, schemaName, tableName, indexN
 	if err != nil {
 		return nil, err
 	}
-	return &Result{Columns: []string{}, Rows: [][]interface{}{}, Affected: affected, ElapsedMs: time.Since(started).Milliseconds()}, nil
+	return &Result{
+		Columns:   []string{},
+		Rows:      [][]interface{}{},
+		Affected:  affected,
+		ElapsedMs: time.Since(started).Milliseconds(),
+	}, nil
 }
 
 // DropIndex 删除指定索引；主键使用 MySQL 的 DROP PRIMARY KEY。

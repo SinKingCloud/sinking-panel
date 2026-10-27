@@ -48,7 +48,10 @@ func (s *linuxTerminalSession) Resize(height, width int) error {
 	if height < 1 || height > 1000 || width < 1 || width > 1000 {
 		return errors.New("终端尺寸必须在 1-1000 范围内")
 	}
-	return s.console.Resize(console.WinSize{Height: uint16(height), Width: uint16(width)})
+	return s.console.Resize(console.WinSize{
+		Height: uint16(height),
+		Width:  uint16(width),
+	})
 }
 
 func (s *linuxTerminalSession) Close() error {

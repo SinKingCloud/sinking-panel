@@ -54,7 +54,11 @@ func NewManager(ctx context.Context, config, databaseName string) (*Manager, err
 		if cfg.AuthSource == "" {
 			cfg.AuthSource = "admin"
 		}
-		opts.SetAuth(options.Credential{Username: cfg.User, Password: cfg.Password, AuthSource: cfg.AuthSource})
+		opts.SetAuth(options.Credential{
+			Username:   cfg.User,
+			Password:   cfg.Password,
+			AuthSource: cfg.AuthSource,
+		})
 	}
 	if cfg.ReplicaSet != "" {
 		opts.SetReplicaSet(cfg.ReplicaSet)
@@ -67,7 +71,10 @@ func NewManager(ctx context.Context, config, databaseName string) (*Manager, err
 	}
 	mode := strings.ToLower(cfg.TLS)
 	if mode != "" && mode != "false" && mode != "disable" {
-		opts.TLSConfig = &tls.Config{MinVersion: tls.VersionTLS12, InsecureSkipVerify: mode == "skip-verify"}
+		opts.TLSConfig = &tls.Config{
+			MinVersion:         tls.VersionTLS12,
+			InsecureSkipVerify: mode == "skip-verify",
+		}
 		if cfg.SSLCA != "" {
 			pem, err := os.ReadFile(cfg.SSLCA)
 			if err != nil {
@@ -94,7 +101,11 @@ func NewManager(ctx context.Context, config, databaseName string) (*Manager, err
 	if err != nil {
 		return nil, errors.New("创建 MongoDB 连接失败")
 	}
-	m := &Manager{client: c, database: c.Database(databaseName), secrets: []string{cfg.Password}}
+	m := &Manager{
+		client:   c,
+		database: c.Database(databaseName),
+		secrets:  []string{cfg.Password},
+	}
 	if err = c.Ping(ctx, readpref.PrimaryPreferred()); err != nil {
 		_ = m.CloseContext(ctx)
 		return nil, m.cleanError(err)
@@ -121,9 +132,15 @@ func (m *Manager) Test(ctx context.Context) (map[string]interface{}, error) {
 	if err := m.client.Ping(ctx, readpref.PrimaryPreferred()); err != nil {
 		return nil, m.cleanError(err)
 	}
-	result := map[string]interface{}{"connected": true, "database": m.database.Name()}
+	result := map[string]interface{}{
+		"connected": true,
+		"database":  m.database.Name(),
+	}
 	var info bson.M
-	if err := m.database.RunCommand(ctx, bson.D{{Key: "buildInfo", Value: 1}}).Decode(&info); err == nil {
+	if err := m.database.RunCommand(ctx, bson.D{{
+		Key:   "buildInfo",
+		Value: 1,
+	}}).Decode(&info); err == nil {
 		result["version"] = info["version"]
 	} else if client.IsTimeout(err) {
 		return nil, m.cleanError(err)
@@ -163,13 +180,25 @@ func (m *Manager) Databases(ctx context.Context, keyword string, pageNumber, pag
 	filter := bson.D{}
 	nameFilter := bson.D{}
 	if !showSystem {
-		nameFilter = append(nameFilter, bson.E{Key: "$nin", Value: bson.A{"admin", "config", "local"}})
+		nameFilter = append(nameFilter, bson.E{
+			Key:   "$nin",
+			Value: bson.A{"admin", "config", "local"},
+		})
 	}
 	if keyword = strings.TrimSpace(keyword); keyword != "" {
-		nameFilter = append(nameFilter, bson.E{Key: "$regex", Value: regexp.QuoteMeta(keyword)}, bson.E{Key: "$options", Value: "i"})
+		nameFilter = append(nameFilter, bson.E{
+			Key:   "$regex",
+			Value: regexp.QuoteMeta(keyword),
+		}, bson.E{
+			Key:   "$options",
+			Value: "i",
+		})
 	}
 	if len(nameFilter) > 0 {
-		filter = append(filter, bson.E{Key: "name", Value: nameFilter})
+		filter = append(filter, bson.E{
+			Key:   "name",
+			Value: nameFilter,
+		})
 	}
 	names, err := m.client.ListDatabaseNames(ctx, filter, options.ListDatabases().SetNameOnly(true))
 	if err != nil {
@@ -190,7 +219,10 @@ func (m *Manager) Databases(ctx context.Context, keyword string, pageNumber, pag
 	start := (pageNumber - 1) * pageSize
 	end := min(start+pageSize, len(names))
 	result := append([]string{}, names[start:end]...)
-	return page.New(&page.Query{Page: pageNumber, PageSize: pageSize}, total, result), nil
+	return page.New(&page.Query{
+		Page:     pageNumber,
+		PageSize: pageSize,
+	}, total, result), nil
 }
 
 func (m *Manager) cleanError(err error) error {

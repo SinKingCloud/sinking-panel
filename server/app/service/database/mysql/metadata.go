@@ -144,7 +144,14 @@ func (m *Manager) Indexes(ctx context.Context, schemaName, tableName string) (ou
 			if comment == nil {
 				comment = ""
 			}
-			result = append(result, map[string]interface{}{"name": name, "columns": []string{}, "unique": !m.truth(record["non_unique"]), "primary": name == "PRIMARY", "comment": comment, "comment_supported": supported})
+			result = append(result, map[string]interface{}{
+				"name":              name,
+				"columns":           []string{},
+				"unique":            !m.truth(record["non_unique"]),
+				"primary":           name == "PRIMARY",
+				"comment":           comment,
+				"comment_supported": supported,
+			})
 		}
 		column := "(expression)"
 		if record["column_name"] != nil {

@@ -10,6 +10,7 @@ import (
 type Interface interface {
 	FindByGroup(group string) ([]*model.Config, error)
 	Save(configs []*model.Config) error
+	DeleteByGroup(group string) error
 }
 
 // Repository 仓储

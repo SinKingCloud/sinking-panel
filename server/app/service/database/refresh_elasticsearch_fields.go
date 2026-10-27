@@ -23,7 +23,11 @@ func (s *service) RefreshElasticsearchFields(id int64, databaseName string) (str
 		return "", err
 	}
 	taskID := str.GetSnowWorkIns().GetUuid()
-	params := map[string]interface{}{"id": id, "database_name": databaseName, "action": "refresh_fields"}
+	params := map[string]interface{}{
+		"id":            id,
+		"database_name": databaseName,
+		"action":        "refresh_fields",
+	}
 	s.systemService.TaskCreate(taskID, "Elasticsearch 回填文档: "+data.Name+"/"+databaseName, params, func(ctx context.Context, _ interface{}, update func(int, float64, string)) {
 		percent := float64(0)
 		update(system_task_status.Running, 0, "正在连接 Elasticsearch")

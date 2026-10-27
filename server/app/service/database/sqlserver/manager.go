@@ -52,8 +52,15 @@ func NewManager(ctx context.Context, config string, databaseName string) (*Manag
 	if databaseName == "" {
 		databaseName = connection.Database
 	}
-	m := &Manager{database: databaseName, secrets: []string{connection.Password}}
-	u := &url.URL{Scheme: "sqlserver", Host: net.JoinHostPort(connection.Host, strconv.Itoa(connection.Port)), User: url.UserPassword(connection.User, connection.Password)}
+	m := &Manager{
+		database: databaseName,
+		secrets:  []string{connection.Password},
+	}
+	u := &url.URL{
+		Scheme: "sqlserver",
+		Host:   net.JoinHostPort(connection.Host, strconv.Itoa(connection.Port)),
+		User:   url.UserPassword(connection.User, connection.Password),
+	}
 	q := u.Query()
 	if databaseName != "" {
 		q.Set("database", databaseName)
@@ -130,7 +137,10 @@ func (c *connectionConnector) Connect(ctx context.Context) (driver.Conn, error) 
 	})
 	defer stop()
 	connector.Dialer = connectionDialer(func(dialCtx context.Context, network, address string) (net.Conn, error) {
-		connection, err := (&net.Dialer{Timeout: 5 * time.Second, KeepAlive: 30 * time.Second}).DialContext(dialCtx, network, address)
+		connection, err := (&net.Dialer{
+			Timeout:   5 * time.Second,
+			KeepAlive: 30 * time.Second,
+		}).DialContext(dialCtx, network, address)
 		if err != nil {
 			return nil, err
 		}
@@ -188,7 +198,10 @@ func (m *Manager) Test(ctx context.Context) (map[string]interface{}, error) {
 	if err := m.db.QueryRowContext(ctx, query).Scan(&version); err != nil {
 		return nil, m.safeError(err)
 	}
-	return map[string]interface{}{"version": version, "database": m.database}, nil
+	return map[string]interface{}{
+		"version":  version,
+		"database": m.database,
+	}, nil
 }
 
 // Databases 按名称搜索并分页返回当前账户可访问的数据库，默认隐藏系统库。
@@ -257,7 +270,10 @@ func (m *Manager) Databases(ctx context.Context, keyword string, pageNumber, pag
 	if err = rows.Err(); err != nil {
 		return nil, err
 	}
-	return page.New(&page.Query{Page: pageNumber, PageSize: pageSize}, total, result), nil
+	return page.New(&page.Query{
+		Page:     pageNumber,
+		PageSize: pageSize,
+	}, total, result), nil
 }
 
 func (m *Manager) quote(name string) (string, error) {

@@ -6,9 +6,18 @@ var SensitiveGroups = map[string]struct {
 	Read  bool
 	Write bool
 }{
-	LoginGroup: {Read: true, Write: true},
-	SshGroup:   {Read: true, Write: true},
-	SiteGroup:  {Read: false, Write: true},
+	LoginGroup: {
+		Read:  true,
+		Write: true,
+	},
+	SshGroup: {
+		Read:  true,
+		Write: true,
+	},
+	SiteGroup: {
+		Read:  false,
+		Write: true,
+	},
 }
 
 const (

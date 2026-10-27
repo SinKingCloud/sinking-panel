@@ -157,7 +157,12 @@ func (m *Manager) executeMaintenance(ctx context.Context, statement string) (*Re
 	if err != nil {
 		return nil, err
 	}
-	return &Result{Columns: []string{}, Rows: [][]interface{}{}, Affected: affected, ElapsedMs: time.Since(started).Milliseconds()}, nil
+	return &Result{
+		Columns:   []string{},
+		Rows:      [][]interface{}{},
+		Affected:  affected,
+		ElapsedMs: time.Since(started).Milliseconds(),
+	}, nil
 }
 
 // readMaintenance 检查 MySQL 维护结果中的错误行，避免仅凭查询成功误报成功。

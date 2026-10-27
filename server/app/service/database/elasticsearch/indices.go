@@ -62,7 +62,15 @@ func (m *Manager) Indices(ctx context.Context, keyword string, pageNumber, pageS
 				}
 				health, _ := item["health"].(string)
 				status, _ := item["status"].(string)
-				list = append(list, Index{Name: name, Health: health, Status: status, Documents: number(item["docs.count"]), SizeBytes: number(item["store.size"]), PrimaryShards: int(number(item["pri"])), Replicas: int(number(item["rep"]))})
+				list = append(list, Index{
+					Name:          name,
+					Health:        health,
+					Status:        status,
+					Documents:     number(item["docs.count"]),
+					SizeBytes:     number(item["store.size"]),
+					PrimaryShards: int(number(item["pri"])),
+					Replicas:      int(number(item["rep"])),
+				})
 			}
 		}
 	}
@@ -81,7 +89,10 @@ func (m *Manager) Indices(ctx context.Context, keyword string, pageNumber, pageS
 	}
 	start := (pageNumber - 1) * pageSize
 	end := min(start+pageSize, len(list))
-	return page.New(&page.Query{Page: pageNumber, PageSize: pageSize}, total, append([]Index{}, list[start:end]...)), nil
+	return page.New(&page.Query{
+		Page:     pageNumber,
+		PageSize: pageSize,
+	}, total, append([]Index{}, list[start:end]...)), nil
 }
 
 // Info 返回选中具体索引的 Mapping、Settings 和可读统计。
@@ -120,9 +131,18 @@ func (m *Manager) Info(ctx context.Context) (map[string]interface{}, error) {
 		if entry == nil {
 			return nil, errors.New("未返回选中索引的元数据")
 		}
-		index = map[string]interface{}{"mappings": mapping, "settings": settings, "aliases": entry["aliases"]}
+		index = map[string]interface{}{
+			"mappings": mapping,
+			"settings": settings,
+			"aliases":  entry["aliases"],
+		}
 	}
-	result := map[string]interface{}{"name": m.index, "mappings": index["mappings"], "settings": index["settings"], "aliases": index["aliases"]}
+	result := map[string]interface{}{
+		"name":     m.index,
+		"mappings": index["mappings"],
+		"settings": index["settings"],
+		"aliases":  index["aliases"],
+	}
 	stats, statsErr := m.indexStats(ctx, m.index)
 	if statsErr == nil {
 		result["stats"] = stats[m.index]

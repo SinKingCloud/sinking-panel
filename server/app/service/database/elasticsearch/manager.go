@@ -67,11 +67,18 @@ func NewManager(ctx context.Context, config, databaseName string) (*Manager, err
 	if mode == "true" || mode == "skip-verify" {
 		scheme = "https"
 	}
-	base := &url.URL{Scheme: scheme, Host: net.JoinHostPort(cfg.Host, strconv.Itoa(cfg.Port))}
+	base := &url.URL{
+		Scheme: scheme,
+		Host:   net.JoinHostPort(cfg.Host, strconv.Itoa(cfg.Port)),
+	}
 	if strings.ContainsAny(cfg.APIKey, "\r\n") {
 		return nil, errors.New("Elasticsearch API Key 格式不正确")
 	}
-	secure := &tls.Config{MinVersion: tls.VersionTLS12, ServerName: base.Hostname(), InsecureSkipVerify: mode == "skip-verify"}
+	secure := &tls.Config{
+		MinVersion:         tls.VersionTLS12,
+		ServerName:         base.Hostname(),
+		InsecureSkipVerify: mode == "skip-verify",
+	}
 	if scheme == "https" && cfg.SSLCA != "" {
 		pem, readErr := os.ReadFile(cfg.SSLCA)
 		if readErr != nil {
@@ -95,12 +102,30 @@ func NewManager(ctx context.Context, config, databaseName string) (*Manager, err
 		}
 		secure.Certificates = []tls.Certificate{certificate}
 	}
-	transport := &http.Transport{Proxy: http.ProxyFromEnvironment, DialContext: (&net.Dialer{Timeout: 5 * time.Second}).DialContext,
-		TLSClientConfig: secure, TLSHandshakeTimeout: 5 * time.Second, ResponseHeaderTimeout: 15 * time.Second,
-		MaxIdleConns: 2, MaxIdleConnsPerHost: 2, IdleConnTimeout: 30 * time.Second}
-	m := &Manager{transport: transport, base: base, index: databaseName, user: cfg.User, password: cfg.Password, apiKey: cfg.APIKey,
-		secrets: []string{cfg.Password, cfg.APIKey}}
-	m.client = &http.Client{Transport: transport, Timeout: 30 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	transport := &http.Transport{
+		Proxy:                 http.ProxyFromEnvironment,
+		DialContext:           (&net.Dialer{Timeout: 5 * time.Second}).DialContext,
+		TLSClientConfig:       secure,
+		TLSHandshakeTimeout:   5 * time.Second,
+		ResponseHeaderTimeout: 15 * time.Second,
+		MaxIdleConns:          2,
+		MaxIdleConnsPerHost:   2,
+		IdleConnTimeout:       30 * time.Second,
+	}
+	m := &Manager{
+		transport: transport,
+		base:      base,
+		index:     databaseName,
+		user:      cfg.User,
+		password:  cfg.Password,
+		apiKey:    cfg.APIKey,
+		secrets:   []string{cfg.Password, cfg.APIKey},
+	}
+	m.client = &http.Client{
+		Transport:     transport,
+		Timeout:       30 * time.Second,
+		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+	}
 	data, _, err := m.doRequest(ctx, http.MethodGet, "/", nil)
 	if err != nil {
 		_ = m.Close()
@@ -130,7 +155,12 @@ func (m *Manager) Test(ctx context.Context) (map[string]interface{}, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	return map[string]interface{}{"connected": true, "version": m.version, "database": m.index, "cluster_name": m.root["cluster_name"]}, nil
+	return map[string]interface{}{
+		"connected":    true,
+		"version":      m.version,
+		"database":     m.index,
+		"cluster_name": m.root["cluster_name"],
+	}, nil
 }
 
 // Version 通过 REST 功能适配有类型和无类型文档版本。
@@ -138,14 +168,28 @@ func (m *Manager) Version(ctx context.Context) (map[string]interface{}, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	return map[string]interface{}{"name": "Elasticsearch", "version": m.version, "features": map[string]bool{
-		"documents": true, "mapping": true, "settings": true, "rest": true, "accounts": false, "typed_documents": m.major < 7,
-		"typed_mapping": m.major < 7, "text_keyword_fields": m.major >= 5, "exists_query": m.major >= 2,
-		"mapping_backfill": m.major >= 5,
-		"deep_pagination":  true, "pit_pagination": m.atLeast(7, 12),
-		"multi_fields": m.major >= 1, "search_analyzer_update": m.major >= 2,
-		"max_result_window": m.atLeast(2, 1), "api_key": m.atLeast(6, 7),
-	}}, nil
+	return map[string]interface{}{
+		"name":    "Elasticsearch",
+		"version": m.version,
+		"features": map[string]bool{
+			"documents":              true,
+			"mapping":                true,
+			"settings":               true,
+			"rest":                   true,
+			"accounts":               false,
+			"typed_documents":        m.major < 7,
+			"typed_mapping":          m.major < 7,
+			"text_keyword_fields":    m.major >= 5,
+			"exists_query":           m.major >= 2,
+			"mapping_backfill":       m.major >= 5,
+			"deep_pagination":        true,
+			"pit_pagination":         m.atLeast(7, 12),
+			"multi_fields":           m.major >= 1,
+			"search_analyzer_update": m.major >= 2,
+			"max_result_window":      m.atLeast(2, 1),
+			"api_key":                m.atLeast(6, 7),
+		},
+	}, nil
 }
 
 // atLeast 比较功能引入的主次版本，不把 0.90 当作无法识别的版本。

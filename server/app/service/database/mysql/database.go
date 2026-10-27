@@ -43,7 +43,11 @@ func (m *Manager) Charsets(ctx context.Context) (_ *CharsetOptions, err error) {
 			return nil, err
 		}
 		if len(data.Charsets) == 0 || data.Charsets[len(data.Charsets)-1].Name != name {
-			data.Charsets = append(data.Charsets, Charset{Name: name, DefaultCollation: defaultCollation, Collations: []string{}})
+			data.Charsets = append(data.Charsets, Charset{
+				Name:             name,
+				DefaultCollation: defaultCollation,
+				Collations:       []string{},
+			})
 		}
 		if collation.Valid && collation.String != "" {
 			charset := &data.Charsets[len(data.Charsets)-1]
@@ -73,7 +77,13 @@ func (m *Manager) DatabaseInfo(ctx context.Context, name string) (_ map[string]i
 	if err = m.db.QueryRowContext(ctx, "SELECT COUNT(*), COALESCE(SUM(DATA_LENGTH + INDEX_LENGTH), 0) FROM information_schema.TABLES WHERE TABLE_SCHEMA = ? AND TABLE_TYPE = 'BASE TABLE'", databaseName).Scan(&count, &size); err != nil {
 		return nil, err
 	}
-	return map[string]interface{}{"name": databaseName, "charset": charset, "collation": collation, "table_count": count, "size": size}, nil
+	return map[string]interface{}{
+		"name":        databaseName,
+		"charset":     charset,
+		"collation":   collation,
+		"table_count": count,
+		"size":        size,
+	}, nil
 }
 
 // CreateDatabase 创建真实数据库；字符集和排序规则使用服务器支持的名称。

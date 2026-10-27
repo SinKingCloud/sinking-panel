@@ -76,9 +76,15 @@ func (r *Repository) Select(where *SelectType, orderByField, orderByType string)
 		orderByField = "sort"
 	}
 	desc := orderByType == "desc"
-	order := []clause.OrderByColumn{{Column: clause.Column{Name: orderByField}, Desc: desc}}
+	order := []clause.OrderByColumn{{
+		Column: clause.Column{Name: orderByField},
+		Desc:   desc,
+	}}
 	if orderByField != "id" {
-		order = append(order, clause.OrderByColumn{Column: clause.Column{Name: "id"}, Desc: desc})
+		order = append(order, clause.OrderByColumn{
+			Column: clause.Column{Name: "id"},
+			Desc:   desc,
+		})
 	}
 	data := make([]*model.Type, 0)
 	err := query.Clauses(clause.OrderBy{Columns: order}).Find(&data).Error

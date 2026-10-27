@@ -208,7 +208,11 @@ func (m *Manager) CreateTable(ctx context.Context, schemaName, tableName string,
 	if err = tx.Commit(); err != nil {
 		return nil, err
 	}
-	return &Result{Columns: []string{}, Rows: [][]interface{}{}, ElapsedMs: time.Since(started).Milliseconds()}, nil
+	return &Result{
+		Columns:   []string{},
+		Rows:      [][]interface{}{},
+		ElapsedMs: time.Since(started).Milliseconds(),
+	}, nil
 }
 
 // RenameTable 使用绑定参数调用 sp_rename，仅修改当前用户表的名称。
@@ -227,7 +231,11 @@ func (m *Manager) RenameTable(ctx context.Context, schemaName, tableName, newNam
 	if _, err = m.db.ExecContext(ctx, "EXEC sys.sp_rename @objname = @p1, @newname = @p2, @objtype = 'OBJECT'", table, newName); err != nil {
 		return nil, err
 	}
-	return &Result{Columns: []string{}, Rows: [][]interface{}{}, ElapsedMs: time.Since(started).Milliseconds()}, nil
+	return &Result{
+		Columns:   []string{},
+		Rows:      [][]interface{}{},
+		ElapsedMs: time.Since(started).Milliseconds(),
+	}, nil
 }
 
 // AddColumn 添加字段，已有数据的非空约束由 SqlServer 原生校验。
@@ -247,7 +255,11 @@ func (m *Manager) AddColumn(ctx context.Context, schemaName, tableName string, c
 	if _, err = m.db.ExecContext(ctx, "ALTER TABLE "+table+" ADD "+definition); err != nil {
 		return nil, err
 	}
-	return &Result{Columns: []string{}, Rows: [][]interface{}{}, ElapsedMs: time.Since(started).Milliseconds()}, nil
+	return &Result{
+		Columns:   []string{},
+		Rows:      [][]interface{}{},
+		ElapsedMs: time.Since(started).Milliseconds(),
+	}, nil
 }
 
 // UpdateColumn 在同一事务内修改字段和默认约束；不允许增删 IDENTITY 属性。
@@ -355,7 +367,11 @@ func (m *Manager) UpdateColumn(ctx context.Context, schemaName, tableName, colum
 	if err = tx.Commit(); err != nil {
 		return nil, err
 	}
-	return &Result{Columns: []string{}, Rows: [][]interface{}{}, ElapsedMs: time.Since(started).Milliseconds()}, nil
+	return &Result{
+		Columns:   []string{},
+		Rows:      [][]interface{}{},
+		ElapsedMs: time.Since(started).Milliseconds(),
+	}, nil
 }
 
 // DropColumn 同一事务删除字段的默认约束和字段，其他依赖由引擎保护。
@@ -395,7 +411,11 @@ func (m *Manager) DropColumn(ctx context.Context, schemaName, tableName, columnN
 	if err = tx.Commit(); err != nil {
 		return nil, err
 	}
-	return &Result{Columns: []string{}, Rows: [][]interface{}{}, ElapsedMs: time.Since(started).Milliseconds()}, nil
+	return &Result{
+		Columns:   []string{},
+		Rows:      [][]interface{}{},
+		ElapsedMs: time.Since(started).Milliseconds(),
+	}, nil
 }
 
 // CreateIndex 创建普通、唯一索引或主键约束。
@@ -445,7 +465,11 @@ func (m *Manager) CreateIndex(ctx context.Context, schemaName, tableName, indexN
 	if _, err = m.db.ExecContext(ctx, query); err != nil {
 		return nil, err
 	}
-	return &Result{Columns: []string{}, Rows: [][]interface{}{}, ElapsedMs: time.Since(started).Milliseconds()}, nil
+	return &Result{
+		Columns:   []string{},
+		Rows:      [][]interface{}{},
+		ElapsedMs: time.Since(started).Milliseconds(),
+	}, nil
 }
 
 // DropIndex 主键/唯一约束使用 DROP CONSTRAINT，普通索引使用 DROP INDEX。
@@ -475,7 +499,11 @@ func (m *Manager) DropIndex(ctx context.Context, schemaName, tableName, indexNam
 	if _, err = m.db.ExecContext(ctx, query); err != nil {
 		return nil, err
 	}
-	return &Result{Columns: []string{}, Rows: [][]interface{}{}, ElapsedMs: time.Since(started).Milliseconds()}, nil
+	return &Result{
+		Columns:   []string{},
+		Rows:      [][]interface{}{},
+		ElapsedMs: time.Since(started).Milliseconds(),
+	}, nil
 }
 
 // DDL 读取视图的原始定义，用户表生成包含字段、主键、默认值和索引的结构脚本。
@@ -632,7 +660,15 @@ func (m *Manager) DDL(ctx context.Context, schemaName, tableName string, include
 			if !strings.EqualFold(fmt.Sprint(record["table"]), tableName) {
 				continue
 			}
-			key := ForeignKeyDefinition{Name: fmt.Sprint(record["name"]), Columns: record["columns"].([]string), ReferenceSchema: fmt.Sprint(record["reference_schema"]), ReferenceTable: fmt.Sprint(record["reference_table"]), ReferenceColumns: record["reference_columns"].([]string), OnDelete: fmt.Sprint(record["on_delete"]), OnUpdate: fmt.Sprint(record["on_update"])}
+			key := ForeignKeyDefinition{
+				Name:             fmt.Sprint(record["name"]),
+				Columns:          record["columns"].([]string),
+				ReferenceSchema:  fmt.Sprint(record["reference_schema"]),
+				ReferenceTable:   fmt.Sprint(record["reference_table"]),
+				ReferenceColumns: record["reference_columns"].([]string),
+				OnDelete:         fmt.Sprint(record["on_delete"]),
+				OnUpdate:         fmt.Sprint(record["on_update"]),
+			}
 			definition, err := m.foreignKeyDefinition(key)
 			if err != nil {
 				return "", err
@@ -688,5 +724,9 @@ func (m *Manager) CreateView(ctx context.Context, schemaName, viewName, statemen
 	if _, err = m.db.ExecContext(ctx, "CREATE VIEW "+view+" AS "+statement); err != nil {
 		return nil, err
 	}
-	return &Result{Columns: []string{}, Rows: [][]interface{}{}, ElapsedMs: time.Since(started).Milliseconds()}, nil
+	return &Result{
+		Columns:   []string{},
+		Rows:      [][]interface{}{},
+		ElapsedMs: time.Since(started).Milliseconds(),
+	}, nil
 }

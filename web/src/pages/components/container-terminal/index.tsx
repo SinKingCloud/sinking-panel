@@ -16,7 +16,7 @@ const ContainerTerminal = ({id, open, onClose}: ContainerTerminalProps) => {
     const dark = Boolean(theme?.isDarkMode?.() || theme?.isDarkTheme?.());
     const [toolbarContainer, setToolbarContainer] = useState<HTMLDivElement | null>(null);
 
-    return <TerminalModal title="容器终端" open={open && Boolean(id)} onClose={onClose}
+    return <TerminalModal title="容器终端" open={open && Boolean(id)} onClose={onClose} zIndex={1050}
         destroyOnHidden closable={!toolbarContainer} toolbarRef={setToolbarContainer}>
         {open && id && <TerminalSession
             key={id}

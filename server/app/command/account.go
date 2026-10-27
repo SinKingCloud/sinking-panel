@@ -20,47 +20,35 @@ import (
 	"server/bootstrap"
 )
 
-func (s *Server) user() error {
-	if err := s.requireInteractive("user"); err != nil {
+// updateAccount 共用账号和密码修改流程，未修改的字段保持原值。
+func (s *Server) updateAccount(command string) error {
+	if err := s.requireInteractive(command); err != nil {
 		return err
 	}
-	account, err := s.readAccount("请输入新账号: ")
+	var account string
+	var password []byte
+	var err error
+	label, missingLabel, missingKey, missingCommand := "账号", "密码", constant.LoginPassword, "pwd"
+	if command == "user" {
+		account, err = s.readAccount("请输入新账号: ")
+	} else {
+		label, missingLabel, missingKey, missingCommand = "密码", "账号", constant.LoginAccount, "user"
+		password, err = s.readNewPassword("请输入新密码: ", "请再次输入新密码: ", false)
+		defer clear(password)
+	}
 	if err != nil {
 		return err
 	}
 	bootstrap.Load()
 	defer bootstrap.Close()
 	service.Init()
-	if err = service.Auth.UpdateAccount(account, ""); err != nil {
+	if err = service.Auth.UpdateAccount(account, string(password)); err != nil {
 		return err
 	}
-	service.Log.Create("127.0.0.1", log_type.EventUpdate, "修改登录信息", "通过命令行修改登录账号")
-	log.Println("登录账号修改成功；服务运行中时，请重新启动服务使修改立即生效")
-	if service.Config.Get(constant.LoginGroup, constant.LoginPassword) == "" {
-		log.Printf("登录密码尚未设置，请继续执行 %s pwd\n", os.Args[0])
-	}
-	return nil
-}
-
-func (s *Server) pwd() error {
-	if err := s.requireInteractive("pwd"); err != nil {
-		return err
-	}
-	password, err := s.readNewPassword("请输入新密码: ", "请再次输入新密码: ", false)
-	if err != nil {
-		return err
-	}
-	defer clear(password)
-	bootstrap.Load()
-	defer bootstrap.Close()
-	service.Init()
-	if err = service.Auth.UpdateAccount("", string(password)); err != nil {
-		return err
-	}
-	service.Log.Create("127.0.0.1", log_type.EventUpdate, "修改登录信息", "通过命令行修改登录密码")
-	log.Println("登录密码修改成功；服务运行中时，请重新启动服务使修改立即生效")
-	if service.Config.Get(constant.LoginGroup, constant.LoginAccount) == "" {
-		log.Printf("登录账号尚未设置，请继续执行 %s user\n", os.Args[0])
+	service.Log.Create("127.0.0.1", log_type.EventUpdate, "修改登录信息", "通过命令行修改登录"+label)
+	log.Printf("登录%s修改成功；服务运行中时，请重新启动服务使修改立即生效", label)
+	if service.Config.Get(constant.LoginGroup, missingKey) == "" {
+		log.Printf("登录%s尚未设置，请继续执行 %s %s\n", missingLabel, os.Args[0], missingCommand)
 	}
 	return nil
 }
@@ -95,11 +83,32 @@ func (s *Server) readNewPassword(prompt string, confirmPrompt string, visible bo
 	if visible {
 		input = bufio.NewReader(os.Stdin)
 	}
-	password, err := s.readPassword(prompt, input)
+	read := func(prompt string) ([]byte, error) {
+		fmt.Fprint(os.Stderr, prompt)
+		var password []byte
+		var err error
+		if input != nil {
+			password, err = input.ReadBytes('\n')
+			if errors.Is(err, io.EOF) && len(password) > 0 {
+				err = nil
+			}
+			// 只去掉行结束符，保留密码本身的首尾空格。
+			password = bytes.TrimSuffix(bytes.TrimSuffix(password, []byte{'\n'}), []byte{'\r'})
+		} else {
+			password, err = term.ReadPassword(int(os.Stdin.Fd()))
+			fmt.Fprintln(os.Stderr)
+		}
+		if err != nil {
+			clear(password)
+			return nil, fmt.Errorf("读取密码失败: %w", err)
+		}
+		return password, nil
+	}
+	password, err := read(prompt)
 	if err != nil {
 		return nil, err
 	}
-	confirm, err := s.readPassword(confirmPrompt, input)
+	confirm, err := read(confirmPrompt)
 	if err != nil {
 		clear(password)
 		return nil, err
@@ -121,29 +130,6 @@ func (s *Server) readNewPassword(prompt string, confirmPrompt string, visible bo
 	if len(password) > 72 {
 		clear(password)
 		return nil, errors.New("登录密码不能超过72个字节")
-	}
-	return password, nil
-}
-
-// readPassword 传入 input 时正常回显输入；nil 使用终端的隐藏密码输入。
-func (s *Server) readPassword(prompt string, input *bufio.Reader) ([]byte, error) {
-	fmt.Fprint(os.Stderr, prompt)
-	var password []byte
-	var err error
-	if input != nil {
-		password, err = input.ReadBytes('\n')
-		if errors.Is(err, io.EOF) && len(password) > 0 {
-			err = nil
-		}
-		// 只去掉行结束符，保留密码本身的首尾空格。
-		password = bytes.TrimSuffix(bytes.TrimSuffix(password, []byte{'\n'}), []byte{'\r'})
-	} else {
-		password, err = term.ReadPassword(int(os.Stdin.Fd()))
-		fmt.Fprintln(os.Stderr)
-	}
-	if err != nil {
-		clear(password)
-		return nil, fmt.Errorf("读取密码失败: %w", err)
 	}
 	return password, nil
 }

@@ -88,7 +88,11 @@ func (m *Manager) Keys(ctx context.Context, match, cursorText string, pageSize i
 			if ttls[i].Val() < 0 {
 				ttl = int64(ttls[i].Val())
 			}
-			rows = append(rows, map[string]interface{}{"key": key, "type": types[i].Val(), "ttl": ttl})
+			rows = append(rows, map[string]interface{}{
+				"key":  key,
+				"type": types[i].Val(),
+				"ttl":  ttl,
+			})
 		}
 	}
 	cursor := "0"
@@ -99,7 +103,12 @@ func (m *Manager) Keys(ctx context.Context, match, cursorText string, pageSize i
 		}
 		cursor = base64.RawURLEncoding.EncodeToString(encoded)
 	}
-	return map[string]interface{}{"list": rows, "cursor": cursor, "has_more": cursor != "0", "unsupported_binary_keys": unsupported}, nil
+	return map[string]interface{}{
+		"list":                    rows,
+		"cursor":                  cursor,
+		"has_more":                cursor != "0",
+		"unsupported_binary_keys": unsupported,
+	}, nil
 }
 
 // Value 读取键值、类型和有效期。
@@ -135,7 +144,14 @@ func (m *Manager) Value(ctx context.Context, key, match, cursorText string, star
 	if ttl < 0 {
 		seconds = int64(ttl)
 	}
-	value := map[string]interface{}{"key": key, "type": kind, "ttl": seconds, "cursor": "0", "has_more": false, "truncated": false}
+	value := map[string]interface{}{
+		"key":       key,
+		"type":      kind,
+		"ttl":       seconds,
+		"cursor":    "0",
+		"has_more":  false,
+		"truncated": false,
+	}
 	cursor := uint64(0)
 	if cursorText != "" {
 		cursor, e = strconv.ParseUint(cursorText, 10, 64)
@@ -230,7 +246,10 @@ func (m *Manager) Value(ctx context.Context, key, match, cursorText string, star
 				value["truncated"] = true
 				break
 			}
-			data = append(data, map[string]interface{}{"member": member, "score": item.Score})
+			data = append(data, map[string]interface{}{
+				"member": member,
+				"score":  item.Score,
+			})
 		}
 		value["size"], value["value"], value["has_more"] = length, data, int64(start+len(items)) < length
 	case "stream":
@@ -262,7 +281,10 @@ func (m *Manager) Value(ctx context.Context, key, match, cursorText string, star
 				value["truncated"] = true
 				break
 			}
-			data = append(data, map[string]interface{}{"id": item.ID, "values": item.Values})
+			data = append(data, map[string]interface{}{
+				"id":     item.ID,
+				"values": item.Values,
+			})
 		}
 		next := "0"
 		if len(data) > 0 {
@@ -363,7 +385,10 @@ func (m *Manager) Save(ctx context.Context, key, kind, value string, ttl *int64)
 			if math.IsNaN(v.Score) || math.IsInf(v.Score, 0) {
 				return nil, errors.New("有序集合分值不合法")
 			}
-			args[i] = client.Z{Member: v.Member, Score: v.Score}
+			args[i] = client.Z{
+				Member: v.Member,
+				Score:  v.Score,
+			}
 		}
 		payload = args
 	default:
@@ -544,9 +569,15 @@ func (m *Manager) Command(ctx context.Context, arguments []string) (result inter
 		return nil, e
 	}
 	if len(encoded) > 8<<20 {
-		return map[string]interface{}{"result": string(encoded[:8<<20]), "truncated": true}, nil
+		return map[string]interface{}{
+			"result":    string(encoded[:8<<20]),
+			"truncated": true,
+		}, nil
 	}
-	return map[string]interface{}{"result": value, "truncated": false}, nil
+	return map[string]interface{}{
+		"result":    value,
+		"truncated": false,
+	}, nil
 }
 
 // Info 读取服务器运行信息。
@@ -555,5 +586,8 @@ func (m *Manager) Info(ctx context.Context) (result interface{}, err error) {
 	defer cancel()
 	defer func() { err = m.cleanError(err) }()
 	info, e := m.client.Info(ctx).Result()
-	return map[string]interface{}{"database": m.database, "info": info}, e
+	return map[string]interface{}{
+		"database": m.database,
+		"info":     info,
+	}, e
 }

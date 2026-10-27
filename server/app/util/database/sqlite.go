@@ -16,12 +16,18 @@ func NewSqlite(file string) *Database {
 		Logger: newLogger(),
 	})
 	if DbError != nil {
-		return &Database{Db: Db, DbError: errors.New("sql connect error")}
+		return &Database{
+			Db:      Db,
+			DbError: errors.New("sql connect error"),
+		}
 	}
-	return &Database{Db: Db, DbError: DbError}
+	return &Database{
+		Db:      Db,
+		DbError: DbError,
+	}
 }
 
-// SyncSqlite 同步sqlite数据库结构，schemaSql必须包含完整表结构
+// SyncSqlite 同步 schemaSql 中声明的表及索引，保留未声明的数据表。
 func (d *Database) SyncSqlite(schemaSql string) error {
 	if d == nil || d.Db == nil {
 		return gorm.ErrInvalidDB
@@ -125,11 +131,12 @@ func (d *Database) SyncSqlite(schemaSql string) error {
 		return err
 	}
 	var expected, actual []struct {
-		Type string `gorm:"column:type"`
-		Name string `gorm:"column:name"`
-		SQL  string `gorm:"column:sql"`
+		Type  string `gorm:"column:type"`
+		Name  string `gorm:"column:name"`
+		Table string `gorm:"column:tbl_name"`
+		SQL   string `gorm:"column:sql"`
 	}
-	if err = expectedDb.Db.Raw(`SELECT type, name, sql FROM sqlite_master
+	if err = expectedDb.Db.Raw(`SELECT type, name, tbl_name, sql FROM sqlite_master
 		WHERE type IN ('table', 'index') AND sql IS NOT NULL AND name NOT LIKE 'sqlite_%'
 		ORDER BY rowid`).Scan(&expected).Error; err != nil {
 		return err
@@ -162,7 +169,7 @@ func (d *Database) SyncSqlite(schemaSql string) error {
 			}()
 		}
 		err = db.Transaction(func(tx *gorm.DB) error {
-			if queryErr := tx.Raw(`SELECT type, name, sql FROM sqlite_master
+			if queryErr := tx.Raw(`SELECT type, name, tbl_name, sql FROM sqlite_master
 				WHERE type IN ('table', 'index') AND sql IS NOT NULL AND name NOT LIKE 'sqlite_%'
 				ORDER BY rowid`).Scan(&actual).Error; queryErr != nil {
 				return queryErr
@@ -172,15 +179,6 @@ func (d *Database) SyncSqlite(schemaSql string) error {
 				if object.Type == "table" {
 					actualTables[strings.ToLower(object.Name)] = i
 				}
-			}
-			for _, object := range actual {
-				if _, exists := expectedTables[strings.ToLower(object.Name)]; object.Type != "table" || exists {
-					continue
-				}
-				if dropErr := tx.Exec("DROP TABLE " + tx.Statement.Quote(object.Name)).Error; dropErr != nil {
-					return fmt.Errorf("删除多余数据表%s失败: %w", object.Name, dropErr)
-				}
-				delete(actualTables, strings.ToLower(object.Name))
 			}
 			for _, object := range expected {
 				if object.Type != "table" {
@@ -248,14 +246,14 @@ func (d *Database) SyncSqlite(schemaSql string) error {
 				}
 			}
 			actual = nil
-			if queryErr := tx.Raw(`SELECT type, name, sql FROM sqlite_master
+			if queryErr := tx.Raw(`SELECT type, name, tbl_name, sql FROM sqlite_master
 				WHERE type IN ('table', 'index') AND sql IS NOT NULL AND name NOT LIKE 'sqlite_%'
 				ORDER BY rowid`).Scan(&actual).Error; queryErr != nil {
 				return queryErr
 			}
 			actualIndexes := make(map[string]int)
 			for i, object := range actual {
-				if object.Type == "index" {
+				if _, managed := expectedTables[strings.ToLower(object.Table)]; object.Type == "index" && managed {
 					actualIndexes[strings.ToLower(object.Name)] = i
 				}
 			}

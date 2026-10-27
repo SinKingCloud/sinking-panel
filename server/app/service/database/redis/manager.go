@@ -44,7 +44,12 @@ func NewManager(ctx context.Context, config, databaseName string) (*Manager, err
 	if cfg.Port < 1 || cfg.Port > 65535 {
 		return nil, errors.New("Redis 端口不合法")
 	}
-	opts := &client.Options{Addr: net.JoinHostPort(cfg.Host, strconv.Itoa(cfg.Port)), Username: cfg.User, Password: cfg.Password, DB: cfg.DB}
+	opts := &client.Options{
+		Addr:     net.JoinHostPort(cfg.Host, strconv.Itoa(cfg.Port)),
+		Username: cfg.User,
+		Password: cfg.Password,
+		DB:       cfg.DB,
+	}
 	// 单参数 AUTH 在 Redis 6+ 同样代表 default 用户，也兼容没有 ACL 的旧版本。
 	if opts.Username == "default" {
 		opts.Username = ""
@@ -64,7 +69,11 @@ func NewManager(ctx context.Context, config, databaseName string) (*Manager, err
 	}
 	mode := strings.ToLower(cfg.TLS)
 	if mode != "" && mode != "false" && mode != "disable" {
-		opts.TLSConfig = &tls.Config{ServerName: cfg.Host, MinVersion: tls.VersionTLS12, InsecureSkipVerify: mode == "skip-verify"}
+		opts.TLSConfig = &tls.Config{
+			ServerName:         cfg.Host,
+			MinVersion:         tls.VersionTLS12,
+			InsecureSkipVerify: mode == "skip-verify",
+		}
 		if cfg.SSLCA != "" {
 			pem, readErr := os.ReadFile(cfg.SSLCA)
 			if readErr != nil {
@@ -90,14 +99,21 @@ func NewManager(ctx context.Context, config, databaseName string) (*Manager, err
 	opts.Dialer = func(ctx context.Context, network, address string) (net.Conn, error) {
 		dialer := &net.Dialer{Timeout: 5 * time.Second}
 		if opts.TLSConfig != nil {
-			return (&tls.Dialer{NetDialer: dialer, Config: opts.TLSConfig}).DialContext(ctx, network, address)
+			return (&tls.Dialer{
+				NetDialer: dialer,
+				Config:    opts.TLSConfig,
+			}).DialContext(ctx, network, address)
 		}
 		return dialer.DialContext(ctx, network, address)
 	}
 	opts.DialerRetries = 1
 	opts.ContextTimeoutEnabled, opts.MaxRetries = true, -1
 	opts.PoolSize, opts.MinIdleConns, opts.MaxActiveConns = 1, 0, 1
-	m := &Manager{client: client.NewClient(opts), database: opts.DB, secrets: []string{cfg.Password}}
+	m := &Manager{
+		client:   client.NewClient(opts),
+		database: opts.DB,
+		secrets:  []string{cfg.Password},
+	}
 	if err := m.client.Ping(ctx).Err(); err != nil {
 		_ = m.Close()
 		return nil, m.cleanError(err)
@@ -115,7 +131,10 @@ func (m *Manager) Test(ctx context.Context) (map[string]interface{}, error) {
 	if err := m.client.Ping(ctx).Err(); err != nil {
 		return nil, m.cleanError(err)
 	}
-	result := map[string]interface{}{"database": m.database, "connected": true}
+	result := map[string]interface{}{
+		"database":  m.database,
+		"connected": true,
+	}
 	if info, err := m.info(ctx, "server"); err == nil {
 		for _, line := range strings.Split(info, "\n") {
 			if strings.HasPrefix(line, "redis_version:") {
@@ -165,7 +184,10 @@ func (m *Manager) Databases(ctx context.Context, keyword string, pageNumber, pag
 			// 初始化已通过 PING；无法读取实例配置时只显示已连接的逻辑库。
 			numbers = []int{m.database}
 		} else {
-			seen := map[int]bool{0: true, m.database: true}
+			seen := map[int]bool{
+				0:          true,
+				m.database: true,
+			}
 			for _, line := range strings.Split(info, "\n") {
 				if key, _, ok := strings.Cut(line, ":"); ok && strings.HasPrefix(key, "db") {
 					if number, parseErr := strconv.Atoi(strings.TrimPrefix(key, "db")); parseErr == nil && number >= 0 && number <= 65535 {
@@ -219,7 +241,10 @@ func (m *Manager) Databases(ctx context.Context, keyword string, pageNumber, pag
 		}
 		matched++
 	}
-	return page.New(&page.Query{Page: pageNumber, PageSize: pageSize}, total, result), nil
+	return page.New(&page.Query{
+		Page:     pageNumber,
+		PageSize: pageSize,
+	}, total, result), nil
 }
 
 func (m *Manager) cleanError(err error) error {

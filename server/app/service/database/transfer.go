@@ -46,7 +46,13 @@ func (s *service) Transfer(id int64, databaseType int, action, path, databaseNam
 	}
 	taskID := str.GetSnowWorkIns().GetUuid()
 	name := label + " " + database_kind.Map()[databaseType] + ": " + data.Name + "/" + databaseName
-	params := map[string]interface{}{"id": id, "type": databaseType, "action": action, "path": path, "database_name": databaseName}
+	params := map[string]interface{}{
+		"id":            id,
+		"type":          databaseType,
+		"action":        action,
+		"path":          path,
+		"database_name": databaseName,
+	}
 	s.systemService.TaskCreate(taskID, name, params, func(ctx context.Context, _ interface{}, update func(int, float64, string)) {
 		percent := float64(0)
 		lastUpdate := time.Time{}

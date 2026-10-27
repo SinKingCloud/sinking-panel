@@ -265,7 +265,10 @@ func (m *Manager) startPlatformRuntime(instance *Info, image *Image, options Run
 				return err
 			}
 			namedTimezoneMounts = append(namedTimezoneMounts, &configs.Mount{
-				Source: file.Name(), Destination: destination, Device: "bind", Flags: mount.Flags,
+				Source:      file.Name(),
+				Destination: destination,
+				Device:      "bind",
+				Flags:       mount.Flags,
 			})
 			config.Labels = append(config.Labels, timezoneNameLabel+name, timezoneMountLabel+destination)
 		}
@@ -365,7 +368,12 @@ func (m *Manager) startPlatformRuntime(instance *Info, image *Image, options Run
 		return errors.Join(failure, m.abortPlatformStart(instance, container, process, logFile, failure))
 	}
 	instance.PID = pid
-	runtime := &linuxRuntime{container: container, process: process, logFile: logFile, logPath: instance.LogPath}
+	runtime := &linuxRuntime{
+		container: container,
+		process:   process,
+		logFile:   logFile,
+		logPath:   instance.LogPath,
+	}
 	m.mu.Lock()
 	m.runtime[instance.ID] = runtime
 	m.mu.Unlock()
@@ -529,7 +537,11 @@ func (m *Manager) recoverPlatformRuntime(instance *Info) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("读取容器运行状态失败: %w", err)
 	}
-	runtime := &linuxRuntime{container: container, logPath: instance.LogPath, exitCode: instance.ExitCode}
+	runtime := &linuxRuntime{
+		container: container,
+		logPath:   instance.LogPath,
+		exitCode:  instance.ExitCode,
+	}
 	if instance.Status == StatusFailed && instance.Error != "" {
 		runtime.failure = errors.New(instance.Error)
 	}
@@ -1042,7 +1054,10 @@ func (m *Manager) execPlatformCommand(id string, options ExecOptions) (*ExecResu
 	wait := make(chan waitResult, 1)
 	if !m.runBackground(func(ctx context.Context) {
 		state, err := m.waitPlatformProcess(ctx, process, m.managerOptions().StopGracePeriod)
-		wait <- waitResult{state: state, err: err}
+		wait <- waitResult{
+			state: state,
+			err:   err,
+		}
 	}) {
 		_ = process.Signal(unix.SIGKILL)
 		_, _ = process.Wait()
@@ -1283,7 +1298,14 @@ func (m *Manager) releasePlatformRuntime(id string, runtime *linuxRuntime, conta
 }
 
 func (m *Manager) abortPlatformStart(instance *Info, container *libcontainer.Container, process *libcontainer.Process, logFile *os.File, failure error) error {
-	runtime := &linuxRuntime{container: container, process: process, logFile: logFile, logPath: instance.LogPath, exitCode: -1, failure: failure}
+	runtime := &linuxRuntime{
+		container: container,
+		process:   process,
+		logFile:   logFile,
+		logPath:   instance.LogPath,
+		exitCode:  -1,
+		failure:   failure,
+	}
 	return m.releasePlatformRuntime(instance.ID, runtime, container)
 }
 
@@ -1326,7 +1348,10 @@ func (m *Manager) killPlatformProcesses(container *libcontainer.Container) error
 		if openErr != nil {
 			return fmt.Errorf("打开容器残留进程 pidfd 失败: PID=%d: %w", pid, openErr)
 		}
-		processes = append(processes, process{pid: pid, fd: fd})
+		processes = append(processes, process{
+			pid: pid,
+			fd:  fd,
+		})
 	}
 	confirmedPIDs, err := container.Processes()
 	if err != nil {
@@ -1634,16 +1659,31 @@ func (m *Manager) buildConfig(instance *Info, image *Image, options RunOptions, 
 	}
 	defaultDevices := m.defaultDevices()
 	deviceRules := []*devices.Rule{{
-		Type: devices.WildcardDevice, Major: devices.Wildcard, Minor: devices.Wildcard,
-		Permissions: "rwm", Allow: false,
+		Type:        devices.WildcardDevice,
+		Major:       devices.Wildcard,
+		Minor:       devices.Wildcard,
+		Permissions: "rwm",
+		Allow:       false,
 	}}
 	for _, device := range defaultDevices {
 		rule := device.Rule
 		deviceRules = append(deviceRules, &rule)
 	}
 	deviceRules = append(deviceRules,
-		&devices.Rule{Type: devices.CharDevice, Major: 5, Minor: 2, Permissions: "rwm", Allow: true},
-		&devices.Rule{Type: devices.CharDevice, Major: 136, Minor: devices.Wildcard, Permissions: "rwm", Allow: true},
+		&devices.Rule{
+			Type:        devices.CharDevice,
+			Major:       5,
+			Minor:       2,
+			Permissions: "rwm",
+			Allow:       true,
+		},
+		&devices.Rule{
+			Type:        devices.CharDevice,
+			Major:       136,
+			Minor:       devices.Wildcard,
+			Permissions: "rwm",
+			Allow:       true,
+		},
 	)
 	resources := &cgroups.Resources{
 		Devices:   deviceRules,
@@ -1670,8 +1710,16 @@ func (m *Manager) buildConfig(instance *Info, image *Image, options RunOptions, 
 		Hostname:        instance.ID,
 		Namespaces:      namespaces,
 		RootPropagation: unix.MS_PRIVATE | unix.MS_REC,
-		UIDMappings:     []configs.IDMap{{ContainerID: 0, HostID: m.security.UIDMapStart, Size: m.security.IDMapSize}},
-		GIDMappings:     []configs.IDMap{{ContainerID: 0, HostID: m.security.GIDMapStart, Size: m.security.IDMapSize}},
+		UIDMappings: []configs.IDMap{{
+			ContainerID: 0,
+			HostID:      m.security.UIDMapStart,
+			Size:        m.security.IDMapSize,
+		}},
+		GIDMappings: []configs.IDMap{{
+			ContainerID: 0,
+			HostID:      m.security.GIDMapStart,
+			Size:        m.security.IDMapSize,
+		}},
 		Capabilities:    security.capabilities,
 		Seccomp:         security.seccomp,
 		NoNewPrivileges: true,
@@ -1740,7 +1788,10 @@ func (m *Manager) resolveUser(rootfs, value string) (int, int, []int, error) {
 	}
 	user, err := userUtil.GetExecUser(
 		value,
-		&userUtil.ExecUser{Uid: 0, Gid: 0},
+		&userUtil.ExecUser{
+			Uid: 0,
+			Gid: 0,
+		},
 		files[0],
 		files[1],
 	)
@@ -1807,12 +1858,72 @@ func (m *Manager) rootfsPathInfo(rootfs, path string) (os.FileInfo, error) {
 
 func (m *Manager) defaultDevices() []*devices.Device {
 	return []*devices.Device{
-		{Path: "/dev/null", FileMode: 0666, Rule: devices.Rule{Type: devices.CharDevice, Major: 1, Minor: 3, Permissions: "rwm", Allow: true}},
-		{Path: "/dev/zero", FileMode: 0666, Rule: devices.Rule{Type: devices.CharDevice, Major: 1, Minor: 5, Permissions: "rwm", Allow: true}},
-		{Path: "/dev/full", FileMode: 0666, Rule: devices.Rule{Type: devices.CharDevice, Major: 1, Minor: 7, Permissions: "rwm", Allow: true}},
-		{Path: "/dev/random", FileMode: 0666, Rule: devices.Rule{Type: devices.CharDevice, Major: 1, Minor: 8, Permissions: "rwm", Allow: true}},
-		{Path: "/dev/urandom", FileMode: 0666, Rule: devices.Rule{Type: devices.CharDevice, Major: 1, Minor: 9, Permissions: "rwm", Allow: true}},
-		{Path: "/dev/tty", FileMode: 0666, Rule: devices.Rule{Type: devices.CharDevice, Major: 5, Minor: 0, Permissions: "rwm", Allow: true}},
+		{
+			Path:     "/dev/null",
+			FileMode: 0666,
+			Rule: devices.Rule{
+				Type:        devices.CharDevice,
+				Major:       1,
+				Minor:       3,
+				Permissions: "rwm",
+				Allow:       true,
+			},
+		},
+		{
+			Path:     "/dev/zero",
+			FileMode: 0666,
+			Rule: devices.Rule{
+				Type:        devices.CharDevice,
+				Major:       1,
+				Minor:       5,
+				Permissions: "rwm",
+				Allow:       true,
+			},
+		},
+		{
+			Path:     "/dev/full",
+			FileMode: 0666,
+			Rule: devices.Rule{
+				Type:        devices.CharDevice,
+				Major:       1,
+				Minor:       7,
+				Permissions: "rwm",
+				Allow:       true,
+			},
+		},
+		{
+			Path:     "/dev/random",
+			FileMode: 0666,
+			Rule: devices.Rule{
+				Type:        devices.CharDevice,
+				Major:       1,
+				Minor:       8,
+				Permissions: "rwm",
+				Allow:       true,
+			},
+		},
+		{
+			Path:     "/dev/urandom",
+			FileMode: 0666,
+			Rule: devices.Rule{
+				Type:        devices.CharDevice,
+				Major:       1,
+				Minor:       9,
+				Permissions: "rwm",
+				Allow:       true,
+			},
+		},
+		{
+			Path:     "/dev/tty",
+			FileMode: 0666,
+			Rule: devices.Rule{
+				Type:        devices.CharDevice,
+				Major:       5,
+				Minor:       0,
+				Permissions: "rwm",
+				Allow:       true,
+			},
+		},
 	}
 }
 

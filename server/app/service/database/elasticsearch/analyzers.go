@@ -47,11 +47,17 @@ func (m *Manager) Analyzers(ctx context.Context) ([]map[string]interface{}, erro
 		for _, option := range options {
 			if !seen[option[0]] {
 				seen[option[0]] = true
-				items = append(items, map[string]string{"value": option[0], "label": option[1]})
+				items = append(items, map[string]string{
+					"value": option[0],
+					"label": option[1],
+				})
 			}
 		}
 		if len(items) > 0 {
-			groups = append(groups, map[string]interface{}{"label": label, "options": items})
+			groups = append(groups, map[string]interface{}{
+				"label":   label,
+				"options": items,
+			})
 		}
 	}
 	addGroup("索引自定义", options)

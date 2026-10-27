@@ -48,7 +48,10 @@ func (m *Manager) foreignKeyDefinition(key ForeignKeyDefinition) (string, error)
 		definition = "CONSTRAINT " + name + " "
 	}
 	definition += "FOREIGN KEY (" + strings.Join(columns, ", ") + ") REFERENCES " + reference + " (" + strings.Join(references, ", ") + ")"
-	for _, action := range []struct{ name, value string }{{"DELETE", key.OnDelete}, {"UPDATE", key.OnUpdate}} {
+	for _, action := range []struct {
+		name  string
+		value string
+	}{{"DELETE", key.OnDelete}, {"UPDATE", key.OnUpdate}} {
 		value := strings.ToUpper(strings.TrimSpace(action.value))
 		if value == "" {
 			value = "NO ACTION"
@@ -148,7 +151,19 @@ func (m *Manager) Objects(ctx context.Context, schemaName, kind string) (interfa
 				if number, parseErr := strconv.Atoi(id); parseErr == nil && number >= 0 && number < len(names) && names[len(names)-number-1] != "" {
 					name = names[len(names)-number-1]
 				}
-				result = append(result, map[string]interface{}{"name": name, "identity": identity, "schema": "main", "type": "foreign_key", "table": tableName, "columns": []string{}, "reference_schema": "main", "reference_table": key["table"], "reference_columns": []string{}, "on_delete": key["on_delete"], "on_update": key["on_update"]})
+				result = append(result, map[string]interface{}{
+					"name":              name,
+					"identity":          identity,
+					"schema":            "main",
+					"type":              "foreign_key",
+					"table":             tableName,
+					"columns":           []string{},
+					"reference_schema":  "main",
+					"reference_table":   key["table"],
+					"reference_columns": []string{},
+					"on_delete":         key["on_delete"],
+					"on_update":         key["on_update"],
+				})
 			}
 			result[position]["columns"] = append(result[position]["columns"].([]string), fmt.Sprint(key["from"]))
 			reference := ""
@@ -274,7 +289,11 @@ func (m *Manager) SaveObject(ctx context.Context, schemaName, kind, name, defini
 	if err = tx.Commit(); err != nil {
 		return nil, err
 	}
-	return &Result{Columns: []string{}, Rows: [][]interface{}{}, ElapsedMs: time.Since(started).Milliseconds()}, nil
+	return &Result{
+		Columns:   []string{},
+		Rows:      [][]interface{}{},
+		ElapsedMs: time.Since(started).Milliseconds(),
+	}, nil
 }
 
 // DropObject 删除用户视图或触发器，删除前确认对象类型。
@@ -305,7 +324,11 @@ func (m *Manager) DropObject(ctx context.Context, schemaName, kind, name string)
 	if _, err = m.db.ExecContext(ctx, "DROP "+strings.ToUpper(kind)+" "+target); err != nil {
 		return nil, err
 	}
-	return &Result{Columns: []string{}, Rows: [][]interface{}{}, ElapsedMs: time.Since(started).Milliseconds()}, nil
+	return &Result{
+		Columns:   []string{},
+		Rows:      [][]interface{}{},
+		ElapsedMs: time.Since(started).Milliseconds(),
+	}, nil
 }
 
 // SelectObjects 按名称搜索并分页查询对象摘要；定义在详情接口按需读取。
@@ -343,5 +366,10 @@ func (m *Manager) SelectObjects(ctx context.Context, schema, kind, keyword strin
 	if err != nil {
 		return nil, err
 	}
-	return map[string]interface{}{"list": list, "total": total, "page": pageNumber, "page_size": pageSize}, nil
+	return map[string]interface{}{
+		"list":      list,
+		"total":     total,
+		"page":      pageNumber,
+		"page_size": pageSize,
+	}, nil
 }

@@ -114,7 +114,12 @@ func (m *Acme) start(ctx context.Context, request CertificateRequest, renew bool
 	sameAccount := m.AccountURL != "" && len(m.AccountPrivateKeyPEM) > 0 && m.CA == caName && strings.EqualFold(m.Email, email)
 	client := m.client
 	if client == nil || client.Directory != caURL {
-		client = &acme.Client{Directory: caURL, HTTPClient: &http.Client{Timeout: 30 * time.Second}, PollTimeout: 5 * time.Minute, UserAgent: "sinking-panel"}
+		client = &acme.Client{
+			Directory:   caURL,
+			HTTPClient:  &http.Client{Timeout: 30 * time.Second},
+			PollTimeout: 5 * time.Minute,
+			UserAgent:   "sinking-panel",
+		}
 	}
 	account := acme.Account{TermsOfServiceAgreed: true}
 	if email != "" {
@@ -242,7 +247,12 @@ func (m *Acme) Submit(ctx context.Context) (*Certificate, error) {
 		return nil, errors.New("证书 CA 只支持 production 或 staging")
 	}
 	if m.client == nil || m.client.Directory != caURL {
-		m.client = &acme.Client{Directory: caURL, HTTPClient: &http.Client{Timeout: 30 * time.Second}, PollTimeout: 5 * time.Minute, UserAgent: "sinking-panel"}
+		m.client = &acme.Client{
+			Directory:   caURL,
+			HTTPClient:  &http.Client{Timeout: 30 * time.Second},
+			PollTimeout: 5 * time.Minute,
+			UserAgent:   "sinking-panel",
+		}
 	}
 	account := acme.Account{Location: m.AccountURL}
 	var err error
@@ -349,8 +359,14 @@ func (m *Acme) Submit(ctx context.Context) (*Certificate, error) {
 		ipAddresses = append(ipAddresses, address.String())
 	}
 	return &Certificate{
-		Domain: m.Domain, Issuer: string(m.CA), DNSNames: append([]string(nil), leaf.DNSNames...), IPAddresses: ipAddresses,
-		SerialNumber: leaf.SerialNumber.String(), NotBefore: leaf.NotBefore, NotAfter: leaf.NotAfter,
-		CertificatePEM: append([]byte(nil), certificatePEM...), PrivateKeyPEM: append([]byte(nil), m.PrivateKeyPEM...),
+		Domain:         m.Domain,
+		Issuer:         string(m.CA),
+		DNSNames:       append([]string(nil), leaf.DNSNames...),
+		IPAddresses:    ipAddresses,
+		SerialNumber:   leaf.SerialNumber.String(),
+		NotBefore:      leaf.NotBefore,
+		NotAfter:       leaf.NotAfter,
+		CertificatePEM: append([]byte(nil), certificatePEM...),
+		PrivateKeyPEM:  append([]byte(nil), m.PrivateKeyPEM...),
 	}, nil
 }

@@ -1,0 +1,1198 @@
+# [[.Name]] · 插件开发手册
+
+这是由面板命令 `plugin init` 生成的完整插件工程。后端使用 Go 源码，前端使用 React TSX 源码；安装时由面板解释执行后端，打开页面时由浏览器转换前端，无需为插件构建二进制或前端产物。
+
+这是一个可直接安装的开发工作台，不是静态组件展示。数据管理连接面板本地数据库，配置与缓存使用宿主服务，后台任务接入系统任务列表，接口调试可以直接观察每个真实接口的输入与输出。
+
+文档分为三个层次：先用「快速开始」验证安装与持久化，再按「增加一个完整功能」修改前后端，开发中随时查「示例接口速查」与各能力章节。示例不依赖容器，不会自动安装 Redis 等软件。
+
+## 目录
+
+- [快速开始](#快速开始)
+- [开发路线与验证](#开发路线与验证)
+- [工程结构](#工程结构)
+- [软件清单](#软件清单)
+- [后端入口与生命周期](#后端入口与生命周期)
+- [编写接口](#编写接口)
+- [示例接口速查](#示例接口速查)
+- [增加一个完整功能](#增加一个完整功能)
+- [前端页面](#前端页面)
+- [面板能力与服务](#面板能力与服务)
+- [配置与缓存](#配置与缓存)
+- [数据库与事务](#数据库与事务)
+- [后台任务与计划任务](#后台任务与计划任务)
+- [文件与容器](#文件与容器)
+- [多文件与第三方依赖](#多文件与第三方依赖)
+- [安装升级与卸载](#安装升级与卸载)
+- [打包发布](#打包发布)
+- [常见问题](#常见问题)
+
+## 快速开始
+
+### 1. 生成工程
+
+在面板程序所在目录执行：
+
+```sh
+./server plugin init [[.ID]] [[quote .Directory]] --name [[quote .Name]]
+```
+
+当前工程已经生成，无需再执行这条命令。`init` 的目标目录必须不存在；省略目录时使用插件标识作为目录名。Windows 使用 `server.exe`。
+
+`init` 会根据当前面板公开的 API 生成 `sdk/`，不需要面板源码，也不需要另外运行 SDK 生成工具。仅初始化工程无需面板进程正在运行。
+
+如果需要开发机上的 Go 类型检查与代码补全，在生成工程的 `server/` 中先执行 `go mod tidy`，生成依赖校验文件。安装示例不要求执行这一步，也不要求部署服务器安装 Go。
+
+### 2. 安装并体验
+
+从面板程序所在目录安装当前工程：
+
+```sh
+./server plugin install [[quote .Directory]]
+./server plugin list
+```
+
+然后打开面板的「软件管理」，进入本软件的管理页面。
+
+| 页面 | 可以验证的功能 | 对应接口 |
+| --- | --- | --- |
+| 运行概览 | 查看实际运行状态、记录数量、配置与缓存状态，并跳转到对应示例 | `info` |
+| 数据管理 | 服务器分页与排序、详情、添加编辑、单条及批量删除 | `notes` |
+| 配置缓存 | 保存问候语和心跳间隔，读写、删除带有效期的缓存 | `settings`、`cache` |
+| 后台任务 | 启动任务、查看实际进度、取消任务，观察系统后台任务中的同一条记录 | `task` |
+| 接口调试 | 选择预置操作，编辑 JSON 参数，发送请求，查看返回值、错误和耗时 | 所有 demo Actions |
+| 开发文档 | 搜索章节，阅读接口、存储、生命周期、SDK、页面与发布指南，复制对应代码 | 页面内手册 |
+
+建议先保存一条笔记和配置，重新打开页面确认数据仍在；再启动一个后台任务，观察系统后台任务列表中的同一条任务。
+
+### 3. 修改代码并更新
+
+修改 `server/` 或 `web/` 后，再次执行相同的 `plugin install`。同一 `id` 会走升级流程，包括版本号相同时的再次安装。安装的是源码副本，修改开发目录不会自动修改已安装的软件。
+
+确认安装成功后重新打开管理页面。开发完成时更新 `software.json` 的 `version`，方便识别正在使用的版本。
+
+## 开发路线与验证
+
+按下面的顺序阅读和操作，每一步都有可以观察的结果。
+
+| 目标 | 先看文件 | 实际操作 | 通过标准 |
+| --- | --- | --- | --- |
+| 了解初始化 | `software.json`、`server/plugin.go`、`server/lifecycle.go` | 初始化并安装 demo | 软件列表有记录，运行概览显示已启动。 |
+| 走通请求链路 | `server/plugin.go`、`web/components/playground.tsx` | 调用 hello，更改 name 后再发送 | 返回内容发生变化；错误参数显示服务端错误，不让页面崩溃。 |
+| 验证持久化 | `server/notes.go`、`web/components/notes.tsx` | 新增记录后关闭再打开 | 记录仍在；列表不返回正文，打开详情时再请求 info。 |
+| 验证分页与排序 | 同上 | 创建多条记录，搜索、切页、点击列排序 | 网络请求包含相应参数，数据由后端筛选和分页。 |
+| 验证批量原子操作 | `server/notes.go` | 多选并删除记录，再重复删除相同 ID | 删除在事务内分批执行，重复删除不报不存在错误。 |
+| 验证配置与缓存 | `server/settings.go` | 保存问候语；写入一个短 TTL 缓存 | 问候语重开后保留；缓存到期后 exists=false。 |
+| 验证后台取消 | `server/task.go`、`server/lifecycle.go` | 启动任务，再取消；运行时关闭页面 | 取消能停止工作；仅关闭页面不取消任务，重开可查看当前状态。 |
+| 验证发布 | `server/lifecycle.go` | 修改代码并重复安装相同 ID | 执行 Upgrade，保留已有记录与配置。 |
+| 验证卸载清理 | 同上 | 卸载，再重新安装相同 ID | 笔记、设置与示例缓存已清理，重新安装恢复初始状态。 |
+
+后端默认数据库是面板自身的 SQLite，因此这个 demo 不需要用户先配置数据库连接。接口调试中的写入与删除是真实操作；修改参数后仍会按最终 action 确认，适合在自己的 demo 数据中验证。
+
+## 工程结构
+
+```text
+[[.ID]]/
+├── README.md               # 本文档
+├── software.json           # 标识、名称、版本、页面入口、适用平台与依赖软件
+├── sdk/                    # 当前面板生成的公开 API 声明，仅用于开发
+│   ├── go.mod
+│   ├── sdk.go
+│   ├── entities.go         # 公开结构体、接口、字段
+│   └── methods.go          # 公开方法声明
+├── server/
+│   ├── go.mod              # 插件自己的 Go module
+│   ├── plugin.go           # New 入口与接口注册
+│   ├── entities.go         # 演示实体和运行状态
+│   ├── lifecycle.go        # 安装、升级、启动、停止、卸载
+│   ├── notes.go            # 分页、搜索和笔记增删改查
+│   ├── settings.go         # 配置与缓存
+│   └── task.go             # 可取消的后台任务
+└── web/
+    ├── index.tsx           # 工作台导航、宿主 modal 配置与普通 React 组件入口
+    ├── types.ts            # 页面参数与请求类型
+    ├── sdk.d.ts            # 前端共享 sdk 模块的编辑器声明
+    ├── styles.ts           # 基于系统主题的样式
+    ├── tsconfig.json       # 编辑器配置，不是构建配置
+    └── components/
+        ├── overview.tsx    # 真实运行概览与示例入口
+        ├── notes.tsx       # PageTable、详情、增改与事务批量删除
+        ├── settings.tsx    # 配置和缓存
+        ├── tasks.tsx       # 后台任务和进度轮询
+        ├── playground.tsx  # 真实接口预置、参数编辑、响应与耗时
+        ├── code.tsx        # 统一代码展示与复制
+        └── docs.tsx        # 章节搜索与开发手册
+```
+
+面板仓库中的模板文件使用 `.tmpl` 后缀，`init` 会渲染模板并移除后缀。开发者编辑生成后的 `.go`、`.tsx`、`.ts`、`.json` 文件即可。工程不生成 `.gitignore`，使用第三方依赖时请保留需要交付的 `server/vendor/`。
+
+`README.md` 和 `sdk/` 是开发资料。从目录安装时，面板只打包 `software.json`、`server/`、`web/`；需要显示在插件页面中的文档应放在 `web/` 中。
+
+## 软件清单
+
+```json
+{
+  "id": [[json .ID]],
+  "name": [[json .Name]],
+  "version": "1.0.0",
+  "frontend": "web/index.tsx",
+  "platforms": [],
+  "requires": []
+}
+```
+
+| 字段 | 说明 |
+| --- | --- |
+| `id` | 插件唯一标识。以小写字母开头，仅包含小写字母、数字、`_`、`-`，最长 64 个字符。决定接口路径与安装目录。 |
+| `name` | 软件名称，非空，最长 100 字节。 |
+| `version` | 版本文本，非空，最长 50 字节。升级时会传入新旧版本值，宿主不自动比较版本大小。 |
+| `frontend` | 包内前端入口，必须位于 `web/`；纯后端插件可以设为空字符串。 |
+| `platforms` | 允许的 Go 系统标识，例如 `linux`、`windows`、`darwin`；空数组表示不限制。 |
+| `requires` | 依赖的软件标识数组，例如 `["redis", "mysql"]`，填写依赖软件 `software.json` 中的 `id`；空数组表示不依赖其他软件。 |
+
+例如一个在 Linux 运行、需要 Redis 软件插件的业务插件：
+
+```json
+{
+  "platforms": ["linux"],
+  "requires": ["redis"]
+}
+```
+
+`requires` 指面板中安装的软件，不是系统软件包、Go 模块、容器镜像或宿主能力。依赖以标识精确匹配，不填写显示名称，也不填写版本表达式。依赖声明不表示 Redis、MySQL 等业务实例已经完成配置，业务连通性仍由插件自己的接口处理。
+
+安装与升级前，依赖软件必须已经安装且可用；缺少依赖时会提示具体软件标识，需要先安装依赖。面板不会自动下载或安装依赖。自身依赖、非法标识和循环依赖会被拒绝。
+
+面板启动或在线安装时先启动依赖软件，再启动依赖它的软件；停止时按相反顺序处理。离线安装只检查已安装依赖，不启动常驻任务，之后由面板启动时处理。某软件仍被其他已安装软件依赖时，不能直接卸载，应先卸载依赖它的软件。
+
+仅调用容器服务的插件可声明 `"platforms": ["linux"]` 并保持 `"requires": []`。`requires` 中的每一项都按软件标识处理；声明 Linux 不替代实际容器操作的错误处理。当前 demo 不依赖其他软件，因此两项都为空。
+
+后端固定从 `server/` 加载，不需要 `backend`、`server`、`sdk_version` 或安装表单字段。
+
+## 后端入口与生命周期
+
+`server/` 的入口包不能叫 `main`。同目录 Go 文件使用相同包名，导出以下入口：
+
+```go
+package app
+
+import "sdk"
+
+func New(app *sdk.App) *sdk.Plugin {
+    return &sdk.Plugin{
+        Actions: map[string]func(*sdk.Context){
+            "hello": func(c *sdk.Context) {
+                c.SuccessWithData("请求成功", map[string]interface{}{
+                    "message": "你好，" + app.InstanceID,
+                })
+            },
+        },
+    }
+}
+```
+
+`New` 用来组织对象、注册接口与生命周期。插件加载后会复用这个对象。同一插件的 Actions 与生命周期由管理器串行调用；不同插件互不阻塞。插件自行启动的后台协程不在该队列中，与接口共享可变状态时仍需使用锁或通道。不要在 `New` 中启动不可取消的常驻协程，也不要在一个 Action 中等待另一个 Action 才能完成。
+
+生命周期均为可选项，签名相同：
+
+```go
+func(ctx context.Context, params string) (interface{}, error)
+```
+
+| 生命周期 | 何时执行 | `params` 内容 | 适合做的工作 |
+| --- | --- | --- | --- |
+| `Install` | 首次安装 | `{}` | 初始化自有数据表、默认配置；可以先安装成功，进入页面后再配置业务连接。 |
+| `Upgrade` | 已有相同 `id` 再次安装 | `{"previous_version":"1.0.0","version":"1.1.0"}` | 增量迁移自有数据，保留已有配置。 |
+| `Start` | 面板启动加载软件、在线安装或升级后启动新代码 | `{}` | 启动需要跟随面板运行的协程，注册内部定时任务。 |
+| `Stop` | 面板停止、替换插件、卸载已加载插件 | `{}` | 等待自己的协程退出、移除内部定时任务、关闭自己创建的连接。 |
+| `Uninstall` | 卸载插件；未加载时尝试只加载、不启动 | `{"remove_data":true}`，固定要求清理 | 清理本插件拥有的数据表、配置、缓存、目录与容器等资源。 |
+
+`Start` 的上下文会随插件停止取消。创建协程后应及时返回；`Stop` 执行前，该上下文已经被取消。示例使用完成信号等待异步任务退出，可参考 `server/lifecycle.go`。
+
+生命周期参数与 Actions 不同：生命周期仍接收 JSON 字符串，需要时使用 `json.Unmarshal`；Actions 直接接收请求上下文。
+
+生命周期匿名函数请保留参数名，例如 `func(ctx context.Context, params string)`；当前解释器对完全省略参数名的写法存在类型转换问题。不使用参数时保留名称即可。
+
+```go
+Uninstall: func(ctx context.Context, params string) (interface{}, error) {
+    // 卸载始终清理本插件拥有的数据，不需要额外的清理选项。
+    // 删除自有数据表、配置、缓存、目录和容器，并返回实际清理错误。
+    return nil, nil
+},
+```
+
+持久数据应放在自有数据库表、配置表或代码目录之外的业务目录。软件代码目录会在升级时被替换、卸载时被删除，不能用它保存需要保留的用户数据。
+
+## 编写接口
+
+Actions 的键就是接口名：
+
+```text
+/software/[[.ID]]/hello
+/software/[[.ID]]/notes
+/software/[[.ID]]/settings
+```
+
+这些路由经过面板登录验证，支持面板现有的 ANY 请求方式。前端示例统一使用 POST，参数放在 JSON 请求体。`page` 是前端资源保留路由，不要注册同名 Action。
+
+### 参数绑定、校验和返回
+
+```go
+func hello(c *sdk.Context) {
+    var form struct {
+        Name string `json:"name" validate:"required,max=50" label:"名称"`
+    }
+    if ok, message := c.ValidatorAll(&form); !ok {
+        c.Error(message)
+        return
+    }
+    c.SuccessWithData("请求成功", map[string]interface{}{
+        "message": "你好，" + form.Name,
+    })
+}
+```
+
+| 方法 | 用途 |
+| --- | --- |
+| `c.ValidatorAll(&form)` | 按面板规则绑定 JSON、表单、查询参数并校验，返回 `bool, string`。 |
+| `c.Validator(&form)` | 只校验已填充的结构体。 |
+| `c.Success("保存成功")` | 成功，不返回业务数据。 |
+| `c.SuccessWithData("获取成功", data)` | 成功，返回业务数据。 |
+| `c.Error(err.Error())` | 返回业务错误，调用后记得 `return`。 |
+| `c.Request.Context()` | 当前请求的取消上下文，适合数据库访问、短时网络请求。 |
+
+HTTP 响应使用面板的统一结构，业务错误不能只靠 HTTP 状态码识别：
+
+```json
+{
+  "code": 200,
+  "message": "请求成功",
+  "data": {"message": "你好"},
+  "request_id": "..."
+}
+```
+
+后台任务不要使用 HTTP 请求上下文作为整个任务的生命周期；提交任务后请求会结束，任务应使用系统任务提供的 `ctx`。
+
+## 示例接口速查
+
+下列代码可放在页面组件或事件处理中，`request` 是入口组件收到的参数。它直接返回 `data`，失败时抛出 `Error`。
+
+### 运行信息、问候与磁盘
+
+```ts
+const info = await request("info");
+const greeting = await request("hello", {name: "开发者"});
+const disks = await request("disks");
+```
+
+`info` 返回插件标识、名称、示例代码版本、运行系统和架构、是否已经启动、心跳时间、演示数据表名，以及从实际状态读取的 `note_count`、`cache_exists`、`configured`。实际软件包版本以 `software.version` 为准。`hello` 返回 `message` 与 RFC3339 格式的 `time`。`disks` 返回 `{list: [{path: "/"}]}`，展示调用文件服务读取服务器磁盘路径的方式。
+
+| 字段 | 说明 |
+| --- | --- |
+| `instance_id` | 当前插件标识，用于区分不同安装的软件。 |
+| `started` / `heartbeat` | 后端常驻任务是否启动，以及最后一次心跳时间。心跳按配置的 interval 更新。 |
+| `system` / `architecture` | 当前宿主的 Go 系统标识与架构。 |
+| `table` | 本插件真实使用的业务表名。 |
+| `note_count` | 从该业务表查询的实际记录总数。 |
+| `cache_exists` | 当前插件示例缓存是否存在；空字符串也可以是有效缓存。 |
+| `configured` | 当前插件的持久设置是否存在。Install 会写入默认设置，因此不是“用户是否填写过表单”。 |
+
+### 笔记增删改查
+
+```ts
+const page = await request("notes", {
+    action: "list", keyword: "示例", page: 1, page_size: 20,
+    order_by_field: "update_time", order_by_type: "desc",
+});
+// page: {list, total, page, page_size}；list 只包含摘要。
+// 用户点击详情或编辑时再取正文：
+const detail = await request("notes", {action: "info", id: selectedID});
+
+const created = await request("notes", {
+    action: "create", title: "第一条笔记", content: "保存到面板数据库",
+});
+await request("notes", {
+    action: "update", id: created.id,
+    title: "修改后的标题", content: "更新后的内容",
+});
+// 已经获得用户删除确认后提交。
+await request("notes", {action: "delete", ids: [created.id]});
+```
+
+列表项仅包含 `id`、`title`、`create_time`、`update_time`；正文 `content` 由 `action=info` 单独读取，避免大正文挤占列表传输与内存。详情、修改需要传入存在的记录 ID。删除支持单个 `id` 或 `ids` 数组，采用事务分批执行；已不存在的记录允许重复删除。
+
+| 参数 | 默认值与约束 |
+| --- | --- |
+| `action` | 默认 `list`，支持 `list/info/create/update/delete`。 |
+| `id` | info、update 必填的正整数；单条删除也可使用。 |
+| `ids` | 批量删除的正整数 ID 数组，最多 10000 项；同时传入时优先于 id。不要逐条调用接口删除。 |
+| `page` | 默认 1，范围 1～100000。 |
+| `page_size` | 默认 10，范围 1～100。 |
+| `keyword` | 可选，最长 100 个字符，搜索标题和内容。 |
+| `order_by_field` | 默认 id；支持 id、title、create_time、update_time。 |
+| `order_by_type` | 默认 desc；支持 asc、desc。非 id 排序追加 id 作为稳定顺序。 |
+| `title` | 新增、修改时必填，最长 100 个字符。 |
+| `content` | 可为空，最长 10000 个字符。 |
+
+### 持久配置与缓存
+
+```ts
+const settings = await request("settings", {action: "get"});
+await request("settings", {
+    action: "set", greeting: "欢迎使用插件", interval: 10,
+});
+
+await request("cache", {action: "set", value: "临时内容", ttl: 60});
+const cached = await request("cache", {action: "get"});
+await request("cache", {action: "delete"});
+```
+
+`interval` 为心跳间隔，单位秒，范围 1～60；`ttl` 为缓存有效期，单位秒，范围 1～3600。缓存结果包含 `key`、`exists`、`value`，缓存不存在时以 `exists` 为准，不要把空字符串与不存在混为一谈。
+
+### 后台任务
+
+```ts
+const task = await request("task", {action: "start", steps: 10});
+const progress = await request("task", {action: "get"});
+await request("task", {action: "cancel"});
+```
+
+`steps` 范围 1～20，每步约 500 毫秒。任务返回 ID、状态、进度和消息，页面只在需要时轮询，离开页面会清理轮询。关闭页面不会取消系统后台任务；取消请调用 `cancel`。
+
+任务状态值：`0` 等待中、`1` 运行中、`2` 已完成、`3` 失败、`4` 已取消。没有已提交任务时不要假定响应一定包含 `id`，使用 `task?.id` 判断。
+
+### Demo 的存储位置
+
+| 内容 | 保存位置 | 重启后 |
+| --- | --- | --- |
+| 演示笔记 | 面板 SQLite 中的独立表，表名为 `plugin_demo_` 加插件 ID 的 SHA-256 前 16 位十六进制字符；`info.table` 可查询。 | 保留 |
+| 问候语、心跳间隔 | 当前软件记录的 `config` 字段，demo 将 `Settings` 编码为 JSON 字符串保存。 | 保留 |
+| 缓存示例 | 缓存键 `plugin_[[.ID]].cache`。 | 取决于缓存后端和有效期 |
+| 启动状态与心跳时间 | 当前插件的内存状态。 | 重新开始 |
+| 任务执行状态 | 系统后台任务服务。 | 不作为持久业务数据保存 |
+
+卸载钩子删除笔记表并清理示例缓存；软件服务随后删除软件记录，其 `config` 一并删除。Demo 不在公共配置表中保存设置，不需要额外删除配置组。源码损坏等异常情况见后文。
+
+### 请求与返回对照
+
+下面均为 `request` 解包后的业务数据；只有原始 HTTP 调用才有外层 code/message/data。
+
+| 操作 | 请求示例 | 成功 data | 失败时应如何处理 |
+| --- | --- | --- | --- |
+| 查询摘要 | `notes {action:"list",page:1,page_size:20}` | `{list:[],total:0,page:1,page_size:20}` | 在列表错误回调显示错误；不要继续保留上次成功列表冒充新结果。 |
+| 查询详情 | `notes {action:"info",id:1}` | `{id,title,content,create_time,update_time}` | 关闭未完成加载的详情表单，提示记录可能已删除。 |
+| 添加记录 | `notes {action:"create",title:"部署",content:"..."}` | `{id:1}` | 保留当前输入，显示 message，允许修正后重试。 |
+| 修改记录 | `notes {action:"update",id:1,title:"新标题",content:""}` | 不依赖 data | 正文可清空；不要把空字符串误当作“不修改”。 |
+| 删除记录 | `notes {action:"delete",ids:[1,2]}` | 不依赖 data | 用户确认后提交，完成后刷新当前页并处理最后一页变空。 |
+| 读取缓存 | `cache {action:"get"}` | `{key,exists,value}` | 用 exists 区分不存在与空字符串，不能用 Boolean(value) 代替。 |
+| 查询任务 | `task {action:"get"}` | `{id,status,progress,message}` 或空值 | 先检查 id；没有提交过任务不是异常。 |
+
+### 接口调试的使用方式
+
+1. 选择预置操作，界面会填入对应接口名和 JSON 参数。
+2. 修改 JSON 对象中的字段；添加、编辑、删除会真实修改 demo 数据。
+3. 点击发送。界面显示成功或错误、耗时与完整业务结果，不需要自己填写 token。
+4. 写入与删除会按最终 action 再次确认，选择只读预置后改成写 action 也不会绕过确认。
+5. 参数校验失败后修改输入重新发送；不要将一次失败误认为软件安装失败。
+
+## 增加一个完整功能
+
+以“按关键词统计记录数量”为例，下面代码可以直接加入当前 demo。它展示实体类的方法、Action 注册、前端组件、错误处理和再次安装五个环节，而不是只给一个孤立的请求片段。
+
+### 1. 新增后端方法
+
+新建 `server/summary.go`，与现有文件使用相同 package：
+
+```go
+package app
+
+import (
+    "strings"
+    "sdk"
+)
+
+func (m *demo) summary(c *sdk.Context) {
+    var form struct {
+        Keyword string `json:"keyword" validate:"max=100" label:"关键词"`
+    }
+    if ok, message := c.ValidatorAll(&form); !ok {
+        c.Error(message)
+        return
+    }
+    query := m.app.Database.Db.WithContext(c.Request.Context()).Table(m.table)
+    if keyword := strings.TrimSpace(form.Keyword); keyword != "" {
+        query = query.Where("title LIKE ? OR content LIKE ?", "%"+keyword+"%", "%"+keyword+"%")
+    }
+    var total int64
+    if err := query.Count(&total).Error; err != nil {
+        c.Error(err.Error())
+        return
+    }
+    c.SuccessWithData("获取成功", map[string]interface{}{"total": total})
+}
+```
+
+这里复用 demo 的独立表，不要将表名改成用户输入。把方法注册到 `server/plugin.go` 已有的 Actions 中：
+
+```go
+"summary": m.summary,
+```
+
+方法名可自定义，但前端请求的 action 名必须与这里完全一致。
+
+### 2. 新增前端组件
+
+创建 `web/components/summary.tsx`：
+
+```tsx
+import React, {useEffect, useRef, useState} from "react";
+import {App, Button, Form, Input, Typography} from "antd";
+import type {PluginPageProps} from "../types";
+
+export default function Summary({request}: Pick<PluginPageProps, "request">) {
+    const {message} = App.useApp();
+    const [busy, setBusy] = useState(false);
+    const [total, setTotal] = useState<number | null>(null);
+    const active = useRef(true);
+    const pending = useRef(false);
+    useEffect(() => {
+        active.current = true;
+        return () => { active.current = false; };
+    }, []);
+    const submit = async (values: {keyword?: string}) => {
+        if (pending.current) return;
+        pending.current = true; setBusy(true);
+        try {
+            const result = await request("summary", {keyword: values.keyword?.trim() || ""});
+            if (active.current) setTotal(Number(result?.total) || 0);
+        } catch (error) {
+            if (active.current) message.error(error instanceof Error ? error.message : "查询失败");
+        } finally {
+            pending.current = false;
+            if (active.current) setBusy(false);
+        }
+    };
+    return <Form layout="vertical" variant="filled" onFinish={submit}>
+        <Form.Item name="keyword" label="关键词">
+            <Input maxLength={100} placeholder="留空统计全部记录"/>
+        </Form.Item>
+        <Form.Item><Button type="primary" htmlType="submit" loading={busy}>查询</Button></Form.Item>
+        {total !== null && <Typography.Text>匹配 {total} 条记录</Typography.Text>}
+    </Form>;
+}
+```
+
+随后在 `web/index.tsx` 导入 Summary，将它放入现有工作台的一个页面，或新增导航项。组件只依赖传入的 request，因此可以独立拆出使用：
+
+```tsx
+import Summary from "./components/summary";
+
+// 放进当前组件的 JSX：
+<Summary request={request}/>
+```
+
+### 3. 更新并验证
+
+```sh
+./server plugin install [[quote .Directory]]
+```
+
+关闭旧的管理页面，再打开新页面；空关键词应返回当前记录总数，输入一个不存在的词应返回 0。非法的超长参数会被后端校验拒绝。可以在浏览器 Network 中核对实际请求是 `/software/[[.ID]]/summary`，结果只有 data.total，不会重复请求面板内部接口。
+
+这个开发方式同样适用于容器配置、计划任务或第三方服务：先写一个独立 Action，再加页面组件，最后用真实请求验证成功、失败、空数据和关闭时的处理。
+
+## 前端页面
+
+### 普通 React 组件
+
+```tsx
+import React, {useState} from "react";
+import {App, Button, Input, Space} from "antd";
+import type {PluginPageProps} from "./types";
+
+export default function Page({request}: Pick<PluginPageProps, "request">) {
+    const {message} = App.useApp();
+    const [name, setName] = useState("");
+    const [loading, setLoading] = useState(false);
+
+    const submit = async () => {
+        setLoading(true);
+        try {
+            const result = await request("hello", {name});
+            message.success(result?.message || "请求成功");
+        } catch (error) {
+            message.error(error instanceof Error ? error.message : "请求失败");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return <Space.Compact>
+        <Input variant="filled" placeholder="请输入名称"
+            value={name} onChange={(event) => setName(event.target.value)}/>
+        <Button loading={loading} onClick={submit}>发送</Button>
+    </Space.Compact>;
+}
+```
+
+入口默认导出 React 组件，接收：
+
+| 参数 | 内容 |
+| --- | --- |
+| `software` | 软件详情：`id`、`name`、`code`、`version`、`status`、`create_time`、`update_time`、`frontend`。不包含内部配置或重复清单。 |
+| `request(action, params?)` | 调用当前软件的接口，自动使用面板请求与鉴权，返回响应的 `data`。 |
+| `onClose()` | 关闭当前管理弹窗，可用于页面内的完成、返回或关闭按钮。 |
+
+不需要 `createRoot`、自建路由或包一层新的 React 应用；复用宿主的主题和组件上下文即可。页面异步事件需要捕获错误，避免未处理的 Promise rejection。
+
+### 自定义管理弹窗
+
+在清单 `frontend` 对应的页面入口中命名导出 `modal`，即可配置宿主弹窗，不需要修改 `software.json` 或自己再包一层 Modal。最简单的写法是一个 Ant Design `ModalProps` 属性对象：
+
+```tsx
+export const modal = {
+    width: 800,
+    styles: {body: {minHeight: 420}},
+};
+
+export default function Page() {
+    return null; // 换成自己的管理页面内容。
+}
+```
+
+需要适配屏幕和主题时，使用同步配置函数：
+
+```tsx
+import {Button} from "antd";
+import type {PluginModal} from "sdk";
+
+export const modal: PluginModal = ({software, compact, mobile, token, onClose}) => ({
+    title: `${software?.name || "软件"}管理`,
+    width: mobile ? "calc(100vw - 24px)" : compact ? 880 : 1000,
+    style: {top: mobile ? 16 : 70, paddingBottom: mobile ? 16 : 70},
+    styles: {
+        body: {
+            minHeight: mobile ? 360 : 440,
+            background: token.colorBgContainer,
+        },
+    },
+    footer: <Button onClick={onClose}>关闭</Button>,
+});
+```
+
+配置函数的参数：
+
+| 参数 | 内容 |
+| --- | --- |
+| `software` | 当前软件详情，与页面组件收到的对象一致。 |
+| `compact` | 当前是否启用紧凑模式。 |
+| `mobile` | 当前是否为移动端布局。 |
+| `token` | 当前 Ant Design 主题 token，可读取颜色、字号、圆角等，随暗色和紧凑主题更新。 |
+| `onClose()` | 关闭当前管理弹窗，适合在自定义标题或底部按钮中使用。 |
+
+`modal` 函数只计算配置，不调用 Hooks、不发请求，也不返回 Promise；需要 Hooks 的页面逻辑仍放在默认导出的 React 组件中。主题或屏幕断点改变时，面板会重新计算配置。
+
+可直接使用 `width`、`title`、`footer`、`style`、`styles`、`className`、`rootClassName`、`classNames`、`centered`、`mask`、`closable` 等原生弹窗属性。宽度可用数字、CSS 字符串或 Ant Design 的响应式对象；内容高度和内部滚动可通过 `styles.body.height`、`maxHeight`、`overflow` 配置。`styles` 和 `classNames` 也支持 Ant Design 原生的函数形式。
+
+`style` 与宿主默认样式浅合并，插件同名属性优先；`styles.body` 默认包含 `minWidth: 0`，插件可以覆盖。未导出 `modal` 时，保持面板默认弹窗：普通模式宽 1080，紧凑模式宽 960，无底部操作栏。插件配置只作用于当前打开的软件。
+
+`open`、`onCancel`、`afterClose`、`afterOpenChange`、`destroyOnHidden`、`destroyOnClose`、`forceRender`、`getContainer`、`children`、`loading` 由宿主管理，不从插件配置中接收，以确保关闭和模块释放正常执行；`closable` 对象里的 `onClose`、`afterClose` 回调也不接收。需要主动关闭时调用 `onClose()`；页面订阅、计时器等清理仍写在 React effect 的返回函数中。
+
+### 多文件和模块导入
+
+```tsx
+import Notes from "./components/notes";
+import useStyles from "./styles";
+import type {PluginPageProps} from "./types";
+```
+
+支持 `.ts`、`.tsx`、`.js`、`.jsx`、`.mjs`、`.json`。相对导入可以省略扩展名，也可以导入目录中的 `index` 文件。模块会按依赖关系加载和转换，不需要手动合并文件。
+
+可直接使用的共享模块：
+
+| 模块 | 用途 |
+| --- | --- |
+| `react` | React 与 Hooks。 |
+| `react/jsx-runtime`、`react/jsx-dev-runtime` | JSX 转换运行时。 |
+| `antd` | 原生表单、按钮、表格、弹窗、反馈等。 |
+| `sinking-antd` | 面板使用的表格、弹窗、主题等组件；具体 API 以面板提供的版本为准。 |
+| `antd-style` | 基于主题 token 的样式，便于适配暗色与紧凑模式。 |
+| `dayjs` | 日期处理。 |
+| `sdk` | 前端公共组件与工具：`ActionDropdown`、`Log`、`ContainerTerminal`、`FormField`、`formatSize`。 |
+
+前端的 `sdk` 是共享组件模块，后端的 `import "sdk"` 是 Go API，二者用途不同。
+
+`web/sdk.d.ts` 提供前端共享组件的编辑器声明，不包含运行实现，也不需要安装 npm 上的同名包。开发机需要完整的 TypeScript 提示时，可自行准备与宿主版本对应的 React、Ant Design 等开发依赖；这些依赖不随插件发布。
+
+额外 npm 包不会自动安装。可以把不依赖 Node 环境、能直接在浏览器运行的模块放到 `web/`，通过相对路径引用。宿主的 `@/` 路径别名不对插件开放；CSS、Less、Sass 的模块导入也不在当前加载器支持范围内，样式使用 `antd-style` 或普通内联样式。
+
+浏览器通过 Babel Standalone 转换 TSX，不执行 TypeScript 类型检查。`tsconfig.json` 用于编辑器，类型提示需要的开发依赖由开发者按需配置，不影响插件免构建安装。
+
+### 页面和资源地址
+
+```text
+/software/[[.ID]]/page                       → 清单指定的 web/index.tsx
+/software/[[.ID]]/page/components/notes.tsx  → web/components/notes.tsx
+/software/[[.ID]]/page/styles.ts             → web/styles.ts
+```
+
+子资源 URL 不包含第二层 `web/`。通常直接写相对模块导入即可，由加载器解析资源路径。资源请求也需要面板身份验证。
+
+### 页面组织与样式
+
+本示例将六个功能区拆成独立组件，切换时只挂载当前区块。列表使用后端分页，表单保存后刷新相关列表，任务页面在卸载时结束轮询。
+
+新增页面建议沿用以下约定：
+
+- 表单使用 Ant Design `Form` 与 `variant="filled"`；弹窗、表格优先使用宿主现有组件。
+- 使用系统主题 token，不写死黑白背景、字号、圆角；紧凑模式下依据主题调整间距。
+- 接口响应使用 `data?.list` 等可选访问，空数据交给组件的默认 Empty。
+- 保存按钮防止重复提交，失败通过 `message` 展示服务端错误。
+- 使用宿主已有主题和弹窗上下文，不另建全局样式覆盖面板。
+
+### 复用 PageTable 的请求与工具栏
+
+分页、关键词、排序交给 `PageTable` 管理，组件只适配请求参数与响应结构。以下组件可以独立保存为 `web/components/record-list.tsx`，通过 `<RecordList request={request}/>` 使用：
+
+```tsx
+import React from "react";
+import {App} from "antd";
+import {PageTable} from "sinking-antd";
+import type {PluginPageProps} from "../types";
+
+export default function RecordList({request}: Pick<PluginPageProps, "request">) {
+    const {message} = App.useApp();
+    return <PageTable
+        rowKey="id"
+        defaultPageSize={20}
+        search={{placeholder: "搜索标题或内容", maxLength: 100}}
+        toolbar={{refresh: true}}
+        pagination={{pageSizeOptions: [10, 20, 50, 100]}}
+        request={async ({current, pageSize, keyword}, sort) => {
+            const [field, direction] = Object.entries(sort)[0] || [];
+            const result = await request("notes", {
+                action: "list", page: current, page_size: pageSize, keyword,
+                ...(field ? {
+                    order_by_field: field,
+                    order_by_type: direction === "ascend" ? "asc" : "desc",
+                } : {}),
+            });
+            if (!Array.isArray(result?.list)) throw new Error("未返回有效的记录列表");
+            return {data: result.list, total: Number(result?.total) || 0, success: true};
+        }}
+        onRequestError={(error) => message.error(error.message)}
+        columns={[
+            {title: "ID", dataIndex: "id", width: 80, sorter: true},
+            {title: "标题", dataIndex: "title", ellipsis: true, sorter: true},
+            {title: "更新时间", dataIndex: "update_time", width: 170, sorter: true},
+        ]}
+    />;
+}
+```
+
+| 对接位置 | 规则 |
+| --- | --- |
+| 请求页码 | 组件给出 `current`、`pageSize`；demo 后端接收 `page`、`page_size`。 |
+| 搜索 | 默认关键词字段为 `keyword`；组件负责提交和回到第一页。 |
+| 排序 | 组件给出 `ascend/descend`；后端接收 `asc/desc`，必须校验字段白名单。 |
+| 返回值 | 返回 `{data, total, success}`，其中 data 是数组；空列表返回 `[]` 和 0，不沿用上次数据。 |
+| 刷新 | `toolbar.refresh` 提供刷新按钮；保存或删除后可通过表格 ref 的 `reload()` 刷新。 |
+| 批量操作 | 使用 `rowSelection.actions`，一次提交 ids；示例见 `components/notes.tsx`。 |
+| 详情 | 只在用户打开详情或编辑时请求完整记录，不把大文本放进列表。 |
+
+不要额外用 effect 监听页码或关键词再请求一次，也不要同时手动维护一套相同的 loading、分页和列表数据。提交表单等事件仍需自行捕获请求异常，避免未处理的 Promise 拒绝。弹窗表格可换用同库的 `ModalTable`，具体属性以当前宿主版本为准。
+
+## 面板能力与服务
+
+`New` 接收到的 `app` 是实际宿主对象，服务方法直接调用面板现有实现，不会再发送一次 HTTP 请求。
+
+插件代码在面板进程内运行，拥有面板进程可使用的系统权限。`platforms` 检查系统兼容性，`requires` 声明软件依赖，二者都不是权限隔离或沙箱。
+
+| 对象 | 用途 |
+| --- | --- |
+| `app.InstanceID` | 当前插件的字符串标识，等于清单 `id`，没有 `software_` 前缀。 |
+| `app.Database` | 面板自己的数据库封装，提供 `Db`、`Transaction`、`BatchExecute`。 |
+| `app.Cache` | 面板共享缓存，使用插件自己的键前缀。 |
+| `app.Config` | 面板运行时 Viper 配置，可读取面板运行参数。 |
+| `app.Log` | 面板日志，例如 `app.Log.Printf(...)`。 |
+| `app.Service` | 下表中的业务服务。 |
+
+### Service 导航
+
+| 服务 | 主要用途 |
+| --- | --- |
+| `Config` | 配置表的分组读取、单项或批量保存，以及按组删除。 |
+| `Auth` | 面板认证业务。 |
+| `Server` | 终端连接实例与相关业务。 |
+| `Script` | 常用脚本管理。 |
+| `Secret` | 云厂商等密钥管理。 |
+| `Type` | 分类管理。 |
+| `Log` | 操作日志业务；与 `app.Log` 的程序日志不同。 |
+| `Task` | Cron 计划任务、内部计划任务及任务日志。 |
+| `File` | 磁盘、复制移动、压缩解压、下载等文件能力。 |
+| `Recycle` | 回收站移入、恢复、清理等业务。 |
+| `System` | 系统信息、统计、时区、系统后台任务。 |
+| `Site` | 网站与证书等业务。 |
+| `Container` | 镜像、容器、命令、终端、日志和资源状态。 |
+| `Software` | 软件安装、升级、卸载、信息、内部配置读写与插件接口调用。 |
+| `Database` | 数据管理中的外部 MySQL、Postgres、Redis 等连接与操作。 |
+
+例如 `app.Service.Database.Mysql(ctx, id, databaseName)` 操作的是用户配置的数据库实例；`app.Database.Db` 操作的是面板本地数据库。
+
+完整字段、参数与返回值以本工程 `sdk/entities.go` 和 `sdk/methods.go` 为准。SDK 会为面板内部类型生成公开名称，例如 `sdk.ModelTask`、`sdk.UtilContainerRunOptions`；第三方库类型保留原导入路径。
+
+SDK 是开发声明，运行时由面板注入原生实现，不能单独创建一套 SDK 对象运行。不要调用共享服务的 `Close`、`Boot`、`Start` 等面板级管理方法，也不要关闭 `app.Database` 或 `app.Cache`；只管理本插件自己创建的资源。
+
+## 配置与缓存
+
+### 持久配置
+
+插件自身的设置保存在软件记录的 `config` 字段，通过软件标识读取和保存；不使用数字 ID：
+
+```go
+raw, err := app.Service.Software.GetConfig(app.InstanceID)
+if err != nil {
+    return err
+}
+settings := Settings{Greeting: "你好", Interval: 5}
+if raw != "" {
+    if err := json.Unmarshal([]byte(raw), &settings); err != nil {
+        return err
+    }
+}
+settings.Greeting = "欢迎使用"
+data, err := json.Marshal(settings)
+if err != nil {
+    return err
+}
+return app.Service.Software.SetConfig(app.InstanceID, string(data))
+```
+
+`GetConfig(code) (string, error)` 和 `SetConfig(code, data) error` 原样读写字符串，支持空字符串，不限制为 JSON。Demo 使用 JSON 保存 `Settings`，解析、默认值和业务校验由插件负责。软件详情、列表和安装接口不返回 `config`；页面需要配置项时，由插件自己的 Action 返回允许展示的字段。
+
+首次安装的生命周期执行前软件记录已经存在，可以直接保存默认值；升级不会重置配置。软件卸载成功后记录被删除，内部配置随之删除。
+
+需要额外的公共配置分组时，仍可使用现有 Config 服务。这是独立用法，demo 的设置不存储在这些分组中：
+
+```go
+group := "plugin_" + app.InstanceID
+err := app.Service.Config.Sets(map[string]string{
+    group + ".greeting": "欢迎使用",
+    group + ".interval": "10",
+})
+if err != nil {
+    return err
+}
+value := app.Service.Config.Get(group, group+".greeting")
+values := app.Service.Config.Group(group)
+```
+
+公共配置组由插件在卸载钩子中调用 `app.Service.Config.DeleteByGroup(group)` 清理；使用专有分组，不要删除其他软件或面板的组。`Set`、`Sets`、`DeleteByGroup` 会使对应组的缓存失效，`Group` 的返回值不要原地修改。`app.Config` 是面板运行时 Viper 配置，与上述两种业务配置不同。
+
+### 临时缓存
+
+```go
+key := "plugin:" + app.InstanceID + ":example"
+app.Cache.SetWithExpire(key, "临时内容", time.Minute)
+value := app.Cache.Get(key)
+if value != nil {
+    text, ok := value.(string)
+    _ = text
+    _ = ok
+}
+app.Cache.Delete(key)
+```
+
+其他可用方法包括 `Set`、`Remember`、`Lock`、`UnLock`、`IsLock`。`Get` 返回 `interface{}`，按写入类型读取；不要假定存在 `GetString` 等便捷方法。
+
+缓存不替代持久存储，进程重启后是否保留取决于缓存实现。缓存键和锁键都应包含插件标识，避免不同插件互相覆盖。
+
+## 数据库与事务
+
+演示笔记使用面板数据库中的独立数据表，不需要用户先配置 MySQL。生命周期负责建表，接口负责分页和增删改查。
+
+### 声明自己的数据模型
+
+```go
+type Note struct {
+    ID      int64  `gorm:"column:id;primaryKey;autoIncrement" json:"id"`
+    Title   string `gorm:"column:title" json:"title"`
+    Content string `gorm:"column:content" json:"content"`
+}
+```
+
+可以通过共享 GORM 实例建表、查询和更新。表名由插件代码决定，面板不限定前缀；建议带插件标识，避免名称冲突。
+
+```go
+digest := sha256.Sum256([]byte(app.InstanceID))
+table := fmt.Sprintf("plugin_demo_%x", digest[:8])
+if err := app.Database.Db.Table(table).AutoMigrate(&Note{}); err != nil {
+    return err
+}
+
+var rows []Note
+query := app.Database.Db.WithContext(ctx).Table(table)
+err := query.Where("title LIKE ?", "%示例%").
+    Order("id DESC").Offset(0).Limit(20).Find(&rows).Error
+```
+
+表名、列名、排序项应由代码或白名单决定；值使用 `?` 参数绑定。使用 `Updates(map[string]interface{}{...})` 可以明确保存空字符串、`false`、`0` 等零值。
+
+### 单条查询与不存在的记录
+
+下面的写法与 demo 详情接口一致：先处理查询错误，再检查主键。`Find` 没有记录时不返回查询错误，不能把 `err == nil` 当成记录存在。
+
+```go
+var record Note
+if err := m.app.Database.Db.WithContext(c.Request.Context()).Table(m.table).
+    Where("id = ?", form.ID).Limit(1).Find(&record).Error; err != nil {
+    c.Error(err.Error())
+    return
+}
+if record.ID <= 0 {
+    c.Error("记录不存在")
+    return
+}
+c.SuccessWithData("获取成功", record)
+```
+
+宿主自动提供可达的类型和方法，不自动提供所有第三方包级变量、常量或函数。例如当前 SDK 不提供 `gorm.ErrRecordNotFound`，这里无需依赖它。需要额外包级能力时，先核对实际导出或随包携带兼容 Yaegi 的依赖。
+
+### 事务与批量操作
+
+宿主已经提供 GORM 类型，可以在插件中 `import "gorm.io/gorm"` 使用事务回调：
+
+```go
+err := app.Database.Transaction(func(tx *gorm.DB) error {
+    note := Note{Title: "事务示例", Content: "两次写入同时成功或回滚"}
+    if err := tx.WithContext(ctx).Table(table).Create(&note).Error; err != nil {
+        return err
+    }
+    return tx.WithContext(ctx).Table(table).Where("id = ?", note.ID).
+        Updates(map[string]interface{}{"content": "事务内再次更新"}).Error
+})
+```
+
+大量 ID 可以使用已有的批处理方法：
+
+```go
+err := app.Database.Transaction(func(tx *gorm.DB) error {
+    return app.Database.BatchExecute(ids, 1000, func(batch interface{}) error {
+        return tx.WithContext(ctx).Table(table).
+            Where("id IN ?", batch.([]int64)).Delete(&Note{}).Error
+    })
+})
+```
+
+`BatchExecute` 只负责分批，原子性由外层事务提供。调用服务修改面板自身业务时优先使用对应 Service，插件自有数据再直接使用 `app.Database`。
+
+面板暴露的是已经创建好的数据库对象与其方法，不等于自动导出了 GORM 所有包级函数；无需也不应为了访问面板库再次调用 `gorm.Open`。
+
+## 后台任务与计划任务
+
+| 能力 | 适用场景 | 生命周期 |
+| --- | --- | --- |
+| `System.TaskCreate` | 导入、下载、安装等一次性工作，展示百分比、消息、日志并可取消。 | 系统任务队列。 |
+| `Task.Add` | 按 Cron 周期运行、可暂停恢复的计划任务。 | 面板计划任务调度器。 |
+| `Start` 内协程 | 心跳、监听、持续轮询等插件内部工作。 | 插件启动到停止。 |
+
+### 一次性系统任务
+
+下面是基本模式，实际 demo 还保存当前任务 ID，并在停止插件时处理自己的任务：
+
+```go
+const (
+    taskRunning = 1
+    taskCompleted = 2
+    taskFailed = 3
+    taskCanceled = 4
+)
+
+id := app.InstanceID + "-example-" + strconv.FormatInt(time.Now().UnixNano(), 10)
+app.Service.System.TaskCreate(id, "插件演示任务", nil,
+    func(ctx context.Context, data interface{}, progress func(int, float64, string)) {
+        ticker := time.NewTicker(500 * time.Millisecond)
+        defer ticker.Stop()
+        for step := 1; step <= 10; step++ {
+            select {
+            case <-ctx.Done():
+                progress(taskCanceled, float64(step-1)*10, "任务已取消")
+                return
+            case <-ticker.C:
+                progress(taskRunning, float64(step)*10, "正在处理")
+            }
+        }
+        progress(taskCompleted, 100, "处理完成")
+    },
+)
+```
+
+必须明确回报成功或失败状态，单纯从回调返回不会自动标记成功。每次任务使用唯一 ID，避免覆盖已有任务。
+
+```go
+task := app.Service.System.GetTask(id)
+canceled := app.Service.System.TaskCancel(id)
+logs, err := app.Service.System.TaskLog(id, 0, 0, 100)
+```
+
+取消是协作式的，工作代码需要监听 `ctx.Done()`。任务状态显示已取消不等于工作协程已经返回；插件停止前还应等待自己的工作结束。任务不应捕获 HTTP `Context` 或在响应后继续写入 HTTP 响应。
+
+### 内部计划任务
+
+传入执行回调时，`Task.Add` 注册内部任务：不写入计划任务数据库、不出现在普通任务列表。内部任务使用固定负数 ID，请为插件选择并记录自己的唯一值，不要与其他插件共用。
+
+```go
+const scheduleID int64 = -900001 // 示例值；发布插件时请规划自己的固定 ID。
+
+err := app.Service.Task.Add(&sdk.ModelTask{
+    Id: scheduleID,
+    Name: "插件每日检查",
+    Spec: "0 0 3 * * *", // 秒 分 时 日 月 周，服务器当地时间每天 03:00。
+    ExecType: 0,
+    Status: 0,
+}, func(ctx context.Context) {
+    if ctx.Err() != nil {
+        return
+    }
+    _ = app.Service.Task.WriteLog(scheduleID, "开始执行插件每日检查")
+    // 执行自己的工作，并处理错误。
+})
+```
+
+在 `Start` 注册，在 `Stop` 使用 `Remove([]int64{scheduleID})` 移除，防止升级或重新加载后重复注册。其他控制方法为 `Stop(id)`、`Restore(id)`、`Run(id)`、`UpdateByIds(...)`、`ReadLog(...)`、`ClearLog(id)`。
+
+内部任务回调使用计划任务服务的上下文，若它执行长任务，也要关联插件自己的取消信号；移除调度项不应被当作强制终止正在执行的业务代码。
+
+## 文件与容器
+
+### 文件操作
+
+```go
+paths, err := app.Service.File.GetDiskPaths()
+if err != nil {
+    return err
+}
+app.Log.Printf("插件 %s 发现 %d 个磁盘路径", app.InstanceID, len(paths))
+```
+
+文件服务还提供复制、移动、压缩、解压、远程下载、格式识别与预览签名等能力。需要下载进度时可与系统后台任务结合：
+
+```go
+err := app.Service.File.DownloadWithProgress(ctx, sourceURL, destination,
+    func(current, total int64, speed float64) bool {
+        if ctx.Err() != nil {
+            return false
+        }
+        percent := float64(0)
+        if total > 0 {
+            percent = float64(current) / float64(total) * 100
+        }
+        progress(1, percent, "正在下载")
+        return true
+    },
+)
+```
+
+这里只展示下载调用，完整任务中要在返回错误时报告失败，在成功后报告完成。`destination` 是服务器上的路径；浏览器上传的文件应先通过面板文件功能上传，再把服务器路径交给业务接口。
+
+### 容器安装与管理
+
+默认 demo 不执行以下操作。需要容器的软件先声明 `platforms: ["linux"]`，然后在用户配置后的业务接口中调用。直接使用面板容器服务不需要填写 `requires`；只有确实依赖其他软件插件时才添加它们的标识。
+
+```go
+image, err := app.Service.Container.Import("/opt/images/redis.tar")
+if err != nil {
+    return err
+}
+
+id := app.InstanceID + "-redis"
+root, err := app.Service.Container.VolumePath(id)
+if err != nil {
+    return err
+}
+if err := os.MkdirAll(root, 0755); err != nil {
+    return err
+}
+
+instance, err := app.Service.Container.Run(sdk.UtilContainerRunOptions{
+    ID: id,
+    Name: "插件 Redis",
+    ImageID: image.Id,
+    Mounts: []sdk.UtilContainerMount{{Source: root, Destination: "/data"}},
+    AutoRestart: true,
+})
+```
+
+`ImageID` 也支持镜像 ID、名称、标签或本机归档绝对路径。容器管理器会读取镜像的入口程序、命令、环境变量、运行用户等默认配置；只有需要覆盖时才传对应字段。镜像必须匹配服务器系统与架构，不会把 ARM 镜像自动变成 x86 镜像。
+
+```go
+info, err := app.Service.Container.Info(id)
+status, err := app.Service.Container.Status(id)
+_, err = app.Service.Container.Start(ctx, id)
+err = app.Service.Container.Stop(ctx, id)
+err = app.Service.Container.Restart(ctx, id)
+result, err := app.Service.Container.Exec(id, sdk.UtilContainerExecOptions{
+    Command: []string{"redis-cli", "PING"},
+    Timeout: 5 * time.Second,
+})
+logs, err := app.Service.Container.ReadLog(id, 0, 0, 100)
+err = app.Service.Container.ClearLog(id)
+```
+
+上述为各方法的独立调用示例，业务代码需逐次检查 `err`。命令退出状态还要检查 `result.ExitCode`、`TimedOut`；`Exec` 的命令是程序与参数数组，使用管道等 shell 语法时需要明确调用镜像中的 shell。
+
+卸载时区分容器实例、镜像和持久数据：
+
+- `Remove([]string{id})` 删除容器实例，保留挂载的数据目录。
+- `RemoveImage([]string{imageID})` 删除镜像，不能删除仍被其他容器使用的镜像。
+- 卸载时，插件同时删除自己拥有的持久目录；不要删除其他插件共享的资源。
+
+镜像可能由多个软件共同使用，插件应记录资源归属。面板退出时的容器保留策略由面板控制，插件不要默认在 `Stop` 中销毁容器或清空数据。
+
+## 多文件与第三方依赖
+
+### Go 多文件
+
+`server/` 可包含任意多个同包 Go 文件。进一步分包时，按 `server/go.mod` 的 module 路径导入：
+
+```text
+server/
+├── go.mod                 # module plugin.local/[[.ID]]
+├── plugin.go              # package app
+├── entities.go            # package app
+├── business.go            # package app
+└── internal/
+    └── helper/
+        └── helper.go      # package helper
+```
+
+```go
+import "plugin.local/[[.ID]]/internal/helper"
+```
+
+生成的 `server/go.mod` 通过 `replace sdk => ../sdk` 给编辑器提供类型声明。运行时的 `sdk` 来自宿主，不读取面板源码，也不需要把根目录 `sdk/` 交付到服务器。
+
+### 使用 Go 依赖
+
+开发机在 `server/` 中管理依赖：
+
+```sh
+go mod tidy
+go mod vendor
+```
+
+安装包包含实际需要的 `server/vendor/` 源码。面板运行时不会执行 `go get`、不会读取服务器全局 GOPATH、不会在线下载缺失模块，也不要求用户服务器安装 Go 工具链。
+
+宿主已导出的原生类型与方法直接调用宿主实现；其余第三方依赖由解释器加载 vendor 源码。`go.mod` 是依赖声明，并不意味着解释器具备完整 Go module 下载、解析与编译工具链能力。
+
+Yaegi 与原生 Go 编译器不完全等价。涉及 CGO、汇编、编译器特殊指令、未暴露的原生库或解释器不支持语法的依赖，不能仅靠 vendor 保证可用。请用目标面板版本实际安装验证所选库；仅开发机 `go build` 成功不足以证明解释执行成功。
+
+本 demo 已按实际解释执行验证过的写法组织生命周期：结构体字段逐项赋值，停止时分别等待完成通道。扩展时若遇到原生编译正常、解释执行反射报错，可先保留这些写法再缩小问题范围。
+
+生成 SDK 可能引用宿主使用的第三方模块，`go mod vendor` 也可能带入这些依赖。交付时只保留运行确实需要的源码，避免把重复宿主依赖、开发工具或构建缓存全部打包。当前软件包限制为最多 1000 个文件、解压后 64 MB。
+
+### SDK 更新
+
+SDK 描述生成它的那一版面板。需要使用新增 API 时，用新的面板程序 `plugin init` 到另一个目录，比较并更新开发工程的 `sdk/`，再验证插件。生成 SDK 不自动保证旧面板拥有新增方法。
+
+`sdk/` 中的方法是供补全和类型检查使用的声明，不是面板实现副本。不要编辑这些声明来“增加”运行时 API。
+
+## 安装升级与卸载
+
+### 安装
+
+软件管理和 CLI 都支持服务器上的源码目录或 ZIP 路径。没有软件包上传安装接口；需要传输文件时，先用已有文件管理或自己的部署工具放到服务器，再使用路径安装。
+
+```sh
+./server plugin install [[quote .Directory]]
+./server plugin install /path/to/plugin.zip
+```
+
+从面板所在目录执行。面板运行时，CLI 通过本机进程通信交给运行中的软件服务执行；面板未运行时，使用本地软件服务。无需给这些 CLI 命令填写 HTTP 地址或登录 token；本地安装仍需要已初始化的面板数据库。
+
+安装会校验清单、平台与软件依赖。首次安装在调用生命周期前建立软件记录，使 `Install` 和 `Start` 可以使用 `GetConfig/SetConfig`；失败时删除此次新建的记录并回滚代码。缺少依赖时先安装依赖软件。首次安装无需安装表单；复杂软件可以先安装插件，再在页面配置连接、镜像或业务参数。
+
+### 升级
+
+相同 `id` 再次安装即升级。新清单的依赖关系也会重新检查，不能通过升级引入缺失或循环依赖。在线升级先停止旧版本，再执行新版本的 `Upgrade` 与启动流程；代码目录固定为：
+
+```text
+<面板数据目录>/software/[[.ID]]/
+```
+
+升级期间会暂存旧代码供回滚，结束后清理，不累积 `release-*` 目录。升级保留插件配置；失败时恢复旧代码及旧版本 `Stop` 完成后的配置，再尝试恢复旧版本运行。
+
+软件记录中的配置由软件服务随升级回滚；自建业务表、公共配置表、网络请求和外部容器操作不在此范围内。数据迁移应使用事务、可重复执行的步骤，并避免破坏旧版本仍需读取的数据。
+
+### 卸载
+
+```sh
+./server plugin uninstall [[.ID]]
+```
+
+卸载直接清理插件数据，不提供保留数据选项。插件在 `Uninstall` 中清理自己拥有的业务资源，软件代码目录和面板软件记录在卸载成功后删除。如果仍有其他软件依赖它，需要先卸载这些软件；不会自动连带卸载依赖方。
+
+如果插件已经加载，面板先停止再执行 `Uninstall`；未加载时尝试加载源码以执行清理，但不调用 `Start`，因此离线卸载也能清理插件数据。如果源码损坏、加载失败，面板记录错误并继续删除软件记录及其内部配置、代码目录。此时自定义钩子无法执行，宿主无法自动推断插件任意创建的业务表、公共配置组、容器和外部目录；这些资源需按插件说明清理。
+
+因此插件应实现完整、可重复执行的 `Uninstall`，并在文档中记录自己创建的数据表、配置组、目录与容器标识，便于源码损坏等异常情况的清理。`Install` 仍应幂等，避免升级或安装重试时覆盖已有数据。
+
+## 打包发布
+
+可直接用源码目录安装，也可发布 ZIP。ZIP 根目录必须直接包含清单，不能再套一层插件名称目录：
+
+```text
+plugin.zip
+├── software.json
+├── server/
+│   ├── go.mod
+│   ├── *.go
+│   └── vendor/             # 有额外 Go 依赖时携带
+└── web/
+    ├── index.tsx
+    ├── styles.ts
+    └── components/…
+```
+
+在生成的插件工程目录中执行：
+
+```sh
+zip -r ../[[.ID]].zip software.json server web
+```
+
+Windows PowerShell 可使用：
+
+```powershell
+Compress-Archive -Path software.json, server, web -DestinationPath ..\[[.ID]].zip -Force
+```
+
+不要加入 `node_modules`、构建缓存、面板源码、镜像归档或根目录开发 `sdk/`。ZIP 最多 32 MB、解压后最多 64 MB、最多 1000 个文件。源码文件必须是普通文件，软件包不接受符号链接、特殊文件或越界路径。依赖的软件镜像通过用户配置或后续业务下载，不塞进插件源码包。
+
+交付给开发者的源码工程可以另外包含 `README.md` 与 `sdk/`，和交付给面板安装的 ZIP 区分即可。
+
+## 常见问题
+
+| 现象 | 排查方法 |
+| --- | --- |
+| 初始化提示目录已存在 | 换一个新的目录。`init` 不覆盖已有代码。 |
+| 插件缺少 `New` 入口 | 确认 `server/` 不是 `package main`，同目录包名一致，并导出 `func New(app *sdk.App) *sdk.Plugin`。 |
+| 找不到第三方依赖源码 | 在开发机执行 `go mod vendor`，确认所需源码位于 `server/vendor/`，再安装；面板不会在线拉依赖。 |
+| 方法编译通过，安装时不可用 | 核对生成 SDK 与目标面板是否一致，确认依赖是宿主已导出的能力或解释器支持的源码。 |
+| `软件 SDK 只能在面板插件运行时调用` | 运行到了 SDK 的开发声明。应通过面板安装并调用插件，不要独立运行 SDK 方法。 |
+| 页面资源 404 | 检查清单入口与大小写、源文件是否随包安装、相对导入是否正确；子资源 URL 不应包含 `/page/web/`。 |
+| 前端引用模块失败 | 检查是否为宿主共享模块或相对路径；额外 npm 模块、宿主 `@/` 别名、CSS/Less 导入不会自动解析。 |
+| 页面显示空数据 | `request` 已经返回 `data`，不要再次读取 `result.data`；检查字段拼写和可选值。 |
+| 请求返回 HTTP 200 但功能失败 | 看 JSON 的 `code` 与 `message`。宿主 `request` 已经处理业务错误，页面需捕获异常。 |
+| `fmt.Println` 没有出现在日志 | 插件解释器标准输出和标准错误默认丢弃；使用 `app.Log.Printf` 或对应任务日志接口。 |
+| 改了开发文件没有生效 | 重新安装源码目录，再重新打开管理页面；已安装目录是独立副本。 |
+| 保存配置后仍读到旧值 | 内部配置使用 `Software.GetConfig/SetConfig`；公共配置分组使用 `Config.Set/Sets`，避免绕过服务写入后留下缓存。 |
+| 后台任务结束却显示失败 | 回调结束前必须报告完成或失败；不要只 `return`。 |
+| 面板停止、升级时卡住 | 检查自己的协程和长操作是否响应取消，`Stop` 是否能等待它们及时退出。 |
+| 卸载后重新安装 | 正常卸载清理插件数据；重新安装会初始化新表和默认配置。 |
+| 卸载时没调用清理钩子 | 未加载插件会尝试只加载、不启动；若源码加载失败，会记录错误并清理软件记录与代码，外部资源按插件说明处理。 |
+| 提示缺少依赖软件 | `requires` 填写依赖插件的 `id`，先安装依赖，再重新安装当前插件；面板不会自动下载依赖。 |
+| 提示循环依赖或依赖自身 | 检查各插件的 `requires`，移除自身标识或打破相互依赖关系。 |
+| 卸载提示被其他软件依赖 | 先卸载提示中的依赖方，再卸载当前软件。 |
+| 容器软件不能在当前系统安装 | 检查 `platforms` 是否包含当前系统；容器服务用于 Linux，不要在 `requires` 中把 `container` 当作能力声明。 |
+
+开发时可以按“生成工程 → 安装 demo → 修改一个 Action → 修改对应页面 → 再次安装 → 检查升级与卸载”的顺序迭代。接口签名以当前 SDK 为准，示例业务实现以 `server/` 为准，页面交互可直接参考 `web/components/`。

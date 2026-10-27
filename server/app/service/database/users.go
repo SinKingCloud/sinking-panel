@@ -91,7 +91,12 @@ func (s *service) ChangeMysqlPassword(ctx context.Context, id int64, databaseNam
 	if err != nil {
 		return nil, err
 	}
-	data := map[string]interface{}{"affected": result.Affected, "elapsed_ms": result.ElapsedMs, "current": current, "connection_updated": false}
+	data := map[string]interface{}{
+		"affected":           result.Affected,
+		"elapsed_ms":         result.ElapsedMs,
+		"current":            current,
+		"connection_updated": false,
+	}
 	if !current {
 		return data, nil
 	}
@@ -141,7 +146,12 @@ func (s *service) ChangePostgresPassword(ctx context.Context, id int64, database
 	if err != nil {
 		return nil, err
 	}
-	data := map[string]interface{}{"affected": result.Affected, "elapsed_ms": result.ElapsedMs, "current": current, "connection_updated": false}
+	data := map[string]interface{}{
+		"affected":           result.Affected,
+		"elapsed_ms":         result.ElapsedMs,
+		"current":            current,
+		"connection_updated": false,
+	}
 	if !current {
 		return data, nil
 	}
@@ -191,7 +201,12 @@ func (s *service) ChangeSqlServerPassword(ctx context.Context, id int64, databas
 	if err != nil {
 		return nil, err
 	}
-	data := map[string]interface{}{"affected": result.Affected, "elapsed_ms": result.ElapsedMs, "current": current, "connection_updated": false}
+	data := map[string]interface{}{
+		"affected":           result.Affected,
+		"elapsed_ms":         result.ElapsedMs,
+		"current":            current,
+		"connection_updated": false,
+	}
 	if !current {
 		return data, nil
 	}

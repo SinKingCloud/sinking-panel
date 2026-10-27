@@ -35,7 +35,12 @@ func (m *Manager) setOptions(options Options) error {
 	} else {
 		options.Protocols = append([]string{}, options.Protocols...)
 	}
-	allowedProtocols := map[string]bool{"h1": true, "h2": true, "h2c": true, "h3": true}
+	allowedProtocols := map[string]bool{
+		"h1":  true,
+		"h2":  true,
+		"h2c": true,
+		"h3":  true,
+	}
 	protocolSet := make(map[string]struct{}, len(options.Protocols))
 	protocols := make([]string, 0, len(options.Protocols))
 	for _, protocol := range options.Protocols {
@@ -96,10 +101,26 @@ func (m *Manager) setOptions(options Options) error {
 		status int
 		body   string
 	}{
-		{value: &options.InitialPage, status: 200, body: DefaultInitialPage},
-		{value: &options.NotFoundPage, status: 404, body: DefaultNotFoundPage},
-		{value: &options.SiteNotFoundPage, status: 404, body: DefaultSiteNotFoundPage},
-		{value: &options.SiteDisabledPage, status: 503, body: DefaultSiteDisabledPage},
+		{
+			value:  &options.InitialPage,
+			status: 200,
+			body:   DefaultInitialPage,
+		},
+		{
+			value:  &options.NotFoundPage,
+			status: 404,
+			body:   DefaultNotFoundPage,
+		},
+		{
+			value:  &options.SiteNotFoundPage,
+			status: 404,
+			body:   DefaultSiteNotFoundPage,
+		},
+		{
+			value:  &options.SiteDisabledPage,
+			status: 503,
+			body:   DefaultSiteDisabledPage,
+		},
 	} {
 		if err := normalizePage(page.value, page.status, page.body); err != nil {
 			return err
@@ -115,8 +136,14 @@ func (m *Manager) setOptions(options Options) error {
 		addresses   []string
 		defaultPort uint
 	}{
-		{addresses: options.HTTPListen, defaultPort: 80},
-		{addresses: options.HTTPSListen, defaultPort: 443},
+		{
+			addresses:   options.HTTPListen,
+			defaultPort: 80,
+		},
+		{
+			addresses:   options.HTTPSListen,
+			defaultPort: 443,
+		},
 	} {
 		for index, address := range group.addresses {
 			if address == "" {
@@ -164,7 +191,14 @@ func (m *Manager) setOptions(options Options) error {
 	if options.LogLevel == "" {
 		options.LogLevel = "INFO"
 	}
-	if !map[string]bool{"DEBUG": true, "INFO": true, "WARN": true, "ERROR": true, "PANIC": true, "FATAL": true}[options.LogLevel] {
+	if !map[string]bool{
+		"DEBUG": true,
+		"INFO":  true,
+		"WARN":  true,
+		"ERROR": true,
+		"PANIC": true,
+		"FATAL": true,
+	}[options.LogLevel] {
 		return fmt.Errorf("http 日志级别无效: %s", options.LogLevel)
 	}
 	for _, value := range options.TrustedProxies {
@@ -344,7 +378,10 @@ func (m *Manager) updateOptions(options Options) error {
 	}
 	m.mu.RUnlock()
 
-	candidate := &Manager{root: m.root, sites: make(map[string]*Site)}
+	candidate := &Manager{
+		root:  m.root,
+		sites: make(map[string]*Site),
+	}
 	if err := candidate.setOptions(options); err != nil {
 		return err
 	}
@@ -691,7 +728,10 @@ func (m *Manager) buildConfig(sites map[string]*Site) ([]byte, error) {
 				key := string(fingerprint[:])
 				certificate := certificatePEMs[key]
 				if certificate == nil {
-					certificate = &certificatePEMConfig{Certificate: pair.CertificatePEM, Key: pair.PrivateKeyPEM}
+					certificate = &certificatePEMConfig{
+						Certificate: pair.CertificatePEM,
+						Key:         pair.PrivateKeyPEM,
+					}
 					certificatePEMs[key] = certificate
 				}
 				certificate.Tags = append(certificate.Tags, tag)
@@ -700,7 +740,10 @@ func (m *Manager) buildConfig(sites map[string]*Site) ([]byte, error) {
 			key := pair.CertificateFile + "\x00" + pair.KeyFile
 			certificate := certificateFiles[key]
 			if certificate == nil {
-				certificate = &certificateFileConfig{Certificate: pair.CertificateFile, Key: pair.KeyFile}
+				certificate = &certificateFileConfig{
+					Certificate: pair.CertificateFile,
+					Key:         pair.KeyFile,
+				}
 				certificateFiles[key] = certificate
 			}
 			certificate.Tags = append(certificate.Tags, tag)
@@ -740,7 +783,10 @@ func (m *Manager) buildConfig(sites map[string]*Site) ([]byte, error) {
 				for _, domain := range tlsDomains {
 					if address := net.ParseIP(domain); address != nil && address.To4() == nil {
 						// Host 带端口时占位符会去掉 IPv6 方括号，使用规范地址生成合法 URL。
-						redirectTargets = append(redirectTargets, redirectTarget{domains: []string{domain}, host: "[" + domain + "]"})
+						redirectTargets = append(redirectTargets, redirectTarget{
+							domains: []string{domain},
+							host:    "[" + domain + "]",
+						})
 					} else {
 						redirectTargets[0].domains = append(redirectTargets[0].domains, domain)
 					}
@@ -763,8 +809,9 @@ func (m *Manager) buildConfig(sites map[string]*Site) ([]byte, error) {
 						redirectHandlers = append(redirectHandlers, handler)
 					}
 					redirectHandlers = append(redirectHandlers, map[string]interface{}{
-						"handler": HandlerStaticResponse, "status_code": 308,
-						"headers": map[string][]string{"Location": {location}},
+						"handler":     HandlerStaticResponse,
+						"status_code": 308,
+						"headers":     map[string][]string{"Location": {location}},
 					})
 					httpRoutes = append(httpRoutes, map[string]interface{}{
 						"match":    []interface{}{redirectMatcher},
@@ -926,10 +973,16 @@ func (m *Manager) buildConfig(sites map[string]*Site) ([]byte, error) {
 			"disabled": true,
 			"config":   map[string]interface{}{"persist": persist},
 		},
-		"storage": map[string]interface{}{"module": "file_system", "root": m.dataPath},
-		"apps":    apps,
+		"storage": map[string]interface{}{
+			"module": "file_system",
+			"root":   m.dataPath,
+		},
+		"apps": apps,
 	}
-	logConfig := map[string]interface{}{"level": m.options.LogLevel, "encoder": logEncoder}
+	logConfig := map[string]interface{}{
+		"level":   m.options.LogLevel,
+		"encoder": logEncoder,
+	}
 	logConfig["exclude"] = excludedLogNamespaces
 	if m.logPath != "-" {
 		logConfig["writer"] = map[string]interface{}{
@@ -1055,7 +1108,10 @@ func (m *Manager) buildHTTPServer(listen []string, routes []interface{}, tlsPoli
 		server["tls_connection_policies"] = tlsPolicies
 	}
 	if len(m.options.TrustedProxies) > 0 {
-		server["trusted_proxies"] = map[string]interface{}{"source": "static", "ranges": m.options.TrustedProxies}
+		server["trusted_proxies"] = map[string]interface{}{
+			"source": "static",
+			"ranges": m.options.TrustedProxies,
+		}
 		if len(m.options.ClientIPHeaders) > 0 {
 			server["client_ip_headers"] = m.options.ClientIPHeaders
 		}

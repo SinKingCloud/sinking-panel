@@ -1,0 +1,88 @@
+package app
+
+import (
+	"encoding/json"
+	"strings"
+	"time"
+
+	"sdk"
+)
+
+// readSettings 集中处理默认值，升级增加字段后仍可读取已有配置。
+func (m *demo) readSettings() Settings {
+	settings := Settings{
+		Greeting: "你好",
+		Interval: 5,
+	}
+	raw, _ := m.app.Service.Software.GetConfig(m.app.InstanceID)
+	if raw != "" {
+		_ = json.Unmarshal([]byte(raw), &settings)
+	}
+	if strings.TrimSpace(settings.Greeting) == "" {
+		settings.Greeting = "你好"
+	}
+	if settings.Interval < 1 || settings.Interval > 60 {
+		settings.Interval = 5
+	}
+	return settings
+}
+
+// settings 演示持久化配置，无需给软件表增加插件专用字段。
+func (m *demo) settings(c *sdk.Context) {
+	var form struct {
+		Action   string `json:"action" default:"get" validate:"oneof=get set" label:"操作"`
+		Greeting string `json:"greeting" validate:"max=100" label:"问候语"`
+		Interval int    `json:"interval" default:"5" validate:"min=1,max=60" label:"心跳间隔"`
+	}
+	if ok, message := c.ValidatorAll(&form); !ok {
+		c.Error(message)
+		return
+	}
+	if form.Action == "get" {
+		c.SuccessWithData("获取成功", m.readSettings())
+		return
+	}
+	settings := Settings{
+		Greeting: strings.TrimSpace(form.Greeting),
+		Interval: form.Interval,
+	}
+	if settings.Greeting == "" {
+		c.Error("请填写问候语")
+		return
+	}
+	data, err := json.Marshal(settings)
+	if err == nil {
+		err = m.app.Service.Software.SetConfig(m.app.InstanceID, string(data))
+	}
+	if err != nil {
+		c.Error(err.Error())
+		return
+	}
+	c.SuccessWithData("保存成功", settings)
+}
+
+// cache 演示临时数据的保存、过期和删除，配置与缓存使用不同的键。
+func (m *demo) cache(c *sdk.Context) {
+	var form struct {
+		Action string `json:"action" default:"get" validate:"oneof=get set delete" label:"操作"`
+		Value  string `json:"value" validate:"max=10000" label:"缓存内容"`
+		TTL    int    `json:"ttl" default:"60" validate:"min=1,max=3600" label:"有效期"`
+	}
+	if ok, message := c.ValidatorAll(&form); !ok {
+		c.Error(message)
+		return
+	}
+	key := m.group + ".cache"
+	switch form.Action {
+	case "set":
+		m.app.Cache.SetWithExpire(key, form.Value, time.Duration(form.TTL)*time.Second)
+	case "delete":
+		m.app.Cache.Delete(key)
+	}
+	value := m.app.Cache.Get(key)
+	c.SuccessWithData("操作成功", map[string]interface{}{
+		"key":    key,
+		"value":  value,
+		"exists": value != nil,
+	})
+}

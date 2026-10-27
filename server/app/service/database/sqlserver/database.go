@@ -31,7 +31,15 @@ func (m *Manager) DatabaseInfo(ctx context.Context, name string) (_ map[string]i
 	if err != nil {
 		return nil, err
 	}
-	return map[string]interface{}{"name": databaseName, "collation": collation.String, "status": status, "recovery_model": recovery, "compatibility_level": compatibility, "read_only": readOnly, "size": size}, nil
+	return map[string]interface{}{
+		"name":                databaseName,
+		"collation":           collation.String,
+		"status":              status,
+		"recovery_model":      recovery,
+		"compatibility_level": compatibility,
+		"read_only":           readOnly,
+		"size":                size,
+	}, nil
 }
 
 // CreateDatabase 创建真实数据库，使用服务器的默认数据库配置。

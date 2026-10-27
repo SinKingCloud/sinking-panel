@@ -1,0 +1,104 @@
+package app
+
+import (
+	"crypto/sha256"
+	"fmt"
+	"runtime"
+	"strings"
+	"time"
+
+	"sdk"
+)
+
+// New 只注册生命周期和接口，不在构造阶段启动任务或写入数据。
+// App 是宿主共享资源；插件不能关闭其中的数据库、缓存或业务服务。
+func New(app *sdk.App) *sdk.Plugin {
+	digest := sha256.Sum256([]byte(app.InstanceID))
+	m := &demo{
+		app:   app,
+		group: "plugin_" + app.InstanceID,
+		table: fmt.Sprintf("plugin_demo_%x", digest[:8]),
+	}
+	return &sdk.Plugin{
+		Install:   m.install,
+		Upgrade:   m.upgrade,
+		Uninstall: m.uninstall,
+		Start:     m.start,
+		Stop:      m.stop,
+		Actions: map[string]func(*sdk.Context){
+			"info":     m.info,
+			"hello":    m.hello,
+			"notes":    m.notes,
+			"settings": m.settings,
+			"cache":    m.cache,
+			"task":     m.task,
+			"disks":    m.disks,
+		},
+	}
+}
+
+// info 演示只读接口，以及在 HTTP 请求中读取生命周期状态。
+func (m *demo) info(c *sdk.Context) {
+	var count int64
+	if err := m.app.Database.Db.WithContext(c.Request.Context()).Table(m.table).Count(&count).Error; err != nil {
+		c.Error(err.Error())
+		return
+	}
+	config, err := m.app.Service.Software.GetConfig(m.app.InstanceID)
+	if err != nil {
+		c.Error(err.Error())
+		return
+	}
+	m.mu.Lock()
+	started := m.started
+	heartbeat := m.heartbeat
+	m.mu.Unlock()
+	c.SuccessWithData("获取成功", map[string]interface{}{
+		"id":           [[quote .ID]],
+		"name":         [[quote .Name]],
+		"version":      "1.0.0",
+		"instance_id":  m.app.InstanceID,
+		"system":       runtime.GOOS,
+		"architecture": runtime.GOARCH,
+		"started":      started,
+		"heartbeat":    heartbeat,
+		"table":        m.table,
+		"note_count":   count,
+		"cache_exists": m.app.Cache.Get(m.group+".cache") != nil,
+		"configured":   config != "" && config != "{}",
+	})
+}
+
+// hello 演示参数默认值、校验、读取插件配置和标准响应。
+func (m *demo) hello(c *sdk.Context) {
+	var form struct {
+		Name string `json:"name" default:"访客" validate:"max=100" label:"名称"`
+	}
+	if ok, message := c.ValidatorAll(&form); !ok {
+		c.Error(message)
+		return
+	}
+	name := strings.TrimSpace(form.Name)
+	if name == "" {
+		name = "访客"
+	}
+	settings := m.readSettings()
+	c.SuccessWithData("操作成功", map[string]string{
+		"message": settings.Greeting + "，" + name,
+		"time":    time.Now().Format(time.RFC3339),
+	})
+}
+
+// disks 复用面板文件服务；这里只查询目录，不创建或修改文件。
+func (m *demo) disks(c *sdk.Context) {
+	paths, err := m.app.Service.File.GetDiskPaths()
+	if err != nil {
+		c.Error(err.Error())
+		return
+	}
+	list := make([]map[string]string, 0, len(paths))
+	for _, path := range paths {
+		list = append(list, map[string]string{"path": path})
+	}
+	c.SuccessWithData("获取成功", map[string]interface{}{"list": list})
+}

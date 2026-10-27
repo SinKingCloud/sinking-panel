@@ -246,7 +246,10 @@ func (m *Manager) applyLayer(layerPath, rootfs string) error {
 		if name == "" || name == "." {
 			if header.Typeflag == tar.TypeDir {
 				copyHeader := *header
-				directories[rootfs] = layerDirectoryMetadata{path: rootfs, header: copyHeader}
+				directories[rootfs] = layerDirectoryMetadata{
+					path:   rootfs,
+					header: copyHeader,
+				}
 			}
 			continue
 		}
@@ -307,7 +310,10 @@ func (m *Manager) applyLayer(layerPath, rootfs string) error {
 				return err
 			}
 			copyHeader := *header
-			directories[destination] = layerDirectoryMetadata{path: destination, header: copyHeader}
+			directories[destination] = layerDirectoryMetadata{
+				path:   destination,
+				header: copyHeader,
+			}
 		case tar.TypeReg, tar.TypeRegA:
 			if err := m.writeTarFile(destination, reader, header.Mode, rootfs); err != nil {
 				return err
@@ -949,10 +955,19 @@ func (m *Manager) commitInstance(instance *Info, name string, tags []string) (*I
 		ExposedPorts []string          `json:"exposed_ports"`
 		CreatedAt    int64             `json:"created_at"`
 	}{
-		Name: image.Name, Tags: image.Tags, OS: image.OS, Architecture: image.Architecture,
-		User: image.User, Entrypoint: image.Entrypoint, Command: image.Command,
-		Env: image.Env, WorkingDir: image.WorkingDir, CreatedAt: image.CreatedAt,
-		Labels: image.Labels, Volumes: image.Volumes, ExposedPorts: image.ExposedPorts,
+		Name:         image.Name,
+		Tags:         image.Tags,
+		OS:           image.OS,
+		Architecture: image.Architecture,
+		User:         image.User,
+		Entrypoint:   image.Entrypoint,
+		Command:      image.Command,
+		Env:          image.Env,
+		WorkingDir:   image.WorkingDir,
+		CreatedAt:    image.CreatedAt,
+		Labels:       image.Labels,
+		Volumes:      image.Volumes,
+		ExposedPorts: image.ExposedPorts,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("生成镜像摘要输入失败: %w", err)
@@ -992,7 +1007,12 @@ func (m *Manager) commitInstance(instance *Info, name string, tags []string) (*I
 func (m *Manager) writeSave(output io.Writer, configName string, configData, manifestData, repositoriesData, layerMetadata []byte, layerPath string, layerSize int64) error {
 	writer := tar.NewWriter(output)
 	writeBytes := func(name string, data []byte) error {
-		if err := writer.WriteHeader(&tar.Header{Name: name, Mode: 0644, Size: int64(len(data)), Typeflag: tar.TypeReg}); err != nil {
+		if err := writer.WriteHeader(&tar.Header{
+			Name:     name,
+			Mode:     0644,
+			Size:     int64(len(data)),
+			Typeflag: tar.TypeReg,
+		}); err != nil {
 			return err
 		}
 		_, err := writer.Write(data)
@@ -1007,7 +1027,11 @@ func (m *Manager) writeSave(output io.Writer, configName string, configData, man
 	if err := writeBytes("repositories", repositoriesData); err != nil {
 		return fmt.Errorf("写入镜像仓库索引失败: %w", err)
 	}
-	if err := writer.WriteHeader(&tar.Header{Name: "layer", Mode: 0755, Typeflag: tar.TypeDir}); err != nil {
+	if err := writer.WriteHeader(&tar.Header{
+		Name:     "layer",
+		Mode:     0755,
+		Typeflag: tar.TypeDir,
+	}); err != nil {
 		return err
 	}
 	if err := writeBytes("layer/VERSION", []byte("1.0\n")); err != nil {
@@ -1016,7 +1040,12 @@ func (m *Manager) writeSave(output io.Writer, configName string, configData, man
 	if err := writeBytes("layer/json", layerMetadata); err != nil {
 		return fmt.Errorf("写入镜像层元数据失败: %w", err)
 	}
-	layerHeader := &tar.Header{Name: "layer/layer.tar", Mode: 0644, Size: layerSize, Typeflag: tar.TypeReg}
+	layerHeader := &tar.Header{
+		Name:     "layer/layer.tar",
+		Mode:     0644,
+		Size:     layerSize,
+		Typeflag: tar.TypeReg,
+	}
 	if err := writer.WriteHeader(layerHeader); err != nil {
 		return err
 	}

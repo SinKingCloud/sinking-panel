@@ -173,7 +173,10 @@ func (m *Manager) obtainCertificate(ctx context.Context, request CertificateRequ
 				AccessKeySecret: credentials.AliyunAccessKeySecret,
 			}}
 		case DNSProviderTencentCloud:
-			provider = &libdnsTencentCloud.Provider{SecretId: credentials.TencentSecretID, SecretKey: credentials.TencentSecretKey}
+			provider = &libdnsTencentCloud.Provider{
+				SecretId:  credentials.TencentSecretID,
+				SecretKey: credentials.TencentSecretKey,
+			}
 		case DNSProviderHuaweiCloud:
 			provider = &libdnsHuaweiCloud.Provider{
 				AccessKeyId:     credentials.HuaweiAccessKeyID,

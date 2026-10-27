@@ -31,7 +31,10 @@ func openDatabase() (*zoneDatabase, error) {
 			if err != nil {
 				return nil, err
 			}
-			return &zoneDatabase{directory: path, root: root}, nil
+			return &zoneDatabase{
+				directory: path,
+				root:      root,
+			}, nil
 		}
 		if err != nil && !errors.Is(err, os.ErrNotExist) {
 			return nil, fmt.Errorf("读取系统时区目录失败: %w", err)

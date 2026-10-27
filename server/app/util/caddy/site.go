@@ -415,8 +415,13 @@ func (m *Manager) normalizeProxy(proxy *ProxyOptions, siteRoot string) error {
 		proxy.Policy = "random"
 	}
 	allowedPolicies := map[string]bool{
-		"random": true, "round_robin": true, "least_conn": true, "first": true,
-		"ip_hash": true, "client_ip_hash": true, "uri_hash": true,
+		"random":         true,
+		"round_robin":    true,
+		"least_conn":     true,
+		"first":          true,
+		"ip_hash":        true,
+		"client_ip_hash": true,
+		"uri_hash":       true,
 	}
 	if !allowedPolicies[proxy.Policy] {
 		return fmt.Errorf("不支持的负载均衡策略: %s", proxy.Policy)
@@ -695,12 +700,30 @@ func (m *Manager) normalizeWAF(waf *WAFOptions) error {
 			name  string
 			value int64
 		}{
-			{name: "参数数量", value: int64(waf.OWASP.MaxArguments)},
-			{name: "参数名长度", value: int64(waf.OWASP.MaxArgumentNameLength)},
-			{name: "参数长度", value: int64(waf.OWASP.MaxArgumentLength)},
-			{name: "参数总长度", value: int64(waf.OWASP.TotalArgumentLength)},
-			{name: "单文件大小", value: waf.OWASP.MaxFileSize},
-			{name: "文件总大小", value: waf.OWASP.CombinedFileSize},
+			{
+				name:  "参数数量",
+				value: int64(waf.OWASP.MaxArguments),
+			},
+			{
+				name:  "参数名长度",
+				value: int64(waf.OWASP.MaxArgumentNameLength),
+			},
+			{
+				name:  "参数长度",
+				value: int64(waf.OWASP.MaxArgumentLength),
+			},
+			{
+				name:  "参数总长度",
+				value: int64(waf.OWASP.TotalArgumentLength),
+			},
+			{
+				name:  "单文件大小",
+				value: waf.OWASP.MaxFileSize,
+			},
+			{
+				name:  "文件总大小",
+				value: waf.OWASP.CombinedFileSize,
+			},
 		} {
 			if limit.value < 0 {
 				return fmt.Errorf("OWASP CRS %s限制不能小于 0", limit.name)
@@ -729,7 +752,14 @@ func (m *Manager) normalizeWAF(waf *WAFOptions) error {
 
 		seen = make(map[string]struct{})
 		values = make([]string, 0, len(waf.OWASP.AllowedHTTPVersions))
-		versions := map[string]struct{}{"HTTP/1.0": {}, "HTTP/1.1": {}, "HTTP/2": {}, "HTTP/2.0": {}, "HTTP/3": {}, "HTTP/3.0": {}}
+		versions := map[string]struct{}{
+			"HTTP/1.0": {},
+			"HTTP/1.1": {},
+			"HTTP/2":   {},
+			"HTTP/2.0": {},
+			"HTTP/3":   {},
+			"HTTP/3.0": {},
+		}
 		for _, value := range waf.OWASP.AllowedHTTPVersions {
 			value = strings.ToUpper(strings.TrimSpace(value))
 			if _, exists := versions[value]; !exists {

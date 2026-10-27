@@ -81,9 +81,14 @@ func (m *Manager) List(where *SelectContainer, queryPage *page.Query) (*page.Res
 	data := make([]*Container, len(list))
 	for index, item := range list {
 		data[index] = &Container{
-			Id: item.ID, Name: item.Name, ImageId: item.ImageID, ImageName: item.ImageName,
-			Status: item.Status, CreateTime: str.DateTime(time.Unix(item.CreatedAt, 0)),
-			AutoRestart: item.AutoRestart, ManualStop: item.ManualStop,
+			Id:          item.ID,
+			Name:        item.Name,
+			ImageId:     item.ImageID,
+			ImageName:   item.ImageName,
+			Status:      item.Status,
+			CreateTime:  str.DateTime(time.Unix(item.CreatedAt, 0)),
+			AutoRestart: item.AutoRestart,
+			ManualStop:  item.ManualStop,
 		}
 	}
 	return page.New(queryPage, total, data), nil
@@ -252,7 +257,9 @@ func (m *Manager) Images(where *SelectImage, queryPage *page.Query) (*page.Resul
 	data := make([]*Image, len(list))
 	for index, item := range list {
 		data[index] = &Image{
-			Id: item.ID, Name: item.Name, Tags: item.Tags,
+			Id:         item.ID,
+			Name:       item.Name,
+			Tags:       item.Tags,
 			CreateTime: str.DateTime(time.Unix(item.CreatedAt, 0)),
 		}
 	}
@@ -297,16 +304,25 @@ func (m *Manager) Image(id string) (*ImageInfo, error) {
 	if err != nil {
 		return nil, err
 	}
+	if item == nil {
+		return nil, errors.New("获取镜像信息失败")
+	}
 	return &ImageInfo{
 		Image: Image{
-			Id: item.ID, Name: item.Name, Tags: item.Tags,
+			Id:         item.ID,
+			Name:       item.Name,
+			Tags:       item.Tags,
 			CreateTime: str.DateTime(time.Unix(item.CreatedAt, 0)),
 		},
-		User:       item.User,
-		Entrypoint: item.Entrypoint, Command: item.Command, Env: item.Env,
-		WorkingDir: item.WorkingDir, Labels: item.Labels,
-		Volumes: item.Volumes, ExposedPorts: item.ExposedPorts,
-		Metadata: item,
+		User:         item.User,
+		Entrypoint:   item.Entrypoint,
+		Command:      item.Command,
+		Env:          item.Env,
+		WorkingDir:   item.WorkingDir,
+		Labels:       item.Labels,
+		Volumes:      item.Volumes,
+		ExposedPorts: item.ExposedPorts,
+		Metadata:     item,
 	}, nil
 }
 

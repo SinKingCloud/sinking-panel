@@ -27,7 +27,10 @@ func HTTP(c *context.Context) {
 	switch form.Action {
 	case "get":
 		service.Log.Create(c.GetRequestIp(), log_type.EventShow, "查看网站服务", "查看网站 HTTP 配置")
-		c.SuccessWithData("获取成功", sinking_web.H{"running": service.Site.Running(), "config": service.Site.GetHTTP()})
+		c.SuccessWithData("获取成功", sinking_web.H{
+			"running": service.Site.Running(),
+			"config":  service.Site.GetHTTP(),
+		})
 		return
 	case "log":
 		if form.LogAction == "clear" {
@@ -66,7 +69,13 @@ func HTTP(c *context.Context) {
 	if err != nil {
 		c.Error(err.Error())
 	} else {
-		name := map[string]string{"set": "修改", "start": "启动", "stop": "停止", "restart": "重启", "sync": "同步"}[form.Action]
+		name := map[string]string{
+			"set":     "修改",
+			"start":   "启动",
+			"stop":    "停止",
+			"restart": "重启",
+			"sync":    "同步",
+		}[form.Action]
 		detail := name + "网站 HTTP 服务"
 		if form.Action == "set" {
 			detail = "修改网站 HTTP 配置"

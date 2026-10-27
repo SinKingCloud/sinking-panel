@@ -23,7 +23,13 @@ func (m *Manager) Validate(ctx context.Context, collectionName string) (result i
 		return nil, errors.New("不能维护或删除 MongoDB 系统集合")
 	}
 	var document bson.Raw
-	if err = m.database.RunCommand(ctx, bson.D{{Key: "validate", Value: collection.Name()}, {Key: "maxTimeMS", Value: 25000}}).Decode(&document); err != nil {
+	if err = m.database.RunCommand(ctx, bson.D{{
+		Key:   "validate",
+		Value: collection.Name(),
+	}, {
+		Key:   "maxTimeMS",
+		Value: 25000,
+	}}).Decode(&document); err != nil {
 		return nil, err
 	}
 	value, length, err := m.decode(document)
@@ -31,9 +37,16 @@ func (m *Manager) Validate(ctx context.Context, collectionName string) (result i
 		return nil, err
 	}
 	if length > 8<<20 {
-		return map[string]interface{}{"message": "维护命令已执行，结果超过 8 MB", "truncated": true}, nil
+		return map[string]interface{}{
+			"message":   "维护命令已执行，结果超过 8 MB",
+			"truncated": true,
+		}, nil
 	}
-	return map[string]interface{}{"message": "集合校验已完成", "result": value, "truncated": false}, nil
+	return map[string]interface{}{
+		"message":   "集合校验已完成",
+		"result":    value,
+		"truncated": false,
+	}, nil
 }
 
 // Compact 压缩集合，禁止操作系统集合。
@@ -49,7 +62,13 @@ func (m *Manager) Compact(ctx context.Context, collectionName string) (result in
 		return nil, errors.New("不能维护或删除 MongoDB 系统集合")
 	}
 	var document bson.Raw
-	if err = m.database.RunCommand(ctx, bson.D{{Key: "compact", Value: collection.Name()}, {Key: "maxTimeMS", Value: 25000}}).Decode(&document); err != nil {
+	if err = m.database.RunCommand(ctx, bson.D{{
+		Key:   "compact",
+		Value: collection.Name(),
+	}, {
+		Key:   "maxTimeMS",
+		Value: 25000,
+	}}).Decode(&document); err != nil {
 		return nil, err
 	}
 	value, length, err := m.decode(document)
@@ -57,9 +76,16 @@ func (m *Manager) Compact(ctx context.Context, collectionName string) (result in
 		return nil, err
 	}
 	if length > 8<<20 {
-		return map[string]interface{}{"message": "维护命令已执行，结果超过 8 MB", "truncated": true}, nil
+		return map[string]interface{}{
+			"message":   "维护命令已执行，结果超过 8 MB",
+			"truncated": true,
+		}, nil
 	}
-	return map[string]interface{}{"message": "集合压缩已完成", "result": value, "truncated": false}, nil
+	return map[string]interface{}{
+		"message":   "集合压缩已完成",
+		"result":    value,
+		"truncated": false,
+	}, nil
 }
 
 // DropCollection 删除集合，保留重复删除的幂等行为并保护系统集合。
@@ -75,10 +101,20 @@ func (m *Manager) DropCollection(ctx context.Context, collectionName string) (re
 		return nil, errors.New("不能维护或删除 MongoDB 系统集合")
 	}
 	var document bson.Raw
-	if err = m.database.RunCommand(ctx, bson.D{{Key: "drop", Value: collection.Name()}, {Key: "maxTimeMS", Value: 25000}}).Decode(&document); err != nil {
+	if err = m.database.RunCommand(ctx, bson.D{{
+		Key:   "drop",
+		Value: collection.Name(),
+	}, {
+		Key:   "maxTimeMS",
+		Value: 25000,
+	}}).Decode(&document); err != nil {
 		var commandError client.CommandError
 		if errors.As(err, &commandError) && commandError.Code == 26 {
-			return map[string]interface{}{"message": "集合已删除", "result": map[string]interface{}{"already_absent": true}, "truncated": false}, nil
+			return map[string]interface{}{
+				"message":   "集合已删除",
+				"result":    map[string]interface{}{"already_absent": true},
+				"truncated": false,
+			}, nil
 		}
 		return nil, err
 	}
@@ -87,7 +123,14 @@ func (m *Manager) DropCollection(ctx context.Context, collectionName string) (re
 		return nil, err
 	}
 	if length > 8<<20 {
-		return map[string]interface{}{"message": "维护命令已执行，结果超过 8 MB", "truncated": true}, nil
+		return map[string]interface{}{
+			"message":   "维护命令已执行，结果超过 8 MB",
+			"truncated": true,
+		}, nil
 	}
-	return map[string]interface{}{"message": "集合已删除", "result": value, "truncated": false}, nil
+	return map[string]interface{}{
+		"message":   "集合已删除",
+		"result":    value,
+		"truncated": false,
+	}, nil
 }

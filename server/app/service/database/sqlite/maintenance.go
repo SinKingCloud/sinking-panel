@@ -73,7 +73,11 @@ func (m *Manager) Analyze(ctx context.Context, schemaName, tableName string) (in
 	if _, err = m.db.ExecContext(ctx, "ANALYZE "+table); err != nil {
 		return nil, err
 	}
-	return &Result{Columns: []string{}, Rows: [][]interface{}{}, ElapsedMs: time.Since(started).Milliseconds()}, nil
+	return &Result{
+		Columns:   []string{},
+		Rows:      [][]interface{}{},
+		ElapsedMs: time.Since(started).Milliseconds(),
+	}, nil
 }
 
 // Optimize 使用 VACUUM 整理整个 Sqlite 文件。
@@ -91,7 +95,11 @@ func (m *Manager) Optimize(ctx context.Context, schemaName, tableName string) (i
 	if _, err = m.db.ExecContext(ctx, "VACUUM main"); err != nil {
 		return nil, err
 	}
-	return &Result{Columns: []string{}, Rows: [][]interface{}{}, ElapsedMs: time.Since(started).Milliseconds()}, nil
+	return &Result{
+		Columns:   []string{},
+		Rows:      [][]interface{}{},
+		ElapsedMs: time.Since(started).Milliseconds(),
+	}, nil
 }
 
 // Truncate 清空所选表并保留结构。
@@ -114,7 +122,12 @@ func (m *Manager) Truncate(ctx context.Context, schemaName, tableName string) (i
 	if err != nil {
 		return nil, err
 	}
-	return &Result{Columns: []string{}, Rows: [][]interface{}{}, Affected: affected, ElapsedMs: time.Since(started).Milliseconds()}, nil
+	return &Result{
+		Columns:   []string{},
+		Rows:      [][]interface{}{},
+		Affected:  affected,
+		ElapsedMs: time.Since(started).Milliseconds(),
+	}, nil
 }
 
 // Drop 删除所选用户表或视图。
@@ -141,5 +154,9 @@ func (m *Manager) Drop(ctx context.Context, schemaName, tableName string) (inter
 	if _, err = m.db.ExecContext(ctx, "DROP "+strings.ToUpper(kind)+" "+table); err != nil {
 		return nil, err
 	}
-	return &Result{Columns: []string{}, Rows: [][]interface{}{}, ElapsedMs: time.Since(started).Milliseconds()}, nil
+	return &Result{
+		Columns:   []string{},
+		Rows:      [][]interface{}{},
+		ElapsedMs: time.Since(started).Milliseconds(),
+	}, nil
 }

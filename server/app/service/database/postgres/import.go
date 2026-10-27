@@ -76,7 +76,14 @@ func (m *Manager) Import(ctx context.Context, path string, progress ...func(floa
 	standardStrings := strings.EqualFold(standard, "on")
 	var total, success, affected int64
 	line, startLine := 1, 1
-	out = map[string]interface{}{"path": path, "size": stat.Size(), "total": int64(0), "success": int64(0), "affected": int64(0), "unit": "语句"}
+	out = map[string]interface{}{
+		"path":     path,
+		"size":     stat.Size(),
+		"total":    int64(0),
+		"success":  int64(0),
+		"affected": int64(0),
+		"unit":     "语句",
+	}
 	defer func() {
 		out["total"], out["success"], out["affected"] = total, success, affected
 		if err != nil {

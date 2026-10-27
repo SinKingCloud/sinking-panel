@@ -6,26 +6,13 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"os"
-	"path/filepath"
 	"strings"
 
-	"server/app"
-	"server/app/constant"
-	"server/app/enum/log_type"
-	"server/app/service"
-	"server/app/util/container"
 	"server/app/util/daemon"
 	"server/app/util/platform"
-	"server/bootstrap"
-	"server/global"
 )
 
-const (
-	pidFileName = "server.pid"
-	logFileName = "server.log"
-	serviceName = "sinking-panel"
-	usage       = `使用方法:
+const usage = `使用方法:
   server [command] [options]
 
 可用命令:
@@ -37,6 +24,7 @@ const (
   uninstall 卸载软件，询问是否保留容器、镜像及数据
   user    修改登录账号
   pwd     修改登录密码
+  plugin  插件列表、创建、安装和卸载（plugin --help 查看用法）
 
 启动参数（适用于 run、start、restart、install）:
   --mode dev|release  运行模式，默认 release
@@ -49,40 +37,21 @@ const (
 
 配置文件可选: data/server/application.yml，不自动创建。
 优先级: 命令行参数 > 配置文件 > 默认值。`
-)
 
-// Server 管理服务运行命令。
+// Server 统一管理面板和插件命令，零值可直接调用 Execute。
 type Server struct {
 	daemon *daemon.Daemon
 }
 
-// Run 是服务命令的统一入口。
+// Execute 是命令的统一入口。
 // init 必须在创建守护进程之前处理，避免 libcontainer 子进程误进入面板启动流程。
-func Run(args []string) error {
-	if ExecuteInit(args) {
+func (s *Server) Execute(args []string) error {
+	if s.executeInit(args) {
 		return nil
 	}
-	server, err := NewServer()
-	if err != nil {
-		return err
+	if len(args) > 0 && args[0] == "plugin" {
+		return s.executePlugin(args[1:])
 	}
-	return server.Execute(args)
-}
-
-// NewServer 创建服务命令。
-func NewServer() (*Server, error) {
-	server := &Server{}
-	d, err := daemon.NewDaemon(pidFileName, logFileName, server.run)
-	if err != nil {
-		return nil, fmt.Errorf("创建守护进程管理器失败: %w", err)
-	}
-	server.daemon = d.SetAutoStartOptions(daemon.AutoStartOptions{Name: serviceName, KeepChildProcesses: true})
-	global.App.Daemon = server.daemon
-	return server, nil
-}
-
-// Execute 执行服务命令。
-func (s *Server) Execute(args []string) error {
 	if len(args) == 0 || args[0] == "help" || args[0] == "-h" || args[0] == "--help" {
 		log.Println(usage)
 		return nil
@@ -136,33 +105,12 @@ func (s *Server) Execute(args []string) error {
 			return err
 		}
 	}
+	if err := s.initDaemon(); err != nil {
+		return err
+	}
 	if startup {
-		bootstrap.LoadConf()
-		arguments := make([]string, 0, options.NFlag())
-		options.Visit(func(option *flag.Flag) {
-			// 容器选项只控制本次退出，不写入配置或下次启动参数。
-			if option.Name == "containers" {
-				return
-			}
-			global.App.Config.Set("server."+option.Name, option.Value.String())
-			arguments = append(arguments, "--"+option.Name+"="+option.Value.String())
-		})
-		s.daemon.SetChildArgs(append([]string{os.Args[0], "start"}, arguments...)...)
-		workingDirectory, err := os.Getwd()
-		if err != nil {
-			return fmt.Errorf("读取程序工作目录失败: %w", err)
-		}
-		s.daemon.SetAutoStartOptions(daemon.AutoStartOptions{
-			Name:               serviceName,
-			WorkingDirectory:   workingDirectory,
-			Arguments:          append([]string{"run"}, arguments...),
-			KeepChildProcesses: true,
-		})
-		// 没有传入新配置时沿用安装服务时保存的端口等参数。
-		if len(arguments) > 0 && (command == "start" || command == "restart") && !s.daemon.IsChildProcess() {
-			if err := s.daemon.SyncAutoStart(); err != nil {
-				return fmt.Errorf("同步系统启动配置失败: %w", err)
-			}
+		if err := s.configureStartup(command, options); err != nil {
+			return err
 		}
 	}
 	switch command {
@@ -173,10 +121,8 @@ func (s *Server) Execute(args []string) error {
 		return s.install()
 	case "uninstall":
 		return s.uninstall()
-	case "user":
-		return s.user()
-	case "pwd":
-		return s.pwd()
+	case "user", "pwd":
+		return s.updateAccount(command)
 	case "start":
 		return s.start()
 	case "stop":
@@ -185,107 +131,4 @@ func (s *Server) Execute(args []string) error {
 		return s.restart(containers)
 	}
 	return nil
-}
-
-func (s *Server) run(stop <-chan struct{}) {
-	defer func() {
-		if err := bootstrap.Close(); err != nil {
-			log.Printf("释放程序资源失败: %v", err)
-		}
-	}()
-	bootstrap.Load()
-	if err := bootstrap.LoadContainer(); err != nil {
-		panic(fmt.Errorf("初始化轻量容器失败: %w", err))
-	}
-	app.Run(stop)
-}
-
-func (s *Server) install() error {
-	if err := s.requireInteractive("install"); err != nil {
-		return err
-	}
-	account, err := s.readAccount("请输入登录账号: ")
-	if err != nil {
-		return err
-	}
-	password, err := s.readNewPassword("请输入登录密码: ", "请再次输入登录密码: ", true)
-	if err != nil {
-		return err
-	}
-	defer clear(password)
-
-	bootstrap.Load()
-	defer bootstrap.Close()
-	service.Init()
-	if err = service.Auth.UpdateAccount(account, string(password)); err != nil {
-		return fmt.Errorf("设置登录账号密码失败: %w", err)
-	}
-	service.Log.Create("127.0.0.1", log_type.EventUpdate, "初始化登录信息", "通过安装命令设置登录账号密码")
-	log.Println("登录账号密码设置成功")
-
-	if err = s.daemon.InstallAutoStart(); err != nil {
-		return fmt.Errorf("登录账号密码已设置，但安装系统自启动失败: %w", err)
-	}
-	log.Println("系统自启动安装成功")
-	// 启动前释放安装命令持有的数据库和缓存。
-	if err := bootstrap.Close(); err != nil {
-		return err
-	}
-	return s.start()
-}
-
-func (s *Server) start() error {
-	log.Println("正在启动服务...")
-	if err := s.daemon.Start(); err != nil {
-		return fmt.Errorf("启动失败: %w", err)
-	}
-	if !s.daemon.IsChildProcess() {
-		log.Println("服务已启动")
-	}
-	return nil
-}
-
-func (s *Server) stop(containers bool) error {
-	log.Println("正在停止服务...")
-	if err := s.daemon.Stop(); err != nil {
-		return fmt.Errorf("停止失败: %w", err)
-	}
-	if containers {
-		// 旧面板退出后统一接管，面板此前已停止也走相同流程。
-		executable, err := os.Executable()
-		if err != nil {
-			return err
-		}
-		root, err := filepath.EvalSymlinks(filepath.Dir(executable))
-		if err != nil {
-			return err
-		}
-		directory := filepath.Join(root, constant.ContainerPath)
-		resolved, err := filepath.EvalSymlinks(directory)
-		if !errors.Is(err, os.ErrNotExist) {
-			if err != nil {
-				return fmt.Errorf("读取容器目录失败: %w", err)
-			}
-			if resolved != directory {
-				return errors.New("容器目录不能通过符号链接指向其他目录")
-			}
-			// 清理时仅加载已有状态，不能把已停止的容器重新启动。
-			manager, err := container.NewManager(directory, container.ManagerOptions{DisableAutoRestart: true})
-			if err != nil {
-				return err
-			}
-			if err := manager.StopAll(); err != nil {
-				return fmt.Errorf("停止容器失败: %w", err)
-			}
-		}
-	}
-	log.Println("服务已停止")
-	return nil
-}
-
-func (s *Server) restart(containers bool) error {
-	if err := s.stop(containers); err != nil {
-		return err
-	}
-	return s.start()
 }

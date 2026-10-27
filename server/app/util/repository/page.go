@@ -64,9 +64,15 @@ func (r *Repository[T]) SelectPage(query *gorm.DB, queryPage *page.Query, custom
 			}
 			cursorId, _ := orderField.ValueOf(ctx, modelValue)
 			if desc {
-				query = query.Where(clause.Lt{Column: clause.Column{Name: field}, Value: cursorId})
+				query = query.Where(clause.Lt{
+					Column: clause.Column{Name: field},
+					Value:  cursorId,
+				})
 			} else {
-				query = query.Where(clause.Gt{Column: clause.Column{Name: field}, Value: cursorId})
+				query = query.Where(clause.Gt{
+					Column: clause.Column{Name: field},
+					Value:  cursorId,
+				})
 			}
 		} else {
 			if err := cursorLastField.Set(ctx, modelValue, queryPage.CursorLastId); err != nil {
@@ -79,18 +85,36 @@ func (r *Repository[T]) SelectPage(query *gorm.DB, queryPage *page.Query, custom
 			cursorId, _ := orderField.ValueOf(ctx, modelValue)
 			if desc {
 				query = query.Where(clause.Or(
-					clause.Lt{Column: clause.Column{Name: field}, Value: cursorId},
+					clause.Lt{
+						Column: clause.Column{Name: field},
+						Value:  cursorId,
+					},
 					clause.And(
-						clause.Eq{Column: clause.Column{Name: field}, Value: cursorId},
-						clause.Lt{Column: clause.Column{Name: cursorLastFieldName}, Value: cursorLastId},
+						clause.Eq{
+							Column: clause.Column{Name: field},
+							Value:  cursorId,
+						},
+						clause.Lt{
+							Column: clause.Column{Name: cursorLastFieldName},
+							Value:  cursorLastId,
+						},
 					),
 				))
 			} else {
 				query = query.Where(clause.Or(
-					clause.Gt{Column: clause.Column{Name: field}, Value: cursorId},
+					clause.Gt{
+						Column: clause.Column{Name: field},
+						Value:  cursorId,
+					},
 					clause.And(
-						clause.Eq{Column: clause.Column{Name: field}, Value: cursorId},
-						clause.Gt{Column: clause.Column{Name: cursorLastFieldName}, Value: cursorLastId},
+						clause.Eq{
+							Column: clause.Column{Name: field},
+							Value:  cursorId,
+						},
+						clause.Gt{
+							Column: clause.Column{Name: cursorLastFieldName},
+							Value:  cursorLastId,
+						},
 					),
 				))
 			}
@@ -113,11 +137,20 @@ func (r *Repository[T]) SelectPage(query *gorm.DB, queryPage *page.Query, custom
 	}
 	if field != cursorLastFieldName {
 		query = query.Clauses(clause.OrderBy{Columns: []clause.OrderByColumn{
-			{Column: clause.Column{Name: field}, Desc: desc},
-			{Column: clause.Column{Name: cursorLastFieldName}, Desc: desc},
+			{
+				Column: clause.Column{Name: field},
+				Desc:   desc,
+			},
+			{
+				Column: clause.Column{Name: cursorLastFieldName},
+				Desc:   desc,
+			},
 		}})
 	} else {
-		query = query.Order(clause.OrderByColumn{Column: clause.Column{Name: field}, Desc: desc})
+		query = query.Order(clause.OrderByColumn{
+			Column: clause.Column{Name: field},
+			Desc:   desc,
+		})
 	}
 	list := make([]T, 0)
 	if err := query.Limit(limit).Find(&list).Error; err != nil {
@@ -150,12 +183,18 @@ func (r *Repository[T]) SelectPage(query *gorm.DB, queryPage *page.Query, custom
 	values := []struct {
 		field  *schema.Field
 		target *string
-	}{{field: resultOrderField, target: &queryPage.NextCursorId}}
+	}{{
+		field:  resultOrderField,
+		target: &queryPage.NextCursorId,
+	}}
 	if field != cursorLastFieldName {
 		values = append(values, struct {
 			field  *schema.Field
 			target *string
-		}{field: resultCursorLastField, target: &queryPage.NextCursorLastId})
+		}{
+			field:  resultCursorLastField,
+			target: &queryPage.NextCursorLastId,
+		})
 	}
 	for _, cursor := range values {
 		fieldValue, _ := cursor.field.ValueOf(context.Background(), last)

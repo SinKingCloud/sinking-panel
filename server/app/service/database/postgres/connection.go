@@ -26,7 +26,10 @@ func (m *Manager) ConnectionInfo(ctx context.Context) (result map[string]interfa
 		values[fmt.Sprint(record["name"])] = fmt.Sprint(record["setting"])
 	}
 	items := make([]map[string]string, 0, 3)
-	for _, field := range []struct{ key, label string }{{"listen_addresses", "监听地址"}, {"port", "监听端口"}, {"ssl", "TLS 连接"}} {
+	for _, field := range []struct {
+		key   string
+		label string
+	}{{"listen_addresses", "监听地址"}, {"port", "监听端口"}, {"ssl", "TLS 连接"}} {
 		if value, ok := values[field.key]; ok {
 			if field.key == "ssl" {
 				if value == "on" {
@@ -35,12 +38,18 @@ func (m *Manager) ConnectionInfo(ctx context.Context) (result map[string]interfa
 					value = "未启用"
 				}
 			}
-			items = append(items, map[string]string{"label": field.label, "value": value})
+			items = append(items, map[string]string{
+				"label": field.label,
+				"value": value,
+			})
 		}
 	}
 	note := "允许远程登录需在数据库服务器设置 listen_addresses、pg_hba.conf 和端口放行规则；账户权限只控制可访问的数据。"
 	if hidden {
 		note += "当前账户无权读取部分监听配置。"
 	}
-	return map[string]interface{}{"items": items, "note": note}, nil
+	return map[string]interface{}{
+		"items": items,
+		"note":  note,
+	}, nil
 }

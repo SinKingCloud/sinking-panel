@@ -49,14 +49,33 @@ func (m *Manager) Objects(ctx context.Context, schemaName, kind string) (out int
 		}
 		result := make([]map[string]interface{}, 0)
 		positions := make(map[string]int)
-		rules := map[string]string{"a": "NO ACTION", "r": "RESTRICT", "c": "CASCADE", "n": "SET NULL", "d": "SET DEFAULT"}
+		rules := map[string]string{
+			"a": "NO ACTION",
+			"r": "RESTRICT",
+			"c": "CASCADE",
+			"n": "SET NULL",
+			"d": "SET DEFAULT",
+		}
 		for _, record := range records {
 			identity := fmt.Sprint(record["identity"])
 			position, ok := positions[identity]
 			if !ok {
 				position = len(result)
 				positions[identity] = position
-				result = append(result, map[string]interface{}{"name": record["name"], "schema": record["schema"], "type": "FOREIGN KEY", "identity": identity, "table": record["table"], "definition": record["definition"], "columns": []string{}, "reference_schema": record["reference_schema"], "reference_table": record["reference_table"], "reference_columns": []string{}, "on_delete": rules[fmt.Sprint(record["on_delete"])], "on_update": rules[fmt.Sprint(record["on_update"])]})
+				result = append(result, map[string]interface{}{
+					"name":              record["name"],
+					"schema":            record["schema"],
+					"type":              "FOREIGN KEY",
+					"identity":          identity,
+					"table":             record["table"],
+					"definition":        record["definition"],
+					"columns":           []string{},
+					"reference_schema":  record["reference_schema"],
+					"reference_table":   record["reference_table"],
+					"reference_columns": []string{},
+					"on_delete":         rules[fmt.Sprint(record["on_delete"])],
+					"on_update":         rules[fmt.Sprint(record["on_update"])],
+				})
 			}
 			result[position]["columns"] = append(result[position]["columns"].([]string), fmt.Sprint(record["column_name"]))
 			result[position]["reference_columns"] = append(result[position]["reference_columns"].([]string), fmt.Sprint(record["reference_column"]))
@@ -350,7 +369,11 @@ func (m *Manager) SaveObject(ctx context.Context, schemaName, kind, name, defini
 	if trigger != nil {
 		_, table, _ := m.target(schema, fmt.Sprint(trigger["table"]))
 		triggerName, _ := m.quote(fmt.Sprint(trigger["name"]))
-		if mode := map[string]string{"D": "DISABLE", "A": "ENABLE ALWAYS", "R": "ENABLE REPLICA"}[fmt.Sprint(trigger["enabled"])]; mode != "" {
+		if mode := map[string]string{
+			"D": "DISABLE",
+			"A": "ENABLE ALWAYS",
+			"R": "ENABLE REPLICA",
+		}[fmt.Sprint(trigger["enabled"])]; mode != "" {
 			if _, err = tx.ExecContext(ctx, "ALTER TABLE "+table+" "+mode+" TRIGGER "+triggerName); err != nil {
 				return nil, err
 			}
@@ -365,7 +388,12 @@ func (m *Manager) SaveObject(ctx context.Context, schemaName, kind, name, defini
 	if err = tx.Commit(); err != nil {
 		return nil, err
 	}
-	return &Result{Columns: []string{}, Rows: [][]interface{}{}, Affected: affected, ElapsedMs: time.Since(started).Milliseconds()}, nil
+	return &Result{
+		Columns:   []string{},
+		Rows:      [][]interface{}{},
+		Affected:  affected,
+		ElapsedMs: time.Since(started).Milliseconds(),
+	}, nil
 }
 
 // DropObject 删除指定业务对象，重载程序及同名触发器通过目录信息精确定位。
@@ -506,5 +534,10 @@ func (m *Manager) SelectObjects(ctx context.Context, schema, kind, keyword strin
 	if err != nil {
 		return nil, m.safeError(err)
 	}
-	return map[string]interface{}{"list": list, "total": total, "page": pageNumber, "page_size": pageSize}, nil
+	return map[string]interface{}{
+		"list":      list,
+		"total":     total,
+		"page":      pageNumber,
+		"page_size": pageSize,
+	}, nil
 }

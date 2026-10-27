@@ -56,7 +56,10 @@ func NewManager(ctx context.Context, config, databaseName string) (*Manager, err
 	if err != nil || !info.Mode().IsRegular() {
 		return nil, errors.New("Sqlite 数据库文件不存在或不是普通文件")
 	}
-	u := &url.URL{Scheme: "file", Path: filepath.ToSlash(path)}
+	u := &url.URL{
+		Scheme: "file",
+		Path:   filepath.ToSlash(path),
+	}
 	q := u.Query()
 	q.Set("mode", "rw")
 	if value("read_only") == "true" {
@@ -90,7 +93,10 @@ func (m *Manager) Test(ctx context.Context) (map[string]interface{}, error) {
 	if err := m.db.QueryRowContext(ctx, "SELECT sqlite_version()").Scan(&version); err != nil {
 		return nil, err
 	}
-	return map[string]interface{}{"version": version, "database": "main"}, nil
+	return map[string]interface{}{
+		"version":  version,
+		"database": "main",
+	}, nil
 }
 
 // Databases 按名称搜索并分页返回当前账户可访问的数据库。
@@ -118,7 +124,10 @@ func (m *Manager) Databases(ctx context.Context, keyword string, pageNumber, pag
 	if strings.Contains("main", strings.ToLower(strings.TrimSpace(keyword))) {
 		result = append(result, "main")
 	}
-	return page.New(&page.Query{Page: 1, PageSize: pageSize}, int64(len(result)), result), nil
+	return page.New(&page.Query{
+		Page:     1,
+		PageSize: pageSize,
+	}, int64(len(result)), result), nil
 }
 
 func (m *Manager) quote(name string) (string, error) {

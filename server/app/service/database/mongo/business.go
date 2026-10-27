@@ -20,10 +20,28 @@ func (m *Manager) Collections(ctx context.Context) (result interface{}, err erro
 	defer func() { err = m.cleanError(err) }()
 	// 内部集合不作为业务数据浏览，避免自动查询 system.sessions、system.buckets 等特殊集合。
 	// system.js 和 system.profile 支持普通文档查询，保留函数与性能分析数据入口。
-	filter := bson.D{{Key: "$or", Value: bson.A{
-		bson.D{{Key: "name", Value: bson.D{{Key: "$not", Value: bson.D{{Key: "$regex", Value: "^system\\."}}}}}},
-		bson.D{{Key: "name", Value: bson.D{{Key: "$in", Value: bson.A{"system.js", "system.profile"}}}}},
-	}}}
+	filter := bson.D{{
+		Key: "$or",
+		Value: bson.A{
+			bson.D{{
+				Key: "name",
+				Value: bson.D{{
+					Key: "$not",
+					Value: bson.D{{
+						Key:   "$regex",
+						Value: "^system\\.",
+					}},
+				}},
+			}},
+			bson.D{{
+				Key: "name",
+				Value: bson.D{{
+					Key:   "$in",
+					Value: bson.A{"system.js", "system.profile"},
+				}},
+			}},
+		},
+	}}
 	settings := options.ListCollections().SetNameOnly(true).SetAuthorizedCollections(true).SetBatchSize(100)
 	cursor, e := m.database.ListCollections(ctx, filter, settings)
 	if e != nil {
@@ -53,7 +71,10 @@ func (m *Manager) Collections(ctx context.Context) (result interface{}, err erro
 		if len(rows) >= 10000 {
 			return nil, errors.New("集合数量超过 10000，请使用命令查询")
 		}
-		rows = append(rows, map[string]interface{}{"name": item.Name, "type": item.Type})
+		rows = append(rows, map[string]interface{}{
+			"name": item.Name,
+			"type": item.Type,
+		})
 	}
 	return rows, cursor.Err()
 }
@@ -88,7 +109,12 @@ func (m *Manager) Indexes(ctx context.Context, collectionName string) (result in
 		if e != nil {
 			return nil, e
 		}
-		row := map[string]interface{}{"name": item.Name, "keys": keys, "unique": item.Unique, "sparse": item.Sparse}
+		row := map[string]interface{}{
+			"name":   item.Name,
+			"keys":   keys,
+			"unique": item.Unique,
+			"sparse": item.Sparse,
+		}
 		if item.ExpireAfterSeconds != nil {
 			row["expire_after_seconds"] = *item.ExpireAfterSeconds
 		}
@@ -143,7 +169,10 @@ func (m *Manager) Documents(ctx context.Context, collectionName, filterJSON, sor
 		page = maxPage
 	}
 	if len(sort) == 0 {
-		sort = bson.D{{Key: "_id", Value: 1}}
+		sort = bson.D{{
+			Key:   "_id",
+			Value: 1,
+		}}
 	}
 	opts := options.Find().SetSkip(int64(page-1) * int64(size)).SetLimit(int64(size + 1)).SetBatchSize(int32(min(size, 50))).SetSort(sort).SetMaxTime(25 * time.Second)
 	if len(projection) > 0 {
@@ -195,8 +224,14 @@ func (m *Manager) Insert(ctx context.Context, collectionName, documentJSON strin
 		if e != nil {
 			return nil, e
 		}
-		ids, _, e := m.decode(bson.D{{Key: "ids", Value: inserted.InsertedIDs}})
-		return map[string]interface{}{"affected": len(inserted.InsertedIDs), "inserted": ids}, e
+		ids, _, e := m.decode(bson.D{{
+			Key:   "ids",
+			Value: inserted.InsertedIDs,
+		}})
+		return map[string]interface{}{
+			"affected": len(inserted.InsertedIDs),
+			"inserted": ids,
+		}, e
 	}
 	document, e := m.parse(text, "文档", false)
 	if e != nil {
@@ -206,8 +241,14 @@ func (m *Manager) Insert(ctx context.Context, collectionName, documentJSON strin
 	if e != nil {
 		return nil, e
 	}
-	id, _, e := m.decode(bson.D{{Key: "id", Value: inserted.InsertedID}})
-	return map[string]interface{}{"affected": 1, "inserted": id}, e
+	id, _, e := m.decode(bson.D{{
+		Key:   "id",
+		Value: inserted.InsertedID,
+	}})
+	return map[string]interface{}{
+		"affected": 1,
+		"inserted": id,
+	}, e
 }
 
 // Update 按非空条件修改文档。
@@ -244,7 +285,11 @@ func (m *Manager) Update(ctx context.Context, collectionName, filterJSON, update
 	if e != nil {
 		return nil, e
 	}
-	return map[string]interface{}{"matched": updated.MatchedCount, "affected": updated.ModifiedCount, "upserted": updated.UpsertedCount}, nil
+	return map[string]interface{}{
+		"matched":  updated.MatchedCount,
+		"affected": updated.ModifiedCount,
+		"upserted": updated.UpsertedCount,
+	}, nil
 }
 
 // Delete 删除指定数据。
@@ -311,7 +356,10 @@ func (m *Manager) Aggregate(ctx context.Context, collectionName, pipelineJSON st
 		}
 		pipeline = append(pipeline, stage)
 	}
-	pipeline = append(pipeline, bson.D{{Key: "$limit", Value: limit + 1}})
+	pipeline = append(pipeline, bson.D{{
+		Key:   "$limit",
+		Value: limit + 1,
+	}})
 	started := time.Now()
 	cursor, e := collection.Aggregate(ctx, pipeline, options.Aggregate().SetBatchSize(50).SetMaxTime(25*time.Second))
 	if e != nil {
@@ -388,7 +436,13 @@ func (m *Manager) Command(ctx context.Context, commandJSON string) (result inter
 			}
 			closeCtx, closeCancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 			defer closeCancel()
-			if e = m.client.Database(databaseName).RunCommand(closeCtx, bson.D{{Key: "killCursors", Value: collectionName}, {Key: "cursors", Value: bson.A{id}}}).Err(); e != nil {
+			if e = m.client.Database(databaseName).RunCommand(closeCtx, bson.D{{
+				Key:   "killCursors",
+				Value: collectionName,
+			}, {
+				Key:   "cursors",
+				Value: bson.A{id},
+			}}).Err(); e != nil {
 				return nil, fmt.Errorf("命令已执行，但关闭结果游标失败：%w", e)
 			}
 			more = true
@@ -399,9 +453,18 @@ func (m *Manager) Command(ctx context.Context, commandJSON string) (result inter
 		return nil, e
 	}
 	if length > 8<<20 {
-		return map[string]interface{}{"result": "返回内容超过 8 MB，请限制命令返回数量或字段。", "truncated": true, "elapsed_ms": time.Since(started).Milliseconds()}, nil
+		return map[string]interface{}{
+			"result":     "返回内容超过 8 MB，请限制命令返回数量或字段。",
+			"truncated":  true,
+			"elapsed_ms": time.Since(started).Milliseconds(),
+		}, nil
 	}
-	data := map[string]interface{}{"result": value, "truncated": more, "has_more": more, "elapsed_ms": time.Since(started).Milliseconds()}
+	data := map[string]interface{}{
+		"result":     value,
+		"truncated":  more,
+		"has_more":   more,
+		"elapsed_ms": time.Since(started).Milliseconds(),
+	}
 	if more {
 		data["warning"] = "此命令仅显示首批结果，结果游标已关闭；查询文档请使用 find 或 aggregate。"
 	}
@@ -446,7 +509,10 @@ func (m *Manager) CreateIndex(ctx context.Context, collectionName, name, keysJSO
 		}
 		opts.SetExpireAfterSeconds(*expireAfterSeconds)
 	}
-	createdName, e := collection.Indexes().CreateOne(ctx, client.IndexModel{Keys: keys, Options: opts})
+	createdName, e := collection.Indexes().CreateOne(ctx, client.IndexModel{
+		Keys:    keys,
+		Options: opts,
+	})
 	return map[string]interface{}{"name": createdName}, e
 }
 

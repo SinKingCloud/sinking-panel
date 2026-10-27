@@ -19,7 +19,13 @@ import (
 // Export 按键写出标准 RESP 命令流，可用 redis-cli --pipe 恢复；单键内存有界。
 // PTTL 保留导出时的剩余毫秒，恢复后重新计时；不依赖 Redis 5 才支持的 ABSTTL。
 func (m *Manager) Export(ctx context.Context, path, match string, key *string, overwrite bool, progress ...func(float64, string)) (result map[string]interface{}, err error) {
-	result = map[string]interface{}{"path": path, "size": int64(0), "total": int64(0), "success": int64(0), "unit": "键"}
+	result = map[string]interface{}{
+		"path":    path,
+		"size":    int64(0),
+		"total":   int64(0),
+		"success": int64(0),
+		"unit":    "键",
+	}
 	defer func() { err = m.cleanError(err) }()
 	lastProgress, lastUpdate := -1.0, time.Time{}
 	report := func(percent float64, message string, values ...interface{}) {

@@ -37,7 +37,10 @@ func (m *Manager) Users(ctx context.Context, keyword string, pageNumber, pageSiz
 		return nil, err
 	}
 	if total == 0 {
-		return page.New(&page.Query{Page: 1, PageSize: pageSize}, total, []*User{}), nil
+		return page.New(&page.Query{
+			Page:     1,
+			PageSize: pageSize,
+		}, total, []*User{}), nil
 	}
 	if lastPage := (total-1)/int64(pageSize) + 1; int64(pageNumber) > lastPage {
 		pageNumber = int(lastPage)
@@ -63,7 +66,13 @@ func (m *Manager) Users(ctx context.Context, keyword string, pageNumber, pageSiz
 	}
 	privilegeName := func(name string) string {
 		name = strings.TrimSuffix(strings.ToLower(strings.TrimSpace(name)), "_priv")
-		if label, ok := map[string]string{"grant": "GRANT OPTION", "show_db": "SHOW DATABASES", "create_tmp_table": "CREATE TEMPORARY TABLES", "repl_slave": "REPLICATION SLAVE", "repl_client": "REPLICATION CLIENT"}[name]; ok {
+		if label, ok := map[string]string{
+			"grant":            "GRANT OPTION",
+			"show_db":          "SHOW DATABASES",
+			"create_tmp_table": "CREATE TEMPORARY TABLES",
+			"repl_slave":       "REPLICATION SLAVE",
+			"repl_client":      "REPLICATION CLIENT",
+		}[name]; ok {
 			return label
 		}
 		return strings.ToUpper(strings.ReplaceAll(name, "_", " "))
@@ -95,9 +104,17 @@ func (m *Manager) Users(ctx context.Context, keyword string, pageNumber, pageSiz
 		name, host := fmt.Sprint(record["name"]), fmt.Sprint(record["host"])
 		internal := name == "mariadb.sys" || strings.HasPrefix(name, "mysql.")
 		current := m.truth(record["current_account"])
-		user := &User{Name: name, Host: host, GlobalPrivileges: privileges(record, "user"), Grants: []UserGrant{}, GrantedRoles: []string{}, Restrictions: []UserRestriction{},
-			Current: current, PasswordEditable: !internal && name != "",
-			Protected: strings.EqualFold(fmt.Sprint(record["super_priv"]), "Y") || current || name == "root" || internal}
+		user := &User{
+			Name:             name,
+			Host:             host,
+			GlobalPrivileges: privileges(record, "user"),
+			Grants:           []UserGrant{},
+			GrantedRoles:     []string{},
+			Restrictions:     []UserRestriction{},
+			Current:          current,
+			PasswordEditable: !internal && name != "",
+			Protected:        strings.EqualFold(fmt.Sprint(record["super_priv"]), "Y") || current || name == "root" || internal,
+		}
 		if value := record["restrictions"]; value != nil && fmt.Sprint(value) != "null" {
 			if err = json.Unmarshal([]byte(fmt.Sprint(value)), &user.Restrictions); err != nil {
 				return nil, errors.New("读取账号的数据库权限限制失败")
@@ -109,7 +126,10 @@ func (m *Manager) Users(ctx context.Context, keyword string, pageNumber, pageSiz
 		grantArgs = append(grantArgs, name, host)
 	}
 	if len(list) == 0 {
-		return page.New(&page.Query{Page: pageNumber, PageSize: pageSize}, total, list), nil
+		return page.New(&page.Query{
+			Page:     pageNumber,
+			PageSize: pageSize,
+		}, total, list), nil
 	}
 	condition := " WHERE (User, Host) IN (" + strings.Join(accounts, ", ") + ")"
 	var variable, partial string
@@ -124,7 +144,11 @@ func (m *Manager) Users(ctx context.Context, keyword string, pageNumber, pageSiz
 	}
 	for _, record := range grants {
 		user := users[fmt.Sprint(record["name"])+"\x00"+strings.ToLower(fmt.Sprint(record["host"]))]
-		grant := UserGrant{Database: fmt.Sprint(record["database_name"]), Scope: "database", Privileges: privileges(record, "db")}
+		grant := UserGrant{
+			Database:   fmt.Sprint(record["database_name"]),
+			Scope:      "database",
+			Privileges: privileges(record, "db"),
+		}
 		if !literalDatabase {
 			// mysql.db 的库名采用授权模式。转义字符还原为真实名称，未转义通配符保留标识。
 			var name strings.Builder
@@ -160,7 +184,12 @@ func (m *Manager) Users(ctx context.Context, keyword string, pageNumber, pageSiz
 			return nil, err
 		}
 		for _, record := range grants {
-			grant := UserGrant{Database: fmt.Sprint(record["database_name"]), Scope: scope, Object: fmt.Sprint(record["object_name"]), Privileges: []string{}}
+			grant := UserGrant{
+				Database:   fmt.Sprint(record["database_name"]),
+				Scope:      scope,
+				Object:     fmt.Sprint(record["object_name"]),
+				Privileges: []string{},
+			}
 			for _, privilege := range strings.Split(fmt.Sprint(record["privileges"]), ",") {
 				if privilege = strings.TrimSpace(privilege); privilege != "" {
 					grant.Privileges = append(grant.Privileges, privilegeName(privilege))
@@ -214,7 +243,10 @@ func (m *Manager) Users(ctx context.Context, keyword string, pageNumber, pageSiz
 	for _, user := range list {
 		user.Roles = strings.Join(user.GlobalPrivileges, ", ")
 	}
-	return page.New(&page.Query{Page: pageNumber, PageSize: pageSize}, total, list), nil
+	return page.New(&page.Query{
+		Page:     pageNumber,
+		PageSize: pageSize,
+	}, total, list), nil
 }
 
 // CreateUser 创建独立 MySQL 账号，不自动授予数据库权限。
@@ -336,7 +368,10 @@ func (m *Manager) ChangeAccess(ctx context.Context, name, host, newHost string) 
 		return nil, errors.New("账号不存在，请刷新列表")
 	}
 	if strings.EqualFold(host, newHost) {
-		return &Result{Columns: []string{}, Rows: [][]interface{}{}}, nil
+		return &Result{
+			Columns: []string{},
+			Rows:    [][]interface{}{},
+		}, nil
 	}
 	target, exists, err := m.account(ctx, name, newHost, name == "root")
 	if err != nil {
@@ -506,7 +541,10 @@ func (m *Manager) UpdatePermissions(ctx context.Context, name, host string, gran
 			statements = append(statements, "REVOKE "+strings.Join(remove, ", ")+" ON "+target+".* FROM "+account)
 		}
 	}
-	result := &Result{Columns: []string{}, Rows: [][]interface{}{}}
+	result := &Result{
+		Columns: []string{},
+		Rows:    [][]interface{}{},
+	}
 	if len(statements) > 0 {
 		conn, close, err := m.accountConnection(ctx)
 		if err != nil {
@@ -529,17 +567,34 @@ func (m *Manager) UpdatePermissions(ctx context.Context, name, host string, gran
 // accountPermissions 只将精确库名和已知权限开放编辑，其他授权保持原样。
 func (m *Manager) accountPermissions(ctx context.Context, name, host string) (*UserPermissions, bool, error) {
 	known := map[string]string{
-		"select_priv": "SELECT", "insert_priv": "INSERT", "update_priv": "UPDATE", "delete_priv": "DELETE",
-		"create_priv": "CREATE", "drop_priv": "DROP", "references_priv": "REFERENCES", "index_priv": "INDEX", "alter_priv": "ALTER",
-		"create_tmp_table_priv": "CREATE TEMPORARY TABLES", "lock_tables_priv": "LOCK TABLES",
-		"create_view_priv": "CREATE VIEW", "show_view_priv": "SHOW VIEW", "create_routine_priv": "CREATE ROUTINE",
-		"alter_routine_priv": "ALTER ROUTINE", "execute_priv": "EXECUTE", "event_priv": "EVENT", "trigger_priv": "TRIGGER", "delete_history_priv": "DELETE HISTORY",
+		"select_priv":           "SELECT",
+		"insert_priv":           "INSERT",
+		"update_priv":           "UPDATE",
+		"delete_priv":           "DELETE",
+		"create_priv":           "CREATE",
+		"drop_priv":             "DROP",
+		"references_priv":       "REFERENCES",
+		"index_priv":            "INDEX",
+		"alter_priv":            "ALTER",
+		"create_tmp_table_priv": "CREATE TEMPORARY TABLES",
+		"lock_tables_priv":      "LOCK TABLES",
+		"create_view_priv":      "CREATE VIEW",
+		"show_view_priv":        "SHOW VIEW",
+		"create_routine_priv":   "CREATE ROUTINE",
+		"alter_routine_priv":    "ALTER ROUTINE",
+		"execute_priv":          "EXECUTE",
+		"event_priv":            "EVENT",
+		"trigger_priv":          "TRIGGER",
+		"delete_history_priv":   "DELETE HISTORY",
 	}
 	metadata, err := m.records(ctx, "SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = 'mysql' AND TABLE_NAME = 'db' ORDER BY ORDINAL_POSITION")
 	if err != nil {
 		return nil, false, err
 	}
-	result := &UserPermissions{Privileges: []string{}, Grants: []DatabasePrivileges{}}
+	result := &UserPermissions{
+		Privileges: []string{},
+		Grants:     []DatabasePrivileges{},
+	}
 	columns, fields := make([]string, 0), make([]string, 0)
 	for _, record := range metadata {
 		column := strings.ToLower(fmt.Sprint(record["column_name"]))
@@ -595,7 +650,10 @@ func (m *Manager) accountPermissions(ctx context.Context, name, host string) (*U
 		case "mysql", "information_schema", "performance_schema", "sys":
 			pattern = true
 		}
-		grant := DatabasePrivileges{Database: database, Privileges: []string{}}
+		grant := DatabasePrivileges{
+			Database:   database,
+			Privileges: []string{},
+		}
 		for _, column := range columns {
 			if !strings.EqualFold(fmt.Sprint(record[column]), "Y") {
 				continue
@@ -708,5 +766,10 @@ func (m *Manager) accountExec(ctx context.Context, conn *sql.Conn, statement str
 	if err != nil {
 		return nil, err
 	}
-	return &Result{Columns: []string{}, Rows: [][]interface{}{}, Affected: affected, ElapsedMs: time.Since(started).Milliseconds()}, nil
+	return &Result{
+		Columns:   []string{},
+		Rows:      [][]interface{}{},
+		Affected:  affected,
+		ElapsedMs: time.Since(started).Milliseconds(),
+	}, nil
 }

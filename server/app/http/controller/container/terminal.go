@@ -48,7 +48,10 @@ func Terminal(c *context.Context) {
 	}
 	session, err := service.Container.Terminal(form.Id, form.Height, form.Width)
 	if err != nil {
-		payload, _ := json.Marshal(map[string]string{"event": "error", "content": err.Error()})
+		payload, _ := json.Marshal(map[string]string{
+			"event":   "error",
+			"content": err.Error(),
+		})
 		_ = send(websocket.TextMessage, payload)
 		return
 	}

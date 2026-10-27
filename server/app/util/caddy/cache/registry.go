@@ -60,7 +60,13 @@ func (r *StoreRegistry) acquire(path string, maxSize int64, stale time.Duration)
 		r.backends[canonical] = currentBackend
 	}
 	currentBackend.refs++
-	current := &store{backend: currentBackend, key: key, maxSize: maxSize, stale: stale, refs: 1}
+	current := &store{
+		backend: currentBackend,
+		key:     key,
+		maxSize: maxSize,
+		stale:   stale,
+		refs:    1,
+	}
 	r.items[key] = current
 	return current
 }

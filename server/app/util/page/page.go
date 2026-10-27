@@ -7,9 +7,17 @@ func New[T any](query *Query, total int64, list []T) *Result[T] {
 	}
 	if query == nil {
 		pageNumber := 1
-		return &Result[T]{Total: &total, Page: &pageNumber, PageSize: 20, List: list}
+		return &Result[T]{
+			Total:    &total,
+			Page:     &pageNumber,
+			PageSize: 20,
+			List:     list,
+		}
 	}
-	result := &Result[T]{PageSize: query.PageSize, List: list}
+	result := &Result[T]{
+		PageSize: query.PageSize,
+		List:     list,
+	}
 	if query.IsCursor() {
 		hasMore := query.HasMore
 		result.HasMore = &hasMore

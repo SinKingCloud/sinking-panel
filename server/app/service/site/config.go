@@ -63,7 +63,10 @@ func (s *service) createConfig(data *CreateSite) (string, error) {
 		if data.Process == nil {
 			return "", errors.New("通用网站进程配置不能为空")
 		}
-		config = GeneralConfig{Proxy: *data.Proxy, Process: *data.Process}
+		config = GeneralConfig{
+			Proxy:   *data.Proxy,
+			Process: *data.Process,
+		}
 	default:
 		return "", errors.New("网站类型不合法")
 	}

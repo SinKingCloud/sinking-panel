@@ -1,0 +1,60 @@
+import React, {useState} from "react";
+import {Icon, useTheme} from "sinking-antd";
+import type {PluginModal} from "sdk";
+import Overview from "./components/overview";
+import Notes from "./components/notes";
+import Settings from "./components/settings";
+import Tasks from "./components/tasks";
+import Playground from "./components/playground";
+import Docs from "./components/docs";
+import useStyles from "./styles";
+import type {PluginPageProps} from "./types";
+
+// 弹窗外观也由插件源码控制。主题、屏幕变化时宿主重新计算这些原生属性。
+export const modal: PluginModal = ({software, compact, mobile}) => ({
+    title: <span><Icon type="CodeOutlined" style={{marginRight: 8}}/>{software?.name || "插件示例"}</span>,
+    width: mobile ? "calc(100vw - 24px)" : compact ? 1000 : 1120,
+    style: {top: mobile ? 24 : 70, paddingBottom: mobile ? 24 : 70},
+    styles: {
+        container: {padding: 0, overflow: "hidden"},
+        header: {padding: mobile ? "16px 18px" : "18px 24px", marginBottom: 0},
+        body: {padding: 0},
+    },
+});
+
+const navigation = [
+    {key: "overview", label: "运行概览", icon: "DashboardOutlined"},
+    {key: "notes", label: "数据管理", icon: "DatabaseOutlined"},
+    {key: "settings", label: "配置缓存", icon: "ControlOutlined"},
+    {key: "tasks", label: "后台任务", icon: "ScheduleOutlined"},
+    {key: "playground", label: "接口调试", icon: "ApiOutlined"},
+    {key: "docs", label: "开发文档", icon: "ReadOutlined"},
+];
+
+// 只挂载当前功能，离开页面时各组件自己结束请求监听与轮询。
+export default function PluginPage({software, request, onClose}: PluginPageProps) {
+    const theme = useTheme();
+    const {styles} = useStyles({compact: Boolean(theme?.isCompactTheme?.())});
+    const [active, setActive] = useState("overview");
+    const id = software?.code || "demo";
+    return <div className={styles.shell}>
+        <aside className={styles.sidebar}>
+            <div className={styles.sidebarCaption}>开发示例</div>
+            <nav className={styles.navigation} aria-label="插件功能">
+                {navigation.map((item) => <button type="button" key={item.key}
+                    aria-current={active === item.key ? "page" : undefined} onClick={() => setActive(item.key)}>
+                    <Icon type={item.icon}/><span>{item.label}</span>
+                </button>)}
+            </nav>
+            <div className={styles.sidebarFooter}><span>{id}</span><small>v{software?.version || "1.0.0"}</small></div>
+        </aside>
+        <main className={styles.main} key={active}>
+            {active === "overview" && <Overview software={software} request={request} onClose={onClose} onNavigate={setActive}/>}
+            {active === "notes" && <Notes request={request}/>}
+            {active === "settings" && <Settings request={request}/>}
+            {active === "tasks" && <Tasks request={request}/>}
+            {active === "playground" && <Playground software={software} request={request}/>}
+            {active === "docs" && <Docs software={software}/>}
+        </main>
+    </div>;
+}
