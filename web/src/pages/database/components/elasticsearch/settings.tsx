@@ -34,22 +34,22 @@ export default ({open, instance, name, request, version, onCancel, onSuccess}: {
                 if (!instance?.id || !name) throw new Error("请选择索引");
                 const response = await request("settings", {id: instance.id, database_name: name});
                 if (current !== sequence.current) return;
-                if (response?.code !== 200 || !response.data || typeof response.data !== "object" || Array.isArray(response.data)) {
+                if (response?.code !== 200 || !response?.data || typeof response?.data !== "object" || Array.isArray(response?.data)) {
                     throw new Error(response?.message || "读取索引设置失败");
                 }
-                const data = response.data[name] || response.data;
-                const settings = data.settings?.index || data.settings || data.index || data;
+                const data = response?.data?.[name] || response?.data;
+                const settings = data?.settings?.index || data?.settings || data?.index || data;
                 form.setFieldsValue({
-                    shards: settings.number_of_shards ?? settings["index.number_of_shards"] ?? "—",
-                    replicas: Number(settings.number_of_replicas ?? settings["index.number_of_replicas"] ?? 0),
-                    refresh_interval: settings.refresh_interval ?? settings["index.refresh_interval"] ?? "1s",
-                    max_result_window: Number(settings.max_result_window ?? settings["index.max_result_window"] ?? 10000),
+                    shards: settings?.number_of_shards ?? settings?.["index.number_of_shards"] ?? "—",
+                    replicas: Number(settings?.number_of_replicas ?? settings?.["index.number_of_replicas"] ?? 0),
+                    refresh_interval: settings?.refresh_interval ?? settings?.["index.refresh_interval"] ?? "1s",
+                    max_result_window: Number(settings?.max_result_window ?? settings?.["index.max_result_window"] ?? 10000),
                 });
                 setLoading(false);
             } catch (reason: any) {
                 if (current !== sequence.current) return;
                 onCancel();
-                message.error(reason.message || "读取索引设置失败");
+                message.error(reason?.message || "读取索引设置失败");
             }
         })();
         return () => { sequence.current++; };
@@ -70,7 +70,7 @@ export default ({open, instance, name, request, version, onCancel, onSuccess}: {
             onSuccess?.();
             onCancel();
         } catch (reason: any) {
-            if (current === sequence.current) message.error(reason.message || "保存失败");
+            if (current === sequence.current) message.error(reason?.message || "保存失败");
         } finally {
             if (current === sequence.current) { pending.current = false; setSaving(false); }
         }

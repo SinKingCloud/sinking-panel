@@ -77,12 +77,12 @@ const useServers = () => {
             if (!current() || !response) {
                 return;
             }
-            if (response.code !== 200) {
+            if (response?.code !== 200) {
                 message.error(response?.message || "获取终端列表失败");
                 return;
             }
             const list = Array.isArray((response?.data as any)?.list)
-                ? (response?.data as any).list
+                ? (response?.data as any)?.list.filter(Boolean)
                 : [];
             setRemoteServers(list.map(normalizeServer));
             setHasMore(Boolean((response?.data as any)?.has_more));
@@ -118,15 +118,15 @@ const useServers = () => {
             if (!current()) {
                 return;
             }
-            if (response?.code === 200 && response.data) {
-                setLocal(normalizeServer(response.data));
+            if (response?.code === 200 && response?.data) {
+                setLocal(normalizeServer(response?.data));
                 setLocalLoaded(true);
                 setLocalError(false);
                 return;
             }
             setLocalError(true);
             if (response) {
-                message.error(response.message || "获取本机连接失败");
+                message.error(response?.message || "获取本机连接失败");
             }
         }).catch(() => {
             if (current()) {
@@ -186,19 +186,19 @@ const useServers = () => {
             if (!response) {
                 return;
             }
-            if (response.code !== 200) {
-                message.error(response.message || "加载更多终端失败");
+            if (response?.code !== 200) {
+                message.error(response?.message || "加载更多终端失败");
                 return;
             }
-            const list = Array.isArray((response.data as any)?.list)
-                ? (response.data as any).list.map(normalizeServer)
+            const list = Array.isArray((response?.data as any)?.list)
+                ? (response?.data as any)?.list.filter(Boolean).map(normalizeServer)
                 : [];
             setRemoteServers((current) => {
                 const ids = new Set(current.map((server) => server.id));
                 return [...current, ...list.filter((server: any) => !ids.has(server.id))];
             });
-            setHasMore(Boolean((response.data as any)?.has_more));
-            setNextCursor(String((response.data as any)?.next_cursor_id || ""));
+            setHasMore(Boolean((response?.data as any)?.has_more));
+            setNextCursor(String((response?.data as any)?.next_cursor_id || ""));
         } finally {
             if (listRequestRef.current === requestId) {
                 loadingMoreRef.current = false;

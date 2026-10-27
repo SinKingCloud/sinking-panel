@@ -166,16 +166,16 @@ const useLog = (
             return;
         }
 
-        const nextLogs = Array.isArray(data.lines) ? data.lines : [];
+        const nextLogs = Array.isArray(data?.lines) ? data?.lines : [];
         resetPosition();
         const control = controlRef.current;
-        control.cursor = toCursor(data.cursor);
-        control.startCursor = toCursor(data.start_cursor);
+        control.cursor = toCursor(data?.cursor);
+        control.startCursor = toCursor(data?.start_cursor);
         control.lineCount = nextLogs.length;
-        const previous = Boolean(data.has_previous);
+        const previous = Boolean(data?.has_previous);
         hasPreviousRef.current = previous;
         const commit = () => {
-            setFileName(String(data.file_name || ""));
+            setFileName(String(data?.file_name || ""));
             setLogs(nextLogs);
         };
         if (silent) {
@@ -196,8 +196,8 @@ const useLog = (
             return;
         }
         const previousCursor = control.cursor;
-        const nextCursor = toCursor(data.cursor);
-        const nextLogs = Array.isArray(data.lines) ? data.lines : [];
+        const nextCursor = toCursor(data?.cursor);
+        const nextLogs = Array.isArray(data?.lines) ? data?.lines : [];
         if (nextCursor < previousCursor) {
             await loadLatest(taskId, true);
             return;
@@ -242,10 +242,10 @@ const useLog = (
                 return;
             }
 
-            const olderLogs = Array.isArray(data.lines) ? data.lines : [];
+            const olderLogs = Array.isArray(data?.lines) ? data?.lines : [];
             const currentStart = control.startCursor;
-            const nextStart = toCursor(data.start_cursor);
-            const previous = !data.end && Boolean(data.has_previous) && nextStart < currentStart;
+            const nextStart = toCursor(data?.start_cursor);
+            const previous = !data?.end && Boolean(data?.has_previous) && nextStart < currentStart;
             control.startCursor = nextStart;
             if (olderLogs.length === 0) {
                 control.historyAnchor = null;

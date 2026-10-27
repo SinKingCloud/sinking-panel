@@ -33,7 +33,7 @@ export default ({styles}: any): React.ReactNode => {
             return;
         }
         const currentTimezone = String(response?.data?.timezone || "");
-        const availableTimezones: string[] = response?.data?.timezones || [];
+        const availableTimezones: string[] = Array.isArray(response?.data?.timezones) ? response?.data?.timezones.filter((value: unknown): value is string => typeof value === "string") : [];
         setTimezone(currentTimezone);
         setTimezones(currentTimezone && !availableTimezones.includes(currentTimezone)
             ? [currentTimezone, ...availableTimezones]

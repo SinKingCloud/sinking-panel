@@ -18,7 +18,7 @@ export default ({record, schema, table, version, toolbarContainer}: any) => {
             if (request.current === id) setValue(typeof data === "string" ? data : "");
         }).catch((reason) => {
             if (request.current !== id) return;
-            message.error({key: `mysql-definition-${record.id}`, content: reason.message});
+            message.error({key: `mysql-definition-${record.id}`, content: reason?.message});
         })
             .finally(() => { if (request.current === id) setLoading(false); });
         return () => { request.current++; };

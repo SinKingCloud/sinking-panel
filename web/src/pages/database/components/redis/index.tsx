@@ -18,7 +18,7 @@ export default ({requests, components, ...props}: RedisManagerProps) => {
         async (record: RedisRecord, body: Record<string, any> = {}) => {
             const response = await requestMethods.current[name]({body: {...body, id: record.id, database_name: body.database_name ?? record.database_name}});
             if (response?.code !== 200) throw new Error(response?.message || "数据库操作失败");
-            return response.data;
+            return response?.data;
         },
     ])) as RedisApi, [operations]);
     const context = useMemo(() => ({api, version, features: version?.features || {}, ActionDropdown: components?.ActionDropdown || ActionDropdown, Editor: components?.Editor, ScriptTools: components?.ScriptTools}), [api, version, components?.ActionDropdown, components?.Editor, components?.ScriptTools]);

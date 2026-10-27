@@ -65,16 +65,16 @@ export default ({record, schema, table, columns = [], tables = [], schemas = [],
         void api.objects(record, {schema, kind, ...(serverPagination ? {keyword: query.keyword, page: query.page, page_size: query.pageSize} : {})}).then((data) => {
             if (!live.current || sequence.current !== request) return;
             if (serverPagination) {
-                if (!Array.isArray(data?.list) || !Number.isFinite(data?.total) || !Number.isInteger(data?.page) || data.page < 1 || !Number.isInteger(data?.page_size) || data.page_size < 1) {
+                if (!Array.isArray(data?.list) || !Number.isFinite(data?.total) || !Number.isInteger(data?.page) || data?.page < 1 || !Number.isInteger(data?.page_size) || data?.page_size < 1) {
                     throw new Error("对象列表返回的分页数据不完整");
                 }
-                setPagination({total: data.total, page: data.page, pageSize: data.page_size});
+                setPagination({total: data?.total, page: data?.page, pageSize: data?.page_size});
             }
-            setRows(Array.isArray(data) ? data : data?.list || []);
+            setRows((Array.isArray(data) ? data : Array.isArray(data?.list) ? data?.list : []).filter((item: any) => item && typeof item === "object"));
         }).catch((reason) => {
             if (!live.current || sequence.current !== request) return;
-            setError(reason.message);
-            message.error({key: `mysql-objects-${record.id}`, content: reason.message});
+            setError(reason?.message);
+            message.error({key: `mysql-objects-${record.id}`, content: reason?.message});
         })
             .finally(() => { if (live.current && sequence.current === request) setLoading(false); });
         return () => { sequence.current++; };
@@ -108,12 +108,12 @@ export default ({record, schema, table, columns = [], tables = [], schemas = [],
             setReading(true);
             try {
                 const data = await api.columns(record, {schema, table: item.table});
-                if (live.current && editorSequence.current === request) setKeyColumns(data || []);
+                if (live.current && editorSequence.current === request) setKeyColumns(Array.isArray(data) ? data.filter((item: any) => typeof item?.name === "string") : []);
             } catch (reason: any) {
                 if (live.current && editorSequence.current === request) {
                     editorSequence.current++;
                     setEditor(undefined);
-                    message.error({key: `mysql-object-definition-${record.id}`, content: reason.message || "获取字段失败"});
+                    message.error({key: `mysql-object-definition-${record.id}`, content: reason?.message || "获取字段失败"});
                 }
             }
             finally { if (live.current && editorSequence.current === request) setReading(false); }
@@ -128,7 +128,7 @@ export default ({record, schema, table, columns = [], tables = [], schemas = [],
             if (live.current && editorSequence.current === request) {
                 editorSequence.current++;
                 setEditor(undefined);
-                message.error({key: `mysql-object-definition-${record.id}`, content: reason.message || "获取对象定义失败"});
+                message.error({key: `mysql-object-definition-${record.id}`, content: reason?.message || "获取对象定义失败"});
             }
         }
         finally { if (live.current && editorSequence.current === request) setReading(false); }
@@ -152,7 +152,7 @@ export default ({record, schema, table, columns = [], tables = [], schemas = [],
         if (!editor.item && (editor.kind === "routine" && !routineTypes.some((item) => item.value === values.object_type))) { message.error("当前版本不支持这个对象类型"); return; }
         if (editor.kind === "foreign_key") {
             try { validateForeignKeys(values.keys); if (values.keys.length !== 1) throw new Error("请配置一个外键"); }
-            catch (reason: any) { message.error(reason.message); return; }
+            catch (reason: any) { message.error(reason?.message); return; }
         }
         const current = editor;
         const request = editorSequence.current;
@@ -163,7 +163,7 @@ export default ({record, schema, table, columns = [], tables = [], schemas = [],
                     ? {schema: current.schema, table: current.table, ...(current.item ? {name: current.item.name} : {}), foreign_key: JSON.stringify(values.keys[0])}
                     : {schema: current.schema, kind: current.kind, name: current.item?.identity || current.item?.name || values.name.trim(), definition: values.definition, replace: Boolean(current.item)});
                 if (live.current) { message.success("保存成功"); if (request === editorSequence.current) setEditor(undefined); reload(); }
-            } catch (reason: any) { if (live.current) message.error(reason.message); throw reason; }
+            } catch (reason: any) { if (live.current) message.error(reason?.message); throw reason; }
             finally { pending.current = false; if (live.current) setSaving(false); }
         };
         confirm.current?.destroy();
@@ -182,7 +182,7 @@ export default ({record, schema, table, columns = [], tables = [], schemas = [],
                     await (kind === "foreign_key" ? api.drop_foreign_key : api.drop_object)(record, kind === "foreign_key"
                         ? {schema, table: item.table, name: item.name} : {schema, kind, name: item.identity || item.name});
                     if (live.current) { message.success("删除成功"); reload(); }
-                } catch (reason: any) { if (live.current) message.error(reason.message); throw reason; }
+                } catch (reason: any) { if (live.current) message.error(reason?.message); throw reason; }
                 finally { pending.current = false; if (live.current) setSaving(false); }
             }});
         // 启用 AntD Promise 模式：失败保留弹窗重试，避免再次抛出未处理的拒绝。
@@ -263,7 +263,7 @@ export default ({record, schema, table, columns = [], tables = [], schemas = [],
                             if (!live.current || !editor || editorSequence.current !== editor.request) return;
                             editorSequence.current++;
                             setEditor(undefined);
-                            message.error({key: `mysql-object-definition-${record.id}`, content: reason.message || "获取引用字段失败"});
+                            message.error({key: `mysql-object-definition-${record.id}`, content: reason?.message || "获取引用字段失败"});
                         }}/>
                 </Form.Item> : displayedEditor?.readonly ? <div className={styles.objectDefinition}>
                     <div className="object-definition-toolbar">

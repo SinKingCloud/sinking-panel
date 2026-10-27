@@ -153,8 +153,8 @@ const useFileClipboard = ({
                 if (!response) {
                     return;
                 }
-                if (!String(response.message || "").includes("不存在")) {
-                    message.error(response.message || "检查目标路径失败");
+                if (!String(response?.message || "").includes("不存在")) {
+                    message.error(response?.message || "检查目标路径失败");
                     return;
                 }
             }
@@ -174,8 +174,8 @@ const useFileClipboard = ({
                     target_path: targetPath,
                 },
             });
-            if (response?.code === 200 && typeof response.data === "string" && response.data) {
-                trackTask(response.data, snapshot.length === 1
+            if (response?.code === 200 && typeof response?.data === "string" && response?.data) {
+                trackTask(response?.data, snapshot.length === 1
                     ? `${operationName} ${snapshot[0].name}`
                     : `${operationName} ${snapshot.length} 项`);
                 if (skipped > 0) {
@@ -192,7 +192,7 @@ const useFileClipboard = ({
                     return remaining.length > 0 ? {...current, items: remaining} : undefined;
                 });
             } else if (response) {
-                message.error(response.message || `创建${operationName}任务失败`);
+                message.error(response?.message || `创建${operationName}任务失败`);
             }
         } finally {
             closeConfirm();

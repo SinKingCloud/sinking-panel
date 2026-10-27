@@ -54,21 +54,21 @@ export default function MySQLAccountSelect({record, database, value, onChange}: 
         try {
             const data = await api.users(record, {action: "list", database, keyword: query.current, page, page_size: pagination.current.pageSize});
             if (!current()) return;
-            if (!Array.isArray(data?.list) || !Number.isSafeInteger(data.total) || data.total < 0
-                || !Number.isInteger(data.page) || data.page < 1 || data.page > page
-                || !Number.isInteger(data.page_size) || data.page_size < 1 || data.page > Math.max(1, Math.ceil(data.total / data.page_size))
-                || (data.page < page && data.page * data.page_size < data.total)
-                || data.list.length > data.page_size || data.list.length > data.total
-                || !data.list.every((account: any) => typeof account?.name === "string" && typeof account.host === "string")) {
+            if (!Array.isArray(data?.list) || !Number.isSafeInteger(data?.total) || data?.total < 0
+                || !Number.isInteger(data?.page) || data?.page < 1 || data?.page > page
+                || !Number.isInteger(data?.page_size) || data?.page_size < 1 || data?.page > Math.max(1, Math.ceil(data?.total / data?.page_size))
+                || (data?.page < page && data?.page * data?.page_size < data?.total)
+                || data?.list?.length > data?.page_size || data?.list?.length > data?.total
+                || !data?.list?.every((account: any) => typeof account?.name === "string" && typeof account.host === "string")) {
                 throw new Error("账户列表分页数据无效，请重试");
             }
-            const next: AccountOption[] = data.list.filter(canChangePassword).map((account: any) => ({
+            const next: AccountOption[] = data?.list?.filter(canChangePassword).map((account: any) => ({
                 value: JSON.stringify([account.name, account.host]),
                 label: `${accountLabel(account.name, account.host)}${account.current ? "（当前连接）" : ""}`,
                 current: Boolean(account.current),
             }));
             setOptions((previous) => Array.from(new Map([...(page === 1 ? [] : previous), ...next].map((option) => [option.value, option])).values()));
-            pagination.current = {page: data.page, pageSize: data.page_size, total: data.total};
+            pagination.current = {page: data?.page, pageSize: data?.page_size, total: data?.total};
         } catch (reason: any) {
             if (!current()) return;
             failedPage.current = page;

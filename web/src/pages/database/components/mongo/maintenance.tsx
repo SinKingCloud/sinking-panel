@@ -27,7 +27,7 @@ export default ({record, collection, onChange}: any) => {
                     if (native?.valid === false) message.warning("检查完成，集合存在异常，请检查数据库日志");
                     else message.success(result?.message || `${tool.name}已完成`);
                     onChange?.(tool.action);
-                } catch (reason: any) { if (live.current) message.error(reason.message || "操作失败"); }
+                } catch (reason: any) { if (live.current) message.error(reason?.message || "操作失败"); }
                 finally { pending.current = false; if (live.current) setBusy(""); }
             };
             if (tool.action === "validate") { void execute(); return; }

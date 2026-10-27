@@ -39,12 +39,12 @@ export default ({record, type, engineName, request, onCancel}: {
         if (record?.id) {
             void request(type === 7 ? "info" : "database_info", {id: record.id, database_name: record.database_name || record.name}).then((response) => {
                 if (disposed) return;
-                if (response?.code !== 200 || !response.data) throw new Error(response?.message || "获取数据库详情失败");
-                setData(response.data);
+                if (response?.code !== 200 || !response?.data) throw new Error(response?.message || "获取数据库详情失败");
+                setData(response?.data);
                 setLoaded(key);
             }).catch((reason) => {
                 if (disposed) return;
-                disposed = true; onCancel(); message.error(reason.message || "获取数据库详情失败");
+                disposed = true; onCancel(); message.error(reason?.message || "获取数据库详情失败");
             });
         }
         return () => { disposed = true; };

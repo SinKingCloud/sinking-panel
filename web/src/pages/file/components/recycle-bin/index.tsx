@@ -73,11 +73,11 @@ const FileRecycleBin = memo(forwardRef<any, any>(({onMutation}, ref) => {
         try {
             const response = await getRecycleCount();
             if (requestId !== countRequestRef.current) return;
-            if (response?.code !== 200 || !response.data) {
+            if (response?.code !== 200 || !response?.data) {
                 message.error(response?.message || "获取回收站信息失败");
                 return;
             }
-            setCount(response.data);
+            setCount(response?.data);
         } catch {
             if (requestId === countRequestRef.current) {
                 message.error("获取回收站信息失败");

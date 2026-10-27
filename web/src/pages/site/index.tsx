@@ -43,7 +43,7 @@ export default (): React.ReactNode | any => {
             if (!active || typeVersionRef.current !== version || response?.code !== 200) {
                 return;
             }
-            setTypeItems(Array.isArray(response.data?.list) ? response.data.list : []);
+            setTypeItems(Array.isArray(response?.data?.list) ? response?.data?.list.filter(Boolean) : []);
         });
         return () => {
             active = false;

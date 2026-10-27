@@ -35,8 +35,8 @@ export default ({record: target, initialTab, onTabChange, request, version: supp
             try {
                 const response = await request("version", {id: target.id, database_name: target.database_name || target.name});
                 if (response?.code !== 200) throw new Error(response?.message || "获取数据库版本失败");
-                const data = response.data;
-                if (!data || typeof data.version !== "string" || !data.version.trim() || !data.features || typeof data.features !== "object" || Array.isArray(data.features)) {
+                const data = response?.data;
+                if (!data || typeof data?.version !== "string" || !data?.version?.trim() || !data?.features || typeof data?.features !== "object" || Array.isArray(data?.features)) {
                     throw new Error("数据库版本信息不完整");
                 }
                 if (active) setServer({key, ready: true, loading: false, version: data});
@@ -57,7 +57,7 @@ export default ({record: target, initialTab, onTabChange, request, version: supp
                 error.responseReceived = Boolean(response);
                 throw error;
             }
-            return response.data;
+            return response?.data;
         };
         const operations = ["version", "databases", "database_info", "schemas", "tables", "columns", "indexes", "rows", "ddl", "query", "execute", "insert", "update", "delete",
             "create_table", "drop_table", "rename_table", "add_column", "update_column", "drop_column", "create_index", "update_index", "drop_index", "objects", "object_definition", "save_object", "drop_object",

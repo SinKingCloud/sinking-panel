@@ -49,11 +49,11 @@ export default (): React.ReactNode => {
                         captcha_y: result.y,
                     },
                 });
-                if (response?.code != 200 || !response.data) {
+                if (response?.code != 200 || !response?.data) {
                     message.error(response?.message || "登录失败");
                     return;
                 }
-                setLoginToken(response.data);
+                setLoginToken(response?.data);
                 const data = await user?.getWebUser();
                 if (!data) {
                     deleteHeader();

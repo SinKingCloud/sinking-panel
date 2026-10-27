@@ -59,14 +59,14 @@ const useScripts = (module: string) => {
             if (response?.code !== 200) {
                 setError(true);
                 if (response) {
-                    message.error(response.message || "获取常用脚本失败");
+                    message.error(response?.message || "获取常用脚本失败");
                 }
                 return;
             }
-            const list = Array.isArray(response.data?.list) ? response.data.list : [];
-            const cursor = String(response.data?.next_cursor_id || "");
+            const list = Array.isArray(response?.data?.list) ? response?.data?.list.filter(Boolean) : [];
+            const cursor = String(response?.data?.next_cursor_id || "");
             setItems(list);
-            setHasMore(Boolean(response.data?.has_more && cursor));
+            setHasMore(Boolean(response?.data?.has_more && cursor));
             setNextCursor(cursor);
             setLoaded(true);
         }).finally(() => {
@@ -106,17 +106,17 @@ const useScripts = (module: string) => {
             if (requestRef.current !== requestId || !response) {
                 return;
             }
-            if (response.code !== 200) {
-                message.error(response.message || "加载更多脚本失败");
+            if (response?.code !== 200) {
+                message.error(response?.message || "加载更多脚本失败");
                 return;
             }
-            const list = Array.isArray(response.data?.list) ? response.data.list : [];
+            const list = Array.isArray(response?.data?.list) ? response?.data?.list.filter(Boolean) : [];
             setItems((current) => {
                 const ids = new Set(current.map((item) => item.id));
                 return [...current, ...list.filter((item: any) => !ids.has(item.id))];
             });
-            const cursor = String(response.data?.next_cursor_id || "");
-            setHasMore(Boolean(response.data?.has_more && cursor));
+            const cursor = String(response?.data?.next_cursor_id || "");
+            setHasMore(Boolean(response?.data?.has_more && cursor));
             setNextCursor(cursor);
         } finally {
             if (requestRef.current === requestId) {

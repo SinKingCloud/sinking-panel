@@ -83,8 +83,8 @@ const useList = () => {
             }
 
             const data: any = response?.data || {};
-            const list = Array.isArray(data.list) ? data.list : [];
-            const nextTotal = Number(data.total || 0);
+            const list = Array.isArray(data?.list) ? data?.list.filter(Boolean) : [];
+            const nextTotal = Number(data?.total || 0);
             if (list.length === 0 && nextTotal > 0 && page > 1) {
                 pageAdjusted = true;
                 setQuery((current) => ({

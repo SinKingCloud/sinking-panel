@@ -24,7 +24,7 @@ function cachedMetadata<T>(cache: Map<string, MetadataEntry<T>>, key: string, re
         pending.promise = Promise.resolve().then(request).then((data) => {
             if (!Array.isArray(data)) throw new Error("元数据信息不完整");
             pending.expires = Date.now() + 60000;
-            return data as T[];
+            return data.filter((item: any) => typeof item?.name === "string") as T[];
         }).catch(() => { pending.expires = Date.now() + 5000; return []; });
         if (cache.size >= 200) {
             const oldest = [...cache].find(([, entry]) => entry.expires !== Infinity)?.[0];

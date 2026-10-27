@@ -105,8 +105,9 @@ func (s *service) UpdateByIds(ids []int64, data *repositoryServer.UpdateServer) 
 		} else {
 			password = s.decrypt(current.Ip, password)
 		}
+		password = s.encrypt(ip, password)
 		value := *data
-		value.Password = new(s.encrypt(ip, password))
+		value.Password = &password
 		updates[id] = &value
 	}
 	for _, id := range ids {

@@ -129,19 +129,19 @@ const useFileEditorDocument = ({onMutation, message}: any) => {
                 if (!getCurrentRuntime()) {
                     return;
                 }
-                if (response?.code !== 200 || !response.data) {
+                if (response?.code !== 200 || !response?.data) {
                     throw new Error(response?.message || "读取文件内容失败");
                 }
 
-                const data = response.data;
-                if (data.is_dir) {
+                const data = response?.data;
+                if (data?.is_dir) {
                     throw new Error("目录不支持内容编辑");
                 }
-                if (Number(data.size) > maxEditorContentSize) {
+                if (Number(data?.size) > maxEditorContentSize) {
                     throw new Error("文件超过 8 MiB，无法在线编辑");
                 }
 
-                const responseVersion = String(data.version || "");
+                const responseVersion = String(data?.version || "");
                 if (!fileVersion) {
                     if (!responseVersion) {
                         throw new Error("无法获取文件版本，请重新加载");
@@ -151,8 +151,8 @@ const useFileEditorDocument = ({onMutation, message}: any) => {
                     throw new Error("文件内容已发生变化，请重新加载");
                 }
 
-                const nextCursor = Number(data.next_cursor);
-                const chunk = String(data.content || "");
+                const nextCursor = Number(data?.next_cursor);
+                const chunk = String(data?.content || "");
                 if (!Number.isSafeInteger(nextCursor) || nextCursor < cursor) {
                     throw new Error("文件游标异常，请重新加载");
                 }
@@ -162,7 +162,7 @@ const useFileEditorDocument = ({onMutation, message}: any) => {
                 }
                 chunks.push(chunk);
 
-                if (data.eof) {
+                if (data?.eof) {
                     break;
                 }
                 if (nextCursor === cursor) {
@@ -390,7 +390,7 @@ const useFileEditorDocument = ({onMutation, message}: any) => {
                 return false;
             }
 
-            const nextVersion = String(response.data?.version || "");
+            const nextVersion = String(response?.data?.version || "");
             current.baseline = submittedContent;
             current.dirty = current.content !== submittedContent;
             current.version = nextVersion;
@@ -400,7 +400,7 @@ const useFileEditorDocument = ({onMutation, message}: any) => {
                 dirty: current.dirty,
                 error: nextVersion ? "" : "文件已保存，但未返回新版本，请重新加载后继续编辑",
             }));
-            message.success(response.message || "保存成功");
+            message.success(response?.message || "保存成功");
             onMutationRef.current();
             return true;
         } catch (reason: unknown) {

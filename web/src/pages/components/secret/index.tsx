@@ -87,7 +87,7 @@ const SecretManager = forwardRef<SecretManagerRef, SecretManagerProps>(({zIndex 
                 message.error(response?.message || "获取密钥厂商失败");
                 return;
             }
-            setProviderNames(response.data?.provider || {});
+            setProviderNames(response?.data?.provider || {});
         } catch {
             if (mountedRef.current && enumRequestRef.current === requestId) {
                 message.error("获取密钥厂商失败");
@@ -159,14 +159,14 @@ const SecretManager = forwardRef<SecretManagerRef, SecretManagerProps>(({zIndex 
         if (response?.code !== 200 || !Array.isArray(list)) {
             throw new Error(response?.message || "获取密钥列表失败");
         }
-        const data: any[] = list.map((item: any) => ({
+        const data: any[] = list.filter((item: any) => item?.id).map((item: any) => ({
             id: Number(item.id),
             name: item.name,
             provider: Number(item.provider),
             create_time: item.create_time,
             update_time: item.update_time,
         }));
-        return {data, total: Number(response.data?.total || 0), success: true};
+        return {data, total: Number(response?.data?.total || 0), success: true};
     }, []);
 
     const changed = useCallback((change: SecretChange) => {

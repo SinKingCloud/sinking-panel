@@ -36,7 +36,7 @@ export default ({record}: any) => {
             execution.success = true;
             execution.status = data?.status;
             if (live.current) setResult(data);
-        } catch (reason: any) { if (live.current) setError(reason.message || "请求失败"); }
+        } catch (reason: any) { if (live.current) setError(reason?.message || "请求失败"); }
         finally {
             // 只记录实际执行的请求；关闭工作区后完成的请求也保留历史。
             const records = requestHistory(String(record.id), {...execution, elapsed_ms: Math.max(0, Date.now() - execution.time)});
@@ -44,7 +44,7 @@ export default ({record}: any) => {
             if (live.current) { setHistory(records); setLoading(false); }
         }
     };
-    const output = useMemo(() => error || (result === undefined ? "" : typeof result.data === "string" ? result.data : JSON.stringify(result.data, null, 2)), [error, result]);
+    const output = useMemo(() => error || (result == null ? "" : typeof result?.data === "string" ? result?.data : (JSON.stringify(result?.data, null, 2) ?? "")), [error, result]);
     return <div className={`manager-stage ${styles.request}`}>
         <Form form={form} className="es-request-form" layout="vertical" variant="filled" initialValues={{method: "GET", path: record.name ? `/${record.name}/_search` : "/_cluster/health", body: ""}}
             onFinishFailed={({errorFields}) => message.error(errorFields[0]?.errors?.[0] || "请检查请求参数")}
@@ -89,7 +89,7 @@ export default ({record}: any) => {
                     </div>
                 </Splitter.Panel>
                 <Splitter.Panel className="es-request-results" min={160}>
-                    {(output || loading) ? <><div className="manager-toolbar"><span className="manager-statistics">{error ? "执行失败" : result ? `响应状态 ${result.status}` : "响应结果"}</span>
+                    {(output || loading) ? <><div className="manager-toolbar"><span className="manager-statistics">{error ? "执行失败" : result ? `响应状态 ${result?.status}` : "响应结果"}</span>
                         <div className="manager-tools"><Button color="default" variant="filled" icon={<Icon type="CopyOutlined"/>} disabled={!output} onClick={() => copyTextToClipboard(output).then((success) => success ? message.success("复制成功") : message.error("复制失败"))}>复制</Button></div></div>
                         <div className={`manager-output${error ? " is-error" : ""}`}><Spin spinning={loading}><pre>{output}</pre></Spin></div></>
                         : <div className="manager-empty"><Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="执行后显示结果"/></div>}

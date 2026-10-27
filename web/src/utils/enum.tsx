@@ -47,7 +47,7 @@ async function getEnumData(names: string[]): Promise<EnumsData> {
         };
     }));
 
-    responses.forEach((item) => {
+    responses?.forEach((item) => {
         enumCache[item.name] = item.data;
     });
 

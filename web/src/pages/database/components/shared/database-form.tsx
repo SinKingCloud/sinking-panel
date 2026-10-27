@@ -44,10 +44,10 @@ export default ({open, instance, name, type, request, onCancel, onSuccess}: {
             if (!editing && type === 7) body.settings = JSON.stringify({number_of_shards: values.shards, number_of_replicas: values.replicas});
             const response = await request(editing ? "rename_database" : type === 7 ? "create_index" : "create_database", body);
             if (current !== sequence.current) return;
-            if (response.code !== 200) throw new Error(response.message || "保存失败");
+            if (response?.code !== 200) throw new Error(response?.message || "保存失败");
             message.success(editing ? "修改成功" : "创建成功");
             onSuccess({name: nextName}); onCancel();
-        } catch (reason: any) { if (current === sequence.current) message.error(reason.message || "保存失败"); }
+        } catch (reason: any) { if (current === sequence.current) message.error(reason?.message || "保存失败"); }
         finally { if (current === sequence.current) { pending.current = false; setSaving(false); } }
     };
     return <ProModal title={<Title>{editing ? `修改${label}` : `创建${label}`}</Title>} onOk={form.submit}

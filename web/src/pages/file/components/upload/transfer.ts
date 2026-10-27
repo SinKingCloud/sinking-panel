@@ -95,7 +95,7 @@ class FileUploadBusinessError extends Error {
     response: API.Response<unknown>;
 
     constructor(response: API.Response<unknown>) {
-        super(response.message || "上传失败");
+        super(response?.message || "上传失败");
         this.name = "FileUploadBusinessError";
         this.response = response;
     }
@@ -325,7 +325,7 @@ const uploadFileDirectly = async (
             });
         },
     });
-    if (response.code === 200) {
+    if (response?.code === 200) {
         options.onProgress?.({loaded: meta.totalSize, total: meta.totalSize, percent: 100, phase: "complete"});
     }
     return response;
@@ -359,10 +359,10 @@ const uploadFileChunk = async (
                     report(uploadedBytes + Math.min(current, chunkSize), attempt);
                 },
             });
-            if (response.code !== 200) {
+            if (response?.code !== 200) {
                 throw new FileUploadBusinessError(response);
             }
-            const data = response.data;
+            const data = response?.data;
             const completed = data?.name === fileName && data?.size === meta.totalSize && data?.file_hash === meta.fileHash;
             if (!completed && (data?.upload_id !== uploadId || data?.chunk_index !== chunkIndex)) {
                 throw createUploadTransferError("FileUploadRequestError", "服务器返回的分片信息不一致");
@@ -436,16 +436,16 @@ const uploadFileByChunks = async (
         ensureUploadNotAborted(signal);
         try {
             const checkResponse = await requestFileUploadWithRetry<any>("check", signal, () => ({query: buildCheckQuery()}));
-            if (checkResponse.code !== 200) {
+            if (checkResponse?.code !== 200) {
                 throw new FileUploadBusinessError(checkResponse);
             }
-            if (checkResponse.data?.completed && checkResponse.data.file) {
+            if (checkResponse?.data?.completed && checkResponse?.data?.file) {
                 removeFileUploadResumeId(resumeKey, uploadId);
                 options.onProgress?.({loaded: meta.totalSize, total: meta.totalSize, percent: 100, phase: "complete"});
-                return {...checkResponse, data: checkResponse.data.file};
+                return {...checkResponse, data: checkResponse?.data?.file};
             }
             const uploadedChunks = new Set<number>(
-                (checkResponse.data?.uploaded_chunks || []).filter((index: number) => Number.isInteger(index) && index >= 0 && index < meta.totalChunks),
+                (Array.isArray(checkResponse?.data?.uploaded_chunks) ? checkResponse?.data?.uploaded_chunks : []).filter((index: number) => Number.isInteger(index) && index >= 0 && index < meta.totalChunks),
             );
             let uploadedBytes = Array.from(uploadedChunks).reduce(
                 (total, index) => total + getFileUploadChunkSize(index, meta),
@@ -476,7 +476,7 @@ const uploadFileByChunks = async (
                 mergeBody.append("upload_id", uploadId);
                 return {body: mergeBody};
             });
-            if (mergeResponse.code !== 200) {
+            if (mergeResponse?.code !== 200) {
                 throw new FileUploadBusinessError(mergeResponse);
             }
             removeFileUploadResumeId(resumeKey, uploadId);

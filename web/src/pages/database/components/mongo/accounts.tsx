@@ -40,8 +40,8 @@ export default ({record}: any) => {
         const request = ++sequence.current;
         setLoading(true);
         void operate(record, "users", {action: "list", database, keyword, page, page_size: pageSize}).then((data) => {
-            if (live.current && request === sequence.current) setResult(data);
-        }).catch((reason) => { if (live.current && request === sequence.current) { setResult(undefined); message.error(reason.message || "读取账户失败"); } })
+            if (live.current && request === sequence.current) setResult({...data, list: Array.isArray(data?.list) ? data?.list.filter(Boolean) : []});
+        }).catch((reason) => { if (live.current && request === sequence.current) { setResult(undefined); message.error(reason?.message || "读取账户失败"); } })
             .finally(() => { if (live.current && request === sequence.current) setLoading(false); });
     }, [record.id, record.name, database, keyword, page, pageSize, refresh, operate]);
     const close = () => {
@@ -59,16 +59,16 @@ export default ({record}: any) => {
         try {
             const data = await operate(record, "users", {action: "permissions", database: target, name: account.name});
             if (!live.current || request !== editorSequence.current) return;
-            if (!Array.isArray(data?.grants) || !data.grants.every((grant: any) => typeof grant?.database === "string"
-                && grant.database && Array.isArray(grant.privileges)
-                && grant.privileges.every((value: any) => permissions.some((item) => item.value === value)))) {
+            if (!Array.isArray(data?.grants) || !data?.grants?.every((grant: any) => typeof grant?.database === "string"
+                && grant?.database && Array.isArray(grant?.privileges)
+                && grant?.privileges?.every((value: any) => permissions.some((item) => item.value === value)))) {
                 throw new Error("读取账户权限失败");
             }
-            setEditor((current: any) => ({...current, loading: false, values: {grants: data.grants}}));
+            setEditor((current: any) => ({...current, loading: false, values: {grants: data?.grants}}));
         } catch (reason: any) {
             if (!live.current || request !== editorSequence.current) return;
             setEditor(undefined);
-            message.error(reason.message || "读取账户权限失败");
+            message.error(reason?.message || "读取账户权限失败");
         }
     };
     const save = async (values: any) => {
@@ -80,10 +80,10 @@ export default ({record}: any) => {
                 name: editor.account?.name || values.name, password: values.password,
                 grants: ["create", "permissions"].includes(editor.action) ? values.grants || [] : undefined});
             if (!live.current) return;
-            if (data?.warning) message.warning(data.warning); else message.success(editor.action === "create" && values.target_database !== database ? `已在 ${values.target_database} 创建账户` : "保存成功");
+            if (data?.warning) message.warning(data?.warning); else message.success(editor.action === "create" && values.target_database !== database ? `已在 ${values.target_database} 创建账户` : "保存成功");
             setEditor(undefined); setRefresh((value) => value + 1);
             if (editor.action === "create") setPage(1);
-        } catch (reason: any) { if (live.current) message.error(reason.message || "保存失败"); }
+        } catch (reason: any) { if (live.current) message.error(reason?.message || "保存失败"); }
         finally { pending.current = false; if (live.current) setSaving(false); }
     };
     const applySearch = () => { const value = search.trim(); if (value !== keyword) { setKeyword(value); setPage(1); } };
@@ -94,7 +94,7 @@ export default ({record}: any) => {
                 <Button color="default" variant="filled" icon={<Icon type="PlusOutlined"/>} onClick={() => void open("create")}>新增</Button>
             </div>
         </div><Button className="manager-refresh" color="default" variant="filled" icon={<Icon type="ReloadOutlined"/>} aria-label="刷新账户" loading={loading} onClick={() => setRefresh((value) => value + 1)}/></div>
-        <div className="manager-table"><VirtualTable rowKey={(account: any) => JSON.stringify([account.database, account.name])} size="small" scroll={{x: 676}} loading={loading} pagination={false} dataSource={result?.database === database ? result.list : []} locale={{emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无数据"/>}}
+        <div className="manager-table"><VirtualTable rowKey={(account: any) => JSON.stringify([account.database, account.name])} size="small" scroll={{x: 676}} loading={loading} pagination={false} dataSource={result?.database === database ? result?.list || [] : []} locale={{emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无数据"/>}}
             columns={[
                 {title: "账户名称", dataIndex: "name", width: 180, ellipsis: true},
                 {title: "认证数据库", dataIndex: "database", width: 160, ellipsis: true},
@@ -106,7 +106,7 @@ export default ({record}: any) => {
                         if (pending.current) return;
                         pending.current = true;
                         try { await operate(record, "users", {action: "delete", database: account.database, name: account.name}); if (live.current) { message.success("删除成功"); setRefresh((value) => value + 1); } }
-                        catch (reason: any) { if (live.current) message.error(reason.message || "删除失败"); }
+                        catch (reason: any) { if (live.current) message.error(reason?.message || "删除失败"); }
                         finally { pending.current = false; }
                     }}); }}] : []),
                 ]}}><Button color="default" variant="filled" size="small">操作</Button></ActionDropdown>},

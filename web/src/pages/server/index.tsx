@@ -173,8 +173,8 @@ export default (): React.ReactNode => {
             if (!response) {
                 return;
             }
-            if (response.code !== 200) {
-                message.error(response.message || "删除终端失败");
+            if (response?.code !== 200) {
+                message.error(response?.message || "删除终端失败");
                 return;
             }
             const serverKey = String(server.id);
@@ -199,7 +199,7 @@ export default (): React.ReactNode => {
             if (selectedId === server.id) {
                 setSelectedId(list.localServer.id);
             }
-            message.success(response.message || "删除成功");
+            message.success(response?.message || "删除成功");
             list.reload();
         } finally {
             message.destroy(key);

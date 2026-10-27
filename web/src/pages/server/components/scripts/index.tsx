@@ -76,11 +76,11 @@ const Scripts = ({styles, collapsed, connected, selectedId, onCollapsedChange, o
         if (typeRequestRef.current !== requestId || !response) {
             return;
         }
-        if (response.code !== 200) {
-            message.error(response.message || "获取脚本分类失败");
+        if (response?.code !== 200) {
+            message.error(response?.message || "获取脚本分类失败");
             return;
         }
-        const items = Array.isArray(response.data?.list) ? response.data.list : [];
+        const items = Array.isArray(response?.data?.list) ? response?.data?.list.filter(Boolean) : [];
         setTypeItems(items);
         return items;
     }, [instanceModule, message]);
@@ -122,11 +122,11 @@ const Scripts = ({styles, collapsed, connected, selectedId, onCollapsedChange, o
             if (insertRequestRef.current !== requestId || !response) {
                 return;
             }
-            if (response.code !== 200 || !response.data) {
-                message.error(response.message || "获取脚本详情失败");
+            if (response?.code !== 200 || !response?.data) {
+                message.error(response?.message || "获取脚本详情失败");
                 return;
             }
-            const script = String(response.data.script || "");
+            const script = String(response?.data?.script || "");
             if (!script) {
                 message.warning("脚本内容为空");
                 return;
@@ -151,10 +151,10 @@ const Scripts = ({styles, collapsed, connected, selectedId, onCollapsedChange, o
             if (window.isSecureContext && navigator.clipboard?.write && typeof ClipboardItem !== "undefined") {
                 // 先在点击时发起复制，再等待接口正文，保留 Safari 的用户操作授权。
                 const content = detail.then((response) => {
-                    if (copyRequestRef.current !== requestId || response?.code !== 200 || !response.data?.script) {
+                    if (copyRequestRef.current !== requestId || response?.code !== 200 || !response?.data?.script) {
                         throw new Error("脚本内容不可用");
                     }
-                    return new Blob([String(response.data.script)], {type: "text/plain"});
+                    return new Blob([String(response?.data?.script)], {type: "text/plain"});
                 });
                 // 不支持 Promise 内容的浏览器可能同步抛错，接口失败时也需要处理内容 Promise。
                 void content.catch(() => undefined);
@@ -169,11 +169,11 @@ const Scripts = ({styles, collapsed, connected, selectedId, onCollapsedChange, o
             if (copyRequestRef.current !== requestId || !response) {
                 return;
             }
-            if (response.code !== 200 || !response.data) {
-                message.error(response.message || "获取脚本详情失败");
+            if (response?.code !== 200 || !response?.data) {
+                message.error(response?.message || "获取脚本详情失败");
                 return;
             }
-            const script = String(response.data.script ?? "");
+            const script = String(response?.data?.script ?? "");
             if (!script) {
                 message.warning("脚本内容为空");
                 return;
@@ -245,11 +245,11 @@ const Scripts = ({styles, collapsed, connected, selectedId, onCollapsedChange, o
                     if (!response) {
                         return;
                     }
-                    if (response.code !== 200) {
-                        message.error(response.message || "删除脚本失败");
+                    if (response?.code !== 200) {
+                        message.error(response?.message || "删除脚本失败");
                         return;
                     }
-                    message.success(response.message || "删除成功");
+                    message.success(response?.message || "删除成功");
                     list.reload();
                 } finally {
                     setDeletingId(undefined);

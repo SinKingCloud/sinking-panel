@@ -90,11 +90,11 @@ const FileForm = forwardRef<any, any>(({onSuccess}, ref) => {
             if (!response) {
                 return;
             }
-            if (response.code !== 200) {
-                message.error(response.message || (editor.mode === "rename" ? "重命名失败" : "创建失败"));
+            if (response?.code !== 200) {
+                message.error(response?.message || (editor.mode === "rename" ? "重命名失败" : "创建失败"));
                 return;
             }
-            message.success(response.message || (editor.mode === "rename" ? "重命名成功" : "创建成功"));
+            message.success(response?.message || (editor.mode === "rename" ? "重命名成功" : "创建成功"));
             onSuccess({
                 mode: editor.mode,
                 name: value,

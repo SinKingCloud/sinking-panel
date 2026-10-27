@@ -9,10 +9,10 @@ export default () => {
      */
     const getWebUser = async () => {
         const resp = await systemAccount({body: {action: "account"}});
-        if (resp?.code != 200 || !resp.data) {
+        if (resp?.code != 200 || !resp?.data) {
             return undefined;
         }
-        return resp.data;
+        return resp?.data;
     }
 
     /**

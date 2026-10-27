@@ -54,18 +54,18 @@ function DatabasePermissions({record, field, permissions, disabled, onRemove, on
         try {
             const data = await operate(record, "users", {action: "schemas", database});
             if (!active.current || request !== sequence.current) return;
-            if (!Array.isArray(data) || !data.every((name) => typeof name === "string")) throw new Error("架构列表数据不完整");
-            const names = data.filter((name) => !name.startsWith("pg_") && name !== "information_schema");
+            if (!Array.isArray(data) || !data?.every((name) => typeof name === "string")) throw new Error("架构列表数据不完整");
+            const names = data?.filter((name) => !name.startsWith("pg_") && name !== "information_schema");
             setSchemas(names); loaded.current = database;
             // 只给新添加的数据库填默认架构，读取既有授权时不额外授予 public 权限。
             if (form.getFieldValue(["grants", field.name, "initialize"])) {
                 const schema = names.includes("public") ? "public" : names[0];
                 form.setFieldValue(["grants", field.name, "schemas"], schema
-                    ? [{schema, privileges: profiles[1].privileges.filter((value) => permissions.privileges.includes(value))}] : []);
+                    ? [{schema, privileges: profiles[1].privileges.filter((value) => permissions?.privileges?.includes(value))}] : []);
                 form.setFieldValue(["grants", field.name, "initialize"], false);
             }
         } catch (reason: any) {
-            if (active.current && request === sequence.current) onError(reason.message || "加载数据库架构失败");
+            if (active.current && request === sequence.current) onError(reason?.message || "加载数据库架构失败");
         } finally {
             if (active.current && request === sequence.current) { pending.current = ""; setLoading(false); onLoading(field.key, false); }
         }
@@ -78,7 +78,7 @@ function DatabasePermissions({record, field, permissions, disabled, onRemove, on
         sequence.current++; loaded.current = ""; pending.current = ""; setSchemas([]); setLoading(false); onLoading(field.key, false);
         if (database && form.getFieldValue(["grants", field.name, "initialize"])) void load();
     }, [database, field.name]);
-    const options = permissions.privileges.map((value: string) => ({value, label: labels[value] || value}));
+    const options = (permissions?.privileges || []).map((value: string) => ({value, label: labels[value] || value}));
     return <div className="postgres-permission-group">
         <div className="postgres-permission-heading">
         <Form.Item name={[field.name, "database"]} label={`数据库 ${field.name + 1}`} rules={[
@@ -96,7 +96,7 @@ function DatabasePermissions({record, field, permissions, disabled, onRemove, on
         </div>
         <Form.Item name={[field.name, "privileges"]} label="数据库级权限" getValueProps={(value) => ({value: value || []})}>
             <Select mode="multiple" showSearch={false} placeholder="请选择数据库级权限" disabled={disabled}
-                options={permissions.database_privileges.map((value: string) => ({value, label: value === "CREATE" ? "创建架构" : labels[value] || value}))}/>
+                options={(permissions?.database_privileges || []).map((value: string) => ({value, label: value === "CREATE" ? "创建架构" : labels[value] || value}))}/>
         </Form.Item>
         <Form.List name={[field.name, "schemas"]}>
             {(fields, {add, remove}) => <>
@@ -116,7 +116,7 @@ function DatabasePermissions({record, field, permissions, disabled, onRemove, on
                     <Button color="default" variant="filled" disabled={disabled} icon={<Icon type="CloseOutlined"/>} aria-label="移除架构" onClick={() => remove(item.name)}/>
                 </div>)}
                 <Button className="postgres-schema-add" block type="dashed" disabled={disabled || !database || loading} loading={loading}
-                    icon={<Icon type="PlusOutlined"/>} onClick={() => { add({schema: undefined, privileges: profiles[1].privileges.filter((value) => permissions.privileges.includes(value))}); void load(); }}>添加架构</Button>
+                    icon={<Icon type="PlusOutlined"/>} onClick={() => { add({schema: undefined, privileges: profiles[1].privileges.filter((value) => permissions?.privileges?.includes(value))}); void load(); }}>添加架构</Button>
             </>}
         </Form.List>
     </div>;

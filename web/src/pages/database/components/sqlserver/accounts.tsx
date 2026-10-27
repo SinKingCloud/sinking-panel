@@ -58,8 +58,8 @@ export default ({record, initialAction}: any) => {
         if (listScope.current !== key) { listScope.current = key; setRows([]); }
         setLoading(true); setError("");
         void operate(record, "users", {action: "list", database, ...query}).then((data) => {
-            if (live.current && request === listSequence.current) { setRows(data?.list || []); setPagination(data); }
-        }).catch((reason) => { if (live.current && request === listSequence.current) setError(reason.message); })
+            if (live.current && request === listSequence.current) { setRows(Array.isArray(data?.list) ? data?.list?.filter((item: any) => typeof item?.name === "string") : []); setPagination(data); }
+        }).catch((reason) => { if (live.current && request === listSequence.current) setError(reason?.message); })
             .finally(() => { if (live.current && request === listSequence.current) setLoading(false); });
     }, [record.id, database, version, query]);
     useEffect(() => {
@@ -71,7 +71,7 @@ export default ({record, initialAction}: any) => {
         setConnection(undefined); setConnectionError(""); setConnectionLoading(true);
         void operate(record, "users", {action: "connection", database: targetDatabase}).then((data) => {
             if (live.current && current) setConnection(data);
-        }).catch((reason) => { if (live.current && current) setConnectionError(reason.message); })
+        }).catch((reason) => { if (live.current && current) setConnectionError(reason?.message); })
             .finally(() => { if (live.current && current) setConnectionLoading(false); });
         return () => { current = false; };
     }, [record.id, editor?.action, targetDatabase]);
@@ -86,7 +86,7 @@ export default ({record, initialAction}: any) => {
     }
     const close = () => { if (!pending.current) { setEditor(undefined); } };
     const showWarning = (data: any) => {
-        if (data?.warning) { setWarning(data.warning); message.warning(data.warning); }
+        if (data?.warning) { setWarning(data?.warning); message.warning(data?.warning); }
     };
     const save = async (values: any) => {
         if (pending.current || !editor) return;
@@ -101,8 +101,8 @@ export default ({record, initialAction}: any) => {
             } else {
                 const data = await operate(record, "users", {action: editor.action === "permissions" ? repair ? "grant" : "permissions" : editor.action,
                     ...target, ...account, password: values.password, privileges: values.privileges});
-                if (editor.action === "password" && data?.current && !data.connection_updated) {
-                    const warning = data.warning || "密码已修改，但实例连接信息未保存，请在配置中填写新密码";
+                if (editor.action === "password" && data?.current && !data?.connection_updated) {
+                    const warning = data?.warning || "密码已修改，但实例连接信息未保存，请在配置中填写新密码";
                     message.warning(warning);
                     if (live.current) { setWarning(warning); setEditor(undefined); }
                     return;
@@ -111,7 +111,7 @@ export default ({record, initialAction}: any) => {
             }
             message.success(editor.action === "create" ? "账户已创建并完成授权" : "操作成功");
             if (live.current) { setVersion((value) => value + 1); setEditor(undefined); }
-        } catch (reason: any) { message.error(reason.message);
+        } catch (reason: any) { message.error(reason?.message);
         } finally { pending.current = false; if (live.current) setBusy(false); }
     };
     const remove = (account: any) => {
@@ -126,7 +126,7 @@ export default ({record, initialAction}: any) => {
                     const data = await operate(record, "users", {action: "delete", name: account.name, database});
                     if (live.current) { showWarning(data); setVersion((value) => value + 1); }
                     message.success("账户已删除");
-                } catch (reason: any) { message.error(reason.message); throw reason; }
+                } catch (reason: any) { message.error(reason?.message); throw reason; }
                 finally { pending.current = false; if (live.current) setBusy(false); }
             }});
         void Promise.resolve(confirmation.current);

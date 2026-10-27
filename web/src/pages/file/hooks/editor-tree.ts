@@ -81,21 +81,22 @@ const useFileEditorTree = ({roots, message}: any) => {
                 ) {
                     return {status: "stale"};
                 }
-                if (response?.code !== 200 || !response.data || !Array.isArray(response.data.list)) {
+                if (response?.code !== 200 || !response?.data || !Array.isArray(response?.data?.list)) {
                     message.error(response?.message || `读取目录失败：${normalizedPath}`);
                     return {status: "failed"};
                 }
-                const data = response.data;
-                const children = data.list
+                const data = response?.data;
+                const children = data?.list
+                    ?.filter((record: any) => record?.name)
                     .map((record) => createEditorEntryNode(normalizedPath, record))
                     .filter((node) => !rootKeysRef.current.has(node.key));
                 const loaded = page * editorTreePageSize;
-                const hasMore = loaded < Number(data.total || 0);
+                const hasMore = loaded < Number(data?.total || 0);
                 if (hasMore) {
                     children.push(createEditorMoreNode(
                         normalizedPath,
                         page + 1,
-                        Math.max(0, Number(data.total || 0) - loaded),
+                        Math.max(0, Number(data?.total || 0) - loaded),
                     ));
                 }
                 setTreeData((current) => setEditorTreeChildren(
@@ -238,10 +239,10 @@ const useFileEditorTree = ({roots, message}: any) => {
                     let page = 1;
                     while (true) {
                         const result = await loadDirectory(ancestor, page, page > 1, generation);
-                        if (result.status !== "success" || generationRef.current !== generation) {
+                        if (result?.status !== "success" || generationRef.current !== generation) {
                             return;
                         }
-                        if (!target || result.entries.some((node: any) => node.key === editorTreeKey(target)) || !result.hasMore) {
+                        if (!target || result?.entries?.some((node: any) => node.key === editorTreeKey(target)) || !result?.hasMore) {
                             break;
                         }
                         page += 1;
@@ -284,7 +285,7 @@ const useFileEditorTree = ({roots, message}: any) => {
             return;
         }
         const result = await loadDirectory(node.path);
-        if (result.status === "failed") {
+        if (result?.status === "failed") {
             expansionEpochRef.current += 1;
             setExpandedKeys((current) => current.filter((key) => key !== node.key));
         }
@@ -324,7 +325,7 @@ const useFileEditorTree = ({roots, message}: any) => {
         if (!path) {
             return Promise.resolve(false);
         }
-        return loadDirectory(path, 1, false).then((result) => result.status === "success");
+        return loadDirectory(path, 1, false).then((result) => result?.status === "success");
     }, [loadDirectory, targetDirectory]);
 
     const revealCreated = useCallback(async (
@@ -338,10 +339,10 @@ const useFileEditorTree = ({roots, message}: any) => {
         let page = 1;
         while (true) {
             const result = await loadDirectory(parentPath, page, page > 1, generationRef.current, true);
-            if (result.status !== "success") {
+            if (result?.status !== "success") {
                 return;
             }
-            if (result.entries.some((node: any) => node.key === editorTreeKey(targetPath)) || !result.hasMore) {
+            if (result?.entries?.some((node: any) => node.key === editorTreeKey(targetPath)) || !result?.hasMore) {
                 break;
             }
             page += 1;

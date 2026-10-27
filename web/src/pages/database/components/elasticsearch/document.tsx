@@ -117,15 +117,15 @@ export default ({record, editor, onCancel, onSuccess}: any) => {
             void operate(record, "request", {method: "GET", path}).then((response) => {
                 if (!live.current || request !== sequence.current) return;
                 if (response?.data?.found === false || !response?.data?._source) throw new Error("文档不存在或未启用原始内容存储");
-                if (hasUnsafeNumber(response.data._source) && typeof response.data._source_json !== "string") throw new Error("文档包含大整数，需要更新服务端后再编辑");
-                const current = response.data;
+                if (hasUnsafeNumber(response?.data?._source) && typeof response?.data?._source_json !== "string") throw new Error("文档包含大整数，需要更新服务端后再编辑");
+                const current = response?.data;
                 snapshot.current = {
-                    routing: String(current._routing ?? current.fields?._routing?.[0] ?? routing),
-                    ...(current._seq_no !== undefined && current._primary_term !== undefined ? {seq_no: String(current._seq_no), primary_term: String(current._primary_term)} : {}),
-                    ...(current._version !== undefined ? {version: String(current._version)} : {}),
+                    routing: String(current?._routing ?? current?.fields?._routing?.[0] ?? routing),
+                    ...(current?._seq_no !== undefined && current?._primary_term !== undefined ? {seq_no: String(current?._seq_no), primary_term: String(current?._primary_term)} : {}),
+                    ...(current?._version !== undefined ? {version: String(current?._version)} : {}),
                 };
-                populateForm(current._source, current._source_json);
-            }).catch((reason) => { if (live.current && request === sequence.current) { message.error(reason.message || "读取文档失败"); onCancel(); } })
+                populateForm(current?._source, current?._source_json);
+            }).catch((reason) => { if (live.current && request === sequence.current) { message.error(reason?.message || "读取文档失败"); onCancel(); } })
                 .finally(() => { if (live.current && request === sequence.current) setReading(false); });
         } else {
             populateForm({});
@@ -138,7 +138,7 @@ export default ({record, editor, onCancel, onSuccess}: any) => {
                 setMapping(mapping);
                 setDocumentTypes(types);
                 if (types.length === 1 && !form.getFieldValue("document_type")) form.setFieldValue("document_type", types[0]);
-            }).catch((reason) => { if (live.current && request === sequence.current) { message.error(reason.message || "读取索引映射失败"); onCancel(); } })
+            }).catch((reason) => { if (live.current && request === sequence.current) { message.error(reason?.message || "读取索引映射失败"); onCancel(); } })
                 .finally(() => { if (live.current && request === sequence.current) setReading(false); });
         }
     }, [editor, form]);
@@ -163,7 +163,7 @@ export default ({record, editor, onCancel, onSuccess}: any) => {
         if (pending.current || reading || !editor || readonly || !editor.item && mapping === null) return;
         let content;
         try { content = document(values); }
-        catch (reason: any) { message.error(reason.message || "文档内容不合法"); return; }
+        catch (reason: any) { message.error(reason?.message || "文档内容不合法"); return; }
         const request = sequence.current;
         pending.current = true; setSaving(true);
         try {
@@ -173,7 +173,7 @@ export default ({record, editor, onCancel, onSuccess}: any) => {
                 ...(features.typed_documents ? {document_type: values.document_type?.trim()} : {})});
             if (!live.current || request !== sequence.current) return;
             message.success("保存成功"); onSuccess?.(); onCancel();
-        } catch (reason: any) { if (live.current && request === sequence.current) message.error(reason.message || "保存失败"); }
+        } catch (reason: any) { if (live.current && request === sequence.current) message.error(reason?.message || "保存失败"); }
         finally { if (live.current && request === sequence.current) { pending.current = false; setSaving(false); } }
     };
     return <ProModal title={<Title>{readonly ? "查看文档" : displayEditor?.item ? "编辑文档" : "添加文档"}</Title>}

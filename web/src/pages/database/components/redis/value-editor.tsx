@@ -9,7 +9,7 @@ import useStyles from "./value-styles";
 let sequence = 0;
 export const redisRows = (kind: string, value: any): any => kind === "string" ? String(value ?? "")
     : (kind === "hash" ? Object.entries(value || {}).map(([key, content]) => ({key, value: content}))
-        : (value || []).map((content: any) => kind === "zset" ? {...content} : {value: content}))
+        : (Array.isArray(value) ? value : []).map((content: any) => kind === "zset" ? {...content} : {value: content}))
         .map((row: any) => ({...row, id: ++sequence}));
 
 export const redisContent = (kind: string, value: any) => {

@@ -462,11 +462,11 @@ const FileEditor = forwardRef(function FileEditor(
                     if (!response) {
                         return;
                     }
-                    if (response.code !== 200) {
-                        message.error(response.message || "删除失败");
+                    if (response?.code !== 200) {
+                        message.error(response?.message || "删除失败");
                         return;
                     }
-                    message.success(response.message || "已移至回收站");
+                    message.success(response?.message || "已移至回收站");
                     tree.selectPath(node.parentPath, true);
                     await tree.refresh(node.parentPath);
                     onMutation();

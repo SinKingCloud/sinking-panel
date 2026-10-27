@@ -38,13 +38,13 @@ export default ({open, types, categories = [], defaultType, defaultTypeId, onCan
             const response = await createDatabase({body});
             if (request !== requestRef.current) return;
             if (response?.code !== 200) throw new Error(response?.message || "添加实例失败");
-            const id = Number(response.data?.id);
+            const id = Number(response?.data?.id);
             if (!id) throw new Error("添加成功，但未返回实例信息，请刷新列表");
             message.success("实例已添加，请配置连接信息");
             onSuccess({action: "create", id});
             onCreated({id, ...body});
         } catch (reason: any) {
-            if (request === requestRef.current) message.error(reason.message || "添加实例失败");
+            if (request === requestRef.current) message.error(reason?.message || "添加实例失败");
         } finally {
             if (request === requestRef.current) { busyRef.current = false; setBusy(false); }
         }

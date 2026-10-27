@@ -1013,7 +1013,7 @@ const HTTPService = forwardRef<any, any>((_, ref): any => {
                 return;
             }
             const data: any = response?.data || {};
-            setRunning(Boolean(data.running));
+            setRunning(Boolean(data?.running));
             if (includeSiteOptions) {
                 if (enumResponse?.code === 200) {
                     setSiteOptions(Object.entries(enumResponse?.data?.name || {}).map(([value, label]) => ({
@@ -1025,7 +1025,7 @@ const HTTPService = forwardRef<any, any>((_, ref): any => {
                     message.error(enumResponse?.message || "获取默认站点选项失败");
                 }
             }
-            fillConfig(data.config || {});
+            fillConfig(data?.config || {});
         } catch {
             if (requestRef.current === requestId) {
                 setLoadError("无法连接服务器，请检查网络后重试");

@@ -24,7 +24,7 @@ export const CompressOperationFields = memo(() => (
                 {required: true, whitespace: true, message: "请输入保存目录"},
                 {validator: validatePath},
             ]}>
-            <Input placeholder="请输入压缩文件的保存目录"/>
+            <FilePicker buttonProps={{color: "default", variant: "filled", style: {borderColor: "transparent"}}} mode="directory" placeholder="请输入或选择压缩文件的保存目录"/>
         </AntForm.Item>
         <Row gutter={12}>
             <Col span={15}>
@@ -59,7 +59,7 @@ export const ExtractOperationFields = memo(() => (
             {required: true, whitespace: true, message: "请输入解压目标目录"},
             {validator: validatePath},
         ]}>
-        <Input autoFocus aria-label="解压目标目录" placeholder="请输入解压目标目录"/>
+        <FilePicker buttonProps={{color: "default", variant: "filled", style: {borderColor: "transparent"}}} mode="directory" autoFocus aria-label="解压目标目录" placeholder="请输入或选择解压目标目录"/>
     </AntForm.Item>
 ));
 

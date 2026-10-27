@@ -66,7 +66,7 @@ export default ({record, active = true}: any) => {
         return () => observer.disconnect();
     }, []);
 
-    const raw = typeof info === "string" ? info : typeof info?.info === "string" ? info.info : "";
+    const raw = typeof info === "string" ? info : typeof info?.info === "string" ? info?.info : "";
     const rawContent = useMemo(() => raw || JSON.stringify(info, null, 2), [raw, info]);
     const {rows, metrics} = useMemo(() => {
         const entries: {key: string; group: string; title: string; name: string; label: string; value: string; display: string}[] = [];

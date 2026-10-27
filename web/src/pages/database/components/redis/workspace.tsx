@@ -65,16 +65,16 @@ export default ({record, open = true, onCancel, onConfigure, refreshKey = 0, ini
                 throw reason;
             }) : undefined]);
             if (request !== sequence.current) return;
-            if (!Array.isArray(data?.list) || data.list.some((name: any) => typeof name !== "string")
-                || !Number.isInteger(data.page) || data.page < 1 || data.page > page || !Number.isInteger(data.page_size) || data.page_size < 1
-                || !Number.isSafeInteger(data.total) || data.total < 0) throw new Error("数据库列表分页数据无效");
+            if (!Array.isArray(data?.list) || data?.list?.some((name: any) => typeof name !== "string")
+                || !Number.isInteger(data?.page) || data?.page < 1 || data?.page > page || !Number.isInteger(data?.page_size) || data?.page_size < 1
+                || !Number.isSafeInteger(data?.total) || data?.total < 0) throw new Error("数据库列表分页数据无效");
             if (server !== undefined && (!server?.version || !server?.features)) throw new Error("Redis 版本信息不完整");
-            catalogPage.current = {page: data.page, pageSize: data.page_size, total: data.total};
-            setNames((current) => page === 1 ? data.list : [...new Set<string>([...current, ...data.list])]);
+            catalogPage.current = {page: data?.page, pageSize: data?.page_size, total: data?.total};
+            setNames((current) => page === 1 ? data?.list : [...new Set<string>([...current, ...data?.list])]);
             if (connect) setVersion(server || {name: "Redis", version: "未知", features: {accounts: false}});
             loaded.current = connectionKey; setLoadedKey(connectionKey);
             // 搜索及后续页只更新目录，不切换正在编辑的逻辑库。
-            if (page === 1) setSelected((current) => current && (keyword || data.total > data.list.length || data.list.includes(current)) ? current : data.list[0] || "");
+            if (page === 1) setSelected((current) => current && (keyword || data?.total > data?.list?.length || data?.list?.includes(current)) ? current : data?.list?.[0] || "");
         } catch (reason: any) {
             if (request !== sequence.current) return;
             catalogFailed.current = true;

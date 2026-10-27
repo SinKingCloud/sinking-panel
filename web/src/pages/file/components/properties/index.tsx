@@ -71,8 +71,8 @@ const FileProperties = forwardRef<any, any>(({onRename, onPermissions}, ref) => 
                 if (requestRef.current !== requestId || generationRef.current !== generation) {
                     return;
                 }
-                if (response?.code === 200 && response.data) {
-                    setInfo(response.data);
+                if (response?.code === 200 && response?.data) {
+                    setInfo(response?.data);
                 } else {
                     message.error(response?.message || "获取文件属性失败");
                 }

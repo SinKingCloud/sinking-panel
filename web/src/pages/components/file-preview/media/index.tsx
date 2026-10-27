@@ -166,7 +166,7 @@ const FilePreviewPane = ({
             if (requestRef.current !== requestId) {
                 return;
             }
-            const key = typeof response?.data === "string" ? response.data : "";
+            const key = typeof response?.data === "string" ? response?.data : "";
             if (response?.code !== 200 || !/^[a-f0-9]{32}$/.test(key)) {
                 setError(response?.message || "获取文件预览地址失败");
                 setMediaLoading(false);

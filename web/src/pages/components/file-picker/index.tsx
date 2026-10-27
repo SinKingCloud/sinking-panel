@@ -123,8 +123,8 @@ const FilePicker = forwardRef<InputRef, any>(({
         if (mode === "file" && absolute && initialName) {
             void getFileInfo({body: {path: absolute}}).then((response) => {
                 if (selectionRequestRef.current === selectionRequest
-                    && response?.code === 200 && response.data && !response.data.is_dir) {
-                    setSelectedFile({name: response.data.name || initialName, path: absolute});
+                    && response?.code === 200 && response?.data && !response?.data?.is_dir) {
+                    setSelectedFile({name: response?.data?.name || initialName, path: absolute});
                 }
             }).catch(() => undefined);
         }
@@ -220,11 +220,11 @@ const FilePicker = forwardRef<InputRef, any>(({
             if (!active) {
                 return;
             }
-            if (response?.code !== 200 || !Array.isArray(response.data)) {
+            if (response?.code !== 200 || !Array.isArray(response?.data)) {
                 setPath((current) => current || "/");
                 return;
             }
-            const nextDisks = Array.from(new Set(response.data.map(normalizeFilePath)));
+            const nextDisks = Array.from(new Set(response?.data?.filter((item) => typeof item === "string" && item).map(normalizeFilePath)));
             setDisks(nextDisks);
             setPath((current) => current || nextDisks[0] || "/");
         }).catch(() => {
@@ -289,8 +289,8 @@ const FilePicker = forwardRef<InputRef, any>(({
                 setError(response?.message || "获取文件列表失败");
                 return;
             }
-            const data = response.data;
-            const nextItems = Array.isArray(data?.list) ? data.list : [];
+            const data = response?.data;
+            const nextItems = Array.isArray(data?.list) ? data?.list.filter((item: any) => item?.name) : [];
             const nextTotal = Math.max(0, Number(data?.total) || 0);
             const lastPage = Math.max(1, Math.ceil(nextTotal / 50));
             setTotal(nextTotal);

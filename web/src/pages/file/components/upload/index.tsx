@@ -99,10 +99,10 @@ const FileUpload = forwardRef<any, any>(({
         });
         transfersRef.current.set(id, transfer);
         void transfer.promise.then((response: any) => {
-            if (response.code !== 200) {
-                callbacks?.onError?.(new Error(response.message || "上传失败"));
-                update(id, {status: "error", error: response.message || "上传失败"});
-                if (mountedRef.current) message.error(`${file.name}：${response.message || "上传失败"}`);
+            if (response?.code !== 200) {
+                callbacks?.onError?.(new Error(response?.message || "上传失败"));
+                update(id, {status: "error", error: response?.message || "上传失败"});
+                if (mountedRef.current) message.error(`${file.name}：${response?.message || "上传失败"}`);
                 return;
             }
             callbacks?.onSuccess?.(response);

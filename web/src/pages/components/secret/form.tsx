@@ -117,23 +117,23 @@ const SecretForm = forwardRef<SecretFormRef, SecretFormProps>(({zIndex, onSucces
                 if (requestRef.current !== requestId || !openRef.current) {
                     return;
                 }
-                if (enumResponse?.code !== 200 || !enumResponse.data?.provider) {
+                if (enumResponse?.code !== 200 || !enumResponse?.data?.provider) {
                     throw new Error(enumResponse?.message || "获取密钥配置失败");
                 }
-                if (record && (infoResponse?.code !== 200 || !infoResponse.data)) {
+                if (record && (infoResponse?.code !== 200 || !infoResponse?.data)) {
                     throw new Error(infoResponse?.message || "获取密钥详情失败");
                 }
-                const enums = enumResponse.data;
+                const enums = enumResponse?.data;
                 const info = infoResponse?.data;
-                const nextProvider = info ? Number(info.provider) : Number(Object.keys(enums.provider)[0]);
-                const credentials = info ? info.data : {};
-                if (!enums.provider[String(nextProvider)] || !credentials || typeof credentials !== "object"
+                const nextProvider = info ? Number(info?.provider) : Number(Object.keys(enums?.provider || {})[0]);
+                const credentials = info ? info?.data : {};
+                if (!enums?.provider?.[String(nextProvider)] || !credentials || typeof credentials !== "object"
                     || Array.isArray(credentials) || (info && Object.keys(credentials).length === 0)
                     || Object.values(credentials).some((value) => typeof value !== "string")) {
                     throw new Error("密钥配置不可用，请重新加载");
                 }
                 originalCredentialsRef.current = info ? {...credentials} : {};
-                setProviderNames(enums.provider);
+                setProviderNames(enums?.provider || {});
                 setFields(Object.keys(credentials));
                 form.setFieldsValue({
                     name: info?.name || "",
@@ -207,11 +207,11 @@ const SecretForm = forwardRef<SecretFormRef, SecretFormProps>(({zIndex, onSucces
                 if (record) {
                     close();
                 } else {
-                    open({id: Number(response.data?.id)});
+                    open({id: Number(response?.data?.id)});
                 }
             }
             // 已完成的保存仍需通知列表和调用方，不影响后来打开的表单。
-            onSuccess({action: editing ? "update" : "create", id: record?.id ?? Number(response.data?.id)});
+            onSuccess({action: editing ? "update" : "create", id: record?.id ?? Number(response?.data?.id)});
         } catch {
             if (requestRef.current === requestId && openRef.current) {
                 message.error("保存密钥失败");

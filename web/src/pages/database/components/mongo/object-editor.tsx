@@ -164,20 +164,20 @@ export default ({record, collections = [], action, onClose, onChange}: any) => {
         setReading(true);
         void operate(record, "view_definition", {collection: action.collection}).then((data) => {
                 if (!live.current || sequence.current !== request) return;
-                if (!data || typeof data.source !== "string" || !Array.isArray(data.pipeline)) throw new Error("视图定义格式不正确");
-                const pipeline = data.pipeline.map((stage: any, index: number) => {
+                if (!data || typeof data?.source !== "string" || !Array.isArray(data?.pipeline)) throw new Error("视图定义格式不正确");
+                const pipeline = data?.pipeline?.map((stage: any, index: number) => {
                     if (!stage || Array.isArray(stage) || typeof stage !== "object" || Object.keys(stage).length !== 1) throw new Error(`阶段 ${index + 1} 格式不正确`);
                     return mongoFields(stage)[0];
                 });
-                form.setFieldsValue({name: data.name || action.collection, source: data.source, pipeline});
-            }).catch((reason) => { if (live.current && sequence.current === request) { message.error(reason.message || "读取视图失败"); onClose?.(); } })
+                form.setFieldsValue({name: data?.name || action.collection, source: data?.source, pipeline});
+            }).catch((reason) => { if (live.current && sequence.current === request) { message.error(reason?.message || "读取视图失败"); onClose?.(); } })
             .finally(() => { if (live.current && sequence.current === request) setReading(false); });
     }, [record.id, action, supported]);
     const close = () => { if (!pending.current) { sequence.current++; onClose?.(); } };
     const save = async (values: any) => {
         if (!action || !supported || pending.current || reading || readonly) return;
         let pipeline: string;
-        try { pipeline = JSON.stringify(mongoViewPipeline(values.pipeline, features)); } catch (reason: any) { message.error(reason.message); return; }
+        try { pipeline = JSON.stringify(mongoViewPipeline(values.pipeline, features)); } catch (reason: any) { message.error(reason?.message || "操作失败"); return; }
         const current = action;
         const request = sequence.current;
         const name = current.operation === "create_view" ? values.name.trim() : current.collection;
@@ -186,7 +186,7 @@ export default ({record, collections = [], action, onClose, onChange}: any) => {
         try {
             await operate(record, current.operation, {collection: name, pipeline, ...(current.operation === "create_view" ? {source: values.source} : {})});
             if (live.current) { message.success("保存成功"); if (sequence.current === request) onClose?.(); onChange?.(name); }
-        } catch (reason: any) { if (live.current && sequence.current === request) message.error(reason.message); }
+        } catch (reason: any) { if (live.current && sequence.current === request) message.error(reason?.message || "操作失败"); }
         finally { pending.current = false; if (live.current) setSaving(false); }
     };
     return <ProModal title={<Title>{readonly ? "视图定义" : displayAction?.operation === "update_view" ? "编辑视图" : "新建视图"}</Title>}

@@ -40,7 +40,7 @@ const connectionFields: Record<number, any[]> = {
         ...address, user, password, database, socket,
         {...tls, options: [{value: "preferred", label: "优先加密"}, ...tls.options],
             description: (config: any) => config?.tls === "preferred"
-                ? (config.ssl_ca || config.ssl_cert || config.ssl_key
+                ? (config?.ssl_ca || config?.ssl_cert || config?.ssl_key
                     ? "已指定证书，将校验证书且仅使用加密连接。"
                     : "不校验证书；服务端不支持加密时使用普通连接。")
                 : undefined},

@@ -36,9 +36,9 @@ export default ({record, schema, table, isView, storageEngine, disabled = false,
             try {
                 const data = await api.maintenance(record, {action: tool.action, schema, table});
                 if (!live.current || requestId !== sequence.current) return;
-                const columns = (data?.columns || []).map((name: string) => name.toLowerCase());
+                const columns = (Array.isArray(data?.columns) ? data?.columns : []).map((name: string) => String(name ?? "").toLowerCase());
                 const typeIndex = columns.indexOf("msg_type"), textIndex = columns.indexOf("msg_text");
-                const results = (data?.rows || []).map((row: any[]) => ({type: String(row[typeIndex] || "").toLowerCase(), text: String(row[textIndex] || "")}));
+                const results = (Array.isArray(data?.rows) ? data?.rows : []).map((row: any[]) => ({type: String(row?.[typeIndex] || "").toLowerCase(), text: String(row?.[textIndex] || "")}));
                 const error = results.filter((item: any) => item.type === "error").map((item: any) => item.text).join("；");
                 if (error) throw new Error(error);
                 const warning = [data?.warning, ...results.filter((item: any) => item.type === "warning").map((item: any) => item.text)].filter(Boolean).join("；");

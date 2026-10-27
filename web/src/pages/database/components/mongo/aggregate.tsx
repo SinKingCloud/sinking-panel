@@ -67,7 +67,7 @@ export default function MongoAggregate({record, collection, onChange, active = t
                 });
                 parsed.body = {...parsed.body, limit: 500};
             }
-        } catch (reason: any) { setResult(undefined); setError(reason.message || "请检查查询语句"); return; }
+        } catch (reason: any) { setResult(undefined); setError(reason?.message || "请检查查询语句"); return; }
         const {operation, body, write, kind} = parsed;
         const targetScope = scope;
         const execute = async () => {
@@ -85,12 +85,12 @@ export default function MongoAggregate({record, collection, onChange, active = t
                         const count = response?.documents?.[0]?.count ?? 0;
                         response = {...response, documents: undefined, result: typeof count === "object" ? count.$numberLong ?? count.$numberInt ?? count : count};
                     } else if (kind === "findOne") response = {...response, documents: undefined, result: response?.documents?.[0] ?? null};
-                    else if (kind === "distinct" && Array.isArray(response?.result?.values)) response = {...response, result: response.result.values};
+                    else if (kind === "distinct" && Array.isArray(response?.result?.values)) response = {...response, result: response?.result?.values};
                     setResult(response); if (write) onChange?.();
                 }
             } catch (reason: any) {
                 execution.elapsed_ms = Date.now() - time;
-                if (alive.current && id === request.current && targetScope === scopeRef.current) setError(reason.message || "执行失败，请检查输入内容");
+                if (alive.current && id === request.current && targetScope === scopeRef.current) setError(reason?.message || "执行失败，请检查输入内容");
             } finally {
                 // 保存实际执行的选区，完整语句过长时不截断写入历史。
                 const records = statement.length <= 65536 ? queryHistory(String(record.id), execution) : undefined;
@@ -106,10 +106,10 @@ export default function MongoAggregate({record, collection, onChange, active = t
         confirmation.current = dialog;
     };
     runRef.current = run;
-    const rows = useMemo(() => (result?.documents || []).map((document: any, index: number) => ({key: index, document})), [result?.documents]);
-    const columns = useMemo(() => Array.from(new Set<string>(rows.flatMap(({document}: any) => Object.keys(document)))).map((name) => ({title: name, key: name, width: name === "_id" ? 200 : 160, ellipsis: true,
+    const rows = useMemo(() => (Array.isArray(result?.documents) ? result?.documents : []).map((document: any, index: number) => ({key: index, document})), [result?.documents]);
+    const columns = useMemo(() => Array.from(new Set<string>(rows.flatMap(({document}: any) => Object.keys(document || {})))).map((name) => ({title: name, key: name, width: name === "_id" ? 200 : 160, ellipsis: true,
         render: (_: any, {document}: any) => {
-            const value = document[name];
+            const value = document?.[name];
             let text = value === null ? "空值" : value === undefined ? "—" : typeof value === "boolean" ? value ? "是" : "否" : typeof value === "object" ? JSON.stringify(value) : String(value);
             if (value && typeof value === "object" && Object.keys(value).length === 1) {
                 const key = Object.keys(value)[0];
@@ -118,7 +118,7 @@ export default function MongoAggregate({record, collection, onChange, active = t
             return <Tooltip title={text.length < 3000 ? text : undefined}><span className={value === null ? "manager-cell-null" : "manager-cell"}>{text}</span></Tooltip>;
         }})), [rows]);
     const documentResult = Array.isArray(result?.documents);
-    const output = useMemo(() => error || (documentResult ? "" : result?.result === undefined ? "执行成功" : typeof result.result === "string" ? result.result : JSON.stringify(result.result, null, 2)), [error, documentResult, result]);
+    const output = useMemo(() => error || (documentResult ? "" : result?.result === undefined ? "执行成功" : typeof result?.result === "string" ? result?.result : JSON.stringify(result?.result, null, 2)), [error, documentResult, result]);
     const placeholder = `请输入 mongosh 语句，例如 db.getCollection(${JSON.stringify(collection || "users")}).aggregate([{ $limit: 20 }])`;
     if (!active) return null;
     return <>
@@ -156,13 +156,13 @@ export default function MongoAggregate({record, collection, onChange, active = t
                 <Splitter.Panel className="mongo-query-results" min={220}>
                     {(result !== undefined || error) && <>
                         <div className="mongo-query-status">
-                            <div><span>{error ? "执行失败" : "执行结果"}</span><span className="mongo-query-statistics">{documentResult ? `${rows.length} 条记录` : ""}{result?.elapsed_ms !== undefined ? `${documentResult ? " · " : ""}${result.elapsed_ms} ms` : ""}</span></div>
+                            <div><span>{error ? "执行失败" : "执行结果"}</span><span className="mongo-query-statistics">{documentResult ? `${rows.length} 条记录` : ""}{result?.elapsed_ms !== undefined ? `${documentResult ? " · " : ""}${result?.elapsed_ms} ms` : ""}</span></div>
                             {(rows.length > 0 || output) && <Button color="default" variant="filled" size="small" autoInsertSpace={false} icon={<CopyOutlined/>}
-                                onClick={() => void copyTextToClipboard(documentResult && !error ? JSON.stringify(result.documents, null, 2) : output).then((success) => success ? message.success("复制成功") : message.error("复制失败"))}>复制</Button>}
+                                onClick={() => void copyTextToClipboard(documentResult && !error ? JSON.stringify(result?.documents, null, 2) : output).then((success) => success ? message.success("复制成功") : message.error("复制失败"))}>复制</Button>}
                         </div>
                         {output && <pre className={`mongo-query-output${error ? " is-error" : ""}`} role={error ? "alert" : "status"}>{output}</pre>}
                         {!error && documentResult && rows.length > 0 && <div className="manager-table"><VirtualTable rowKey="key" size="small" pagination={false} dataSource={rows} columns={columns} scroll={{x: Math.max(500, columns.length * 160)}}/></div>}
-                        {!error && (result?.warning || result?.has_more || result?.truncated) && <div className="mongo-query-hint">{result.warning || "仅显示部分结果，请缩小查询范围。"}</div>}
+                        {!error && (result?.warning || result?.has_more || result?.truncated) && <div className="mongo-query-hint">{result?.warning || "仅显示部分结果，请缩小查询范围。"}</div>}
                     </>}
                 </Splitter.Panel>
             </Splitter>

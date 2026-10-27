@@ -180,21 +180,23 @@ const FileTaskCenter = forwardRef<any, any>(({onSettled}, ref) => {
                 }
                 const next = tasksRef.current.slice();
                 const settled: any[] = [];
-                responses.forEach(({task, response}) => {
+                responses?.forEach(({task, response}) => {
                     const index = next.findIndex((item) => item.id === task.id);
                     if (index < 0) {
                         return;
                     }
                     const current = next[index];
                     let updated = current;
-                    if (response?.code === 200 && response.data) {
+                    if (response?.code === 200 && response?.data?.status != null && statusMeta[Number(response?.data?.status)]) {
                         updated = {
-                            ...response.data,
-                            status: Number(response.data.status),
+                            ...current,
+                            ...response?.data,
+                            id: current.id,
+                            status: Number(response?.data?.status),
                             title: current.title,
                             missingCount: 0,
                         };
-                    } else if (response && String(response.message || "").includes("任务不存在")) {
+                    } else if (response && String(response?.message || "").includes("任务不存在")) {
                         const missingCount = (current.missingCount || 0) + 1;
                         updated = missingCount >= 3
                             ? {...current, status: 4, unknown: true, message: "任务状态已结束，结果未知", missingCount}
@@ -243,8 +245,8 @@ const FileTaskCenter = forwardRef<any, any>(({onSettled}, ref) => {
 
     const cancel = useCallback(async (id: string) => {
         const response = await systemTask({body: {id, action: "cancel"}});
-        if (response && response.code !== 200) {
-            message.error(response.message || "取消任务失败");
+        if (response && response?.code !== 200) {
+            message.error(response?.message || "取消任务失败");
         }
     }, [message]);
 

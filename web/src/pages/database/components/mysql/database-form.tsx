@@ -23,8 +23,9 @@ export default ({open, instance, name, onCancel, onSuccess}: any) => {
     const [visible, setVisible] = useState(false);
     const [options, setOptions] = useState<any>();
     const charset = Form.useWatch("charset", {form, preserve: true});
-    const characterSets = options?.charsets || [];
-    const collations = characterSets.find((item: any) => item.name === charset)?.collations || [];
+    const characterSets = Array.isArray(options?.charsets) ? options?.charsets : [];
+    const selectedCharset = characterSets.find((item: any) => item?.name === charset);
+    const collations = Array.isArray(selectedCharset?.collations) ? selectedCharset?.collations : [];
     // 显示前重置加载状态，重新打开同一个数据库时也不会闪现上次的表单。
     useLayoutEffect(() => {
         const request = ++sequence.current;
@@ -39,17 +40,18 @@ export default ({open, instance, name, onCancel, onSuccess}: any) => {
         ]).then(([options, data]) => {
             if (request !== sequence.current) return;
             const current = editing ? data : options;
-            if (!current || !options?.charsets?.length) throw new Error("获取数据库字符集和排序规则失败");
-            const selected = options.charsets.find((item: any) => item.name === current.charset)
-                || options.charsets.find((item: any) => item.collations.includes(current.collation));
-            if (!selected?.collations.includes(current.collation)) throw new Error("未找到数据库当前使用的字符集和排序规则");
-            original.current = {charset: selected.name, collation: current.collation};
+            if (!current || !Array.isArray(options?.charsets) || !options?.charsets?.length
+                || !options?.charsets?.every((item: any) => typeof item?.name === "string" && Array.isArray(item?.collations))) throw new Error("获取数据库字符集和排序规则失败");
+            const selected = options?.charsets?.find((item: any) => item?.name === current?.charset)
+                || options?.charsets?.find((item: any) => item?.collations?.includes(current?.collation));
+            if (!selected?.collations?.includes(current?.collation)) throw new Error("未找到数据库当前使用的字符集和排序规则");
+            original.current = {charset: selected?.name, collation: current?.collation};
             setOptions(options);
             form.setFieldsValue({...original.current, ...(!editing ? {name: ""} : {})});
         }).catch((reason) => {
             if (request !== sequence.current) return;
             sequence.current++; onCancel();
-            message.error(reason.message || "获取数据库字符集和排序规则失败");
+            message.error(reason?.message || "获取数据库字符集和排序规则失败");
         })
             .finally(() => { if (request === sequence.current) setLoading(false); });
         return () => { sequence.current++; };
@@ -66,7 +68,7 @@ export default ({open, instance, name, onCancel, onSuccess}: any) => {
             if (request !== sequence.current) return;
             message.success(editing ? "修改成功" : "创建成功");
             onSuccess?.({name: body.name, action: editing ? "update" : "create"}); onCancel();
-        } catch (reason: any) { if (request === sequence.current) message.error(reason.message || "保存数据库失败"); }
+        } catch (reason: any) { if (request === sequence.current) message.error(reason?.message || "保存数据库失败"); }
         finally { if (request === sequence.current) { pending.current = false; setSaving(false); } }
     };
     return <ProModal title={<Title>{editing ? "编辑数据库" : "创建数据库"}</Title>}

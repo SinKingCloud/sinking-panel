@@ -31,11 +31,11 @@ const useFileDeletion = ({
             if (!response) {
                 return;
             }
-            if (response.code !== 200) {
-                message.error(response.message || "删除失败");
+            if (response?.code !== 200) {
+                message.error(response?.message || "删除失败");
                 return;
             }
-            message.success(response.message || (permanentlyDelete ? "已彻底删除" : "已移至回收站"));
+            message.success(response?.message || (permanentlyDelete ? "已彻底删除" : "已移至回收站"));
             reload();
         } finally {
             finish(target);
@@ -98,8 +98,8 @@ const useFileDeletion = ({
             if (!response) {
                 return;
             }
-            if (response.code !== 200) {
-                message.error(response.message || "删除失败");
+            if (response?.code !== 200) {
+                message.error(response?.message || "删除失败");
                 reload();
                 return;
             }

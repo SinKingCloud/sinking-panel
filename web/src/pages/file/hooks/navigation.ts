@@ -119,7 +119,7 @@ const useFileNavigation = ({onBeforeNavigate, onExternalPathChange}: any) => {
                 return;
             }
             setDisks(Array.from(new Set(
-                (Array.isArray(response.data) ? response.data : [])
+                (Array.isArray(response?.data) ? response?.data : [])
                     .map((item) => normalizeFilePath(item))
                     .filter(Boolean),
             )));

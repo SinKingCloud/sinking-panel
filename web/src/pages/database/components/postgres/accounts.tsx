@@ -56,8 +56,8 @@ export default ({record, schema, initialAction}: any) => {
         if (listScope.current !== key) { listScope.current = key; setRows([]); }
         setLoading(true); setError("");
         void operate(record, "users", {action: "list", database, schema: accountSchema, ...query}).then((data) => {
-            if (live.current && request === listSequence.current) { setRows(data?.list || []); setPagination(data); }
-        }).catch((reason) => { if (live.current && request === listSequence.current) setError(reason.message); })
+            if (live.current && request === listSequence.current) { setRows(Array.isArray(data?.list) ? data?.list?.filter((item: any) => typeof item?.name === "string") : []); setPagination(data); }
+        }).catch((reason) => { if (live.current && request === listSequence.current) setError(reason?.message); })
             .finally(() => { if (live.current && request === listSequence.current) setLoading(false); });
     }, [record.id, accountSchema, database, version, query]);
     useEffect(() => {
@@ -69,7 +69,7 @@ export default ({record, schema, initialAction}: any) => {
         setConnection(undefined); setConnectionError(""); setConnectionLoading(true);
         void operate(record, "users", {action: "connection", database}).then((data) => {
             if (live.current && current) setConnection(data);
-        }).catch((reason) => { if (live.current && current) setConnectionError(reason.message); })
+        }).catch((reason) => { if (live.current && current) setConnectionError(reason?.message); })
             .finally(() => { if (live.current && current) setConnectionLoading(false); });
         return () => { current = false; };
     }, [record.id, editor?.action, database]);
@@ -84,15 +84,15 @@ export default ({record, schema, initialAction}: any) => {
         setPermissions(undefined); setPermissionsLoading(true);
         void operate(record, "users", {action: "permissions_info", name: editor.account?.name}).then((data) => {
             if (!live.current || !current) return;
-            if (!Array.isArray(data?.privileges) || !Array.isArray(data.database_privileges) || !Array.isArray(data.grants)
-                || !data.grants.every((grant: any) => typeof grant.database === "string" && typeof grant.schema === "string"
-                    && Array.isArray(grant.privileges) && grant.privileges.every((value: any) => (grant.schema ? data.privileges : data.database_privileges).includes(value)))) {
+            if (!Array.isArray(data?.privileges) || !Array.isArray(data?.database_privileges) || !Array.isArray(data?.grants)
+                || !data?.grants?.every((grant: any) => typeof grant?.database === "string" && typeof grant?.schema === "string"
+                    && Array.isArray(grant.privileges) && grant.privileges.every((value: any) => (grant.schema ? data?.privileges : data?.database_privileges).includes(value)))) {
                 throw new Error("角色权限数据不完整");
             }
             setPermissions(data);
             if (editor.action === "permissions") {
                 const groups = new Map<string, any>();
-                for (const grant of data.grants) {
+                for (const grant of data?.grants) {
                     if (!groups.has(grant.database)) groups.set(grant.database, {database: grant.database, privileges: [], schemas: []});
                     const group = groups.get(grant.database);
                     if (grant.schema) group.schemas.push({schema: grant.schema, privileges: [...grant.privileges]});
@@ -101,7 +101,7 @@ export default ({record, schema, initialAction}: any) => {
                 form.setFieldValue("grants", [...groups.values()]);
             }
         }).catch((reason: any) => {
-            if (live.current && current) { setEditor(undefined); message.error(reason.message || "加载角色权限失败"); }
+            if (live.current && current) { setEditor(undefined); message.error(reason?.message || "加载角色权限失败"); }
         }).finally(() => { if (live.current && current) setPermissionsLoading(false); });
         return () => { current = false; };
     }, [record.id, editor]);
@@ -117,7 +117,7 @@ export default ({record, schema, initialAction}: any) => {
     }
     const close = () => { if (!pending.current) { setEditor(undefined); } };
     const showWarning = (data: any) => {
-        if (data?.warning) { setWarning(data.warning); message.warning(data.warning); }
+        if (data?.warning) { setWarning(data?.warning); message.warning(data?.warning); }
     };
     const save = async (values: any) => {
         if (pending.current || !editor) return;
@@ -136,8 +136,8 @@ export default ({record, schema, initialAction}: any) => {
             }
             if (editor.action === "create") grants = [...next.values()].filter((grant) => grant.privileges.length);
             else {
-                const previous = new Map<string, any>(permissions.grants.map((grant: any) => [JSON.stringify([grant.database, grant.schema]), grant]));
-                const uncertain = new Set<string>(permissions.uncertain || []);
+                const previous = new Map<string, any>(permissions?.grants?.map((grant: any) => [JSON.stringify([grant.database, grant.schema]), grant]));
+                const uncertain = new Set<string>(permissions?.uncertain || []);
                 for (const key of uncertain) if (!previous.has(key)) {
                     const [database, schema] = JSON.parse(key); previous.set(key, {database, schema, privileges: []});
                 }
@@ -165,10 +165,10 @@ export default ({record, schema, initialAction}: any) => {
             } else {
                 const data = await operate(record, "users", {action: editor.action === "permissions" ? "update_permissions" : editor.action,
                     ...target, ...account, password: values.password, grants});
-                if (editor.action === "password" && data?.current && !data.connection_updated) {
+                if (editor.action === "password" && data?.current && !data?.connection_updated) {
                     if (live.current) {
                         message.warning({key: `postgres-account-password-${record.id}`, duration: 0,
-                            content: data.warning || "密码已修改，但实例连接密码未保存，请在配置中填写新密码。"});
+                            content: data?.warning || "密码已修改，但实例连接密码未保存，请在配置中填写新密码。"});
                         setEditor(undefined);
                     }
                     return;
@@ -181,14 +181,14 @@ export default ({record, schema, initialAction}: any) => {
             if (created) {
                 message.warning(`角色“${account.name}”已创建，权限设置失败，请通过“配置权限”补充授权。`);
                 if (live.current) {
-                    setRepair(reason.message); setVersion((value) => value + 1);
+                    setRepair(reason?.message); setVersion((value) => value + 1);
                     setEditor({action: "permissions", account, ...target, permissionDraft: {...permissions, grants: [],
                         uncertain: (grants || []).map((grant) => JSON.stringify([grant.database, grant.schema]))}});
                     form.setFieldValue("name", account.name);
                     form.setFieldValue("password", undefined);
                 }
             } else {
-                message.error(reason.message);
+                message.error(reason?.message);
                 if (editor.action === "permissions" && live.current) {
                     setPermissions((current: any) => ({...current, uncertain: [...new Set([
                         ...(current.uncertain || []), ...(grants || []).map((grant) => JSON.stringify([grant.database, grant.schema])),
@@ -210,7 +210,7 @@ export default ({record, schema, initialAction}: any) => {
                     const data = await operate(record, "users", {action: "delete", name: account.name, database, schema: accountSchema});
                     if (live.current) { showWarning(data); setVersion((value) => value + 1); }
                     message.success("角色已删除");
-                } catch (reason: any) { message.error(reason.message); throw reason; }
+                } catch (reason: any) { message.error(reason?.message); throw reason; }
                 finally { pending.current = false; if (live.current) setBusy(false); }
             }});
         void Promise.resolve(confirmation.current);
@@ -240,7 +240,7 @@ export default ({record, schema, initialAction}: any) => {
 
             {(editor?.action === "create" || editor?.action === "permissions") && permissions && <>
                 <DatabasePermissionFields record={record} permissions={permissions} disabled={busy} onLoading={onSchemaLoading} onError={onSchemaError}/>
-                {permissions.retained && <div className="account-hint" style={{marginTop: 12, marginBottom: 0}}>
+                {permissions?.retained && <div className="account-hint" style={{marginTop: 12, marginBottom: 0}}>
                     单独对象、继承、默认权限及其他角色授予的权限保持不变。
                 </div>}
             </>}

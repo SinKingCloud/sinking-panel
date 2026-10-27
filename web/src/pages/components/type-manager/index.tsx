@@ -754,11 +754,11 @@ const TypeManager = forwardRef<TypeManagerRef, TypeManagerProps>(({module, scope
             if (requestRef.current !== requestId || !response) {
                 return undefined;
             }
-            if (response.code !== 200) {
-                message.error(response.message || "获取分类失败");
+            if (response?.code !== 200) {
+                message.error(response?.message || "获取分类失败");
                 return undefined;
             }
-            const nextItems = Array.isArray(response.data?.list) ? response.data.list : [];
+            const nextItems = Array.isArray(response?.data?.list) ? response?.data?.list.filter((item: any) => item?.id) : [];
             if (animate) {
                 applyItemsWithAnimation(nextItems, undefined, changedOrderIds(itemsRef.current, nextItems));
             } else {
@@ -902,13 +902,13 @@ const TypeManager = forwardRef<TypeManagerRef, TypeManagerProps>(({module, scope
             if (!response) {
                 return;
             }
-            if (response.code !== 200) {
-                message.error(response.message || (editing ? "修改分类失败" : "添加分类失败"));
+            if (response?.code !== 200) {
+                message.error(response?.message || (editing ? "修改分类失败" : "添加分类失败"));
                 return;
             }
             setFormOpen(false);
             clearEnumCache(targetModule);
-            message.success(response.message || (editing ? "修改成功" : "添加成功"));
+            message.success(response?.message || (editing ? "修改成功" : "添加成功"));
             onMutation?.();
             await reloadAfterChange();
         } finally {
@@ -957,11 +957,11 @@ const TypeManager = forwardRef<TypeManagerRef, TypeManagerProps>(({module, scope
                     if (!response) {
                         return;
                     }
-                    if (response.code !== 200) {
-                        message.error(response.message || "删除分类失败");
+                    if (response?.code !== 200) {
+                        message.error(response?.message || "删除分类失败");
                         return;
                     }
-                    message.success(response.message || "删除成功");
+                    message.success(response?.message || "删除成功");
                     onMutation?.();
                     await reloadAfterChange();
                 } finally {
@@ -1028,10 +1028,10 @@ const TypeManager = forwardRef<TypeManagerRef, TypeManagerProps>(({module, scope
             if (sortRequestRef.current !== sortRequestId) {
                 return;
             }
-            if (!response || response.code !== 200) {
+            if (!response || response?.code !== 200) {
                 rollback();
                 if (response) {
-                    message.error(response.message || "排序失败");
+                    message.error(response?.message || "排序失败");
                 }
                 clearEnumCache(module);
                 await load(true, true);

@@ -62,11 +62,11 @@ export function VirtualTable({height = 360, autoHeight = true, scroll, rowClassN
 }
 
 export const ResultTable = memo(function ResultTable({result, loading = false, action, actionWidth = 116, actionAlign, height = 360, autoHeight = false, rowOffset = 0, rowNumbers = true, columnMetadata, sort, order, onSortChange}: any) {
-    const rows = useMemo(() => (result?.rows || emptyValues).map((values: any[], index: number) => ({index, values})), [result?.rows]);
-    const comments = useMemo(() => new Map<string, string>((columnMetadata || emptyValues).map((column: any) => [column.name, column.comment])), [columnMetadata]);
+    const rows = useMemo(() => (Array.isArray(result?.rows) ? result?.rows : emptyValues).map((values: any[], index: number) => ({index, values: Array.isArray(values) ? values : emptyValues})), [result?.rows]);
+    const comments = useMemo(() => new Map<string, string>((Array.isArray(columnMetadata) ? columnMetadata : emptyValues).filter((column: any) => typeof column?.name === "string").map((column: any) => [column?.name, column?.comment])), [columnMetadata]);
     const fields = useMemo(() => [
         ...(rowNumbers && result?.columns?.length ? [{title: "#", key: "row-number", width: 52, render: (_: any, row: any) => <span className="client-row-number">{rowOffset + row.index + 1}</span>}] : []),
-        ...(result?.columns || emptyValues).map((name: string, index: number) => ({
+        ...(Array.isArray(result?.columns) ? result?.columns : emptyValues).map((name: string, index: number) => ({
             title: <span className="client-column-title">
                 <Typography.Text ellipsis={{tooltip: true}}>{name}</Typography.Text>
                 {comments.get(name) && <Tooltip title={comments.get(name)}><span className="client-column-comment" tabIndex={0} aria-label={`${name} 备注：${comments.get(name)}`}
@@ -75,10 +75,10 @@ export const ResultTable = memo(function ResultTable({result, loading = false, a
                 </span></Tooltip>}
             </span>,
             key: `${name}-${index}`, width: 160,
-            shouldCellUpdate: (next: any, previous: any) => next.values[index] !== previous.values[index],
+            shouldCellUpdate: (next: any, previous: any) => next?.values?.[index] !== previous?.values?.[index],
             ...(onSortChange ? {dataIndex: name, sorter: true, sortOrder: sort === name ? (order === "asc" ? "ascend" as const : "descend" as const) : null} : {}),
             render: (_: any, row: any) => {
-                const value = row.values[index];
+                const value = row?.values?.[index];
                 const text = value === null ? "NULL" : value === undefined ? "" : typeof value === "object" ? JSON.stringify(value) : String(value);
                 return <Tooltip title={text.length < 3000 ? text : undefined}><span className={`client-cell${value === null ? " client-null" : ""}`}>{text}</span></Tooltip>;
             },
@@ -91,7 +91,7 @@ export const ResultTable = memo(function ResultTable({result, loading = false, a
         onChange={onSortChange ? (_: any, __: any, sorter: any, extra: any) => {
             if (extra.action !== "sort") return;
             const value = Array.isArray(sorter) ? sorter[0] : sorter;
-            onSortChange(value.order ? value.field : "", value.order === "ascend" ? "asc" : value.order === "descend" ? "desc" : "");
+            onSortChange(value?.order ? value?.field : "", value?.order === "ascend" ? "asc" : value?.order === "descend" ? "desc" : "");
         } : undefined}
         locale={emptyLocale}
         scroll={{x: Math.max(600, (result?.columns?.length || 0) * 160 + (rowNumbers ? 52 : 0) + (action ? actionWidth : 0))}}

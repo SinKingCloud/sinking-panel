@@ -63,8 +63,8 @@ const FileTerminal = ({path, open, onClose}: any) => {
             if (requestRef.current !== requestId) {
                 return;
             }
-            if (response?.code === 200 && response.data) {
-                setServer(normalizeLocalServer(response.data));
+            if (response?.code === 200 && response?.data) {
+                setServer(normalizeLocalServer(response?.data));
                 serverLoadedRef.current = true;
                 setLoading(false);
                 return;

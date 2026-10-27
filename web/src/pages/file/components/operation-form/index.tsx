@@ -186,11 +186,11 @@ const FileOperationForm = forwardRef<any, any>(({onTask, onSuccess}, ref) => {
             if (!response) {
                 return;
             }
-            if (response.code !== 200) {
-                message.error(response.message || `${modeText[mode].action}任务创建失败`);
+            if (response?.code !== 200) {
+                message.error(response?.message || `${modeText[mode].action}任务创建失败`);
                 return;
             }
-            const taskId = typeof response.data === "string" ? response.data : "";
+            const taskId = typeof response?.data === "string" ? response?.data : "";
             if (!taskId) {
                 message.error("服务器未返回任务ID");
                 return;
@@ -200,7 +200,7 @@ const FileOperationForm = forwardRef<any, any>(({onTask, onSuccess}, ref) => {
             if (generationRef.current === generation) {
                 onSuccess?.(operation.context);
             }
-            message.success(response.message || `${modeText[mode].action}任务已创建`);
+            message.success(response?.message || `${modeText[mode].action}任务已创建`);
             if (generationRef.current === generation) {
                 close();
             }

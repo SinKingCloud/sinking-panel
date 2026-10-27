@@ -137,7 +137,7 @@ export default ({record, action, schema, table, columns = [], indexes = [], tabl
                 if (values.new_name.trim() === table) { message.info("名称没有变动"); return; }
                 body = {...body, new_name: values.new_name.trim()};
             }
-        } catch (reason: any) { message.error(reason.message); return; }
+        } catch (reason: any) { message.error(reason?.message); return; }
         const id = request.current;
         pending.current = true; setSaving(true);
         try {
@@ -148,7 +148,7 @@ export default ({record, action, schema, table, columns = [], indexes = [], tabl
             if (id !== request.current) return;
             message.success("操作成功");
             onSuccess?.({mode, table: mode === "rename_table" ? body.new_name : body.table});
-        } catch (reason: any) { if (id === request.current) message.error(reason.message); }
+        } catch (reason: any) { if (id === request.current) message.error(reason?.message); }
         finally { if (id === request.current) { pending.current = false; setSaving(false); } }
     };
 
@@ -320,7 +320,7 @@ export default ({record, action, schema, table, columns = [], indexes = [], tabl
                                 activeAction.current = undefined;
                                 request.current++;
                                 onCancel();
-                                message.error({key: `mysql-schema-definition-${record.id}`, content: reason.message || "获取引用字段失败"});
+                                message.error({key: `mysql-schema-definition-${record.id}`, content: reason?.message || "获取引用字段失败"});
                             }}/>
                     </Form.Item>}] : [])]} />}
             </>}

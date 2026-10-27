@@ -141,16 +141,16 @@ const Form = forwardRef<any, {typeData?: any; typeItems?: any[]; execTypeData?: 
                 return;
             }
             const data: any = response?.data || {};
-            const nextExecType = Number(data.exec_type || 0);
+            const nextExecType = Number(data?.exec_type || 0);
             setExecType(nextExecType);
             form.setFieldsValue({
-                name: data.name,
-                type_id: Number(data.type_id || 0),
+                name: data?.name,
+                type_id: Number(data?.type_id || 0),
                 exec_type: nextExecType,
-                spec: data.spec,
-                script: nextExecType === 0 ? String(data.script || "") : "",
-                request: nextExecType === 1 ? parseRequest(data.script) : undefined,
-                status: Number(data.status),
+                spec: data?.spec,
+                script: nextExecType === 0 ? String(data?.script || "") : "",
+                request: nextExecType === 1 ? parseRequest(data?.script) : undefined,
+                status: Number(data?.status),
             });
         }).catch(() => {
             if (requestRef.current === requestId) {

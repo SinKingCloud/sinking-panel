@@ -25,7 +25,7 @@ export default ({requests, components, ...props}: MysqlManagerProps) => {
                     if (response) error.unconfirmed = false;
                     throw error;
                 }
-                return response.data;
+                return response?.data;
             },
         ])),
         task: (body: Record<string, any>) => requestMethods.current["system/task"]({body}),

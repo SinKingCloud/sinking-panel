@@ -102,17 +102,17 @@ const Workspace = ({record, requests, components, type, panel: Panel, editForm: 
                 connect ? request("version", {id: record.id}) : undefined,
             ]);
             if (requestId !== sequence.current) return;
-            if (response.code !== 200) throw new Error(response.message || "获取目录失败");
-            const data = response.data;
+            if (response?.code !== 200) throw new Error(response?.message || "获取目录失败");
+            const data = response?.data;
             const versionData = versionResponse?.data;
             if (connect && versionResponse?.code !== 200) throw new Error(versionResponse?.message || "获取版本失败");
             if (!Array.isArray(data?.list)) throw new Error("数据库列表数据无效，请刷新后重试");
-            const values = (type === 7 ? data.list.map((item: any) => item.name) : data.list).filter((name: any) => typeof name === "string");
-            if (!Number.isInteger(data.page) || data.page < 1 || data.page > page || !Number.isInteger(data.page_size) || data.page_size < 1
-                || !Number.isSafeInteger(data.total) || data.total < 0 || values.length !== data.list.length) throw new Error("数据库列表分页数据无效，请重试");
-            catalogPage.current = {page: data.page, pageSize: data.page_size, total: data.total};
+            const values = (type === 7 ? data?.list?.map((item: any) => item?.name) : data?.list).filter((name: any) => typeof name === "string");
+            if (!Number.isInteger(data?.page) || data?.page < 1 || data?.page > page || !Number.isInteger(data?.page_size) || data?.page_size < 1
+                || !Number.isSafeInteger(data?.total) || data?.total < 0 || values.length !== data?.list?.length) throw new Error("数据库列表分页数据无效，请重试");
+            catalogPage.current = {page: data?.page, pageSize: data?.page_size, total: data?.total};
             if (connect) {
-                if (!versionData || typeof versionData.version !== "string" || !versionData.version.trim() || !versionData.features || typeof versionData.features !== "object" || Array.isArray(versionData.features)) {
+                if (!versionData || typeof versionData?.version !== "string" || !versionData?.version?.trim() || !versionData?.features || typeof versionData?.features !== "object" || Array.isArray(versionData?.features)) {
                     throw new Error("数据库版本信息不完整，请重新连接");
                 }
                 setVersion(versionData);
@@ -123,14 +123,14 @@ const Workspace = ({record, requests, components, type, panel: Panel, editForm: 
             // 搜索或刷新第一页不切换已打开的数据库，后续页也不改变右侧工作区。
             if (page === 1) setSelected((current) => {
                 const next = resetSelection ? "" : preferred || current;
-                if (next && (keyword || data.total > values.length || values.includes(next))) return next;
+                if (next && (keyword || data?.total > values.length || values.includes(next))) return next;
                 return keyword ? "" : values[0] || "";
             });
         } catch (reason: any) {
             if (requestId !== sequence.current) return;
             catalogFailed.current = true;
             if (connect) onCancel();
-            message.error(reason.message || "获取数据库列表失败");
+            message.error(reason?.message || "获取数据库列表失败");
         } finally {
             if (requestId === sequence.current) { catalogPending.current = false; setLoading(false); setLoadingMore(false); }
         }
@@ -208,11 +208,11 @@ const Workspace = ({record, requests, components, type, panel: Panel, editForm: 
                 pendingDelete.current = true; setDeleting(true);
                 try {
                     const response = await request(type === 7 ? "drop_index" : "drop_database", {id: record.id, names: [name]});
-                    if (response.code !== 200) throw new Error(response.message || "删除失败");
+                    if (response?.code !== 200) throw new Error(response?.message || "删除失败");
                     if (!live.current || instanceKey.current !== key) return;
                     message.success("删除成功"); setNames((values) => values.filter((value) => value !== name));
                     setSelected((value) => value === name ? "" : value); setDetail(undefined); await load();
-                } catch (reason: any) { if (live.current && instanceKey.current === key) message.error(reason.message || "删除数据库失败"); }
+                } catch (reason: any) { if (live.current && instanceKey.current === key) message.error(reason?.message || "删除数据库失败"); }
                 finally { if (live.current && instanceKey.current === key) { pendingDelete.current = false; setDeleting(false); } }
             }});
     };
@@ -261,7 +261,7 @@ const Workspace = ({record, requests, components, type, panel: Panel, editForm: 
         </div>
         {version && <footer className={styles.clientInstance}>
             <Typography.Text className="client-instance-name" ellipsis={{tooltip: instance?.name}}>{instance?.name}</Typography.Text>
-            <Typography.Text className="client-instance-version" ellipsis={{tooltip: `${version.name || engineName} ${version.version}`}}>{version.name || engineName} {version.version}</Typography.Text>
+            <Typography.Text className="client-instance-version" ellipsis={{tooltip: `${version?.name || engineName} ${version?.version}`}}>{version?.name || engineName} {version?.version}</Typography.Text>
         </footer>}
     </aside>;
     return <>

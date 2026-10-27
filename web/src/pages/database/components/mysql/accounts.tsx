@@ -64,14 +64,14 @@ export default ({record, initialAction}: any) => {
         setLoading(true);
         void api.users(record, {action: "list", keyword: query.keyword, page: query.page, page_size: query.pageSize}).then((data) => {
             if (!live.current || request !== listSequence.current) return;
-            if (!Array.isArray(data?.list) || !Number.isSafeInteger(data.total) || data.total < 0
-                || !Number.isInteger(data.page) || data.page < 1 || !Number.isInteger(data.page_size) || data.page_size < 1) {
+            if (!Array.isArray(data?.list) || !Number.isSafeInteger(data?.total) || data?.total < 0
+                || !Number.isInteger(data?.page) || data?.page < 1 || !Number.isInteger(data?.page_size) || data?.page_size < 1) {
                 throw new Error("账户列表返回的分页数据不完整");
             }
-            setRows(data.list); setPagination({total: data.total, page: data.page, pageSize: data.page_size});
+            setRows(data?.list?.filter((item: any) => item && typeof item === "object")); setPagination({total: data?.total, page: data?.page, pageSize: data?.page_size});
         }).catch((reason) => {
             if (live.current && request === listSequence.current) {
-                message.error({key: `mysql-account-list-${record.id}`, content: reason.message || "加载账户列表失败"});
+                message.error({key: `mysql-account-list-${record.id}`, content: reason?.message || "加载账户列表失败"});
             }
         })
             .finally(() => { if (live.current && request === listSequence.current) setLoading(false); });
@@ -89,7 +89,7 @@ export default ({record, initialAction}: any) => {
         }).catch((reason) => {
             if (!live.current || !current) return;
             setEditor(undefined);
-            message.error(reason.message || "加载连接信息失败");
+            message.error(reason?.message || "加载连接信息失败");
         })
             .finally(() => { if (live.current && current) setConnectionLoading(false); });
         return () => { current = false; };
@@ -108,20 +108,20 @@ export default ({record, initialAction}: any) => {
         setPermissions(undefined); setPermissionsLoading(true);
         void api.users(record, {action: "permissions", name: editor.account?.name, host: editor.account?.host}).then((data) => {
             if (!live.current || !current) return;
-            if (!Array.isArray(data?.privileges) || !data.privileges.every((value: any) => typeof value === "string")
-                || !Array.isArray(data.grants) || !data.grants.every((grant: any) => typeof grant?.database === "string"
-                    && Array.isArray(grant.privileges) && grant.privileges.every((value: any) => data.privileges.includes(value)))) {
+            if (!Array.isArray(data?.privileges) || !data?.privileges?.every((value: any) => typeof value === "string")
+                || !Array.isArray(data?.grants) || !data?.grants?.every((grant: any) => typeof grant?.database === "string"
+                    && Array.isArray(grant.privileges) && grant.privileges.every((value: any) => data?.privileges?.includes(value)))) {
                 throw new Error("账户权限数据不完整");
             }
             setPermissions(data);
             form.setFieldsValue({grants: editor.action === "create"
                 ? (form.getFieldValue("grants") || []).map((grant: any) => ({...grant,
-                    privileges: grant.privileges.filter((value: string) => data.privileges.includes(value))}))
-                : data.grants.map((grant: any) => ({...grant, privileges: [...grant.privileges]}))});
+                    privileges: grant.privileges.filter((value: string) => data?.privileges?.includes(value))}))
+                : data?.grants?.map((grant: any) => ({...grant, privileges: [...grant.privileges]}))});
         }).catch((reason: any) => {
             if (!live.current || !current) return;
             setEditor(undefined);
-            message.error(reason.message || "加载账户权限失败");
+            message.error(reason?.message || "加载账户权限失败");
         }).finally(() => { if (live.current && current) setPermissionsLoading(false); });
         return () => { current = false; };
     }, [record.id, editor]);
@@ -145,7 +145,7 @@ export default ({record, initialAction}: any) => {
         setVersion((value) => value + 1);
     };
     const showWarning = (data: any) => {
-        if (data?.warning) message.warning(data.warning);
+        if (data?.warning) message.warning(data?.warning);
     };
     const save = async (values: any, confirmed = false) => {
         if (pending.current || !editor || (editor.action === "create" || editor.action === "access") && !connection) return;
@@ -154,8 +154,8 @@ export default ({record, initialAction}: any) => {
         if (editor.action === "create") {
             grants = values.grants.map((grant: any) => ({database: grant.database, privileges: [...grant.privileges]}));
         } else if (editor.action === "permissions") {
-            const previous = new Map<string, string[]>(permissions.grants.map((grant: any) => [grant.database, grant.privileges]));
-            const uncertain = new Set<string>(permissions.uncertain || []);
+            const previous = new Map<string, string[]>(permissions?.grants?.map((grant: any) => [grant.database, grant.privileges]));
+            const uncertain = new Set<string>(permissions?.uncertain || []);
             for (const database of uncertain) if (!previous.has(database)) previous.set(database, []);
             const next = new Map<string, string[]>((values.grants || []).map((grant: any) => [grant.database, grant.privileges || []]));
             grants = [];
@@ -200,10 +200,10 @@ export default ({record, initialAction}: any) => {
             } else {
                 const data = await api.users(record, {action: editor.action === "permissions" ? "update_permissions" : editor.action,
                     ...target, ...account, grants, new_host: editor.action === "access" ? sourceHost(values) : undefined, password: values.password});
-                if (editor.action === "password" && data?.current && !data.connection_updated) {
+                if (editor.action === "password" && data?.current && !data?.connection_updated) {
                     if (live.current) {
                         message.warning({key: `mysql-account-password-${record.id}`, duration: 0,
-                            content: data.warning || "密码已修改，但实例连接密码未保存，请在配置中填写新密码。"});
+                            content: data?.warning || "密码已修改，但实例连接密码未保存，请在配置中填写新密码。"});
                         setEditor(undefined);
                     }
                     return;
@@ -216,15 +216,15 @@ export default ({record, initialAction}: any) => {
             if (created) {
                 message.warning(`账户“${account.name}”已创建，权限设置失败，请通过“配置权限”补充授权。`);
                 if (live.current) {
-                    setRepair(reason.message); reload();
+                    setRepair(reason?.message); reload();
                     setPermissions(undefined); setPermissionsLoading(true);
                     setEditor({action: "permissions", account, database: editor.database,
-                        permissionDraft: {privileges: [...permissions.privileges], grants}});
+                        permissionDraft: {privileges: [...(permissions?.privileges || [])], grants}});
                     form.setFieldsValue({name: account.name, host: account.host});
                     form.setFieldValue("password", undefined);
                 }
             } else {
-                message.error(reason.message);
+                message.error(reason?.message);
                 // 多库授权可能已部分生效；保留表单供重试，同时刷新列表中的实际权限。
                 if (editor.action === "permissions" && live.current) {
                     setPermissions((current: any) => ({...current, uncertain: Array.from(new Set([
@@ -247,7 +247,7 @@ export default ({record, initialAction}: any) => {
                     const data = await api.users(record, {action: "delete", name: account.name, host: account.host, database});
                     if (live.current) { showWarning(data); reload(); }
                     message.success("账户已删除");
-                } catch (reason: any) { message.error(reason.message); throw reason; }
+                } catch (reason: any) { message.error(reason?.message); throw reason; }
                 finally { pending.current = false; if (live.current) setBusy(false); }
             }});
         // 启用 AntD Promise 模式：失败保留弹窗重试，避免再次抛出未处理的拒绝。
@@ -288,11 +288,11 @@ export default ({record, initialAction}: any) => {
                 <div className="account-hint">保存后会同步更新此实例的连接密码。</div>}
             {(editor?.action === "create" || editor?.action === "access") && <AccessFields/>}
             {editor?.action === "create" && permissions && <Form.Item required>
-                <DatabasePermissionFields record={record} privileges={permissions.privileges} profiles={profiles} disabled={busy} required/>
+                <DatabasePermissionFields record={record} privileges={permissions?.privileges} profiles={profiles} disabled={busy} required/>
             </Form.Item>}
             {editor?.action === "permissions" && permissions && <>
-                <DatabasePermissionFields record={record} privileges={permissions.privileges} profiles={profiles} disabled={busy}/>
-                {(permissions.retained || editor.account?.global_privileges?.some((value: string) => value !== "USAGE")
+                <DatabasePermissionFields record={record} privileges={permissions?.privileges} profiles={profiles} disabled={busy}/>
+                {(permissions?.retained || editor.account?.global_privileges?.some((value: string) => value !== "USAGE")
                     || editor.account?.granted_roles?.length > 0 || editor.account?.grants?.some((grant: any) => grant.scope !== "database")
                     || editor.account?.restrictions?.length > 0) &&
                     <div className="account-hint">这里只调整数据库的直接权限，其他授权保持不变。</div>}

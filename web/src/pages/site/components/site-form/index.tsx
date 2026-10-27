@@ -259,7 +259,7 @@ const SiteForm = forwardRef(({onSuccess, typeItems}: any, ref): any => {
                 clearEnumCache("site");
                 modalRef.current?.hide();
                 message.success(response?.message || "创建成功");
-                onSuccess?.(response.data);
+                onSuccess?.(response?.data);
             } else {
                 message.error(response?.message || "创建失败");
             }
@@ -291,10 +291,10 @@ const SiteForm = forwardRef(({onSuccess, typeItems}: any, ref): any => {
                 await submit(values);
             }
         } catch (error: any) {
-            if (requestRef.current === requestId && error.errorFields?.[0]) {
+            if (requestRef.current === requestId && error?.errorFields?.[0]) {
                 setStep(1);
                 window.requestAnimationFrame(() => {
-                    if (requestRef.current === requestId) form.scrollToField(error.errorFields[0].name, {block: "nearest", focus: true});
+                    if (requestRef.current === requestId) form.scrollToField(error?.errorFields?.[0]?.name, {block: "nearest", focus: true});
                 });
             }
         }

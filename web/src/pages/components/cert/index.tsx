@@ -83,7 +83,7 @@ const parseCertificate = (certificate: any) => {
     const type = Number(certificate?.type || 0);
     let domains: string[] = [];
     try {
-        const values = Array.isArray(certificate?.domains) ? certificate.domains : JSON.parse(certificate?.domains || "[]");
+        const values = Array.isArray(certificate?.domains) ? certificate?.domains : JSON.parse(certificate?.domains || "[]");
         if (Array.isArray(values)) {
             domains = values.filter((value: any) => typeof value === "string" && value.trim());
         }
@@ -467,6 +467,7 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
     const [obtainDomain, setObtainDomain] = useState("");
     const [challenge, setChallenge] = useState("http");
     const [manualSession, setManualSession] = useState<any>(null);
+    const manualChallenges = useMemo(() => Array.isArray(manualSession?.challenges) ? manualSession?.challenges.filter(Boolean) : [], [manualSession]);
     const [secretOptions, setSecretOptions] = useState<{ label: string, value: number }[]>([]);
     const [secretLoading, setSecretLoading] = useState(false);
     const [secretLoadError, setSecretLoadError] = useState(false);
@@ -537,12 +538,12 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
                 return;
             }
             const data: any = response?.data || {};
-            const nextItems = Array.isArray(data.list) ? data.list.map(parseCertificate) : [];
-            const nextTotal = Number(data.total || 0);
+            const nextItems = Array.isArray(data?.list) ? data?.list.filter((item: any) => item?.id).map(parseCertificate) : [];
+            const nextTotal = Number(data?.total || 0);
             setItems(nextItems);
             setTotal(nextTotal);
-            setPage(Number(data.page || nextPage));
-            setPageSize(Number(data.page_size || nextPageSize));
+            setPage(Number(data?.page || nextPage));
+            setPageSize(Number(data?.page_size || nextPageSize));
         } catch {
             if (listRequestRef.current === requestId) {
                 setListError(true);
@@ -566,7 +567,7 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
         try {
             const response = await getSystemEnum({body: {name: "secret"}});
             if (secretRequestRef.current !== requestId) return;
-            if (response?.code !== 200 || !response.data?.name) {
+            if (response?.code !== 200 || !response?.data?.name) {
                 setSecretLoadError(true);
                 return;
             }
@@ -604,7 +605,7 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
                 body: {
                     type: 1,
                     action: "cancel",
-                    session_id: session.data.session_id,
+                    session_id: session?.data?.session_id,
                     id: session.id
                 }
             }).catch(() => undefined);
@@ -825,7 +826,7 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
                 const response = await getCertInfo({body: {id: certificate?.id}});
                 if (formRequestRef.current !== requestId || !formOpenRef.current) return;
                 if (response?.code !== 200) throw new Error(response?.message || "获取证书详情失败");
-                data = parseCertificate(response.data);
+                data = parseCertificate(response?.data);
             } catch (error) {
                 if (formRequestRef.current === requestId) {
                     message.error(error instanceof Error ? error.message : "获取证书详情失败");
@@ -924,19 +925,19 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
                                 body: {
                                     type: 1,
                                     action: "cancel",
-                                    session_id: data.session_id,
+                                    session_id: data?.session_id,
                                     id
                                 }
                             }).catch(() => undefined);
                             return;
                         }
                         if (started?.code !== 200) throw new Error(started?.message || "获取验证信息失败");
-                        if (!data?.session_id || !Array.isArray(data.challenges) || !Number.isFinite(data.expires_at)) {
+                        if (!data?.session_id || !Array.isArray(data?.challenges) || !Number.isFinite(data?.expires_at)) {
                             if (data?.session_id) void (method === "renew" ? renewCert : obtainCert)({
                                 body: {
                                     type: 1,
                                     action: "cancel",
-                                    session_id: data.session_id,
+                                    session_id: data?.session_id,
                                     id
                                 }
                             }).catch(() => undefined);
@@ -947,9 +948,9 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
                         setManualSession(data);
                         formModalRef.current?.hide();
                         manualModalRef.current?.show();
-                        if (data.challenges.length > 0) return;
+                        if (data?.challenges?.length > 0) return;
                     }
-                    if (session.data.expires_at <= Math.floor(Date.now() / 1000)) {
+                    if (session?.data?.expires_at <= Math.floor(Date.now() / 1000)) {
                         cancelManual();
                         manualModalRef.current?.hide();
                         formModalRef.current?.show();
@@ -959,7 +960,7 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
                         body: {
                             type: 1,
                             action: "submit",
-                            session_id: session.data.session_id,
+                            session_id: session?.data?.session_id,
                             id: session.id,
                         }
                     });
@@ -1684,27 +1685,27 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
                 {manualSession && (
                     <div className={styles.manualShell} aria-busy={submitting}>
                         <div className={styles.manualContent} ref={manualContentRef}>
-                            {manualSession.challenges.length === 0 && (
+                            {manualChallenges.length === 0 && (
                                 <section className={styles.verificationRecord}>
                                     <div className="verification-heading">
                                         <div className="verification-heading-text">
                                             <span className="verification-title">提交验证</span>
                                             <span
-                                                className="verification-expiry">有效至 {dayjs.unix(manualSession.expires_at).format("MM-DD HH:mm")}</span>
+                                                className="verification-expiry">有效至 {dayjs.unix(manualSession?.expires_at).format("MM-DD HH:mm")}</span>
                                         </div>
                                     </div>
                                     <Typography.Text type="secondary">无需添加验证信息，点击“验证”继续。</Typography.Text>
                                 </section>
                             )}
-                            {manualSession.challenges.map((manualChallenge: any, index: number) => (
+                            {manualChallenges.map((manualChallenge: any, index: number) => (
                                 <section key={manualChallenge.id} className={styles.verificationRecord}>
                                     {manualChallenge.type === "HTTP" && (
                                         <div className="verification-heading">
                                             <div className="verification-heading-text">
                                                 <span
-                                                    className="verification-title">部署验证文件{manualSession.challenges.length > 1 ? ` ${index + 1}` : ""}</span>
+                                                    className="verification-title">部署验证文件{manualChallenges.length > 1 ? ` ${index + 1}` : ""}</span>
                                                 {index === 0 && <span
-                                                    className="verification-expiry">有效至 {dayjs.unix(manualSession.expires_at).format("MM-DD HH:mm")}</span>}
+                                                    className="verification-expiry">有效至 {dayjs.unix(manualSession?.expires_at).format("MM-DD HH:mm")}</span>}
                                             </div>
                                             <Button size="small" color="default" variant="filled"
                                                     icon={<Icon type="DownloadOutlined"/>} onClick={() => {
@@ -1731,9 +1732,9 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
                                                        label={manualChallenge.type !== "HTTP" && label === "记录名称" ? (
                                                            <span className="verification-field-label">
                                                     <span>{label}<span
-                                                        className="verification-type">TXT{manualSession.challenges.length > 1 ? ` ${index + 1}` : ""}</span></span>
+                                                        className="verification-type">TXT{manualChallenges.length > 1 ? ` ${index + 1}` : ""}</span></span>
                                                                {index === 0 && <span
-                                                                   className="verification-expiry">有效至 {dayjs.unix(manualSession.expires_at).format("MM-DD HH:mm")}</span>}
+                                                                   className="verification-expiry">有效至 {dayjs.unix(manualSession?.expires_at).format("MM-DD HH:mm")}</span>}
                                                 </span>
                                                        ) : label}>
                                                 <div className="verification-field-content">

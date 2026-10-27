@@ -190,7 +190,7 @@ const BatchCert = forwardRef<BatchCertRef, {onChange?: () => void; secretVersion
     const cancelManual = useCallback(() => {
         const session = manualRef.current;
         manualRef.current = null;
-        if (session) void (session.method === "renew" ? renewCert : obtainCert)({body: {type: 1, action: "cancel", session_id: session.data.session_id, id: session.id}}).catch(() => undefined);
+        if (session) void (session.method === "renew" ? renewCert : obtainCert)({body: {type: 1, action: "cancel", session_id: session?.data?.session_id, id: session.id}}).catch(() => undefined);
     }, []);
 
     const loadSecrets = useCallback(async () => {
@@ -201,8 +201,8 @@ const BatchCert = forwardRef<BatchCertRef, {onChange?: () => void; secretVersion
         try {
             const response = await getSystemEnum({body: {name: "secret"}});
             if (!openRef.current || version !== versionRef.current || request !== secretRequestRef.current) return;
-            if (response?.code !== 200 || !response.data?.name) throw new Error("获取密钥失败");
-            const options = Object.entries(response.data.name).map(([value, label]) => ({value: Number(value), label: String(label)}));
+            if (response?.code !== 200 || !response?.data?.name) throw new Error("获取密钥失败");
+            const options = Object.entries(response?.data?.name || {}).map(([value, label]) => ({value: Number(value), label: String(label)}));
             setSecretOptions(options);
             const secretIds = new Set(options.map((option) => option.value));
             const configurations = form.getFieldValue("items") || [];
@@ -317,11 +317,11 @@ const BatchCert = forwardRef<BatchCertRef, {onChange?: () => void; secretVersion
                         for (let page = 1; !failed && openRef.current && version === versionRef.current; page++) {
                             const response = await getCertList({body: {domain, page, page_size: 100, order_by_field: "id", order_by_type: "desc"}});
                             if (failed || !openRef.current || version !== versionRef.current) return;
-                            if (response?.code !== 200 || !Array.isArray(response.data?.list)) throw new Error(response?.message || "获取已有证书失败");
-                            const list = response.data.list;
-                            certificates[index] = list.find((certificate: any) => {
-                                if (!certificate.id || ![1, 2].includes(Number(certificate.type))) return false;
-                                let names = certificate.domains;
+                            if (response?.code !== 200 || !Array.isArray(response?.data?.list)) throw new Error(response?.message || "获取已有证书失败");
+                            const list = response?.data?.list;
+                            certificates[index] = list?.find((certificate: any) => {
+                                if (!certificate?.id || ![1, 2].includes(Number(certificate?.type))) return false;
+                                let names = certificate?.domains;
                                 if (typeof names === "string") {
                                     try { names = JSON.parse(names); } catch { return false; }
                                 }
@@ -330,8 +330,8 @@ const BatchCert = forwardRef<BatchCertRef, {onChange?: () => void; secretVersion
                                 // 当前续签接口签发单个域名，避免覆盖多域名证书的其他 SAN。
                                 return domains.length === 1 && domains[0] === domain;
                             });
-                            if (certificates[index] || page * 100 >= Number(response.data.total || 0)) break;
-                            if (!list.length) throw new Error("获取已有证书失败，请重试");
+                            if (certificates[index] || page * 100 >= Number(response?.data?.total || 0)) break;
+                            if (!list?.length) throw new Error("获取已有证书失败，请重试");
                         }
                     }
                 }));
@@ -481,36 +481,36 @@ const BatchCert = forwardRef<BatchCertRef, {onChange?: () => void; secretVersion
                             const started = await (method === "renew" ? renewCert : obtainCert)({body});
                             const data = started?.data;
                             if (!current()) {
-                                if (data?.session_id) void (method === "renew" ? renewCert : obtainCert)({body: {type: 1, action: "cancel", session_id: data.session_id, id: task.certificate_id}}).catch(() => undefined);
+                                if (data?.session_id) void (method === "renew" ? renewCert : obtainCert)({body: {type: 1, action: "cancel", session_id: data?.session_id, id: task.certificate_id}}).catch(() => undefined);
                                 return;
                             }
-                            if (started?.code !== 200 || !data?.session_id || !Array.isArray(data.challenges) || !Number.isFinite(data.expires_at)) {
-                                if (data?.session_id) void (method === "renew" ? renewCert : obtainCert)({body: {type: 1, action: "cancel", session_id: data.session_id, id: task.certificate_id}}).catch(() => undefined);
+                            if (started?.code !== 200 || !data?.session_id || !Array.isArray(data?.challenges) || !Number.isFinite(data?.expires_at)) {
+                                if (data?.session_id) void (method === "renew" ? renewCert : obtainCert)({body: {type: 1, action: "cancel", session_id: data?.session_id, id: task.certificate_id}}).catch(() => undefined);
                                 throw new Error(started?.code !== 200 ? started?.message || "获取验证信息失败，请重新申请" : "验证信息无效，请重新申请");
                             }
                             session = {index, data, method, id: task.certificate_id};
                             manualRef.current = session;
                             setManual(session);
                             if (!closePendingRef.current) verificationRef.current?.show();
-                            if (data.challenges.length > 0 || pauseRef.current) {
+                            if (data?.challenges?.length > 0 || pauseRef.current) {
                                 updateTask(index, {status: "waiting"});
                                 return;
                             }
                         }
-                        if (session.data.expires_at <= Math.floor(Date.now() / 1000)) {
+                        if (session?.data?.expires_at <= Math.floor(Date.now() / 1000)) {
                             cancelManual();
                             verificationRef.current?.hide();
                             setManual(null);
                             throw new Error("验证信息已过期，请重试获取新的验证信息");
                         }
-                        response = await (session.method === "renew" ? renewCert : obtainCert)({body: {type: 1, action: "submit", session_id: session.data.session_id, id: session.id}});
+                        response = await (session.method === "renew" ? renewCert : obtainCert)({body: {type: 1, action: "submit", session_id: session?.data?.session_id, id: session.id}});
                     } else {
                         response = await (task.certificate_id ? renewCert : obtainCert)({body});
                     }
                     if (!current()) return;
                     if (response?.code !== 200) throw new Error(response?.message || (task.certificate_id ? "续签失败，请重试" : "申请失败，请重试"));
-                    if (!response.data?.id) throw new Error("未收到完整证书信息，请先在证书管理中检查结果");
-                    completeTask(index, response.data, version);
+                    if (!response?.data?.id) throw new Error("未收到完整证书信息，请先在证书管理中检查结果");
+                    completeTask(index, response?.data, version);
                     activeManual = null;
                 } catch (error) {
                     if (!current()) return;

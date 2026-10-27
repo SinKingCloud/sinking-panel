@@ -51,15 +51,15 @@ const FilePermissions = forwardRef<any, any>(({onSuccess}, ref) => {
             if (!response) {
                 return;
             }
-            if (response.code !== 200) {
+            if (response?.code !== 200) {
                 if (current) {
-                    message.error(response.message || "修改权限失败");
+                    message.error(response?.message || "修改权限失败");
                 }
                 return;
             }
             onSuccess(state.path, permissions);
             if (current) {
-                message.success(response.message || "权限修改成功");
+                message.success(response?.message || "权限修改成功");
                 close();
             }
         } finally {

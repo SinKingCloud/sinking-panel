@@ -58,9 +58,10 @@ export default function ScriptTools({instanceId, value, onUse, disabled, mode = 
     const params = useMemo(() => ({module: scope, type_id: typeId}), [scope, typeId]);
     const handleTypesChange = useCallback((items: typeof types) => {
         typeRequest.current++;
-        setTypes(items);
+        const nextItems = (Array.isArray(items) ? items : []).filter((item) => item?.id);
+        setTypes(nextItems);
         setTypesLoading(false);
-        setTypeId((current) => current && !items.some((item) => String(item.id) === current) ? undefined : current);
+        setTypeId((current) => current && !nextItems.some((item) => String(item?.id) === current) ? undefined : current);
     }, []);
 
     useEffect(() => () => { sequence.current++; }, []);
@@ -73,9 +74,9 @@ export default function ScriptTools({instanceId, value, onUse, disabled, mode = 
         void getTypeList({body: {module: scope, order_by_field: "sort", order_by_type: "asc"}}).then((response) => {
             if (!active || typeRequest.current !== requestId) return;
             if (response?.code !== 200) throw new Error(response?.message || "获取脚本分类失败");
-            handleTypesChange(Array.isArray(response.data?.list) ? response.data.list : []);
+            handleTypesChange(Array.isArray(response?.data?.list) ? response?.data?.list : []);
         }).catch((error) => {
-            if (active) message.error(error.message || "获取脚本分类失败");
+            if (active) message.error(error?.message || "获取脚本分类失败");
         }).finally(() => { if (active) setTypesLoading(false); });
         return () => { active = false; };
     }, [scope, open, message, handleTypesChange]);
@@ -88,7 +89,7 @@ export default function ScriptTools({instanceId, value, onUse, disabled, mode = 
     const request = useCallback(async (query: any, sort: any) => {
         const response = await getScriptList({body: getParams({...query}, sort)});
         if (response?.code !== 200) throw new Error(response?.message || "获取脚本失败");
-        return {data: response.data?.list || [], total: response.data?.total || 0, success: true};
+        return {data: Array.isArray(response?.data?.list) ? response?.data?.list.filter((item: any) => item?.id) : [], total: response?.data?.total || 0, success: true};
     }, []);
 
     const edit = async (item?: any) => {
@@ -103,12 +104,12 @@ export default function ScriptTools({instanceId, value, onUse, disabled, mode = 
         try {
             const response = await getScriptInfo({body: {id: item.id}});
             if (id !== sequence.current) return;
-            if (response?.code !== 200 || !response.data) throw new Error(response?.message || "获取脚本失败");
-            const detail = response.data;
+            if (response?.code !== 200 || !response?.data) throw new Error(response?.message || "获取脚本失败");
+            const detail = response?.data;
             setEditing(detail);
-            form.setFieldsValue({name: detail.name, script: detail.script});
+            form.setFieldsValue({name: detail?.name, script: detail?.script});
         } catch (error) {
-            if (id === sequence.current) { setFormOpen(false); message.error((error as Error).message); }
+            if (id === sequence.current) { setFormOpen(false); message.error((error as Error)?.message || "操作失败"); }
         } finally { if (id === sequence.current) setLoading(false); }
     };
 
@@ -117,11 +118,11 @@ export default function ScriptTools({instanceId, value, onUse, disabled, mode = 
         try {
             const response = await getScriptInfo({body: {id: item.id}});
             if (id !== sequence.current) return;
-            if (response?.code !== 200 || !response.data) throw new Error(response?.message || "获取脚本失败");
-            const script = String(response.data.script || "");
+            if (response?.code !== 200 || !response?.data) throw new Error(response?.message || "获取脚本失败");
+            const script = String(response?.data?.script || "");
             onUse(script);
             setOpen(false);
-        } catch (error) { if (id === sequence.current) message.error((error as Error).message); }
+        } catch (error) { if (id === sequence.current) message.error((error as Error)?.message || "操作失败"); }
     };
 
     const remove = (item: any) => {
@@ -144,7 +145,7 @@ export default function ScriptTools({instanceId, value, onUse, disabled, mode = 
             if (id !== sequence.current) return;
             if (response?.code !== 200) throw new Error(response?.message || "保存脚本失败");
             setFormOpen(false); table.current?.reload(); message.success("保存成功");
-        } catch (error) { if (id === sequence.current) message.error((error as Error).message); }
+        } catch (error) { if (id === sequence.current) message.error((error as Error)?.message || "操作失败"); }
         finally { if (id === sequence.current) setBusy(false); }
     };
 
@@ -154,7 +155,7 @@ export default function ScriptTools({instanceId, value, onUse, disabled, mode = 
             rootClassName={styles.table} scrollMode="modal" rowKey="id" scroll={{x: 694}}
             onCancel={() => { sequence.current++; setOpen(false); }} request={request} requestEnabled={open} params={params}
             defaultPageSize={10} pagination={{pageSizeOptions: [10, 20, 50, 100]}}
-            onRequestError={(error) => message.error(error.message)}
+            onRequestError={(error) => message.error(error?.message || "获取脚本失败")}
             search={{placeholder: "搜索名称或内容", maxLength: 100}}
             toolbar={{refresh: true, actions: [
                 {key: "type", type: "filter", value: typeId || "", options: [{label: "全部分类", value: ""}, ...types.map(({id, name}) => ({label: name, value: String(id)}))],

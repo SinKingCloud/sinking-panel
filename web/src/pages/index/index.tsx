@@ -66,13 +66,13 @@ export default (): React.ReactNode => {
             }
 
             const statisData = statisResponse?.code === 200 && statisResponse?.data
-                ? statisResponse.data
+                ? statisResponse?.data
                 : undefined;
             const infoData = infoResponse?.code === 200 && infoResponse?.data
-                ? infoResponse.data
+                ? infoResponse?.data
                 : undefined;
             const ioData = ioResponse?.code === 200 && ioResponse?.data
-                ? ioResponse.data
+                ? ioResponse?.data
                 : undefined;
             const currentIOData = ioData ? {...ioData, history: undefined} : undefined;
             const nextStatisSnapshot = JSON.stringify(statisData || null);
@@ -85,7 +85,7 @@ export default (): React.ReactNode => {
             const sampleReset = responseSampleId > 0 && responseSampleId < snapshotRef.current.sampleId;
             const sampleCursor = sampleReset ? 0 : snapshotRef.current.sampleId;
             const sampleTimeCursor = sampleReset ? 0 : snapshotRef.current.sampleTime;
-            const responseHistory = Array.isArray(ioData?.history) ? ioData.history : [];
+            const responseHistory = Array.isArray(ioData?.history) ? ioData?.history : [];
             const responseSampleTime = numberValue(ioData?.sample_time);
             const fallbackHistory = responseHistory.length === 0 && responseSampleTime > 0 && (sampleCursor === 0
                 || responseSampleTime > sampleTimeCursor)
@@ -104,15 +104,15 @@ export default (): React.ReactNode => {
                     return idDiff || numberValue(first?.sample_time) - numberValue(second?.sample_time);
                 });
             const samples = ioSamples.map((item: any) => ({
-                sampleId: numberValue(item.sample_id),
-                time: numberValue(item.sample_time),
-                network: Object.fromEntries((Object.entries(item.network || {}) as [string, any][]).map(([name, value]) => [name, {
-                    receiveRate: numberValue(value.recv_rate),
-                    sendRate: numberValue(value.send_rate),
+                sampleId: numberValue(item?.sample_id),
+                time: numberValue(item?.sample_time),
+                network: Object.fromEntries((Object.entries(item?.network || {}) as [string, any][]).map(([name, value]) => [name, {
+                    receiveRate: numberValue(value?.recv_rate),
+                    sendRate: numberValue(value?.send_rate),
                 }])),
-                disk: Object.fromEntries((Object.entries(item.disk || {}) as [string, any][]).map(([name, value]) => [name, {
-                    readRate: numberValue(value.read_bytes_rate),
-                    writeRate: numberValue(value.write_bytes_rate),
+                disk: Object.fromEntries((Object.entries(item?.disk || {}) as [string, any][]).map(([name, value]) => [name, {
+                    readRate: numberValue(value?.read_bytes_rate),
+                    writeRate: numberValue(value?.write_bytes_rate),
                 }])),
             }));
             const latestSampleId = Math.max(

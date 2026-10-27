@@ -30,7 +30,7 @@ export default ({record, onCancel}: any) => {
             }).catch((reason) => {
                 if (disposed) return;
                 disposed = true; onCancel();
-                message.error(reason.message || "获取数据库详情失败");
+                message.error(reason?.message || "获取数据库详情失败");
             });
         }
         return () => { disposed = true; };
@@ -49,16 +49,16 @@ export default ({record, onCancel}: any) => {
         destroyOnHidden focusable={{focusTriggerAfterClose: false}}>
         {!currentRecord || !data || loaded !== key ? <div className={styles.loading}><Spin/></div>
             : <div className={formStyles.detail}>
-                <div className="db-detail-heading"><span>{data.name || currentRecord.database_name || currentRecord.name}</span><Tag variant="filled">MySQL</Tag></div>
+                <div className="db-detail-heading"><span>{data?.name || currentRecord.database_name || currentRecord.name}</span><Tag variant="filled">MySQL</Tag></div>
                 <div className="db-detail-metrics">
-                    <div className="db-detail-metric"><span>数据表</span><strong>{data.table_count ?? "—"}</strong></div>
-                    <div className="db-detail-metric"><span>占用空间</span><strong>{data.size == null ? "—" : size()}</strong></div>
+                    <div className="db-detail-metric"><span>数据表</span><strong>{data?.table_count ?? "—"}</strong></div>
+                    <div className="db-detail-metric"><span>占用空间</span><strong>{data?.size == null ? "—" : size()}</strong></div>
                 </div>
                 <section className="db-detail-group">
                     <h3>数据库属性</h3>
                     <dl className="db-detail-grid">
-                        <div><dt>字符集</dt><dd>{data.charset || "—"}</dd></div>
-                        <div><dt>排序规则</dt><dd>{data.collation || "—"}</dd></div>
+                        <div><dt>字符集</dt><dd>{data?.charset || "—"}</dd></div>
+                        <div><dt>排序规则</dt><dd>{data?.collation || "—"}</dd></div>
                     </dl>
                 </section>
             </div>}

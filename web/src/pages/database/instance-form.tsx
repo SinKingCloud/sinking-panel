@@ -47,18 +47,18 @@ export default ({open, record, categories = [], onCancel, onSuccess}: any) => {
             try {
                 const response = await getDatabaseInfo({body: {id: record.id}});
                 if (requestId !== requestRef.current) return;
-                if (response?.code !== 200 || !response.data) throw new Error(response?.message || "获取实例信息失败");
-                const info = response.data;
-                const typeFields = connectionFields[Number(info.type)];
-                if (!typeFields?.length || !info.config || typeof info.config !== "object" || Array.isArray(info.config)) {
+                if (response?.code !== 200 || !response?.data) throw new Error(response?.message || "获取实例信息失败");
+                const info = response?.data;
+                const typeFields = connectionFields[Number(info?.type)];
+                if (!typeFields?.length || !info?.config || typeof info?.config !== "object" || Array.isArray(info?.config)) {
                     throw new Error("获取连接配置失败");
                 }
-                form.setFieldsValue({name: info.name, type_id: Number(info.type_id) || 0, config: info.config});
+                form.setFieldsValue({name: info?.name, type_id: Number(info?.type_id) || 0, config: info?.config});
                 setLoadedId(record.id);
             } catch (reason: any) {
                 if (requestId !== requestRef.current) return;
                 requestRef.current++; onCancel();
-                message.error(reason.message || "获取实例信息失败");
+                message.error(reason?.message || "获取实例信息失败");
             } finally {
                 if (requestId === requestRef.current) setLoading(false);
             }
@@ -87,14 +87,14 @@ export default ({open, record, categories = [], onCancel, onSuccess}: any) => {
             if (requestId !== requestRef.current) return;
             if (response?.code !== 200) throw new Error(response?.message || "连接失败");
             testedRef.current = JSON.stringify(body);
-            setTestResult({success: true, text: "连接成功", version: response.data?.version});
+            setTestResult({success: true, text: "连接成功", version: response?.data?.version});
         } catch (reason: any) {
             if (requestId !== requestRef.current) return;
-            if (reason.errorFields) {
-                if (reason.errorFields.some((item: any) => fields.some((field) => field.advanced && field.name === item.name?.[1]))) setAdvanced(["connection"]);
+            if (reason?.errorFields) {
+                if (reason?.errorFields.some((item: any) => fields.some((field) => field.advanced && field.name === item.name?.[1]))) setAdvanced(["connection"]);
             } else {
-                setTestResult({success: false, text: reason.message || "连接失败"});
-                message.error(reason.message || "连接失败");
+                setTestResult({success: false, text: reason?.message || "连接失败"});
+                message.error(reason?.message || "连接失败");
             }
         } finally {
             if (requestId === requestRef.current) { busyRef.current = false; setBusy(""); }
@@ -119,7 +119,7 @@ export default ({open, record, categories = [], onCancel, onSuccess}: any) => {
                     return;
                 }
                 testedRef.current = snapshot;
-                setTestResult({success: true, text: "连接成功", version: response.data?.version});
+                setTestResult({success: true, text: "连接成功", version: response?.data?.version});
             }
             const response = await updateDatabase({body: {id: record.id, name: values.name.trim(), type_id: Number(values.type_id) || 0, config: connection.config}});
             if (requestId !== requestRef.current) return;
@@ -128,7 +128,7 @@ export default ({open, record, categories = [], onCancel, onSuccess}: any) => {
             onSuccess({action: "update", id: record.id, name: values.name.trim(), type_id: Number(values.type_id) || 0});
             onCancel();
         } catch (reason: any) {
-            if (requestId === requestRef.current) message.error(reason.message || "保存实例失败");
+            if (requestId === requestRef.current) message.error(reason?.message || "保存实例失败");
         } finally {
             if (requestId === requestRef.current) { busyRef.current = false; setBusy(""); }
         }

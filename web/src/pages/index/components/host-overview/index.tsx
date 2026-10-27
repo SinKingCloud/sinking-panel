@@ -507,11 +507,11 @@ const HostOverview = React.memo(({info, statis}: any) => {
                     // 先读取启动时间，避免把仍在响应的旧进程误判为重启完成。
                     const info = await getSystemInfo();
                     if (!mountedRef.current || controller.signal.aborted) return;
-                    if (info?.code !== 200 || !info.data) {
+                    if (info?.code !== 200 || !info?.data) {
                         message.error(info?.message || "获取系统信息失败，请重试");
                         throw new Error("获取系统信息失败");
                     }
-                    const previousStartTime = info.data[startTimeField];
+                    const previousStartTime = info?.data?.[startTimeField];
                     const timeout = 180000;
                     const deadline = Date.now() + timeout;
                     resumeConnectionErrors = pauseConnectionErrors(controller.signal, timeout);

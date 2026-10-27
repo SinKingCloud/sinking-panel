@@ -2026,7 +2026,7 @@ const ConfigForm = memo(({site, request, update, title, description, styles, nor
             }
             if (response?.code === 200) {
                 form.resetFields();
-                form.setFieldsValue(normalize ? normalize(response.data || {}) : (response.data || {}));
+                form.setFieldsValue(normalize ? normalize(response?.data || {}) : (response?.data || {}));
             } else {
                 message.error(response?.message || `获取${title}失败`);
             }
@@ -2150,7 +2150,7 @@ const BasicPane = ({site, styles, typeItems, onChange, hideHeader = false}: any)
         void getSiteInfo({body: {id: site.id}}).then((response) => {
             if (!active) return;
             setLoading(false);
-            if (response?.code === 200) form.setFieldsValue({type_id: 0, ...(response.data || site)});
+            if (response?.code === 200) form.setFieldsValue({type_id: 0, ...(response?.data || site)});
             else message.error(response?.message || "获取网站信息失败");
         });
         return () => { active = false; };
@@ -2232,7 +2232,7 @@ const DomainPane = ({site, styles, onChange, hideHeader = false}: any) => {
             const response = await siteDomain({body: {action: "get", id: site.id}});
             if (requestRef.current !== requestId) return;
             if (response?.code === 200) {
-                const records = Array.isArray(response.data) ? response.data : [];
+                const records = Array.isArray(response?.data) ? response?.data.filter(Boolean) : [];
                 form.resetFields();
                 form.setFieldsValue({domains: records.map((item: any) => String(item.domain || "").trim()).filter(Boolean)});
                 setInput("");
@@ -2475,8 +2475,8 @@ const SSLPane = ({site, styles, onManageCert, onObtainCert, onDeployCert, onRene
                 message.error(response?.message || "获取 HTTPS 配置失败");
                 return;
             }
-            const nextDomains = Array.isArray(response.data?.domains) ? response.data.domains : [];
-            const config = response.data?.config || {};
+            const nextDomains = Array.isArray(response?.data?.domains) ? response?.data?.domains.filter(Boolean) : [];
+            const config = response?.data?.config || {};
             setDomains(nextDomains);
             setSelectedDomainIds(new Set());
             form.setFieldsValue({
@@ -2503,7 +2503,7 @@ const SSLPane = ({site, styles, onManageCert, onObtainCert, onDeployCert, onRene
         setCertLoading(true);
         void getCertList({body: {page: 1, page_size: 1000, order_by_field: "id", order_by_type: "desc"}}).then((response) => {
             if (certRequestRef.current !== requestId) return;
-            if (response?.code === 200) setCerts(Array.isArray(response.data?.list) ? response.data.list : []);
+            if (response?.code === 200) setCerts(Array.isArray(response?.data?.list) ? response?.data?.list.filter(Boolean) : []);
             else message.error(response?.message || "获取证书列表失败");
         }).catch(() => {
             if (certRequestRef.current === requestId) message.error("获取证书列表失败");
@@ -2943,8 +2943,8 @@ const GeneralPane = ({site, styles}: any) => {
                 message.error(processResponse?.code !== 200 ? (processResponse?.message || "获取运行配置失败") : (proxyResponse?.message || "获取本地代理失败"));
                 return;
             }
-            const process = processResponse.data || {};
-            const nextProxy = proxyResponse.data || {};
+            const process = processResponse?.data || {};
+            const nextProxy = proxyResponse?.data || {};
             const dial = String(nextProxy.upstreams?.[0]?.dial || "127.0.0.1:8080");
             const match = dial.match(/:(\d+)$/);
             const requestSet = nextProxy.headers?.request_set || {};
@@ -3734,7 +3734,7 @@ const RedirectPane = ({site, styles}: any) => {
         void siteDomain({body: {action: "get", id: site.id}}).then((response) => {
             if (!active) return;
             if (response?.code === 200) {
-                setDomainOptions((Array.isArray(response.data) ? response.data : []).map((item: any) => ({
+                setDomainOptions((Array.isArray(response?.data) ? response?.data.filter(Boolean) : []).map((item: any) => ({
                     label: item.domain,
                     value: item.domain,
                 })));

@@ -48,13 +48,13 @@ export default ({record, schema, table, disabled, onChange}: any) => {
                 const index = next.findIndex((value) => value.id === item.id);
                 if (index < 0 || (next[index].status >= 2 && !next[index].settling)) continue;
                 if (item.settling) next[index] = {...next[index], settling: false};
-                const valid = response?.code === 200 && response.data && [0, 1, 2, 3, 4].includes(Number(response.data.status));
+                const valid = response?.code === 200 && response?.data && [0, 1, 2, 3, 4].includes(Number(response?.data?.status));
                 if (valid && response) {
-                    const status = item.status === 4 ? 4 : Number(response.data.status);
+                    const status = item.status === 4 ? 4 : Number(response?.data?.status);
                     // 取消先改变状态，worker 稍后才写入结果；无结果时只补读一次。
-                    next[index] = {...item, ...response.data, id: item.id, body: item.body, status, missing: 0,
-                        settling: status === 4 && response.data.result == null && item.status < 2};
-                } else if (response && String(response.message || "").includes("任务不存在")) {
+                    next[index] = {...item, ...response?.data, id: item.id, body: item.body, status, missing: 0,
+                        settling: status === 4 && response?.data?.result == null && item.status < 2};
+                } else if (response && String(response?.message || "").includes("任务不存在")) {
                     const missing = (item.missing || 0) + 1;
                     next[index] = {...next[index], missing, ...(missing >= 3 ? {status: 4, message: "任务状态不可用，请在系统任务中核对结果"} : {})};
                 }
@@ -112,7 +112,7 @@ export default ({record, schema, table, disabled, onChange}: any) => {
             if (live.current && sequence.current === requestId) {
                 if (reason.unconfirmed !== false) accepted.current = requestId;
                 close();
-                message.error(reason.message || "任务创建结果未确认，请在系统任务中核对后再操作");
+                message.error(reason?.message || "任务创建结果未确认，请在系统任务中核对后再操作");
             }
         } finally { pending.current = false; if (live.current) setBusy(false); }
     };
@@ -157,14 +157,14 @@ export default ({record, schema, table, disabled, onChange}: any) => {
                 {statusLabels[task.status]}{task.status < 2 ? ` · ${Math.max(0, Math.min(100, Number(task.progress) || 0)).toFixed(0)}%` : ""}
                 {task.message ? ` · ${task.message}` : ""}{task.status < 2 ? "，可关闭窗口，进度和日志可在系统任务中查看。" : ""}
             </Typography.Text>}
-            {displayDialog && result?.error && result.error !== task.message && <Typography.Text type="danger" className="client-hint">{result.error}</Typography.Text>}
+            {displayDialog && result?.error && result?.error !== task.message && <Typography.Text type="danger" className="client-hint">{result?.error}</Typography.Text>}
             {displayDialog && result && <div className="transfer-result">
-                <Typography.Text copyable>{result.path}</Typography.Text>
-                {typeof result.success === "number" && <span>已处理 <b>{result.success}</b></span>}
-                {result.failed > 0 && <span>失败 <b>{result.failed}</b></span>}
-                {Boolean(result.unknown) && <span>部分执行结果待核对</span>}
-                {result.line > 0 && <span>失败位置：第 {result.line} 行</span>}
-                {typeof result.size === "number" && <span>{(result.size / 1024 / 1024).toFixed(2)} MB</span>}
+                <Typography.Text copyable>{result?.path}</Typography.Text>
+                {typeof result?.success === "number" && <span>已处理 <b>{result?.success}</b></span>}
+                {result?.failed > 0 && <span>失败 <b>{result?.failed}</b></span>}
+                {Boolean(result?.unknown) && <span>部分执行结果待核对</span>}
+                {result?.line > 0 && <span>失败位置：第 {result?.line} 行</span>}
+                {typeof result?.size === "number" && <span>{(result?.size / 1024 / 1024).toFixed(2)} MB</span>}
             </div>}
         </ProModal>
     </>;

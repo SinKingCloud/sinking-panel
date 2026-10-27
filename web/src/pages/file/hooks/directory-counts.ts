@@ -47,16 +47,16 @@ export const useDirectoryCounts = ({
                 if (
                     response?.code === 200
                     && data
-                    && Number.isFinite(Number(data.size))
-                    && Number.isFinite(Number(data.file))
-                    && Number.isFinite(Number(data.dir))
+                    && Number.isFinite(Number(data?.size))
+                    && Number.isFinite(Number(data?.file))
+                    && Number.isFinite(Number(data?.dir))
                 ) {
                     publish(job, {
                         status: "success",
                         data: {
-                            size: Number(data.size),
-                            file: Number(data.file),
-                            dir: Number(data.dir),
+                            size: Number(data?.size),
+                            file: Number(data?.file),
+                            dir: Number(data?.dir),
                         },
                     });
                     return;

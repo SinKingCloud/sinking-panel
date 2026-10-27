@@ -40,10 +40,10 @@ export default ({record, initialTab, engine, section = "browse", hidden = false,
         setSchema(""); setSchemas([]);
         void api.schemas(record).then((values) => {
             if (!active) return;
-            const names = Array.isArray(values) ? values.map(value => typeof value === "string" ? value : value.name).filter(Boolean) : [];
+            const names = Array.isArray(values) ? values.map(value => typeof value === "string" ? value : value?.name).filter(Boolean) : [];
             const preferred = Number(record.type) === 3 ? "public" : Number(record.type) === 5 ? "dbo" : "main";
             setSchemas(names); setSchema(names.includes(preferred) ? preferred : names[0] || preferred);
-        }).catch(reason => { if (active) message.error(reason.message); });
+        }).catch(reason => { if (active) message.error(reason?.message); });
         return () => { active = false; };
     }, [record.id, record.database_name, record.name]);
     useEffect(() => { if (schemaValue && schemas.includes(schemaValue)) setSchema(schemaValue); }, [schemaValue, schemas]);
@@ -100,13 +100,14 @@ export default ({record, initialTab, engine, section = "browse", hidden = false,
     const isView = String(currentTable?.type).toUpperCase().includes("VIEW");
     // 每批数据只定位一次主键/唯一键列和截断行，渲染操作菜单时直接取用。
     const rowKeys = useMemo(() => {
-        if (isView || !result?.columns?.length) return [];
-        const names = result.key_columns ?? (result.primary_keys?.length ? result.primary_keys : columns.filter((column) => column.primary_key).map((column) => column.name));
-        const positions = names.map((name: string) => result.columns.indexOf(name));
+        if (isView || !Array.isArray(result?.columns) || !result?.columns?.length) return [];
+        const names = result?.key_columns ?? (result?.primary_keys?.length ? result?.primary_keys : columns.filter((column) => column.primary_key).map((column) => column.name));
+        if (!Array.isArray(names)) return [];
+        const positions = names.map((name: string) => result?.columns?.indexOf(name));
         if (!names.length || positions.some((index: number) => index < 0)) return [];
-        const truncated = new Set((result.truncated_cells || []).map((cell: any) => Array.isArray(cell) ? cell[0] : cell.row));
-        return (result.rows || []).map((row: any[], index: number) => {
-            if (truncated.has(index) || positions.some((position: number) => {
+        const truncated = new Set((Array.isArray(result?.truncated_cells) ? result?.truncated_cells : []).map((cell: any) => Array.isArray(cell) ? cell[0] : cell?.row));
+        return (Array.isArray(result?.rows) ? result?.rows : []).map((row: any[], index: number) => {
+            if (!Array.isArray(row) || truncated.has(index) || positions.some((position: number) => {
                 const value = row[position];
                 return value == null || (typeof value === "object" && !(value.encoding === "base64" && typeof value.data === "string" && Object.keys(value).length === 2));
             })) return undefined;
@@ -134,15 +135,15 @@ export default ({record, initialTab, engine, section = "browse", hidden = false,
         setCatalogError("");
         void api.tables(record, {schema}).then((data) => {
             if (!live.current || request !== catalogRequest.current) return;
-            const values = Array.isArray(data) ? data : [];
+            const values = Array.isArray(data) ? data.filter((item: any) => typeof item?.name === "string") : [];
             setTables(values);
             if (!values.some((item) => item.name === selectedRef.current)) {
                 setSelected(values[0]?.name || ""); setPage(1); setFilters(""); setFilterFields([]);
             }
         }).catch((reason) => {
             if (!live.current || request !== catalogRequest.current) return;
-            setCatalogError(reason.message);
-            message.error({key: `sql-catalog-${record.id}`, content: reason.message});
+            setCatalogError(reason?.message);
+            message.error({key: `sql-catalog-${record.id}`, content: reason?.message});
         })
             .finally(() => { if (live.current && request === catalogRequest.current) setCatalogLoading(false); });
     }, [record.id, schema, catalogVersion, tableListVersion, reloadKey]);
@@ -157,11 +158,12 @@ export default ({record, initialTab, engine, section = "browse", hidden = false,
         void Promise.all([api.columns(record, {schema, table: selected}), tab === "indexes" ? api.indexes(record, {schema, table: selected}) : Promise.resolve(undefined)])
             .then(([columnData, indexData]) => {
                 if (!live.current || request !== metadataRequest.current) return;
-                setColumns(columnData || []); if (indexData !== undefined) setIndexes(indexData || []);
+                setColumns(Array.isArray(columnData) ? columnData.filter((item: any) => typeof item?.name === "string") : []);
+                if (indexData !== undefined) setIndexes(Array.isArray(indexData) ? indexData.filter((item: any) => typeof item?.name === "string") : []);
             }).catch((reason) => {
                 if (!live.current || request !== metadataRequest.current) return;
-                setMetadataError(reason.message);
-                message.error({key: `sql-metadata-${record.id}`, content: reason.message});
+                setMetadataError(reason?.message);
+                message.error({key: `sql-metadata-${record.id}`, content: reason?.message});
             })
             .finally(() => { if (live.current && request === metadataRequest.current) setMetadataLoading(false); });
     }, [record.id, schema, selected, catalogVersion, detailVersion, reloadKey, hidden, section, tab]);
@@ -180,7 +182,7 @@ export default ({record, initialTab, engine, section = "browse", hidden = false,
             .then((data) => { if (live.current && request === rowRequest.current) setResult(data); })
             .catch((reason) => {
                 if (!live.current || request !== rowRequest.current) return;
-                message.error({key: `sql-rows-${record.id}`, content: reason.message});
+                message.error({key: `sql-rows-${record.id}`, content: reason?.message});
             })
             .finally(() => { if (live.current && request === rowRequest.current) setLoading(false); });
     }, [record.id, schema, selected, rowTarget, page, pageSize, filters, appliedFilterLogic, sort, order, refresh, reloadKey, tab, hidden, section]);
@@ -215,7 +217,7 @@ export default ({record, initialTab, engine, section = "browse", hidden = false,
                     await (operation === "drop_column" ? api.drop_column : api.drop_index)(record, {...target,
                         ...(operation === "drop_column" ? {column_name: name} : {name})});
                     if (live.current) { message.success("删除成功"); reloadCatalog({mode: operation}); }
-                } catch (reason: any) { if (live.current) message.error(reason.message); throw reason; }
+                } catch (reason: any) { if (live.current) message.error(reason?.message); throw reason; }
                 finally { schemaPending.current = false; if (live.current) setSchemaBusy(""); }
             }});
         confirmations.current.add(confirmation);
@@ -227,7 +229,7 @@ export default ({record, initialTab, engine, section = "browse", hidden = false,
         const keys = row ? rowKeys[index!] : undefined;
         if (row && !keys) return;
         if (!columns.length) return;
-        const fields = columns.map((column) => sqlFieldValue(column, row?.[result.columns.indexOf(column.name)], Boolean(row)));
+        const fields = columns.map((column) => sqlFieldValue(column, row?.[result?.columns?.indexOf(column.name)], Boolean(row)));
         const next = {keys, schema, table: selected, columns, original: row ? fields : undefined};
         setDisplayedEditor(next); setEditor(next);
         form.setFieldValue("fields", fields);
@@ -240,14 +242,14 @@ export default ({record, initialTab, engine, section = "browse", hidden = false,
             if (!changes && editor.keys) { message.info("没有修改内容"); return; }
             // 新增时允许全部采用数据库默认值，更新仍要求实际修改内容。
             if (!changes) changes = "{}";
-        } catch (reason: any) { message.error(reason.message); return; }
+        } catch (reason: any) { message.error(reason?.message); return; }
         busyRef.current = true; setSaving(true);
         try {
             await (editor.keys ? api.update : api.insert)(record, {schema: editor.schema, table: editor.table,
                 values: changes, ...(editor.keys ? {keys: JSON.stringify(editor.keys)} : {})});
             if (!live.current) return;
             message.success("保存成功"); setEditor(undefined); reload();
-        } catch (reason: any) { if (live.current) message.error(reason.message); }
+        } catch (reason: any) { if (live.current) message.error(reason?.message); }
         finally { busyRef.current = false; if (live.current) setSaving(false); }
     };
     const remove = (row: any[], index: number) => {
@@ -259,7 +261,7 @@ export default ({record, initialTab, engine, section = "browse", hidden = false,
                 try {
                     await api.delete(record, {schema, table: selected, keys: JSON.stringify(keys)});
                     if (live.current) { message.success("删除成功"); reload(); }
-                } catch (reason: any) { if (live.current) message.error(reason.message); throw reason; }
+                } catch (reason: any) { if (live.current) message.error(reason?.message); throw reason; }
             }});
         confirmations.current.add(confirmation);
         // 启用 AntD Promise 模式：失败保留弹窗重试，避免再次抛出未处理的拒绝。
@@ -284,8 +286,8 @@ export default ({record, initialTab, engine, section = "browse", hidden = false,
         finally { busyRef.current = false; if (live.current) setQueryLoading(false); }
     };
 
-    const queryOutput = queryExecution?.error || (queryExecution?.success && activeQueryResult && !activeQueryResult.columns?.length
-        ? ["执行成功", `影响行数：${activeQueryResult.affected ?? 0}`, `执行耗时：${activeQueryResult.elapsed_ms ?? 0} ms`, "", queryExecution.statement].join("\n") : "");
+    const queryOutput = queryExecution?.error || (queryExecution?.success && activeQueryResult && !activeQueryResult?.columns?.length
+        ? ["执行成功", `影响行数：${activeQueryResult?.affected ?? 0}`, `执行耗时：${activeQueryResult?.elapsed_ms ?? 0} ms`, "", queryExecution.statement].join("\n") : "");
     const structureDisabled = isView || metadataLoading || Boolean(metadataError) || Boolean(schemaBusy);
 
     const objectKinds = (engine?.objects || []).filter((item) => features[objectFeatures[item.key]] !== false).map((item) => ({...item,
@@ -324,7 +326,7 @@ export default ({record, initialTab, engine, section = "browse", hidden = false,
     const indexToolbar = <div className="client-toolbar">
         <Button size="small" color="default" variant="filled" autoInsertSpace={false} icon={<Icon type="PlusOutlined"/>} disabled={structureDisabled || !columns.length} onClick={() => setSchemaEditor({mode: "create_index"})}>新增</Button>
         </div>;
-    const rowSummary = `${result?.rows?.length || 0} 条${result?.total != null ? ` / 共 ${result.total} 条` : ""}${result?.elapsed_ms != null ? ` · ${result.elapsed_ms} ms` : ""}${result?.truncated ? " · 数据已截断" : ""}`;
+    const rowSummary = `${result?.rows?.length || 0} 条${result?.total != null ? ` / 共 ${result?.total} 条` : ""}${result?.elapsed_ms != null ? ` · ${result?.elapsed_ms} ms` : ""}${result?.truncated ? " · 数据已截断" : ""}`;
     const dataPanel = <>
         <ResultTable result={result} loading={loading} height={320} autoHeight rowOffset={((result?.page || page) - 1) * (result?.page_size || pageSize)}
             columnMetadata={columns} actionWidth={84} actionAlign="center"
@@ -342,7 +344,7 @@ export default ({record, initialTab, engine, section = "browse", hidden = false,
             }}/>
         <div className="client-footer"><Tooltip title={screens.md ? undefined : rowSummary} trigger={["hover", "click"]}>
             <Typography.Text type="secondary">{screens.md ? rowSummary
-                : `${result?.total ?? result?.rows?.length ?? 0} 条${result?.elapsed_ms != null ? ` · ${result.elapsed_ms}ms` : ""}${result?.truncated ? " · 已截断" : ""}`}</Typography.Text>
+                : `${result?.total ?? result?.rows?.length ?? 0} 条${result?.elapsed_ms != null ? ` · ${result?.elapsed_ms}ms` : ""}${result?.truncated ? " · 已截断" : ""}`}</Typography.Text>
             </Tooltip>
             <ConfigProvider input={{variant: "filled"}}>
                 <Pagination className="client-pagination" size="small" current={result?.page || page} pageSize={result?.page_size || pageSize} total={result?.total || 0}
@@ -453,9 +455,9 @@ export default ({record, initialTab, engine, section = "browse", hidden = false,
                     <Splitter.Panel className="client-query-results" min={220}>
                         {(queryResult || queryExecution?.error) && <>
                             <div className="client-result-status"><Space size={10} wrap>{queryResult?.results?.length > 1 ? <Select size="small" variant="filled" placeholder="请选择执行结果" value={queryResultIndex} aria-label="选择 SQL 执行结果"
-                                    options={queryResult.results.map((_: any,index: number) => ({value:index,label:`结果 ${index+1}`}))} onChange={setQueryResultIndex}/>
+                                    options={(Array.isArray(queryResult?.results) ? queryResult?.results : []).map((_: any,index: number) => ({value:index,label:`结果 ${index+1}`}))} onChange={setQueryResultIndex}/>
                                     : <Typography.Text>{queryExecution?.error ? "执行失败" : "执行结果"}</Typography.Text>}
-                                {Boolean(activeQueryResult?.columns?.length) && <Typography.Text type="secondary">{`${activeQueryResult.rows?.length || 0} 条记录 · ${queryResult.elapsed_ms || 0} ms`}</Typography.Text>}</Space>
+                                {Boolean(activeQueryResult?.columns?.length) && <Typography.Text type="secondary">{`${activeQueryResult?.rows?.length || 0} 条记录 · ${queryResult?.elapsed_ms || 0} ms`}</Typography.Text>}</Space>
                                 {(Boolean(activeQueryResult?.rows?.length) || queryOutput) && <Button className="client-result-actions" color="default" variant="filled" size="small" autoInsertSpace={false}
                                     icon={<Icon type="CopyOutlined"/>} onClick={async () => {
                                         // 按表格复制，保留重复列名，并转义单元格内的换行、制表符和引号。
@@ -463,7 +465,7 @@ export default ({record, initialTab, engine, section = "browse", hidden = false,
                                             const text = value == null ? "NULL" : typeof value === "object" ? JSON.stringify(value) : String(value);
                                             return /[\t\r\n"]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
                                         };
-                                        const content = queryOutput || [activeQueryResult.columns, ...activeQueryResult.rows].map((row: any[]) => row.map(cell).join("\t")).join("\n");
+                                        const content = queryOutput || [Array.isArray(activeQueryResult?.columns) ? activeQueryResult?.columns : [], ...(Array.isArray(activeQueryResult?.rows) ? activeQueryResult?.rows : [])].map((row: any[]) => (Array.isArray(row) ? row : []).map(cell).join("\t")).join("\n");
                                         if (await copyTextToClipboard(content)) message.success("复制成功");
                                         else message.error("复制失败，请手动复制");
                                     }}>复制</Button>}
@@ -484,7 +486,7 @@ export default ({record, initialTab, engine, section = "browse", hidden = false,
                     setFilters(encodeSqlFilters(filterFields, columns)); setAppliedFilters(filterFields); setAppliedFilterLogic(filterLogic);
                     setPage(1); reload(); setFilterOpen(false);
                 }
-                catch (reason: any) { message.error(reason.message); }
+                catch (reason: any) { message.error(reason?.message); }
             }} modalProps={{
                 open: filterOpen && !hidden && section === "browse" && tab === "data", className: styles.editor,
                 cancelText: "取消", mask: {closable: true}, destroyOnHidden: true,

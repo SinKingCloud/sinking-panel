@@ -104,7 +104,7 @@ export default (): React.ReactNode => {
             }
             clearRef.current?.hide();
             tableRef.current?.reload();
-            message.success(response.message || "清理成功");
+            message.success(response?.message || "清理成功");
         } catch {
             if (requestRef.current === requestId) message.error("清理失败");
         } finally {
@@ -128,7 +128,7 @@ export default (): React.ReactNode => {
                     if (response?.code !== 200) {
                         throw new Error(response?.message || "获取列表失败");
                     }
-                    return {data: response.data?.list, total: response.data?.total ?? 0, success: true};
+                    return {data: Array.isArray(response?.data?.list) ? response?.data?.list.filter(Boolean) : [], total: response?.data?.total ?? 0, success: true};
                 }}
                 defaultPageSize={20}
                 defaultSort={{id: "descend"}}

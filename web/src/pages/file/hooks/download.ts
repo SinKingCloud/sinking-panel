@@ -24,13 +24,13 @@ const useFileDownload = (path: string) => {
         if (!response) {
             return;
         }
-        if (response.code !== 200 || typeof response.data !== "string" || !response.data) {
-            message.error(response.message || "获取文件下载地址失败");
+        if (response?.code !== 200 || typeof response?.data !== "string" || !response?.data) {
+            message.error(response?.message || "获取文件下载地址失败");
             return;
         }
         try {
             const url = new URL(apiUrl("/preview"));
-            url.searchParams.set("key", response.data);
+            url.searchParams.set("key", response?.data);
             const anchor = document.createElement("a");
             anchor.href = url.toString();
             anchor.download = record.name;

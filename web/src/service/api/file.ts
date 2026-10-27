@@ -135,7 +135,7 @@ export function requestFileUpload<T = any>(
             }
             try {
                 const response = JSON.parse(xhr.responseText) as API.Response<T>;
-                if (!response || typeof response.code !== "number") {
+                if (!response || typeof response?.code !== "number") {
                     reject(createUploadError("FileUploadRequestError", "服务器返回的数据格式不正确"));
                     return;
                 }

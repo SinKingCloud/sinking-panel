@@ -91,9 +91,9 @@ export default ({record}: any) => {
                     ...(current.mode === "pit" ? {cursor: current.cursors.get(page)} : {})});
                 // 查询关闭或被新筛选替代时，迟到的响应也必须释放刚创建的会话。
                 const accept = (response: any) => {
-                    if (["pit", "scroll"].includes(response?.pagination) && response.search_id) {
-                        current.mode = response.pagination;
-                        current.searchId = response.search_id;
+                    if (["pit", "scroll"].includes(response?.pagination) && response?.search_id) {
+                        current.mode = response?.pagination;
+                        current.searchId = response?.search_id;
                     }
                     if (!live.current || request !== sequence.current || current.closed) {
                         if (current.closed || session.current !== current) closeSearch(current);
@@ -112,10 +112,10 @@ export default ({record}: any) => {
                 const loadedPage = redirected ? 1 : page;
                 if (current.mode === "pit") {
                     // 保留最近的游标，不保留文档副本，也不解析可能包含 64 位整数的 sort JSON。
-                    if (data.has_more && data.next_cursor) {
+                    if (data?.has_more && data?.next_cursor) {
                         const number = loadedPage + 1;
-                        current.cursorBytes += (data.next_cursor.length - (current.cursors.get(number)?.length || 0)) * 2;
-                        current.cursors.set(number, data.next_cursor);
+                        current.cursorBytes += (data?.next_cursor?.length - (current.cursors.get(number)?.length || 0)) * 2;
+                        current.cursors.set(number, data?.next_cursor);
                     }
                     while (current.cursors.size > 1000 || current.cursorBytes > 8 * 1024 * 1024) {
                         const oldest = [...current.cursors.keys()].find((value) => value !== 1);
@@ -125,7 +125,7 @@ export default ({record}: any) => {
                     }
                 } else if (current.mode === "scroll") {
                     current.lastPage = loadedPage;
-                    const bytes = JSON.stringify(data).length * 2;
+                    const bytes = (JSON.stringify(data)?.length || 0) * 2;
                     while (current.pages.size && (current.pages.size >= 3 || current.bytes + bytes > 8 * 1024 * 1024)) {
                         const oldest = current.pages.keys().next().value;
                         current.bytes -= current.pages.get(oldest).bytes;
@@ -138,13 +138,13 @@ export default ({record}: any) => {
             // 排序和翻页只更新文档，不重排已有列；同一索引中新发现的字段追加在末尾。
             setColumnFields((value) => {
                 const names = new Set(value.scope === scope ? value.fields : []);
-                for (const item of data?.documents || []) {
-                    for (const name of Object.keys(item._source || {})) names.add(name);
+                for (const item of Array.isArray(data?.documents) ? data?.documents : []) {
+                    for (const name of Object.keys(item?._source || {})) names.add(name);
                 }
                 return value.scope === scope && names.size === value.fields.length ? value : {scope, fields: [...names]};
             });
             current.loaded = true;
-            setResult(data);
+            setResult({...data, documents: Array.isArray(data?.documents) ? data?.documents.filter(Boolean) : []});
             setResultPage(redirected ? 1 : page);
             if (data?.timed_out) message.warning("查询达到时间限制，当前显示已返回的结果");
         })().catch((reason) => {
@@ -155,8 +155,8 @@ export default ({record}: any) => {
                 setSearchExpired(true);
                 closeSearch(current);
                 current.searchId = "";
-                message.error(`${reason.message || "读取文档失败"}，请刷新或返回首页重新加载`);
-            } else message.error(reason.message || "读取文档失败");
+                message.error(`${reason?.message || "读取文档失败"}，请刷新或返回首页重新加载`);
+            } else message.error(reason?.message || "读取文档失败");
         }).finally(() => {
             if (live.current && request === sequence.current && !redirected) { setLoading(false); navigationPending.current = false; }
         });
@@ -187,7 +187,7 @@ export default ({record}: any) => {
             try {
                 await operate(record, "delete", {document_id: item._id, document_type: item._type, routing: item._routing ?? item.fields?._routing?.[0] ?? ""});
                 if (live.current) { message.success("删除成功"); reload(); }
-            } catch (reason: any) { if (live.current) message.error(reason.message || "删除失败"); }
+            } catch (reason: any) { if (live.current) message.error(reason?.message || "删除失败"); }
             finally { pending.current = false; if (live.current) setDeleting(false); }
         }});
     };
@@ -202,7 +202,7 @@ export default ({record}: any) => {
     const previousAvailable = resultPage > 1 && (result?.pagination === "pit" ? session.current?.cursors.has(resultPage - 1) : session.current?.pages.has(resultPage - 1));
     const nextAvailable = result?.has_more && (result?.pagination !== "scroll" || resultPage === session.current?.lastPage || session.current?.pages.has(resultPage + 1));
     const total = Math.min(Number(result?.total) || 0, 10000);
-    const stats = `${result?.total ?? 0}${result?.total_relation === "gte" ? "+" : ""} 条${result?.elapsed_ms !== undefined ? ` · ${result.elapsed_ms} ms` : ""}`;
+    const stats = `${result?.total ?? 0}${result?.total_relation === "gte" ? "+" : ""} 条${result?.elapsed_ms !== undefined ? ` · ${result?.elapsed_ms} ms` : ""}`;
     return <div className="manager-stage">
         <div className="manager-toolbar es-document-toolbar">
             <div className="es-search"><Select variant="borderless" styles={{root: {outline: "none", boxShadow: "none", border: 0}}}

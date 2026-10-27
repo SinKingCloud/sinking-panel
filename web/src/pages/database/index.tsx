@@ -47,8 +47,8 @@ export default () => {
             const [enums, groups] = await Promise.all([getEnum({body: {name: "database"}}).catch(() => undefined), getTypeList({body: {module: "database", order_by_field: "sort", order_by_type: "asc"}})]);
             if (!live.current || request !== catalogRequest.current) return;
             if (groups?.code !== 200) throw new Error(groups?.message || "获取分类失败");
-            setTypes(enums?.code === 200 ? enums.data?.kind || {} : {}); setCategories(Array.isArray(groups.data?.list) ? groups.data.list : []); setReady(true);
-        } catch (reason: any) { if (live.current && request === catalogRequest.current) setError(reason.message || "数据加载失败"); }
+            setTypes(enums?.code === 200 ? enums?.data?.kind || {} : {}); setCategories(Array.isArray(groups?.data?.list) ? groups?.data?.list.filter((item: any) => item?.id != null) : []); setReady(true);
+        } catch (reason: any) { if (live.current && request === catalogRequest.current) setError(reason?.message || "数据加载失败"); }
         finally { if (live.current && request === catalogRequest.current) setLoading(false); }
     }, []);
     useEffect(() => { live.current = true; void loadCatalog(); return () => { live.current = false; catalogRequest.current++; confirmRef.current?.destroy(); }; }, [loadCatalog]);
@@ -68,7 +68,7 @@ export default () => {
                     if (response?.code !== 200) throw new Error(response?.message || "删除实例失败");
                     message.success("删除成功"); tableRef.current?.clearSelectedRows();
                     setWorkspace((value: any) => items.some((item) => String(item.id) === String(value?.id)) ? undefined : value); reload();
-                } catch (reason: any) { if (live.current) message.error(reason.message || "删除实例失败"); }
+                } catch (reason: any) { if (live.current) message.error(reason?.message || "删除实例失败"); }
                 finally { deletingRef.current = false; if (live.current) setDeleting(false); }
             }});
     };
@@ -78,9 +78,9 @@ export default () => {
             params={{type_id: categoryFilter}}
             request={async (params, sort) => {
                 const response = await getDatabaseList({body: getParams({...params}, sort)});
-                if (response?.code !== 200 || !Array.isArray(response.data?.list)) throw new Error(response?.message || "获取实例列表失败");
-                return {data: response.data.list, total: response.data.total ?? 0, success: true};
-            }} onLoad={() => setListError("")} onRequestError={(reason) => { setListError(reason.message); message.error(reason.message); }}
+                if (response?.code !== 200 || !Array.isArray(response?.data?.list)) throw new Error(response?.message || "获取实例列表失败");
+                return {data: response?.data?.list, total: response?.data?.total ?? 0, success: true};
+            }} onLoad={() => setListError("")} onRequestError={(reason) => { setListError(reason?.message); message.error(reason?.message); }}
             emptyContent={error || listError ? <div className="database-empty"><Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="数据加载失败"/>
                 <Button color="default" variant="filled" onClick={() => { void loadCatalog(); reload(); }}>重新加载</Button></div> : undefined}
             hero={{eyebrow: "DATABASE CLIENT", title: "数据管理", action: {label: "添加实例", onClick: () => setCreateOpen(true)}}}

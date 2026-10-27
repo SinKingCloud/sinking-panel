@@ -75,12 +75,12 @@ export default ({record, open = true, onCancel, onConfigure, refreshKey = 0, ini
             ]);
             if (request !== sequence.current) return;
             if (!Array.isArray(data?.list)) throw new Error("数据库列表数据无效，请刷新后重试");
-            const values = data.list.filter((name: any) => typeof name === "string");
-            if (!Number.isInteger(data.page) || data.page < 1 || data.page > page || !Number.isInteger(data.page_size) || data.page_size < 1
-                || !Number.isSafeInteger(data.total) || data.total < 0 || values.length !== data.list.length) throw new Error("数据库列表分页数据无效，请重试");
-            catalogPage.current = {page: data.page, pageSize: data.page_size, total: data.total};
+            const values = data?.list?.filter((name: any) => typeof name === "string");
+            if (!Number.isInteger(data?.page) || data?.page < 1 || data?.page > page || !Number.isInteger(data?.page_size) || data?.page_size < 1
+                || !Number.isSafeInteger(data?.total) || data?.total < 0 || values.length !== data?.list?.length) throw new Error("数据库列表分页数据无效，请重试");
+            catalogPage.current = {page: data?.page, pageSize: data?.page_size, total: data?.total};
             if (connect) {
-                if (!versionData || typeof versionData.version !== "string" || !versionData.version.trim() || !versionData.features || typeof versionData.features !== "object" || Array.isArray(versionData.features)) {
+                if (!versionData || typeof versionData?.version !== "string" || !versionData?.version?.trim() || !versionData?.features || typeof versionData?.features !== "object" || Array.isArray(versionData?.features)) {
                     throw new Error("MySQL 版本信息不完整，请重新连接");
                 }
                 setVersion(versionData);
@@ -90,13 +90,13 @@ export default ({record, open = true, onCancel, onConfigure, refreshKey = 0, ini
             // 搜索或刷新第一页不切换已打开的数据库，后续页也不改变右侧工作区。
             if (page === 1) setSelected((current) => {
                 const next = resetSelection ? "" : preferred || current;
-                if (next && (keyword || data.total > values.length || values.includes(next))) return next;
+                if (next && (keyword || data?.total > values.length || values.includes(next))) return next;
                 return keyword ? "" : values[0] || "";
             });
         } catch (reason: any) {
             if (request !== sequence.current) return;
             sequence.current++; onCancel();
-            message.error(reason.message || "获取数据库列表失败");
+            message.error(reason?.message || "获取数据库列表失败");
         } finally {
             if (request === sequence.current) { catalogPending.current = false; setLoading(false); setLoadingMore(false); }
         }
@@ -177,7 +177,7 @@ export default ({record, open = true, onCancel, onConfigure, refreshKey = 0, ini
                     if (!live.current || instanceKey.current !== key) return;
                     message.success("删除成功"); setNames((values) => values.filter((value) => value !== name));
                     setSelected((value) => value === name ? "" : value); setDetail(undefined); await load();
-                } catch (reason: any) { if (live.current && instanceKey.current === key) message.error(reason.message || "删除数据库失败"); }
+                } catch (reason: any) { if (live.current && instanceKey.current === key) message.error(reason?.message || "删除数据库失败"); }
                 finally { if (live.current && instanceKey.current === key) { pendingDelete.current = false; setDeleting(false); } }
             }});
     };
@@ -226,7 +226,7 @@ export default ({record, open = true, onCancel, onConfigure, refreshKey = 0, ini
         </div>
         {version && <footer className={styles.mysqlInstance}>
             <Typography.Text className="mysql-instance-name" ellipsis={{tooltip: instance?.name}}>{instance?.name}</Typography.Text>
-            <Typography.Text className="mysql-instance-version" ellipsis={{tooltip: `${version.name || "MySQL"} ${version.version}`}}>{version.name || "MySQL"} {version.version}</Typography.Text>
+            <Typography.Text className="mysql-instance-version" ellipsis={{tooltip: `${version?.name || "MySQL"} ${version?.version}`}}>{version?.name || "MySQL"} {version?.version}</Typography.Text>
         </footer>}
     </aside>;
     return <>

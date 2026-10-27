@@ -151,8 +151,8 @@ export function PermissionFields({profiles, options, disabled, allowEmpty = true
 
 export function ConnectionDetails({data, loading, error, description}: any) {
     return <Collapse className="account-network" ghost items={[{key: "connection", label: "连接与访问说明", children: <>
-        {loading ? <Spin size="small"/> : data?.items?.length ? <dl className="account-network-list">
-            {data.items.map((item: any, index: number) => <div key={`${item.label}:${index}`} style={{display: "contents"}}><dt>{item.label}</dt><dd>{item.value || "未设置"}</dd></div>)}
+        {loading ? <Spin size="small"/> : Array.isArray(data?.items) && data?.items?.length ? <dl className="account-network-list">
+            {data?.items?.map((item: any, index: number) => <div key={`${item?.label}:${index}`} style={{display: "contents"}}><dt>{item?.label}</dt><dd>{item?.value || "未设置"}</dd></div>)}
         </dl> : null}
         <div className="account-network-note">{data?.note || description}{error && <><br/>连接信息暂不可读：{error}</>}</div>
     </>}]} />;

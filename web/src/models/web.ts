@@ -21,15 +21,15 @@ export default () => {
      */
     const getInfo = async () => {
         const resp = await getWebInfo();
-        if (resp?.code != 200 || !resp.data) {
+        if (resp?.code != 200 || !resp?.data) {
             return undefined;
         }
         return {
             ...defaults,
-            ...resp.data,
+            ...resp?.data,
             ui: {
                 ...defaults.ui,
-                ...resp.data.ui,
+                ...resp?.data?.ui,
             },
         };
     }

@@ -93,7 +93,7 @@ export default ({record, onChange}: any) => {
                 if (!live.current || scope.current !== target || request !== sequence.current) return;
                 setResult(data === undefined ? null : data); onChange?.();
             } catch (reason: any) {
-                if (live.current && scope.current === target && request === sequence.current) setError(reason.message || "命令执行失败");
+                if (live.current && scope.current === target && request === sequence.current) setError(reason?.message || "命令执行失败");
             } finally {
                 const records = commandHistory(String(record.id), {...execution, elapsed_ms: Math.max(0, Date.now() - execution.time)});
                 if (live.current && scope.current === target && request === sequence.current) { busy.current = false; setLoading(false); setHistory(records); }

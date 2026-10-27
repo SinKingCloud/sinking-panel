@@ -1,4 +1,4 @@
-import {forwardRef, useEffect, useImperativeHandle, useRef, useState} from "react";
+import {forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState} from "react";
 import {Button, Form, Grid, Input, Typography} from "antd";
 import {createStyles} from "antd-style";
 import dayjs from "dayjs";
@@ -78,6 +78,7 @@ const BatchVerification = forwardRef<BatchVerificationRef, BatchVerificationProp
     const modalRef = useRef<ProModalRef | null>(null);
     const [content, setContent] = useState<BatchVerificationProps["session"]>(null);
     const displayedSession = session || content;
+    const challenges = useMemo(() => Array.isArray(displayedSession?.data?.challenges) ? displayedSession?.data?.challenges.filter(Boolean) : [], [displayedSession]);
 
     useEffect(() => {
         if (session) setContent(session);
@@ -115,18 +116,18 @@ const BatchVerification = forwardRef<BatchVerificationRef, BatchVerificationProp
         {displayedSession && <div className={styles.content} aria-busy={busy}>
             <div className={styles.summary}>
                 <div className="verification-tools">
-                    <span className="verification-expiry">有效至 {dayjs.unix(displayedSession.data.expires_at).format("MM-DD HH:mm")}</span>
+                    <span className="verification-expiry">有效至 {dayjs.unix(displayedSession?.data?.expires_at).format("MM-DD HH:mm")}</span>
                     <div className="verification-actions">
                         <Button size="small" color="default" variant="filled" disabled={busy || !session} onClick={onRefresh}>重新获取</Button>
                         <Button size="small" color="default" variant="filled" disabled={busy || !session} onClick={onSkip}>跳过此项</Button>
                     </div>
                 </div>
-                {displayedSession.error && <div className="verification-error" role="alert">{displayedSession.error}</div>}
+                {displayedSession?.error && <div className="verification-error" role="alert">{displayedSession?.error}</div>}
             </div>
-            {displayedSession.data.challenges.length === 0 && <div className={styles.hint}>无需添加验证信息，可直接验证。</div>}
-            {displayedSession.data.challenges.map((record: any, index: number) => <section className={styles.record} key={record.id || index}>
+            {challenges.length === 0 && <div className={styles.hint}>无需添加验证信息，可直接验证。</div>}
+            {challenges.map((record: any, index: number) => <section className={styles.record} key={record.id || index}>
                 {record.type === "HTTP" && <div className="verification-heading">
-                    <span>部署验证文件{displayedSession.data.challenges.length > 1 ? ` ${index + 1}` : ""}</span>
+                    <span>部署验证文件{challenges.length > 1 ? ` ${index + 1}` : ""}</span>
                     <Button size="small" color="default" variant="filled" icon={<Icon type="DownloadOutlined"/>} onClick={() => {
                         const url = URL.createObjectURL(new Blob([record.value], {type: "application/octet-stream"}));
                         const anchor = document.createElement("a");
@@ -145,7 +146,7 @@ const BatchVerification = forwardRef<BatchVerificationRef, BatchVerificationProp
                         {label: "记录名称", value: record.name},
                         {label: "记录值", value: record.value},
                     ]).map(({label, value}) => <Form.Item key={label} label={record.type !== "HTTP" && label === "记录名称" ? <span>
-                        {label}<span className="verification-type">TXT{displayedSession.data.challenges.length > 1 ? ` ${index + 1}` : ""}</span>
+                        {label}<span className="verification-type">TXT{challenges.length > 1 ? ` ${index + 1}` : ""}</span>
                     </span> : label}>
                         <div className="verification-field">
                             <Input.TextArea value={value} readOnly variant="filled" autoSize={{minRows: 1}} spellCheck={false} aria-label={label}/>

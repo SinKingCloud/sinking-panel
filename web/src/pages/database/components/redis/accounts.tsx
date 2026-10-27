@@ -43,8 +43,8 @@ export default ({record}: any) => {
         const request = ++listSequence.current;
         setLoading(true);
         void api.users(record, {action: "list"}).then((data) => {
-            if (live.current && request === listSequence.current) setRows(data?.list || []);
-        }).catch((reason) => { if (live.current && request === listSequence.current) { setRows([]); message.error(reason.message); } })
+            if (live.current && request === listSequence.current) setRows(Array.isArray(data?.list) ? data?.list.filter(Boolean) : []);
+        }).catch((reason) => { if (live.current && request === listSequence.current) { setRows([]); message.error(reason?.message || "操作失败"); } })
             .finally(() => { if (live.current && request === listSequence.current) setLoading(false); });
     }, [record.id, version]);
 
@@ -73,9 +73,9 @@ export default ({record}: any) => {
                 ...(editor.action !== "permissions" ? {password: values.password} : {}),
                 ...(editor.action !== "password" ? {privileges: values.privileges} : {})});
             if (!live.current) return;
-            if (data?.warning) message.warning(data.warning); else message.success("保存成功");
+            if (data?.warning) message.warning(data?.warning); else message.success("保存成功");
             setVersion((value) => value + 1); setEditor(undefined);
-        } catch (reason: any) { if (live.current) message.error(reason.message); }
+        } catch (reason: any) { if (live.current) message.error(reason?.message || "操作失败"); }
         finally { pending.current = false; if (live.current) setBusy(false); }
     };
     const remove = (account: any) => {
@@ -88,9 +88,9 @@ export default ({record}: any) => {
                 try {
                     const data = await api.users(record, {action: "delete", name: account.name});
                     if (!live.current) return;
-                    if (data?.warning) message.warning(data.warning); else message.success("删除成功");
+                    if (data?.warning) message.warning(data?.warning); else message.success("删除成功");
                     setVersion((value) => value + 1);
-                } catch (reason: any) { if (live.current) message.error(reason.message); }
+                } catch (reason: any) { if (live.current) message.error(reason?.message || "操作失败"); }
                 finally { pending.current = false; if (live.current) setBusy(false); }
             }});
     };

@@ -43,14 +43,14 @@ export default function MySQLDatabaseSelect({record, disabled, disabledValues = 
         try {
             const data = await api.databases(record, {keyword: query.current, page, page_size: 20, show_system: true});
             if (!current()) return;
-            if (!Array.isArray(data?.list) || !data.list.every((name: any) => typeof name === "string")
-                || !Number.isSafeInteger(data.total) || data.total < 0 || !Number.isInteger(data.page) || data.page < 1
-                || data.page > page || !Number.isInteger(data.page_size) || data.page_size < 1
-                || (data.page < page && data.page * data.page_size < data.total)
-                || data.list.length > data.page_size || data.list.length > data.total) throw new Error("数据库列表返回的分页数据不完整");
-            const next = (data.list as string[]).map((name) => ({value: name, label: name}));
-            setOptions((previous) => Array.from(new Map([...(data.page === 1 ? [] : previous), ...next].map((option) => [option.value, option])).values()));
-            pagination.current = {page: data.page, pageSize: data.page_size, total: data.total};
+            if (!Array.isArray(data?.list) || !data?.list?.every((name: any) => typeof name === "string")
+                || !Number.isSafeInteger(data?.total) || data?.total < 0 || !Number.isInteger(data?.page) || data?.page < 1
+                || data?.page > page || !Number.isInteger(data?.page_size) || data?.page_size < 1
+                || (data?.page < page && data?.page * data?.page_size < data?.total)
+                || data?.list?.length > data?.page_size || data?.list?.length > data?.total) throw new Error("数据库列表返回的分页数据不完整");
+            const next = (data?.list as string[]).map((name) => ({value: name, label: name}));
+            setOptions((previous) => Array.from(new Map([...(data?.page === 1 ? [] : previous), ...next].map((option) => [option.value, option])).values()));
+            pagination.current = {page: data?.page, pageSize: data?.page_size, total: data?.total};
         } catch (reason: any) {
             if (!current()) return;
             retry.current = page;

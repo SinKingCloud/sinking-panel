@@ -58,7 +58,7 @@ export default ({record, schema, table, collection, isView, isMaterializedView =
             try {
                 const data = await operate(record, "maintenance", {action: tool.action, schema, table, collection});
                 if (!live.current || requestId !== sequence.current) return;
-                if (data?.warning) message.warning(data.warning);
+                if (data?.warning) message.warning(data?.warning);
                 else message.success(data?.message || `${tool.title}已完成`);
                 onChange?.(tool.action);
             } catch (reason: any) {

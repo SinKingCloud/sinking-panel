@@ -188,7 +188,7 @@ const ProcessControls = ({siteId, disabled = false}: any) => {
                 return;
             }
             if (response?.code === 200) {
-                setStatus(response.data);
+                setStatus(response?.data);
                 setLoadError("");
             } else {
                 setLoadError(response?.message || "获取进程状态失败");
@@ -263,7 +263,7 @@ const ProcessControls = ({siteId, disabled = false}: any) => {
                         return;
                     }
                     if (response?.code === 200) {
-                        setStatus(response.data);
+                        setStatus(response?.data);
                     } else {
                         message.error(response?.message || "进程操作失败");
                     }

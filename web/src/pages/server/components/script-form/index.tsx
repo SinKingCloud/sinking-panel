@@ -73,7 +73,7 @@ const ScriptForm = forwardRef<any, any>(({instanceModule, onSuccess}, ref): any 
         if (response?.code !== 200) {
             throw new Error(response?.message || "获取脚本分类失败");
         }
-        const items = Array.isArray(response.data?.list) ? response.data.list : [];
+        const items = Array.isArray(response?.data?.list) ? response?.data?.list.filter(Boolean) : [];
         const modules = instanceModule ? ["ssh", instanceModule] : ["ssh"];
         return Object.fromEntries(modules.map((module) => [module,
             module === "ssh" ? items.filter((item: any) => item.module === "ssh") : items,
@@ -111,7 +111,7 @@ const ScriptForm = forwardRef<any, any>(({instanceModule, onSuccess}, ref): any 
         }).catch((error) => {
             if (requestRef.current !== requestId) return;
             modalRef.current?.hide();
-            message.error(error.message || "获取脚本分类失败");
+            message.error(error?.message || "获取脚本分类失败");
         }).finally(() => {
             if (requestRef.current === requestId) setInfoLoading(false);
         });
@@ -127,17 +127,17 @@ const ScriptForm = forwardRef<any, any>(({instanceModule, onSuccess}, ref): any 
 
         void getScriptInfo({body: {id: record.id}}).then((response) => {
             if (requestRef.current !== requestId) return;
-            if (response?.code !== 200 || !response.data) {
+            if (response?.code !== 200 || !response?.data) {
                 throw new Error(response?.message || "获取脚本详情失败");
             }
             form.setFieldsValue({
-                name: String(response.data.name || ""),
-                script: String(response.data.script || ""),
+                name: String(response?.data?.name || ""),
+                script: String(response?.data?.script || ""),
             });
         }).catch((error) => {
             if (requestRef.current !== requestId) return;
             modalRef.current?.hide();
-            message.error(error.message || "获取脚本详情失败");
+            message.error(error?.message || "获取脚本详情失败");
         }).finally(() => {
             if (requestRef.current === requestId) setInfoLoading(false);
         });
@@ -183,7 +183,7 @@ const ScriptForm = forwardRef<any, any>(({instanceModule, onSuccess}, ref): any 
             const current = requestRef.current === requestId;
             if (response?.code !== 200) {
                 if (current && response) {
-                    message.error(response.message || (editing ? "修改脚本失败" : "添加脚本失败"));
+                    message.error(response?.message || (editing ? "修改脚本失败" : "添加脚本失败"));
                 }
                 return;
             }
@@ -191,7 +191,7 @@ const ScriptForm = forwardRef<any, any>(({instanceModule, onSuccess}, ref): any 
                 return;
             }
             modalRef.current?.hide();
-            message.success(response.message || (editing ? "修改成功" : "添加成功"));
+            message.success(response?.message || (editing ? "修改成功" : "添加成功"));
             onSuccess?.();
         } finally {
             if (requestRef.current === requestId) {

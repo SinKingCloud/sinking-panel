@@ -12,11 +12,11 @@ const DirectorySize = ({className = "", path, count, onCount}: any) => {
         );
     }
     if (count?.status === "success") {
-        return <span className={className}>{formatFileSize(count.data.size)}</span>;
+        return <span className={className}>{formatFileSize(count?.data?.size)}</span>;
     }
     if (count?.status === "error") {
         return (
-            <Tooltip title={count.message}>
+            <Tooltip title={count?.message}>
                 <button
                     className={`${className} calculate error`}
                     type="button"

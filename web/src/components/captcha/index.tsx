@@ -114,15 +114,15 @@ const Captcha = forwardRef<CaptchaRef>((_, ref): any => {
                     const d = res?.data;
                     if (d) {
                         setData({
-                            key: d.key,
-                            image: d.image_base64,
-                            thumb: d.tile_base64,
-                            thumbWidth: d.tile_width,
-                            thumbHeight: d.tile_height,
-                            tileX: d.tile_x,
-                            tileY: d.tile_y,
-                            width: d.width,
-                            height: d.height,
+                            key: d?.key,
+                            image: d?.image_base64,
+                            thumb: d?.tile_base64,
+                            thumbWidth: d?.tile_width,
+                            thumbHeight: d?.tile_height,
+                            tileX: d?.tile_x,
+                            tileY: d?.tile_y,
+                            width: d?.width,
+                            height: d?.height,
                         });
                     }
                 },

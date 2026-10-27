@@ -54,7 +54,7 @@ export default ({open, query, mapping, fields, version, onCancel, onApply}: {
             try { value = JSON.parse(dsl); } catch { throw new Error("请输入有效的 JSON 查询对象"); }
             if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("请输入有效的 JSON 查询对象");
             return {text: dsl, error: ""};
-        } catch (reason: any) { return {text: "", error: reason.message || "请补全筛选条件"}; }
+        } catch (reason: any) { return {text: "", error: reason?.message || "请补全筛选条件"}; }
     }, [mode, visual, candidates, options, dsl, changed]);
 
     const update = (index: number, values: any) => {

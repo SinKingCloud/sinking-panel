@@ -74,8 +74,8 @@ const useFileList = (initialPath = "/") => {
                 return;
             }
 
-            const data = response.data;
-            const list = Array.isArray(data?.list) ? data.list : [];
+            const data = response?.data;
+            const list = Array.isArray(data?.list) ? data?.list.filter((item: any) => item?.name) : [];
             const responseTotal = Number(data?.total);
             const nextTotal = Number.isFinite(responseTotal) && responseTotal > 0 ? responseTotal : 0;
             committedPathRef.current = path;

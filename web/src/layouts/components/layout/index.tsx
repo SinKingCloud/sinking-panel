@@ -354,9 +354,9 @@ const RightTop: React.FC = () => {
             if (!mountedRef.current || requestId !== taskRequestRef.current) {
                 return;
             }
-            if (response?.code === 200 && Array.isArray(response.data)) {
+            if (response?.code === 200 && Array.isArray(response?.data)) {
                 setTasks((current) => {
-                    const pending = new Map<string, any>(response.data.map((task: any) => [task.id, task]));
+                    const pending = new Map<string, any>(response?.data?.filter((task: any) => task?.id).map((task: any) => [task?.id, task]));
                     const next: any[] = [];
                     // 进度刷新沿用已显示的顺序，不受接口返回顺序影响。
                     current.forEach((task) => {

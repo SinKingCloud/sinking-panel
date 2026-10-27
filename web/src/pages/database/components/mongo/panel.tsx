@@ -62,15 +62,15 @@ export default ({record, initialTab, onTabChange}: any) => {
     // 每批文档生成稳定行标识，不依赖 Table 的 index 参数。
     const documentRows = useMemo(() => {
         const occurrences = new Map<string, number>();
-        return (result?.documents || []).map((document: any, index: number) => {
-            const identity = document._id === undefined ? `row:${index}` : `id:${JSON.stringify(document._id)}`;
+        return (Array.isArray(result?.documents) ? result?.documents : []).map((document: any, index: number) => {
+            const identity = document?._id === undefined ? `row:${index}` : `id:${JSON.stringify(document?._id)}`;
             const occurrence = occurrences.get(identity) || 0;
             occurrences.set(identity, occurrence + 1);
             return {key: JSON.stringify([identity, occurrence]), document};
         });
     }, [result?.documents]);
-    const documentFields = useMemo(() => Array.from(new Set<string>(documentRows.flatMap(({document}: any) => Object.keys(document)))), [documentRows]);
-    const sampleFields = useMemo(() => Array.from(new Set<string>(sampleDocuments.flatMap((document) => Object.keys(document)))), [sampleDocuments]);
+    const documentFields = useMemo(() => Array.from(new Set<string>(documentRows.flatMap(({document}: any) => Object.keys(document || {})))), [documentRows]);
+    const sampleFields = useMemo(() => Array.from(new Set<string>(sampleDocuments.flatMap((document) => Object.keys(document || {})))), [sampleDocuments]);
     const [objectAction, setObjectAction] = useState<any>();
     collectionRef.current = collection;
 
@@ -80,11 +80,11 @@ export default ({record, initialTab, onTabChange}: any) => {
         setCatalogLoading(true);
         void operate(record, "collections").then((data) => {
             if (!live.current || request !== collectionRequest.current) return;
-            const values = Array.isArray(data) ? data : [];
+            const values = Array.isArray(data) ? data.filter((item) => typeof item?.name === "string") : [];
             setCollections(values);
             const next = values.some((item) => item.name === collectionRef.current) ? collectionRef.current : values[0]?.name || "";
             if (next !== collectionRef.current) choose(next);
-        }).catch((reason) => { if (live.current && request === collectionRequest.current) message.error(reason.message); })
+        }).catch((reason) => { if (live.current && request === collectionRequest.current) message.error(reason?.message || "操作失败"); })
             .finally(() => { if (live.current && request === collectionRequest.current) setCatalogLoading(false); });
     }, [record.id, record.name, catalogVersion, operate]);
     useEffect(() => {
@@ -95,12 +95,12 @@ export default ({record, initialTab, onTabChange}: any) => {
         setLoading(true);
         void operate(record, "documents", {collection, ...conditions, page, page_size: pageSize}).then((data) => {
             if (live.current && request === documentRequest.current) {
-                setResult(data);
+                setResult({...data, documents: Array.isArray(data?.documents) ? data?.documents.filter(Boolean) : []});
                 // 留下少量完整样本，筛选为空或隐藏字段后仍可选择字段并识别类型。
-                if (data?.documents?.length && conditions.projection === "{}") setSampleDocuments(data.documents.slice(0, 20));
+                if (Array.isArray(data?.documents) && data?.documents?.length && conditions.projection === "{}") setSampleDocuments(data?.documents?.slice(0, 20));
                 if (data?.truncated) message.warning("本页数据较大，请减少每页条数或筛选显示字段后继续浏览");
             }
-        }).catch((reason) => { if (live.current && request === documentRequest.current) { setResult(undefined); message.error(reason.message); } })
+        }).catch((reason) => { if (live.current && request === documentRequest.current) { setResult(undefined); message.error(reason?.message || "操作失败"); } })
             .finally(() => { if (live.current && request === documentRequest.current) setLoading(false); });
     }, [record.id, record.name, collection, conditions, page, pageSize, version, tab, operate]);
     useEffect(() => {
@@ -110,8 +110,8 @@ export default ({record, initialTab, onTabChange}: any) => {
         if (!collection || collections.some((item) => item.name === collection && item.type === "view")) { setIndexes([]); return; }
         setIndexLoading(true);
         void operate(record, "indexes", {collection}).then((data) => {
-            if (live.current && request === indexRequest.current) setIndexes(data || []);
-        }).catch((reason) => { if (live.current && request === indexRequest.current) { setIndexes([]); message.error(reason.message); } })
+            if (live.current && request === indexRequest.current) setIndexes(Array.isArray(data) ? data.filter(Boolean) : []);
+        }).catch((reason) => { if (live.current && request === indexRequest.current) { setIndexes([]); message.error(reason?.message || "操作失败"); } })
             .finally(() => { if (live.current && request === indexRequest.current) setIndexLoading(false); });
     }, [record.id, record.name, collection, version, collections, tab, operate]);
 
@@ -133,7 +133,7 @@ export default ({record, initialTab, onTabChange}: any) => {
             setAppliedQueryCount(draft.query ? Object.values(query).filter((value) => value !== "{}").length : draft.filters.length + draft.sort.length + draft.projection.length);
             setPage(1);
             return true;
-        } catch (reason: any) { message.error(reason.message); return false; }
+        } catch (reason: any) { message.error(reason?.message || "操作失败"); return false; }
     };
     const showAction = async (operation: string, document?: any) => {
         const request = ++editRequest.current;
@@ -145,11 +145,11 @@ export default ({record, initialTab, onTabChange}: any) => {
                 // 列表可能使用字段投影，替换前重新读取完整文档，避免删除未显示的字段。
                 const response = await operate(record, "documents", {collection: targetCollection, filter: JSON.stringify({_id: document._id}), page: 1, page_size: 1});
                 if (!live.current || request !== editRequest.current || targetCollection !== collectionRef.current) return;
-                if (!response?.documents?.length || (operation === "update" && response.truncated)) throw new Error(response?.truncated ? "文档内容不完整，无法编辑" : "文档已不存在，请刷新列表");
-                partial = Boolean(response.truncated);
-                initialValues.content = mongoFields(response.documents[0], true);
+                if (!response?.documents?.length || (operation === "update" && response?.truncated)) throw new Error(response?.truncated ? "文档内容不完整，无法编辑" : "文档已不存在，请刷新列表");
+                partial = Boolean(response?.truncated);
+                initialValues.content = mongoFields(response?.documents?.[0], true);
             } catch (reason: any) {
-                if (live.current && request === editRequest.current) message.error(reason.message);
+                if (live.current && request === editRequest.current) message.error(reason?.message || "操作失败");
                 return;
             }
         } else if (operation === "view") { initialValues.content = mongoFields(document); partial = Boolean(result?.truncated) || conditions.projection !== "{}"; }
@@ -176,7 +176,7 @@ export default ({record, initialTab, onTabChange}: any) => {
                 form.setFieldValue("content", fields);
             }
             setDocumentMode(mode);
-        } catch (reason: any) { message.error(reason.message); }
+        } catch (reason: any) { message.error(reason?.message || "操作失败"); }
     };
     const submit = async (values: any) => {
         if (busyRef.current || !action || action.operation === "view") return;
@@ -203,7 +203,7 @@ export default ({record, initialTab, onTabChange}: any) => {
                     body = {...body, filter: JSON.stringify(action.filter), update: JSON.stringify(document), many: false, upsert: false};
                 }
             }
-        } catch (reason: any) { message.error(reason.message); return; }
+        } catch (reason: any) { message.error(reason?.message || "操作失败"); return; }
         busyRef.current = true; setSaving(true);
         try {
             const response = await operate(record, action.operation, body);
@@ -211,14 +211,14 @@ export default ({record, initialTab, onTabChange}: any) => {
             if (!live.current) return;
             message.success("保存成功"); setAction(undefined); reload();
             if (action.operation === "create_collection") { setCatalogVersion((value) => value + 1); choose(body.collection); }
-        } catch (reason: any) { if (live.current) message.error(reason.message); }
+        } catch (reason: any) { if (live.current) message.error(reason?.message || "操作失败"); }
         finally { busyRef.current = false; if (live.current) setSaving(false); }
     };
     const confirmDelete = (operation: string, body: any, title: string) => {
         const confirmation = modal.confirm({title, content: "将直接删除数据库中的内容，此操作不可撤销。", okText: "删除", cancelText: "取消", okButtonProps: {danger: true},
             afterClose: () => { confirmations.current.delete(confirmation); }, onOk: async () => {
                 try { await operate(record, operation, body); if (live.current) { message.success("删除成功"); reload(); if (operation === "drop_collection") { choose(""); setCatalogVersion((value) => value + 1); } } }
-                catch (reason: any) { if (live.current) message.error(reason.message); }
+                catch (reason: any) { if (live.current) message.error(reason?.message || "操作失败"); }
             }});
         confirmations.current.add(confirmation);
         void Promise.resolve(confirmation);
@@ -252,10 +252,10 @@ export default ({record, initialTab, onTabChange}: any) => {
             columns={[...fields.map((name) => ({title: name, key: name, width: name === "_id" ? 220 : 170, ellipsis: true, sorter: true,
                 sortOrder: Number(sort[name]?.$numberInt ?? sort[name]?.$numberLong ?? sort[name]) === 1 ? "ascend" : Number(sort[name]?.$numberInt ?? sort[name]?.$numberLong ?? sort[name]) === -1 ? "descend" : null,
                 render: (_: any, {document}: any) => {
-                    const text = displayValue(document[name]);
-                    return <Tooltip title={text.length < 3000 ? text : undefined}><span style={{color: document[name] === null ? "var(--ant-color-text-quaternary)" : undefined}}>{text}</span></Tooltip>;
+                    const text = displayValue(document?.[name]);
+                    return <Tooltip title={text.length < 3000 ? text : undefined}><span style={{color: document?.[name] === null ? "var(--ant-color-text-quaternary)" : undefined}}>{text}</span></Tooltip>;
                 }})), {title: "操作", key: "action", fixed: "right" as const, align: "center" as const, width: 76, render: (_: any, {document}: any) => {
-                    const readonly = currentCollection?.type === "view" || document._id === undefined;
+                    const readonly = currentCollection?.type === "view" || document?._id === undefined;
                     return <ActionDropdown menu={{items: [
                         {key: "view", label: "详情", onClick: () => void showAction("view", document)},
                         ...(!readonly ? [{key: "edit", label: "编辑", onClick: () => void showAction("update", document)},
@@ -297,7 +297,7 @@ export default ({record, initialTab, onTabChange}: any) => {
                             <Button color="default" variant="filled" icon={<ReloadOutlined/>} loading={tab === "indexes" ? indexLoading : loading} aria-label="刷新数据" onClick={reload}/>
                         </div>}/>
                     {tab === "documents" ? <>{documents()}
-                        <div className="manager-footer"><span className="manager-statistics">共 {result?.total || 0} 条{result?.elapsed_ms !== undefined ? ` · ${result.elapsed_ms} ms` : ""}</span>
+                        <div className="manager-footer"><span className="manager-statistics">共 {result?.total || 0} 条{result?.elapsed_ms !== undefined ? ` · ${result?.elapsed_ms} ms` : ""}</span>
                             <Pagination size="small" current={result?.page || page} pageSize={pageSize} total={Number(result?.total || 0)} showSizeChanger={Boolean(screens.md)} showQuickJumper={Boolean(screens.md)} simple={!screens.md}
                                 pageSizeOptions={[20, 50, 100, 500, 1000]} onChange={(next, size) => { setPage(size === pageSize ? next : 1); setPageSize(size); }}/></div>
                     </> : <div className="manager-table"><VirtualTable rowKey="name" size="small" dataSource={indexes} loading={indexLoading} pagination={false} scroll={{x: 766}}
@@ -353,7 +353,7 @@ export default ({record, initialTab, onTabChange}: any) => {
                         <Segmented size="small" shape="default" value={documentMode} disabled={saving} options={[{value: "fields", label: "字段编辑"}, {value: "json", label: "JSON 编辑"}]} onChange={(value) => changeDocumentMode(String(value))}/>
                         {documentMode === "json" && displayAction?.operation !== "view" && <Button color="default" variant="filled" size="small" disabled={saving} onClick={() => {
                             try { form.setFieldValue("document", JSON.stringify(readDocument(form.getFieldValue("document")), null, 2)); }
-                            catch (reason: any) { message.error(reason.message); }
+                            catch (reason: any) { message.error(reason?.message || "操作失败"); }
                         }}>美化</Button>}
                     </div>
                     {documentMode === "fields" ? <Form.Item key="content" name="content" validateTrigger="onBlur" rules={[{validator: async (_, value) => { mongoDocument(value || []); }}]}>

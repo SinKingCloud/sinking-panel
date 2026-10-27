@@ -45,6 +45,7 @@ export default ({record}: any) => {
         // 保存 properties/fields 的实际路径，嵌套对象与多字段不能按点号拆分后混用。
         const collect = (fields: any, prefix = "", parents: any[] = [], key = "properties") => {
             for (const [name, definition] of Object.entries<any>(fields || {})) {
+                if (!definition || typeof definition !== "object") continue;
                 const path = [...parents, {key, name, definition}];
                 values.push({name: `${prefix}${name}`, type: definition.type || (definition.properties ? "object" : "—"), definition, path, isSubfield: key === "fields"});
                 if (definition.properties) collect(definition.properties, `${prefix}${name}.`, path);
@@ -67,7 +68,7 @@ export default ({record}: any) => {
         void operate(record, "mapping").then((data) => {
             if (!live.current || request !== sequence.current) return;
             setData(data);
-        }).catch((reason) => { if (live.current && request === sequence.current) { setData(undefined); message.error(reason.message || "读取索引配置失败"); } })
+        }).catch((reason) => { if (live.current && request === sequence.current) { setData(undefined); message.error(reason?.message || "读取索引配置失败"); } })
             .finally(() => { if (live.current && request === sequence.current) setLoading(false); });
     }, [record.id, record.name, operate, refresh]);
     useEffect(() => {
@@ -130,7 +131,7 @@ export default ({record}: any) => {
                 setEditorOpen(false);
                 setRefresh((value) => value + 1);
             }
-        } catch (reason: any) { if (live.current && request === sequence.current) message.error(reason.message || "保存失败"); }
+        } catch (reason: any) { if (live.current && request === sequence.current) message.error(reason?.message || "保存失败"); }
         finally { pending.current = false; if (live.current) setSaving(false); }
     };
     const refreshFields = () => {
