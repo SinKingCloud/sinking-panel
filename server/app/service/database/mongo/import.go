@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"go.mongodb.org/mongo-driver/bson"
-	client "go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	client "go.mongodb.org/mongo-driver/v2/mongo"
 )
 
 // Import 逐文档读取 mongodump 的单集合 BSON 文件，不加载整个备份或自动重试写入。

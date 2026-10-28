@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"go.mongodb.org/mongo-driver/bson"
-	client "go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	client "go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
 // Collections 列举当前数据库的集合。
@@ -161,7 +161,9 @@ func (m *Manager) Documents(ctx context.Context, collectionName, filterJSON, sor
 		return nil, e
 	}
 	started := time.Now()
-	total, e := collection.CountDocuments(ctx, filter, options.Count().SetMaxTime(25*time.Second))
+	countCtx, cancelCount := context.WithTimeout(ctx, 25*time.Second)
+	total, e := collection.CountDocuments(countCtx, filter)
+	cancelCount()
 	if e != nil {
 		return nil, e
 	}
@@ -174,15 +176,17 @@ func (m *Manager) Documents(ctx context.Context, collectionName, filterJSON, sor
 			Value: 1,
 		}}
 	}
-	opts := options.Find().SetSkip(int64(page-1) * int64(size)).SetLimit(int64(size + 1)).SetBatchSize(int32(min(size, 50))).SetSort(sort).SetMaxTime(25 * time.Second)
+	opts := options.Find().SetSkip(int64(page-1) * int64(size)).SetLimit(int64(size + 1)).SetBatchSize(int32(min(size, 50))).SetSort(sort)
 	if len(projection) > 0 {
 		opts.SetProjection(projection)
 	}
-	cursor, e := collection.Find(ctx, filter, opts)
+	queryCtx, cancelQuery := context.WithTimeout(ctx, 25*time.Second)
+	defer cancelQuery()
+	cursor, e := collection.Find(queryCtx, filter, opts)
 	if e != nil {
 		return nil, e
 	}
-	data, e := m.readCursor(ctx, cursor, size, page)
+	data, e := m.readCursor(queryCtx, cursor, size, page)
 	if e != nil {
 		return nil, e
 	}
@@ -278,9 +282,9 @@ func (m *Manager) Update(ctx context.Context, collectionName, filterJSON, update
 		}
 		updated, e = collection.ReplaceOne(ctx, filter, update, options.Replace().SetUpsert(upsert))
 	} else if many {
-		updated, e = collection.UpdateMany(ctx, filter, update, options.Update().SetUpsert(upsert))
+		updated, e = collection.UpdateMany(ctx, filter, update, options.UpdateMany().SetUpsert(upsert))
 	} else {
-		updated, e = collection.UpdateOne(ctx, filter, update, options.Update().SetUpsert(upsert))
+		updated, e = collection.UpdateOne(ctx, filter, update, options.UpdateOne().SetUpsert(upsert))
 	}
 	if e != nil {
 		return nil, e
@@ -361,11 +365,13 @@ func (m *Manager) Aggregate(ctx context.Context, collectionName, pipelineJSON st
 		Value: limit + 1,
 	}})
 	started := time.Now()
-	cursor, e := collection.Aggregate(ctx, pipeline, options.Aggregate().SetBatchSize(50).SetMaxTime(25*time.Second))
+	queryCtx, cancelQuery := context.WithTimeout(ctx, 25*time.Second)
+	defer cancelQuery()
+	cursor, e := collection.Aggregate(queryCtx, pipeline, options.Aggregate().SetBatchSize(50))
 	if e != nil {
 		return nil, e
 	}
-	data, e := m.readCursor(ctx, cursor, limit, 1)
+	data, e := m.readCursor(queryCtx, cursor, limit, 1)
 	if e != nil {
 		return nil, e
 	}
@@ -384,6 +390,40 @@ func (m *Manager) Command(ctx context.Context, commandJSON string) (result inter
 	command, e := m.parse(commandJSON, "数据库命令", true)
 	if e != nil {
 		return nil, e
+	}
+	// v2 根据 context 自动附加 maxTimeMS，用户指定的上限转为 context，避免重复字段。
+	fields := command[:0]
+	for _, field := range command {
+		if field.Key != "maxTimeMS" {
+			fields = append(fields, field)
+			continue
+		}
+		var milliseconds int64
+		switch value := field.Value.(type) {
+		case int32:
+			milliseconds = int64(value)
+		case int64:
+			milliseconds = value
+		case float64:
+			milliseconds = int64(value)
+			if float64(milliseconds) != value {
+				return nil, errors.New("maxTimeMS 必须是非负整数")
+			}
+		default:
+			return nil, errors.New("maxTimeMS 必须是非负整数")
+		}
+		if milliseconds < 0 {
+			return nil, errors.New("maxTimeMS 必须是非负整数")
+		}
+		if milliseconds > 0 && milliseconds < 30000 {
+			var cancelCommand context.CancelFunc
+			ctx, cancelCommand = context.WithTimeout(ctx, time.Duration(milliseconds)*time.Millisecond)
+			defer cancelCommand()
+		}
+	}
+	command = fields
+	if len(command) == 0 {
+		return nil, errors.New("请填写数据库命令")
 	}
 	if strings.EqualFold(command[0].Key, "shutdown") {
 		return nil, errors.New("关闭数据库请通过软件管理或终端操作")
@@ -531,6 +571,5 @@ func (m *Manager) DropIndex(ctx context.Context, collectionName, name string) (r
 	if name == "" || name == "*" {
 		return nil, errors.New("请选择具体索引")
 	}
-	_, e := collection.Indexes().DropOne(ctx, name)
-	return nil, e
+	return nil, collection.Indexes().DropOne(ctx, name)
 }

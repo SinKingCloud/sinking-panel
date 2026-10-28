@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 // Version 返回服务器版本和功能支持情况；读取失败时保留真实错误。

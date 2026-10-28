@@ -8,12 +8,11 @@ import (
 	"strings"
 	"time"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
 // DatabaseInfo 确认当前数据库存在，并读取真实集合、文档和存储统计。
-// 不发送 MongoDB 4.0.5 才加入的 authorizedDatabases，兼容驱动支持的 3.6。
 func (m *Manager) DatabaseInfo(ctx context.Context) (result map[string]interface{}, err error) {
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()

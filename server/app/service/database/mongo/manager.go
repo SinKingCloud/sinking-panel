@@ -16,10 +16,10 @@ import (
 	"strings"
 	"time"
 
-	"go.mongodb.org/mongo-driver/bson"
-	client "go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
-	"go.mongodb.org/mongo-driver/mongo/readpref"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	client "go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
+	"go.mongodb.org/mongo-driver/v2/mongo/readpref"
 )
 
 // Manager 管理指定数据库的连接，可独立完成文档、索引和账户操作。
@@ -29,7 +29,7 @@ type Manager struct {
 	secrets  []string
 }
 
-// NewManager 使用结构化参数配置 MongoDB 主机、认证库和 TLS。
+// NewManager 使用结构化参数配置 MongoDB 4.4 及以上版本的主机、认证库和 TLS。
 func NewManager(ctx context.Context, config, databaseName string) (*Manager, error) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
@@ -93,11 +93,13 @@ func NewManager(ctx context.Context, config, databaseName string) (*Manager, err
 			opts.TLSConfig.Certificates = []tls.Certificate{certificate}
 		}
 	}
-	opts.SetConnectTimeout(5 * time.Second).SetServerSelectionTimeout(5 * time.Second).SetSocketTimeout(30 * time.Second).SetMaxPoolSize(2).SetMinPoolSize(0).SetRetryReads(false).SetRetryWrites(false)
+	opts.SetConnectTimeout(5 * time.Second).SetServerSelectionTimeout(5 * time.Second).SetTimeout(30 * time.Second).SetMaxPoolSize(2).SetMinPoolSize(0).SetRetryReads(false).SetRetryWrites(false)
+	// 配置和状态中的嵌套文档按映射读取，避免默认 bson.D 导致字段断言失败。
+	opts.SetBSONOptions(&options.BSONOptions{DefaultDocumentM: true})
 	if err := opts.Validate(); err != nil {
 		return nil, errors.New("MongoDB 连接配置不合法")
 	}
-	c, err := client.Connect(ctx, opts)
+	c, err := client.Connect(opts)
 	if err != nil {
 		return nil, errors.New("创建 MongoDB 连接失败")
 	}

@@ -6,13 +6,13 @@ import (
 	"strings"
 	"time"
 
-	"go.mongodb.org/mongo-driver/bson"
-	client "go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	client "go.mongodb.org/mongo-driver/v2/mongo"
 )
 
 // Validate 校验集合，禁止操作系统集合。
 func (m *Manager) Validate(ctx context.Context, collectionName string) (result interface{}, err error) {
-	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 25*time.Second)
 	defer cancel()
 	defer func() { err = m.cleanError(err) }()
 	collection, err := m.collection(collectionName)
@@ -26,9 +26,6 @@ func (m *Manager) Validate(ctx context.Context, collectionName string) (result i
 	if err = m.database.RunCommand(ctx, bson.D{{
 		Key:   "validate",
 		Value: collection.Name(),
-	}, {
-		Key:   "maxTimeMS",
-		Value: 25000,
 	}}).Decode(&document); err != nil {
 		return nil, err
 	}
@@ -51,7 +48,7 @@ func (m *Manager) Validate(ctx context.Context, collectionName string) (result i
 
 // Compact 压缩集合，禁止操作系统集合。
 func (m *Manager) Compact(ctx context.Context, collectionName string) (result interface{}, err error) {
-	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 25*time.Second)
 	defer cancel()
 	defer func() { err = m.cleanError(err) }()
 	collection, err := m.collection(collectionName)
@@ -65,9 +62,6 @@ func (m *Manager) Compact(ctx context.Context, collectionName string) (result in
 	if err = m.database.RunCommand(ctx, bson.D{{
 		Key:   "compact",
 		Value: collection.Name(),
-	}, {
-		Key:   "maxTimeMS",
-		Value: 25000,
 	}}).Decode(&document); err != nil {
 		return nil, err
 	}
@@ -90,7 +84,7 @@ func (m *Manager) Compact(ctx context.Context, collectionName string) (result in
 
 // DropCollection 删除集合，保留重复删除的幂等行为并保护系统集合。
 func (m *Manager) DropCollection(ctx context.Context, collectionName string) (result interface{}, err error) {
-	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 25*time.Second)
 	defer cancel()
 	defer func() { err = m.cleanError(err) }()
 	collection, err := m.collection(collectionName)
@@ -104,9 +98,6 @@ func (m *Manager) DropCollection(ctx context.Context, collectionName string) (re
 	if err = m.database.RunCommand(ctx, bson.D{{
 		Key:   "drop",
 		Value: collection.Name(),
-	}, {
-		Key:   "maxTimeMS",
-		Value: 25000,
 	}}).Decode(&document); err != nil {
 		var commandError client.CommandError
 		if errors.As(err, &commandError) && commandError.Code == 26 {

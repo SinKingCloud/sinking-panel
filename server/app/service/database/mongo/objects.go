@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"go.mongodb.org/mongo-driver/bson"
-	client "go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	client "go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
 // viewPipeline 保留 Extended JSON 类型；空数组表示不转换源数据。
@@ -200,8 +200,10 @@ func (m *Manager) UpdateView(ctx context.Context, viewName, pipelineJSON string)
 		return nil, err
 	}
 	source := current.(map[string]interface{})["source"].(string)
+	commandCtx, cancelCommand := context.WithTimeout(ctx, 25*time.Second)
+	defer cancelCommand()
 	var document bson.Raw
-	if err = m.database.RunCommand(ctx, bson.D{{
+	if err = m.database.RunCommand(commandCtx, bson.D{{
 		Key:   "collMod",
 		Value: viewName,
 	}, {
@@ -210,9 +212,6 @@ func (m *Manager) UpdateView(ctx context.Context, viewName, pipelineJSON string)
 	}, {
 		Key:   "pipeline",
 		Value: pipeline,
-	}, {
-		Key:   "maxTimeMS",
-		Value: 25000,
 	}}).Decode(&document); err != nil {
 		return nil, err
 	}

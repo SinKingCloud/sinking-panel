@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 // ConnectionInfo 仅提取监听和认证字段，不返回启动参数中的密钥或其他敏感信息。

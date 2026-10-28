@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
 // Export 将一个集合逐文档写入标准 BSON 文件，可交给 mongorestore 恢复。
