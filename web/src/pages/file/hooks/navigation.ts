@@ -8,7 +8,6 @@ import {readFileStorage, updateFileStorage} from "./file-storage";
 
 const readLastPath = () => {
     try {
-        window.localStorage.removeItem("file.selected.disk");
         const value = readFileStorage().lastPath;
         return value ? normalizeFilePath(value) : "";
     } catch {

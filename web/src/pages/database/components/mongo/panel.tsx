@@ -74,7 +74,8 @@ export default ({record, initialTab, onTabChange}: any) => {
     const [objectAction, setObjectAction] = useState<any>();
     collectionRef.current = collection;
 
-    useEffect(() => { live.current = true; return () => { live.current = false; confirmations.current.forEach((item) => item.destroy()); confirmations.current.clear(); }; }, []);
+    useEffect(() => { live.current = true; return () => { live.current = false; editRequest.current++; confirmations.current.forEach((item) => item.destroy()); confirmations.current.clear(); }; }, []);
+    useEffect(() => { editRequest.current++; setAction(undefined); }, [record.id, record.name]);
     useEffect(() => {
         const request = ++collectionRequest.current;
         setCatalogLoading(true);
@@ -119,6 +120,7 @@ export default ({record, initialTab, onTabChange}: any) => {
     const choose = (name: string) => {
         if (name !== collectionRef.current) {
             documentRequest.current += 1; indexRequest.current += 1; editRequest.current += 1;
+            setAction(undefined);
             setResult(undefined); setSampleDocuments([]); setIndexes([]);
             setConditions({filter: "{}", sort: "{}", projection: "{}"}); setQueryDraft(emptyMongoQuery()); setAppliedQueryCount(0);
         }
@@ -136,11 +138,15 @@ export default ({record, initialTab, onTabChange}: any) => {
         } catch (reason: any) { message.error(reason?.message || "操作失败"); return false; }
     };
     const showAction = async (operation: string, document?: any) => {
+        if (busyRef.current) return;
         const request = ++editRequest.current;
         const targetCollection = collection;
         const initialValues: any = {};
         let partial = false;
+        const next = {operation, collection: targetCollection, request, filter: document?._id === undefined ? undefined : {_id: document._id}};
+        setDocumentMode("fields");
         if (["update", "view"].includes(operation) && document?._id !== undefined && !(operation === "view" && collections.some((item) => item.name === collection && item.type === "view"))) {
+            setAction({...next, loading: true});
             try {
                 // 列表可能使用字段投影，替换前重新读取完整文档，避免删除未显示的字段。
                 const response = await operate(record, "documents", {collection: targetCollection, filter: JSON.stringify({_id: document._id}), page: 1, page_size: 1});
@@ -149,15 +155,19 @@ export default ({record, initialTab, onTabChange}: any) => {
                 partial = Boolean(response?.truncated);
                 initialValues.content = mongoFields(response?.documents?.[0], true);
             } catch (reason: any) {
-                if (live.current && request === editRequest.current) message.error(reason?.message || "操作失败");
+                if (live.current && request === editRequest.current) {
+                    editRequest.current++;
+                    setAction(undefined);
+                    message.error(reason?.message || "操作失败");
+                }
                 return;
             }
         } else if (operation === "view") { initialValues.content = mongoFields(document); partial = Boolean(result?.truncated) || conditions.projection !== "{}"; }
         else if (operation === "insert") initialValues.content = [newMongoField()];
         else if (operation === "create_index") Object.assign(initialValues, {name: "", fields: [newMongoOrder()], unique: false, sparse: false, index_expiry: "none"});
-        setDocumentMode("fields");
-        setAction({operation, collection, partial, initialValues, filter: document?._id === undefined ? undefined : {_id: document._id}});
+        setAction({...next, partial, initialValues});
     };
+    const closeAction = () => { if (!busyRef.current) { editRequest.current++; setAction(undefined); } };
     const readDocument = (text: string) => {
         const document = mongoJSON(text || "");
         // JSON 编辑同样保留原文档标识，转换为字段时继续锁定 _id。
@@ -179,7 +189,7 @@ export default ({record, initialTab, onTabChange}: any) => {
         } catch (reason: any) { message.error(reason?.message || "操作失败"); }
     };
     const submit = async (values: any) => {
-        if (busyRef.current || !action || action.operation === "view") return;
+        if (busyRef.current || !action || action.loading || action.operation === "view") return;
         let body: any = {collection: action.collection};
         try {
             if (action.operation === "create_collection") body.collection = values.name.trim();
@@ -319,13 +329,15 @@ export default ({record, initialTab, onTabChange}: any) => {
             </div>}
         </div>
         <ProModal title={<Title>{({insert: "添加文档", update: "编辑文档", view: "查看文档", create_collection: "新建集合", create_index: "添加索引"} as any)[displayAction?.operation]}</Title>}
-            onCancel={() => { if (!saving) setAction(undefined); }} onOk={() => displayAction?.operation === "view" ? setAction(undefined) : form.submit()} okText={displayAction?.operation === "view" ? "确认" : "保存"}
+            onCancel={closeAction} onOk={() => { if (!action?.loading) displayAction?.operation === "view" ? closeAction() : form.submit(); }} okText={displayAction?.operation === "view" ? "确认" : "保存"}
             modalProps={{open: Boolean(action), rootClassName: styles.modal,
+                footer: displayAction?.loading ? null : undefined,
                 width: displayAction?.operation === "create_collection" ? (compact ? 340 : 360) : displayAction?.operation === "create_index" ? (compact ? 440 : 480) : (compact ? 480 : 540), zIndex: 1140,
                 styles: {wrapper: {paddingInline: 12}, body: {maxHeight: "none", overflow: "visible"}}, style: {maxWidth: "calc(100vw - 24px)"}, confirmLoading: saving, cancelText: "取消",
-                closable: !saving, keyboard: !saving, mask: {closable: !saving}, cancelButtonProps: {disabled: saving, style: displayAction?.operation === "view" ? {display: "none"} : undefined}, destroyOnHidden: true}}>
+                closable: !saving, keyboard: !saving, mask: {closable: !saving}, okButtonProps: {disabled: Boolean(action?.loading)}, cancelButtonProps: {disabled: saving, style: displayAction?.operation === "view" ? {display: "none"} : undefined}, destroyOnHidden: true}}>
+            {displayAction?.loading ? <div style={{height: 180, display: "grid", placeItems: "center"}}><Spin size="large"/></div> : <>
             {displayAction?.partial && <Typography.Text type="secondary" className="nosql-readonly">当前文档内容不完整，仅可查看。</Typography.Text>}
-            <Form form={form} key={`${displayAction?.operation}:${JSON.stringify(displayAction?.filter || {})}`} initialValues={displayAction?.initialValues} clearOnDestroy layout="vertical" variant="filled" onFinish={submit} disabled={saving || displayAction?.operation === "view"}>
+            <Form form={form} key={displayAction?.request} initialValues={displayAction?.initialValues} clearOnDestroy layout="vertical" variant="filled" onFinish={submit} disabled={saving || displayAction?.operation === "view"}>
                 {(displayAction?.operation === "create_collection" || displayAction?.operation === "create_index") && <ConfigProvider theme={{components: {Input: {controlHeight: token.controlHeight}}}}><Form.Item name="name"
                     label={displayAction?.operation === "create_collection" ? "集合名称" : "索引名称"}
                     rules={displayAction?.operation === "create_collection" ? [{required: true, whitespace: true, message: "请输入集合名称"}] : []}><Input placeholder={displayAction?.operation === "create_collection" ? "例如 users" : "留空自动生成"}/></Form.Item></ConfigProvider>}
@@ -366,6 +378,7 @@ export default ({record, initialTab, onTabChange}: any) => {
                     </Form.Item>}
                 </ConfigProvider>}
             </Form>
+            </>}
         </ProModal>
         <MongoObjectEditor record={record} collections={collections} action={objectAction} onClose={() => setObjectAction(undefined)}
             onChange={(name: string) => { choose(name); setCatalogVersion((value) => value + 1); reload(); }}/>

@@ -2,18 +2,21 @@ package types
 
 import (
 	"server/app/constant"
+	"strconv"
 	"strings"
 )
 
-// GetEnum 获取分类枚举，支持 database% 这样的模块前缀查询。
+// GetEnum 获取分类枚举；实例范围包含全局分类，也支持 script_database% 前缀查询。
 func (s *service) GetEnum(module string) (map[int64]string, error) {
 	// 模糊查询直接读取，避免任意前缀缓存无法随分类变更精确失效。
 	if strings.Contains(module, "%") {
 		return s.repositoryTypes.SelectIdNameMap(module)
 	}
 	modules := []string{module}
-	if base, _, scoped := strings.Cut(module, "_"); scoped {
-		modules = append(modules, base)
+	if index := strings.LastIndexByte(module, '_'); index > 0 {
+		if _, err := strconv.ParseUint(module[index+1:], 10, 64); err == nil {
+			modules = append(modules, module[:index])
+		}
 	}
 	result := make(map[int64]string)
 	for _, current := range modules {

@@ -8,23 +8,32 @@ import (
 	"server/app/model"
 )
 
-// Group 获取group所有数据
+// Group 获取 group 所有数据，优先读取缓存，查询失败时返回空映射。
 func (s *service) Group(group string) map[string]string {
 	key := constant.CacheNameWithSysConfig + group
-	value := s.cache.Get(key)
-	if value != nil {
+	if value := s.cache.Get(key); value != nil {
 		return value.(map[string]string)
 	}
-	temp := make(map[string]string)
+	configs, err := s.GroupWithError(group)
+	if err != nil {
+		return make(map[string]string)
+	}
+	return configs
+}
+
+// GroupWithError 直接读取配置表，区分“没有配置”和“查询失败”，供业务初始化使用。
+// 成功后刷新缓存，避免初始化依据陈旧的空缓存覆盖数据库中已有的设置。
+func (s *service) GroupWithError(group string) (map[string]string, error) {
 	configs, err := s.repositoryConfig.FindByGroup(group)
 	if err != nil {
-		return temp
+		return nil, err
 	}
-	for _, v := range configs {
-		temp[v.Key] = v.Value
+	result := make(map[string]string, len(configs))
+	for _, config := range configs {
+		result[config.Key] = config.Value
 	}
-	s.cache.SetWithExpire(key, temp, constant.CacheTimeWithSysConfig)
-	return temp
+	s.cache.SetWithExpire(constant.CacheNameWithSysConfig+group, result, constant.CacheTimeWithSysConfig)
+	return result, nil
 }
 
 // Set 设置数据

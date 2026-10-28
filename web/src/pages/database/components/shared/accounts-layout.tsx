@@ -70,7 +70,6 @@ export default (props: AccountLayoutProps) => {
                 ...(props.sourceColumn ? [props.sourceColumn] : []),
                 {title: "数据权限", key: "permissions", render: (_: any, account: any) => props.renderPermissions(account)},
                 {title: "操作", key: "operation", width: 84, align:"center", fixed:"right", render: (_: any, account: any) => {
-                    if (props.busy) return null;
                     const items = [
                         ...(account.password_editable ?? !account.protected ? [{key: "password", label: "密码", onClick: () => props.onPassword(account)}] : []),
                         ...(!account.protected ? [
@@ -79,7 +78,7 @@ export default (props: AccountLayoutProps) => {
                             {type: "divider" as const}, {key: "delete", label: "删除", danger: true, onClick: () => props.onRemove(account)},
                         ] : []),
                     ];
-                    return items.length ? <Actions menu={{items}}><Button color="default" variant="filled" size="small" autoInsertSpace={false}>操作</Button></Actions> : null;
+                    return items.length ? <Actions disabled={props.busy} menu={{items}}><Button color="default" variant="filled" size="small" autoInsertSpace={false} disabled={props.busy}>操作</Button></Actions> : null;
                 }},
             ]}/>
         {props.onQueryChange && <div className="client-footer" style={{visibility: props.pagination ? undefined : "hidden"}}>

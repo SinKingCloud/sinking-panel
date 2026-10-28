@@ -4,7 +4,7 @@ package elasticsearch
 type Config struct {
 	Host     string `json:"host" label:"主机地址" default:"127.0.0.1"`
 	Port     int    `json:"port" label:"端口" default:"9200" min:"1" max:"65535"`
-	User     string `json:"user" label:"用户名" aliases:"username"`
+	User     string `json:"user" label:"用户名"`
 	Password string `json:"password" label:"密码" encrypt:"true"`
 	APIKey   string `json:"api_key" label:"API Key" encrypt:"true"`
 	TLS      string `json:"tls" label:"TLS 连接" default:"" options:":默认,false:关闭,true:验证证书,skip-verify:跳过证书验证"`

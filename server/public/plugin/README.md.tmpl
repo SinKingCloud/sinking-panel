@@ -94,7 +94,7 @@
 ```text
 [[.ID]]/
 ├── README.md               # 本文档
-├── software.json           # 标识、名称、版本、页面入口、适用平台与依赖软件
+├── software.json           # 标识、名称、版本、页面入口、图标、适用平台与依赖软件
 ├── sdk/                    # 当前面板生成的公开 API 声明，仅用于开发
 │   ├── go.mod
 │   ├── sdk.go
@@ -110,6 +110,7 @@
 │   └── task.go             # 可取消的后台任务
 └── web/
     ├── index.tsx           # 工作台导航、宿主 modal 配置与普通 React 组件入口
+    ├── icon.svg            # 软件列表和默认管理标题的图标，可替换或从清单移除
     ├── types.ts            # 页面参数与请求类型
     ├── sdk.d.ts            # 前端共享 sdk 模块的编辑器声明
     ├── styles.ts           # 基于系统主题的样式
@@ -136,6 +137,7 @@
   "name": [[json .Name]],
   "version": "1.0.0",
   "frontend": "web/index.tsx",
+  "icon": "web/icon.svg",
   "platforms": [],
   "requires": []
 }
@@ -147,6 +149,7 @@
 | `name` | 软件名称，非空，最长 100 字节。 |
 | `version` | 版本文本，非空，最长 50 字节。升级时会传入新旧版本值，宿主不自动比较版本大小。 |
 | `frontend` | 包内前端入口，必须位于 `web/`；纯后端插件可以设为空字符串。 |
+| `icon` | 可选图标的包内相对路径，例如 `web/icon.svg`。必须在 `web/` 下且文件存在，支持 SVG、PNG、JPG/JPEG、WebP、ICO、GIF，大小不超过 8 MiB。省略或设为空字符串时使用面板默认图标。 |
 | `platforms` | 允许的 Go 系统标识，例如 `linux`、`windows`、`darwin`；空数组表示不限制。 |
 | `requires` | 依赖的软件标识数组，例如 `["redis", "mysql"]`，填写依赖软件 `software.json` 中的 `id`；空数组表示不依赖其他软件。 |
 
@@ -540,7 +543,7 @@ export default function Page({request}: Pick<PluginPageProps, "request">) {
 
 | 参数 | 内容 |
 | --- | --- |
-| `software` | 软件详情：`id`、`name`、`code`、`version`、`status`、`create_time`、`update_time`、`frontend`。不包含内部配置或重复清单。 |
+| `software` | 软件详情：`id`、`name`、`code`、`version`、`icon`、`status`、`create_time`、`update_time`、`frontend`。不包含内部配置或重复清单。 |
 | `request(action, params?)` | 调用当前软件的接口，自动使用面板请求与鉴权，返回响应的 `data`。 |
 | `onClose()` | 关闭当前管理弹窗，可用于页面内的完成、返回或关闭按钮。 |
 
@@ -593,6 +596,8 @@ export const modal: PluginModal = ({software, compact, mobile, token, onClose}) 
 
 `modal` 函数只计算配置，不调用 Hooks、不发请求，也不返回 Promise；需要 Hooks 的页面逻辑仍放在默认导出的 React 组件中。主题或屏幕断点改变时，面板会重新计算配置。
 
+demo 不设置 `modal.title`，默认标题由宿主显示软件名称和清单图标；没有图标时显示应用图标（`AppstoreOutlined`）。上例的 `title` 是自定义标题示范，会完整替换默认标题；希望沿用清单图标时，删除这一项即可。
+
 可直接使用 `width`、`title`、`footer`、`style`、`styles`、`className`、`rootClassName`、`classNames`、`centered`、`mask`、`closable` 等原生弹窗属性。宽度可用数字、CSS 字符串或 Ant Design 的响应式对象；内容高度和内部滚动可通过 `styles.body.height`、`maxHeight`、`overflow` 配置。`styles` 和 `classNames` 也支持 Ant Design 原生的函数形式。
 
 `style` 与宿主默认样式浅合并，插件同名属性优先；`styles.body` 默认包含 `minWidth: 0`，插件可以覆盖。未导出 `modal` 时，保持面板默认弹窗：普通模式宽 1080，紧凑模式宽 960，无底部操作栏。插件配置只作用于当前打开的软件。
@@ -608,6 +613,23 @@ import type {PluginPageProps} from "./types";
 ```
 
 支持 `.ts`、`.tsx`、`.js`、`.jsx`、`.mjs`、`.json`。相对导入可以省略扩展名，也可以导入目录中的 `index` 文件。模块会按依赖关系加载和转换，不需要手动合并文件。
+
+非首屏页面建议用 `React.lazy` 和 `Suspense` 按需加载，避免打开软件时下载、转换全部功能页。示例中的记录、配置、任务和文档页面都采用这种方式：
+
+```tsx
+import React, {lazy, Suspense} from "react";
+import {Spin} from "antd";
+
+const Notes = lazy(() => import("./components/notes"));
+
+export default function Page({request}) {
+    return <Suspense fallback={<Spin size="large"/>}>
+        <Notes request={request}/>
+    </Suspense>;
+}
+```
+
+公共组件和编译器由面板复用，源码转换结果有容量受限的缓存；重新打开时仍会检查源码，修改过的文件会重新转换。页面关闭后组件状态、模块实例和订阅会释放，后端 Yaegi 实例则在面板进程中持续复用，直到插件卸载、升级或面板退出。
 
 可直接使用的共享模块：
 
@@ -635,9 +657,24 @@ import type {PluginPageProps} from "./types";
 /software/[[.ID]]/page                       → 清单指定的 web/index.tsx
 /software/[[.ID]]/page/components/notes.tsx  → web/components/notes.tsx
 /software/[[.ID]]/page/styles.ts             → web/styles.ts
+/software/[[.ID]]/page/icon.svg              → web/icon.svg
 ```
 
 子资源 URL 不包含第二层 `web/`。通常直接写相对模块导入即可，由加载器解析资源路径。资源请求也需要面板身份验证。
+
+图片资源支持 SVG、PNG、JPG/JPEG、WebP、ICO、GIF，单个文件不超过 8 MiB。
+
+清单中的 `icon` 填写包内路径 `web/icon.svg`，不要填写 HTTP 地址或 `/software/...` URL。图标随 `web/` 一起打包；安装和升级会检查路径、文件类型和大小。列表、详情中的 `icon` 原样返回该路径，宿主使用现有受认证的 `page` 接口获取图标，URL 应为 `/software/[[.ID]]/page/icon.svg`，不要写成 `/page/web/icon.svg`。替换图标后重新安装软件包即可生效。
+
+不需要自定义图标时，删除清单的 `icon` 字段，或设置为空字符串：
+
+```json
+{
+  "icon": ""
+}
+```
+
+软件列表和默认管理标题会显示应用图标（`AppstoreOutlined`）。图标加载期间、请求失败或图片无法解码时也使用该图标，保持原有占位尺寸，避免文字位置跳动。移除 `web/icon.svg` 文件时应同时删除或清空 `icon`；清单仍指定不存在的文件会导致安装校验失败。
 
 ### 页面组织与样式
 
@@ -1090,7 +1127,7 @@ Yaegi 与原生 Go 编译器不完全等价。涉及 CGO、汇编、编译器特
 
 本 demo 已按实际解释执行验证过的写法组织生命周期：结构体字段逐项赋值，停止时分别等待完成通道。扩展时若遇到原生编译正常、解释执行反射报错，可先保留这些写法再缩小问题范围。
 
-生成 SDK 可能引用宿主使用的第三方模块，`go mod vendor` 也可能带入这些依赖。交付时只保留运行确实需要的源码，避免把重复宿主依赖、开发工具或构建缓存全部打包。当前软件包限制为最多 1000 个文件、解压后 64 MB。
+生成 SDK 可能引用宿主使用的第三方模块，`go mod vendor` 也可能带入这些依赖。交付时只保留运行确实需要的源码，避免把重复宿主依赖、开发工具或构建缓存全部打包。当前软件包限制为最多 1000 个文件、源码合计 64 MiB；可选镜像归档使用单独的 16 GiB 预算。
 
 ### SDK 更新
 
@@ -1150,6 +1187,7 @@ plugin.zip
 │   └── vendor/             # 有额外 Go 依赖时携带
 └── web/
     ├── index.tsx
+    ├── icon.svg
     ├── styles.ts
     └── components/…
 ```
@@ -1166,7 +1204,7 @@ Windows PowerShell 可使用：
 Compress-Archive -Path software.json, server, web -DestinationPath ..\[[.ID]].zip -Force
 ```
 
-不要加入 `node_modules`、构建缓存、面板源码、镜像归档或根目录开发 `sdk/`。ZIP 最多 32 MB、解压后最多 64 MB、最多 1000 个文件。源码文件必须是普通文件，软件包不接受符号链接、特殊文件或越界路径。依赖的软件镜像通过用户配置或后续业务下载，不塞进插件源码包。
+不要加入 `node_modules`、构建缓存、面板源码或根目录开发 `sdk/`。源码合计最多 64 MiB，最多 1000 个 ZIP 条目。需要离线安装镜像时，可在 `images/` 放置 `.tar`、`.tar.gz`、`.tgz` 归档与 `.json` 校验清单；镜像归档合计最多 16 GiB，JSON 计入源码预算。ZIP 上限为 16 GiB + 80 MiB，展开上限为 16 GiB + 64 MiB。源码目录安装自动携带 `images/` 并采用 ZIP Store 流式打包镜像；手动制作 ZIP 时也需携带此目录。插件从 `app.PackagePath` 定位随包镜像，已有镜像应先复用，缺失时才导入。软件包不接受符号链接、特殊文件或越界路径。
 
 交付给开发者的源码工程可以另外包含 `README.md` 与 `sdk/`，和交付给面板安装的 ZIP 区分即可。
 

@@ -4,6 +4,7 @@ import {createStyles} from "antd-style";
 import {ProModal, ProModalRef, Title, useTheme} from "sinking-antd";
 import defaultSettings from "@/../config/defaultSettings";
 import AceEditor from "@/components/ace-editor";
+import ScriptTools from "@/pages/components/script-tools";
 import {createTask, getTaskInfo, updateTask} from "@/service/api/task";
 import {parseRequest, stringifyRequest} from "../../utils";
 import Request from "../request";
@@ -36,6 +37,23 @@ const useStyles = createStyles(({css, token}: any) => ({
         display: flex;
         align-items: center;
         justify-content: center;
+    `,
+    scriptField: css`
+        > .ant-row > .ant-form-item-label > label {
+            width: 100%;
+        }
+    `,
+    scriptLabel: css`
+        display: flex;
+        flex: 1;
+        align-items: center;
+        justify-content: space-between;
+        min-width: 0;
+        gap: 8px;
+
+        > .ant-btn {
+            font-size: ${token.fontSizeSM}px;
+        }
     `,
 }));
 
@@ -294,7 +312,17 @@ const Form = forwardRef<any, {typeData?: any; typeItems?: any[]; execTypeData?: 
                         {execType === 0 ? (
                             <AntForm.Item
                                 name="script"
-                                label="任务内容"
+                                className={styles.scriptField}
+                                label={<span className={styles.scriptLabel}>
+                                    <span>任务内容</span>
+                                    <ScriptTools
+                                        module="script_task"
+                                        mode="sh"
+                                        Editor={AceEditor}
+                                        disabled={submitting}
+                                        value={() => String(form.getFieldValue("script") || "")}
+                                        onUse={(script) => form.setFieldValue("script", script)}/>
+                                </span>}
                                 rules={[{required: true, whitespace: true, message: "请输入任务内容"}]}>
                                 <AceEditor
                                     mode="sh"

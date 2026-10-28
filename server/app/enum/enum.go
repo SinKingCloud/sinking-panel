@@ -9,6 +9,7 @@ import (
 	"server/app/enum/database_type"
 	"server/app/enum/file_format"
 	"server/app/enum/log_type"
+	"server/app/enum/script_module"
 	"server/app/enum/secret_name"
 	"server/app/enum/secret_provider"
 	"server/app/enum/server_auth_type"
@@ -74,6 +75,9 @@ var Data = map[string]interface{}{
 	},
 	"type": map[string]interface{}{
 		"module": type_module.Map(), //类型所属模块
+	},
+	"script": map[string]interface{}{
+		"module": script_module.Map(), //脚本所属模块
 	},
 	"system": map[string]interface{}{
 		"task_status": system_task_status.Map(), //任务状态

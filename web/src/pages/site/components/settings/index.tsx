@@ -3146,7 +3146,7 @@ const WAFPane = ({site, styles, hideHeader = false}: any) => {
             };
             const rawOWASP = data.owasp || {};
             const hasCustomProtection = (Array.isArray(data.rules) && data.rules.some((item: any) => item?.enabled && (
-                item?.directive || (Array.isArray(item?.conditions) && item.conditions.length) || (Array.isArray(item?.groups) && item.groups.length)
+                Array.isArray(item?.groups) && item.groups.length
             )))
                 || (Array.isArray(data.directives) && data.directives.some((item: any) => String(item || "").trim()));
             const hasOWASPConfig = Boolean(rawOWASP.enabled || rawOWASP.paranoia_level || rawOWASP.inbound_anomaly_score_threshold);
@@ -3160,29 +3160,14 @@ const WAFPane = ({site, styles, hideHeader = false}: any) => {
                 Object.entries(preset).every(([key, value]) => Number(owasp[key]) === value),
             )?.[0] || "custom";
 
-            const rules: any[] = [];
-            const expert_rules: any[] = [];
-            (Array.isArray(data.rules) ? data.rules : []).forEach((item: any) => {
-                const directive = String(item?.directive || "").trim();
-                if ((Array.isArray(item?.groups) && item.groups.length) || (Array.isArray(item?.conditions) && item.conditions.length)) {
-                    const groups = Array.isArray(item?.groups) && item.groups.length
-                        ? item.groups.map(normalizeWAFGroup)
-                        : [{
-                            match: item.match === "all" ? "all" : "any",
-                            conditions: item.conditions.map(normalizeWAFCondition),
-                        }];
-                    rules.push({
-                        id: String(item.id || ""),
-                        name: String(item.name || ""),
-                        enabled: Boolean(item.enabled),
-                        match: item.match === "all" ? "all" : "any",
-                        action: item.action === "log" ? "log" : "block",
-                        groups,
-                    });
-                    return;
-                }
-                expert_rules.push({...item, directive});
-            });
+            const rules = (Array.isArray(data.rules) ? data.rules : []).map((item: any) => ({
+                id: String(item?.id || ""),
+                name: String(item?.name || ""),
+                enabled: Boolean(item?.enabled),
+                match: item?.match === "all" ? "all" : "any",
+                action: item?.action === "log" ? "log" : "block",
+                groups: (Array.isArray(item?.groups) ? item.groups : []).map(normalizeWAFGroup),
+            }));
             return {
                 ...data,
                 enabled: Boolean(data.enabled),
@@ -3193,7 +3178,6 @@ const WAFPane = ({site, styles, hideHeader = false}: any) => {
                 owasp,
                 protection_level,
                 rules,
-                expert_rules,
                 directives_text: (Array.isArray(data.directives) ? data.directives : []).join("\n"),
             };
         }}
@@ -3223,16 +3207,9 @@ const WAFPane = ({site, styles, hideHeader = false}: any) => {
                             };
                         }),
                     })),
-                    conditions: [],
-                    directive: "",
                 };
             });
-            (Array.isArray(data.expert_rules) ? data.expert_rules : []).forEach((item: any) => rules.push({
-                id: String(item.id || "").trim(),
-                name: String(item.name || "").trim(),
-                enabled: Boolean(item.enabled),
-                directive: String(item.directive || "").trim(),
-            }));
+
             return {
                 enabled: Boolean(data.enabled),
                 mode: data.mode || "block",
@@ -3351,23 +3328,13 @@ const WAFPane = ({site, styles, hideHeader = false}: any) => {
 
             <Collapse ghost expandIconPlacement="end" items={[{key: "expert", label: "专家设置", children: <>
                 <Form.Item name="directives_text" label="底层 Coraza 指令" extra="每行一条原生 Coraza 配置；语法错误会导致网站配置无法生效，普通用户请保持为空"><Input.TextArea placeholder="普通用户无需填写" autoSize={{minRows: 3, maxRows: 10}}/></Form.Item>
-                <Form.List name="expert_rules">{(fields, {remove}) => fields.length ? <>
-                    <div className="waf-rules-hint" style={{marginBottom: 8}}>以下旧规则无法转换成可视化表单，将按原内容保留。</div>
-                    {fields.map(({key, name}) => <div className={styles.rule} key={key}>
-                        <Form.Item name={[name, "name"]} label="规则名称"><Input placeholder="请输入规则名称"/></Form.Item>
-                        <Form.Item name={[name, "id"]} label="规则 ID"><Input placeholder="请输入规则 ID"/></Form.Item>
-                        <Form.Item name={[name, "enabled"]} label="启用" valuePropName="checked"><Switch/></Form.Item>
-                        <Form.Item name={[name, "directive"]} label="原始规则"><Input.TextArea placeholder="请输入原始 Coraza 规则" autoSize={{minRows: 2, maxRows: 6}}/></Form.Item>
-                        <Button color="danger" variant="text" className={styles.ruleAction} size="small" onClick={() => remove(name)}>删除旧规则</Button>
-                    </div>)}
-                </> : null}</Form.List>
             </>}]}/>
         </> : null}</Form.Item>
     </ConfigForm>;
 };
 
 const RatePane = ({site, styles, hideHeader = false}: any) => <ConfigForm site={site} request={siteRateLimit} update={siteRateLimit} title="访问频率" description="限制单个访客在指定时间内的请求次数" styles={styles} hideHeader={hideHeader}
-    normalize={(data: any) => ({...data, enabled: Boolean(data.enabled), key: !data.key || data.key === "{http.request.client_ip}" ? "{http.vars.client_ip}" : data.key, window: seconds(data.window) || 60, max_events: Number(data.max_events || 100), paths: Array.isArray(data.paths) ? data.paths : [], methods: Array.isArray(data.methods) ? data.methods : [], ipv4_prefix: data.ipv4_prefix == null ? 32 : data.ipv4_prefix, ipv6_prefix: data.ipv6_prefix == null ? 128 : data.ipv6_prefix})}
+    normalize={(data: any) => ({...data, enabled: Boolean(data.enabled), key: data.key || "{http.vars.client_ip}", window: seconds(data.window) || 60, max_events: Number(data.max_events || 100), paths: Array.isArray(data.paths) ? data.paths : [], methods: Array.isArray(data.methods) ? data.methods : [], ipv4_prefix: data.ipv4_prefix == null ? 32 : data.ipv4_prefix, ipv6_prefix: data.ipv6_prefix == null ? 128 : data.ipv6_prefix})}
     serialize={(data: any) => ({...data, methods: splitValues(data.methods).filter((value) => value !== "*"), paths: splitValues(data.paths), window: duration(data.window)})}>
     <SettingSwitch
         name="enabled"

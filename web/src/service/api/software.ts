@@ -30,7 +30,24 @@ export async function uninstallSoftware(params: API.RequestParams = {}) {
 
 /** 按软件标识调用管理接口，业务参数直接传入请求体。 */
 export async function callSoftware(code: string, method: string, params: API.RequestParams = {}) {
-    return post(`/software/${encodeURIComponent(code)}/${encodeURIComponent(method)}`, params.body, params.onSuccess, params.onFail, params.onFinally);
+    // 镜像导入和首次数据库初始化可能超过普通接口的一分钟限制。
+    const timeout = ["setup", "start", "stop", "restart", "reload"].includes(method) ? 660000 : 60000;
+    return post(`/software/${encodeURIComponent(code)}/${encodeURIComponent(method)}`, params.body, params.onSuccess, params.onFail, params.onFinally,
+        undefined, {timeout});
+}
+
+/** 图标走已有资源接口，以请求头鉴权，失败由展示组件回退默认图标。 */
+export async function getSoftwareIcon(code: string, icon: string, signal: AbortSignal): Promise<Blob> {
+    const path = icon.startsWith("web/") ? icon.slice(4) : "";
+    if (!code || !path || path.split("/").some((part) => !part || part === "." || part === "..")) {
+        throw new Error("软件图标路径无效");
+    }
+    const blob = await request<Blob>(`/software/${encodeURIComponent(code)}/page/${path.split("/").map(encodeURIComponent).join("/")}`, {
+        method: "GET", headers: getHeaders(), responseType: "blob", signal,
+        errorHandler: (error) => { throw error; },
+    });
+    if (!(blob instanceof Blob) || !blob.type.startsWith("image/")) throw new Error("软件图标内容无效");
+    return blob;
 }
 
 /** 读取软件前端入口或相对 web 目录的资源，沿用面板鉴权。 */

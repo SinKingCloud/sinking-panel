@@ -959,7 +959,6 @@ func (m *Manager) normalizeWAF(waf *WAFOptions) error {
 		rule := &waf.Rules[index]
 		rule.ID = strings.TrimSpace(rule.ID)
 		rule.Name = strings.TrimSpace(rule.Name)
-		rule.Directive = strings.TrimSpace(rule.Directive)
 		if rule.ID == "" {
 			return errors.New("WAF 规则 ID 不能为空")
 		}
@@ -973,61 +972,49 @@ func (m *Manager) normalizeWAF(waf *WAFOptions) error {
 			return fmt.Errorf("WAF 规则 %s 的名称包含非法字符", rule.ID)
 		}
 		ruleIDs[rule.ID] = struct{}{}
-		structured := len(rule.Conditions) > 0 || len(rule.Groups) > 0
-		if structured {
-			if len(rule.Conditions) > 0 && len(rule.Groups) > 0 {
-				return fmt.Errorf("WAF 规则 %s 不能同时配置条件和条件组", rule.ID)
+		if len(rule.Groups) == 0 {
+			if rule.Enabled {
+				return fmt.Errorf("WAF 规则 %s 内容不能为空", rule.ID)
 			}
-			rule.Match = WAFMatch(strings.ToLower(strings.TrimSpace(string(rule.Match))))
-			if rule.Match == "" {
-				rule.Match = WAFMatchAny
+			continue
+		}
+		rule.Match = WAFMatch(strings.ToLower(strings.TrimSpace(string(rule.Match))))
+		if rule.Match == "" {
+			rule.Match = WAFMatchAny
+		}
+		if rule.Match != WAFMatchAny && rule.Match != WAFMatchAll {
+			return fmt.Errorf("WAF 规则 %s 的匹配逻辑无效", rule.ID)
+		}
+		rule.Action = WAFAction(strings.ToLower(strings.TrimSpace(string(rule.Action))))
+		if rule.Action == "" {
+			rule.Action = WAFActionBlock
+		}
+		if rule.Action != WAFActionBlock && rule.Action != WAFActionLog {
+			return fmt.Errorf("WAF 规则 %s 的命中动作无效", rule.ID)
+		}
+		if len(rule.Groups) > 10 {
+			return fmt.Errorf("WAF 规则 %s 最多只能配置 10 个条件组", rule.ID)
+		}
+		totalConditions := 0
+		for groupIndex := range rule.Groups {
+			group := &rule.Groups[groupIndex]
+			group.Match = WAFMatch(strings.ToLower(strings.TrimSpace(string(group.Match))))
+			if group.Match == "" {
+				group.Match = WAFMatchAll
 			}
-			if rule.Match != WAFMatchAny && rule.Match != WAFMatchAll {
-				return fmt.Errorf("WAF 规则 %s 的匹配逻辑无效", rule.ID)
+			if group.Match != WAFMatchAny && group.Match != WAFMatchAll {
+				return fmt.Errorf("WAF 规则 %s 的第 %d 个条件组匹配逻辑无效", rule.ID, groupIndex+1)
 			}
-			rule.Action = WAFAction(strings.ToLower(strings.TrimSpace(string(rule.Action))))
-			if rule.Action == "" {
-				rule.Action = WAFActionBlock
+			if len(group.Conditions) == 0 {
+				return fmt.Errorf("WAF 规则 %s 的第 %d 个条件组不能为空", rule.ID, groupIndex+1)
 			}
-			if rule.Action != WAFActionBlock && rule.Action != WAFActionLog {
-				return fmt.Errorf("WAF 规则 %s 的命中动作无效", rule.ID)
+			totalConditions += len(group.Conditions)
+			if totalConditions > 20 {
+				return fmt.Errorf("WAF 规则 %s 最多只能配置 20 个条件", rule.ID)
 			}
-			if len(rule.Conditions) > 0 {
-				if len(rule.Conditions) > 20 {
-					return fmt.Errorf("WAF 规则 %s 最多只能配置 20 个条件", rule.ID)
-				}
-				if err := normalizeConditions(rule.ID, "", rule.Conditions); err != nil {
-					return err
-				}
-			} else {
-				if len(rule.Groups) > 10 {
-					return fmt.Errorf("WAF 规则 %s 最多只能配置 10 个条件组", rule.ID)
-				}
-				totalConditions := 0
-				for groupIndex := range rule.Groups {
-					group := &rule.Groups[groupIndex]
-					group.Match = WAFMatch(strings.ToLower(strings.TrimSpace(string(group.Match))))
-					if group.Match == "" {
-						group.Match = WAFMatchAll
-					}
-					if group.Match != WAFMatchAny && group.Match != WAFMatchAll {
-						return fmt.Errorf("WAF 规则 %s 的第 %d 个条件组匹配逻辑无效", rule.ID, groupIndex+1)
-					}
-					if len(group.Conditions) == 0 {
-						return fmt.Errorf("WAF 规则 %s 的第 %d 个条件组不能为空", rule.ID, groupIndex+1)
-					}
-					totalConditions += len(group.Conditions)
-					if totalConditions > 20 {
-						return fmt.Errorf("WAF 规则 %s 最多只能配置 20 个条件", rule.ID)
-					}
-					if err := normalizeConditions(rule.ID, fmt.Sprintf("第 %d 个条件组的", groupIndex+1), group.Conditions); err != nil {
-						return err
-					}
-				}
+			if err := normalizeConditions(rule.ID, fmt.Sprintf("第 %d 个条件组的", groupIndex+1), group.Conditions); err != nil {
+				return err
 			}
-			rule.Directive = ""
-		} else if rule.Enabled && rule.Directive == "" {
-			return fmt.Errorf("WAF 规则 %s 内容不能为空", rule.ID)
 		}
 		if rule.Enabled {
 			hasRule = true
@@ -1103,7 +1090,7 @@ func (m *Manager) normalizeCache(cache *CacheOptions, siteID string) error {
 
 func (m *Manager) normalizeRateLimit(limit *RateLimitOptions) error {
 	limit.Key = strings.TrimSpace(limit.Key)
-	if limit.Key == "" || limit.Key == "{http.request.client_ip}" {
+	if limit.Key == "" {
 		limit.Key = "{http.vars.client_ip}"
 	}
 	if !limit.Enabled {

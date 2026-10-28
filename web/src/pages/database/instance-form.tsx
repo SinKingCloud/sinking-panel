@@ -1,4 +1,4 @@
-import {useLayoutEffect, useRef, useState} from "react";
+import {useEffect, useRef, useState} from "react";
 import {App, Button, Collapse, Form, Grid, Input, InputNumber, Select, Spin, Typography} from "antd";
 import {Icon, ProModal, Title, useTheme} from "sinking-antd";
 import FilePicker from "@/pages/components/file-picker";
@@ -21,20 +21,23 @@ export default ({open, record, categories = [], onCancel, onSuccess}: any) => {
     const busyRef = useRef(false);
     const testedRef = useRef("");
     const lastType = useRef(record?.type);
-    const type = Number(open ? record?.type : lastType.current) || 0;
+    if (open && record) lastType.current = record.type;
+    const type = Number(lastType.current) || 0;
     const [loadedId, setLoadedId] = useState<number>();
+    const [entered, setEntered] = useState(false);
     const [loading, setLoading] = useState(true);
     const [busy, setBusy] = useState("");
     const [testResult, setTestResult] = useState<any>();
     const [advanced, setAdvanced] = useState<string[]>([]);
     const fields = connectionFields[type] || [];
-    const waiting = loading || (open && loadedId !== record?.id);
+    const waiting = loading || (open && (!entered || loadedId !== record?.id));
     const unavailable = waiting || !fields.length;
 
-    useLayoutEffect(() => {
+    useEffect(() => {
         const requestId = ++requestRef.current;
-        if (!open || !record?.id) return;
-        lastType.current = record.type;
+        if (!open) { setEntered(false); return; }
+        // 先显示弹窗和 loading，再初始化表单，避免重置字段阻塞入场绘制。
+        if (!entered || !record?.id) return;
         busyRef.current = false;
         setLoadedId(undefined);
         testedRef.current = "";
@@ -64,7 +67,7 @@ export default ({open, record, categories = [], onCancel, onSuccess}: any) => {
             }
         })();
         return () => { requestRef.current += 1; };
-    }, [open, record?.id]);
+    }, [open, entered, record?.id]);
 
     const connectionBody = () => ({
         id: record.id,
@@ -165,11 +168,13 @@ export default ({open, record, categories = [], onCancel, onSuccess}: any) => {
         afterClose={() => setAdvanced([])}
         modalProps={{
             open, width: compact ? 520 : 560, zIndex: 1140, rootClassName: styles.modal,
+            afterOpenChange: setEntered,
             style: {top: screens.md ? 90 : 24, paddingBottom: screens.md ? 90 : 24, maxWidth: "calc(100vw - 24px)"},
             styles: type === 2 ? {body: {maxHeight: "none", overflow: "visible"}} : undefined,
             closable: !busy, keyboard: !busy, mask: {closable: !busy}, forceRender: true,
             focusable: {focusTriggerAfterClose: false}, okText: "保存", cancelText: "取消",
             confirmLoading: busy === "save", okButtonProps: {disabled: unavailable || busy === "test"},
+            footer: waiting ? null : undefined,
             cancelButtonProps: {disabled: Boolean(busy)},
         } as any}>
         <Form form={form} layout="vertical" variant="filled"
@@ -179,7 +184,7 @@ export default ({open, record, categories = [], onCancel, onSuccess}: any) => {
                 if (errorFields.some((item) => fields.some((field) => field.advanced && field.name === item.name?.[1]))) setAdvanced(["connection"]);
             }}
             onValuesChange={(changes) => { if (changes.config) { testedRef.current = ""; setTestResult(undefined); } }}>
-            {waiting && <div className={styles.loading} style={{position: "absolute", inset: 0}}><Spin/></div>}
+            {waiting && <div className={styles.loading} style={{position: "absolute", inset: 0}}><Spin size="large"/></div>}
             {/* 加载期间保留对应类型的表单尺寸，避免入场动画中途改变高度。 */}
             <div style={{visibility: waiting ? "hidden" : "visible"}} aria-hidden={waiting}>
                 <div className="db-form-grid">

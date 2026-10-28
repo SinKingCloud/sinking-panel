@@ -2,6 +2,7 @@ package plugin
 
 import (
 	"archive/zip"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -20,8 +21,13 @@ func (m *Manager) Import(path string) (*Package, error) {
 	m.imports.Add(1)
 	m.mu.Unlock()
 	defer m.imports.Done()
-	const maxArchiveSize = 32 << 20
-	const maxExpandedSize = 64 << 20
+	maxArchiveSize, maxExpandedSize := m.options.MaxArchiveSize, m.options.MaxExpandedSize
+	if maxArchiveSize <= 0 {
+		maxArchiveSize = 32 << 20
+	}
+	if maxExpandedSize <= 0 {
+		maxExpandedSize = 64 << 20
+	}
 	file, err := os.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("打开插件包失败: %w", err)
@@ -32,13 +38,13 @@ func (m *Manager) Import(path string) (*Package, error) {
 		return nil, err
 	}
 	if !info.Mode().IsRegular() || info.Size() <= 0 || info.Size() > maxArchiveSize {
-		return nil, errors.New("插件包必须是不超过32MB的ZIP文件")
+		return nil, fmt.Errorf("插件包必须是普通 ZIP 文件，且不超过 %d MiB", maxArchiveSize>>20)
 	}
 	archive, err := zip.NewReader(file, info.Size())
 	if err != nil {
 		return nil, fmt.Errorf("读取插件ZIP包失败: %w", err)
 	}
-	if len(archive.File) == 0 || len(archive.File) > 1000 {
+	if len(archive.File) == 0 || len(archive.File) > MaxPackageFiles {
 		return nil, errors.New("插件包文件数量必须在1到1000之间")
 	}
 	if err = os.MkdirAll(m.root, 0700); err != nil {
@@ -60,7 +66,7 @@ func (m *Manager) Import(path string) (*Package, error) {
 	}
 	defer root.Close()
 	seen := make(map[string]bool, len(archive.File))
-	var expanded int64
+	var expanded, codeSize, imageSize int64
 	for _, item := range archive.File {
 		if err = m.ctx.Err(); err != nil {
 			return nil, err
@@ -82,14 +88,26 @@ func (m *Manager) Import(path string) (*Package, error) {
 		if mode.Type() != 0 && mode.Type() != os.ModeDir {
 			return nil, errors.New("插件包不支持符号链接或特殊文件")
 		}
+		imageArchive, err := PackageImageEntry(name, mode.IsDir())
+		if err != nil {
+			return nil, err
+		}
 		if mode.IsDir() {
 			if err = root.MkdirAll(name, 0700); err != nil {
 				return nil, err
 			}
 			continue
 		}
-		if item.UncompressedSize64 > uint64(maxExpandedSize-expanded) {
-			return nil, errors.New("插件包解压内容不能超过64MB")
+		remaining := maxExpandedSize - expanded
+		contentRemaining := MaxSourceSize - codeSize
+		if imageArchive {
+			contentRemaining = MaxImageSize - imageSize
+		}
+		if contentRemaining < remaining {
+			remaining = contentRemaining
+		}
+		if remaining < 0 || item.UncompressedSize64 > uint64(remaining) {
+			return nil, errors.New("插件包超过大小限制：源码最多 64 MiB，镜像最多 16 GiB，展开总量不得超过宿主配置")
 		}
 		if err = root.MkdirAll(filepath.Dir(name), 0700); err != nil {
 			return nil, err
@@ -103,14 +121,19 @@ func (m *Manager) Import(path string) (*Package, error) {
 			_ = input.Close()
 			return nil, err
 		}
-		size, copyErr := io.Copy(output, io.LimitReader(input, maxExpandedSize-expanded+1))
+		size, copyErr := io.Copy(output, io.LimitReader(&importReader{ctx: m.ctx, reader: input}, remaining+1))
 		closeErr := errors.Join(output.Close(), input.Close())
 		if copyErr != nil || closeErr != nil {
 			return nil, fmt.Errorf("解压插件文件失败: %w", errors.Join(copyErr, closeErr))
 		}
 		expanded += size
-		if expanded > maxExpandedSize || uint64(size) != item.UncompressedSize64 {
-			return nil, errors.New("插件包解压大小不正确或超过64MB")
+		if imageArchive {
+			imageSize += size
+		} else {
+			codeSize += size
+		}
+		if size > remaining || uint64(size) != item.UncompressedSize64 {
+			return nil, errors.New("插件包解压大小不正确或超过允许上限")
 		}
 	}
 	if !seen[m.options.ManifestName] {
@@ -129,4 +152,17 @@ func (m *Manager) Import(path string) (*Package, error) {
 	}
 	retained = true
 	return result, nil
+}
+
+// importReader 在大镜像复制期间也响应管理器关闭，不必等待整个文件结束。
+type importReader struct {
+	ctx    context.Context
+	reader io.Reader
+}
+
+func (r *importReader) Read(p []byte) (int, error) {
+	if err := r.ctx.Err(); err != nil {
+		return 0, err
+	}
+	return r.reader.Read(p)
 }

@@ -43,6 +43,12 @@ func (m *Manager) info(directory string) (*Package, error) {
 			return nil, errors.New("插件前端入口不存在或类型不正确")
 		}
 	}
+	if manifest.Icon != "" {
+		icon, err := code.Stat(manifest.Icon)
+		if err != nil || !icon.Mode().IsRegular() || icon.Size() > 8<<20 {
+			return nil, errors.New("插件图标必须是存在且不超过8MB的普通文件")
+		}
+	}
 	result := &Package{
 		Directory: directory,
 		Manifest:  manifest,
@@ -112,6 +118,17 @@ func (m *Manager) Manifest(directory string) (*Manifest, error) {
 		}
 		if !strings.HasPrefix(manifest.Frontend, "web/") {
 			return nil, errors.New("插件前端入口必须位于 web 目录")
+		}
+	}
+	if manifest.Icon != "" {
+		path := manifest.Icon
+		if !filepath.IsLocal(path) || strings.ContainsAny(path, `\:`) || filepath.ToSlash(filepath.Clean(path)) != path || !strings.HasPrefix(path, "web/") {
+			return nil, errors.New("插件图标必须是 web 目录内的相对路径")
+		}
+		switch strings.ToLower(filepath.Ext(path)) {
+		case ".svg", ".png", ".jpg", ".jpeg", ".webp", ".ico", ".gif":
+		default:
+			return nil, errors.New("插件图标仅支持 SVG、PNG、JPG、WebP、ICO 或 GIF 图片")
 		}
 	}
 	for _, system := range manifest.Platforms {

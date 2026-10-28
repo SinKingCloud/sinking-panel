@@ -232,11 +232,11 @@ export default ({record}: any) => {
                     sorter: Boolean(sortableField(name)), sortOrder: sort.field && sort.field === sortableField(name) ? sort.order === "asc" ? "ascend" : "descend" : null,
                     render: (_: any, item: any) => { const value = item._source?.[name]; const text = value === undefined ? "—" : value === null ? "NULL" : typeof value === "object" ? JSON.stringify(value) : String(value);
                         return <Tooltip title={text.length < 3000 ? text : undefined}><span className={`manager-cell${value == null ? " manager-cell-null" : ""}`}>{text}</span></Tooltip>; }})),
-                {title: "操作", key: "action", width: 76, align: "center", fixed: "right", render: (_: any, item: any) => deleting ? null : <ActionDropdown menu={{items: [
+                {title: "操作", key: "action", width: 76, align: "center", fixed: "right", render: (_: any, item: any) => <ActionDropdown disabled={deleting} menu={{items: [
                     {key: "view", label: "详情", onClick: () => setEditor({mode: "view", item})},
                     {key: "edit", label: "编辑", onClick: () => setEditor({mode: "edit", item})},
                     {key: "delete", label: "删除", danger: true, onClick: () => remove(item)},
-                ]}}><Button color="default" variant="filled" size="small">操作</Button></ActionDropdown>},
+                ]}}><Button color="default" variant="filled" size="small" disabled={deleting}>操作</Button></ActionDropdown>},
             ]}/>
         <div className="manager-footer"><Tooltip title={!cursorPaging && Number(result?.total) > 10000 ? `${stats}，可浏览前 10000 条，请筛选缩小范围` : stats}><Typography.Text>{stats}</Typography.Text></Tooltip>
             <ConfigProvider select={{variant: "filled"}}>{cursorPaging ? <div className="es-cursor-pagination">

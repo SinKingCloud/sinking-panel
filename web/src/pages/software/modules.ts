@@ -2,6 +2,14 @@ let compiler: Promise<typeof import("@babel/standalone")> | undefined;
 const compiled = new Map<string, {source: string; code: string; imports: string[]; size: number}>();
 let cacheSize = 0;
 
+// 与软件详情、公共组件并行准备，避免读取入口后才下载编译器。
+export function prepareSoftwareCompiler() {
+    return compiler ??= import("@babel/standalone").catch((error) => {
+        compiler = undefined;
+        throw error;
+    });
+}
+
 // 只缓存转换结果，不保留组件状态、运行实例或插件闭包。
 async function compile(path: string, source: string, scope: string) {
     const key = `${scope}/${path}`;
@@ -11,22 +19,25 @@ async function compile(path: string, source: string, scope: string) {
         compiled.set(key, cached);
         return cached;
     }
-    compiler ??= import("@babel/standalone").catch((error) => {
-        compiler = undefined;
-        throw error;
-    });
-    const babel = await compiler;
+    const babel = await prepareSoftwareCompiler();
+    const imports = new Set<string>();
     const result = babel.transform(source, {
         filename: key,
         sourceFileName: key,
-        sourceMaps: "inline",
-        ast: true,
+        sourceMaps: false,
         presets: [
             ["react", {runtime: "automatic"}],
             ...(/\.tsx?$/.test(path) ? [["typescript", {onlyRemoveTypeImports: true}]] : []),
         ],
         plugins: [
-            ({types}: any) => ({visitor: {
+            ({types}: any) => ({post(file: any) {
+                // 转换后的 require 包括 JSX runtime；无需输出并递归遍历整个 AST。
+                file.path.traverse({CallExpression({node}: any) {
+                    if (types.isIdentifier(node.callee, {name: "require"}) && types.isStringLiteral(node.arguments[0])) {
+                        imports.add(node.arguments[0].value);
+                    }
+                }});
+            }, visitor: {
                 ImportExpression(node: any) {
                     node.replaceWith(types.callExpression(types.identifier("__import"), [node.node.source]));
                 },
@@ -37,17 +48,6 @@ async function compile(path: string, source: string, scope: string) {
             "transform-modules-commonjs",
         ],
     });
-    const imports = new Set<string>();
-    const visit = (node: any) => {
-        if (!node || typeof node !== "object") return;
-        if (node.type === "CallExpression" && node.callee?.type === "Identifier" && node.callee.name === "require"
-            && node.arguments[0]?.type === "StringLiteral") imports.add(node.arguments[0].value);
-        for (const value of Object.values(node)) {
-            if (Array.isArray(value)) value.forEach(visit);
-            else if (value && typeof value === "object") visit(value);
-        }
-    };
-    visit(result.ast);
     const code = `${result.code || ""}\n//# sourceURL=software/${key}`;
     const output = {source, code, imports: [...imports], size: (source.length + code.length) * 2};
     const previous = compiled.get(key);

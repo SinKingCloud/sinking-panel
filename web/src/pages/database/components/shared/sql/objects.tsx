@@ -227,11 +227,11 @@ export default ({record, schema, table, columns = [], tables = [], schemas = [],
                 {title: "所属对象", render: (_: any, item: any) => item.table || item.schema || schema || "—", width: serverPagination ? 180 : 140, ellipsis: true},
                 {title: kind === "foreign_key" ? "关联关系" : "类型", width: serverPagination ? 140 : undefined, render: (_: any, item: any) => kind === "foreign_key"
                     ? `${(item.columns || []).join(", ")} → ${item.reference_table || ""} (${(item.reference_columns || []).join(", ")})` : item.type || labels[kind], ellipsis: true},
-                {title: "操作", key: "action", width: 84, align: "center", fixed: "right", render: (_: any, item: any) => saving || loading ? null : <ActionDropdown menu={{items: kind === "foreign_key"
+                {title: "操作", key: "action", width: 84, align: "center", fixed: "right", render: (_: any, item: any) => <ActionDropdown disabled={saving || loading} menu={{items: kind === "foreign_key"
                     ? [{key: "edit", label: "编辑", onClick: () => void open(item)},
                         {key: "drop", label: "删除", danger: true, onClick: () => remove(item)}]
                     : [...(kind === "view" && onBrowse ? [{key: "browse", label: "浏览", onClick: () => onBrowse(item.name)}] : []), {key: "view", label: "详情", onClick: () => void open(item, true)}, {key: "edit", label: "编辑", onClick: () => void open(item)},
-                        {key: "drop", label: "删除", danger: true, onClick: () => remove(item)}]}}><Button size="small" color="default" variant="filled" autoInsertSpace={false}>操作</Button></ActionDropdown>},
+                        {key: "drop", label: "删除", danger: true, onClick: () => remove(item)}]}}><Button size="small" color="default" variant="filled" autoInsertSpace={false} disabled={saving || loading}>操作</Button></ActionDropdown>},
             ]}/>
         {serverPagination && <div className="client-footer" style={{visibility: pagination ? undefined : "hidden"}} aria-hidden={!pagination}>
             <Tooltip title={!screens.md && pagination ? `${rows.length} 条 / 共 ${pagination.total} 条` : undefined} trigger={["hover", "click"]}>

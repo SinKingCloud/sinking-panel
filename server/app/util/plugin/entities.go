@@ -24,6 +24,7 @@ type Manifest struct {
 	Name      string   `json:"name"`
 	Version   string   `json:"version"`
 	Frontend  string   `json:"frontend"`
+	Icon      string   `json:"icon"` // 可选图标，使用 web/ 下的包内相对路径
 	Platforms []string `json:"platforms"`
 	Requires  []string `json:"requires"` // 依赖的软件标识，安装状态与启动顺序由宿主管理
 }
@@ -39,8 +40,12 @@ type Package struct {
 // Options 由宿主注入业务能力，通用管理器不依赖具体服务或容器。
 type Options struct {
 	ManifestName string
-	Symbols      interp.Exports
-	App          func(string) interface{}
+	// 零值沿用通用插件的 32 MiB ZIP / 64 MiB 展开上限。
+	// 调大后仅 images/ 中的镜像归档享有额外空间，源码仍限制为 64 MiB。
+	MaxArchiveSize  int64
+	MaxExpandedSize int64
+	Symbols         interp.Exports
+	App             func(string) interface{}
 }
 
 // moduleFS 将模块源码映射到 Yaegi 的 GOPATH 视图，依赖仍从 server/vendor 读取。

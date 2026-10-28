@@ -148,8 +148,8 @@ export default function MySQLAccountsLayout(props: MySQLAccountsLayoutProps) {
                             </button>
                         </Tooltip>;
                     }},
-                    {title: "操作", key: "operation", width: widths.actions, align: "center" as const, fixed: "right" as const, render: (_: any, account: any) => actionsDisabled ? null :
-                        <Actions open={openRowKey === accountKey(account)}
+                    {title: "操作", key: "operation", width: widths.actions, align: "center" as const, fixed: "right" as const, render: (_: any, account: any) =>
+                        <Actions disabled={actionsDisabled} open={!actionsDisabled && openRowKey === accountKey(account)}
                             onOpenChange={(open: boolean) => setOpenRowKey(open ? accountKey(account) : "")}
                             menu={{items: [
                                 {key: "view", label: "详情", onClick: () => setDetail(account)},
@@ -167,7 +167,7 @@ export default function MySQLAccountsLayout(props: MySQLAccountsLayoutProps) {
                                     {key: "delete", label: "删除", danger: true, onClick: () => props.onRemove(account)},
                                 ] : []),
                             ]}}>
-                            <Button color="default" variant="filled" size="small" autoInsertSpace={false}>操作</Button>
+                            <Button color="default" variant="filled" size="small" autoInsertSpace={false} disabled={actionsDisabled}>操作</Button>
                         </Actions>},
                 ]}/>
             <div className="client-footer">

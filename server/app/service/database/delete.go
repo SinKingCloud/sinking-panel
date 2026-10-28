@@ -3,7 +3,7 @@ package database
 import (
 	"errors"
 	"server/app/constant"
-	"server/app/enum/type_module"
+	"server/app/enum/script_module"
 	"strconv"
 
 	"gorm.io/gorm"
@@ -21,7 +21,7 @@ func (s *service) DeleteByIds(ids []int64) error {
 	}
 	modules := make([]string, 0, len(ids))
 	for _, id := range ids {
-		modules = append(modules, type_module.Database+"_"+strconv.FormatInt(id, 10))
+		modules = append(modules, script_module.Database+"_"+strconv.FormatInt(id, 10))
 	}
 	if err := s.database.Transaction(func(tx *gorm.DB) error {
 		if err := s.repositoryScript.DeleteByModules(modules, tx); err != nil {

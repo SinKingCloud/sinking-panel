@@ -1,18 +1,20 @@
-import React, {useState} from "react";
+import React, {lazy, Suspense, useState} from "react";
+import {Spin} from "antd";
 import {Icon, useTheme} from "sinking-antd";
 import type {PluginModal} from "sdk";
 import Overview from "./components/overview";
-import Notes from "./components/notes";
-import Settings from "./components/settings";
-import Tasks from "./components/tasks";
-import Playground from "./components/playground";
-import Docs from "./components/docs";
 import useStyles from "./styles";
 import type {PluginPageProps} from "./types";
 
-// 弹窗外观也由插件源码控制。主题、屏幕变化时宿主重新计算这些原生属性。
-export const modal: PluginModal = ({software, compact, mobile}) => ({
-    title: <span><Icon type="CodeOutlined" style={{marginRight: 8}}/>{software?.name || "插件示例"}</span>,
+// 非首屏功能按需读取和转换，避免打开概览时加载全部管理页面。
+const Notes = lazy(() => import("./components/notes"));
+const Settings = lazy(() => import("./components/settings"));
+const Tasks = lazy(() => import("./components/tasks"));
+const Playground = lazy(() => import("./components/playground"));
+const Docs = lazy(() => import("./components/docs"));
+
+// 弹窗外观由插件控制；不设置 title，沿用宿主的软件名称与清单图标（缺省时用默认图标）。
+export const modal: PluginModal = ({compact, mobile}) => ({
     width: mobile ? "calc(100vw - 24px)" : compact ? 1000 : 1120,
     style: {top: mobile ? 24 : 70, paddingBottom: mobile ? 24 : 70},
     styles: {
@@ -49,12 +51,14 @@ export default function PluginPage({software, request, onClose}: PluginPageProps
             <div className={styles.sidebarFooter}><span>{id}</span><small>v{software?.version || "1.0.0"}</small></div>
         </aside>
         <main className={styles.main} key={active}>
-            {active === "overview" && <Overview software={software} request={request} onClose={onClose} onNavigate={setActive}/>}
-            {active === "notes" && <Notes request={request}/>}
-            {active === "settings" && <Settings request={request}/>}
-            {active === "tasks" && <Tasks request={request}/>}
-            {active === "playground" && <Playground software={software} request={request}/>}
-            {active === "docs" && <Docs software={software}/>}
+            <Suspense fallback={<div style={{minHeight: 240, display: "grid", placeItems: "center"}}><Spin/></div>}>
+                {active === "overview" && <Overview software={software} request={request} onClose={onClose} onNavigate={setActive}/>}
+                {active === "notes" && <Notes request={request}/>}
+                {active === "settings" && <Settings request={request}/>}
+                {active === "tasks" && <Tasks request={request}/>}
+                {active === "playground" && <Playground software={software} request={request}/>}
+                {active === "docs" && <Docs software={software}/>}
+            </Suspense>
         </main>
     </div>;
 }

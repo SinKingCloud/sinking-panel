@@ -3,8 +3,9 @@ import {Button, Empty, Grid, Spin, theme as antdTheme} from "antd";
 import type {ModalProps} from "antd";
 import {ProModal, Title, useTheme} from "sinking-antd";
 import {callSoftware, getSoftwarePage, getSoftwareInfo} from "@/service/api/software";
-import createSoftwareModules from "./modules";
+import createSoftwareModules, {prepareSoftwareCompiler} from "./modules";
 import type {PluginModal} from "./sdk";
+import SoftwareIcon from "./components/icon";
 import useStyles from "./styles";
 
 class SoftwareBoundary extends Component<any, {error: string}> {
@@ -35,7 +36,11 @@ export default function SoftwareWorkspace({open, software, onCancel}: any) {
         setPage(undefined); setError("");
         void (async () => {
             try {
-                const response = await getSoftwareInfo({body: {id: software.id}});
+                const [response, {default: shared}] = await Promise.all([
+                    getSoftwareInfo({body: {id: software.id}}),
+                    import("./sdk"),
+                    prepareSoftwareCompiler(),
+                ]);
                 if (disposed) return;
                 if (response?.code !== 200 || !response?.data) throw new Error(response?.message || "获取软件失败");
                 const item = response?.data;
@@ -43,8 +48,6 @@ export default function SoftwareWorkspace({open, software, onCancel}: any) {
                 if (!code) throw new Error("软件标识不存在");
                 const frontend = item?.frontend;
                 if (!frontend) throw new Error("软件未配置页面入口");
-                const {default: shared} = await import("./sdk");
-                if (disposed) return;
                 modules = createSoftwareModules(frontend,
                     (path) => getSoftwarePage(code, path === frontend ? undefined : path.replace(/^web\//, "")), shared, code);
                 modulesRef.current = modules;
@@ -65,6 +68,7 @@ export default function SoftwareWorkspace({open, software, onCancel}: any) {
     useEffect(() => () => modulesRef.current?.dispose(), []);
     const current = page?.id === software?.id ? page : undefined;
     const record = current?.record;
+    const titleRecord = record || software;
     const request = useCallback(async (method: string, params: any = {}) => {
         const code = record?.code;
         if (!code) throw new Error("软件标识不存在");
@@ -113,7 +117,10 @@ export default function SoftwareWorkspace({open, software, onCancel}: any) {
             ? (info) => semanticStyles(customStyles(info))
             : semanticStyles(customStyles)};
     const renderModal = (props: ModalProps, children: React.ReactNode) => <ProModal
-        title={<Title>{software?.name || "软件"}管理</Title>}
+        title={<Title><span className={styles.title}>
+            <SoftwareIcon code={titleRecord?.code} icon={titleRecord?.icon} updateTime={titleRecord?.update_time}/>
+            {titleRecord?.name || "软件"}管理
+        </span></Title>}
         modalProps={{...props, open, onCancel, afterClose, destroyOnHidden: true} as any}>{children}</ProModal>;
     const renderError = (text: string) => <div className={styles.loading}>
         <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={text}>

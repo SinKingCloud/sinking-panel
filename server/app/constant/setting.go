@@ -18,6 +18,10 @@ var SensitiveGroups = map[string]struct {
 		Read:  false,
 		Write: true,
 	},
+	MonitorGroup: {
+		Read:  false,
+		Write: true,
+	},
 }
 
 const (
@@ -32,6 +36,10 @@ const (
 	UiCompact   = UiGroup + ".compact"   //紧凑模式
 	UiColor     = UiGroup + ".color"     //主题色
 	UiRadius    = UiGroup + ".radius"    //主题圆角
+
+	MonitorGroup         = "monitor"                        //系统监控配置组
+	MonitorEnabled       = MonitorGroup + ".enabled"        //是否保存监控历史
+	MonitorRetentionDays = MonitorGroup + ".retention_days" //监控历史保留天数
 
 	LoginGroup    = "login"                  //登录配置组
 	LoginAccount  = LoginGroup + ".account"  //登录账号

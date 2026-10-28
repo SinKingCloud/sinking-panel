@@ -187,6 +187,7 @@ func main() {
 | `id` | 必填。小写字母开头，可包含小写字母、数字、`_`、`-`，最长 64 个字符。 |
 | `name` / `version` | 必填。显示名称和版本，分别最多 100、50 字节。 |
 | `frontend` | 可选。前端入口必须位于 `web/` 内，例如 `web/index.tsx`。 |
+| `icon` | 可选。包内图标路径，例如 `web/icon.svg`，必须位于 `web/`；支持 SVG、PNG、JPG/JPEG、WebP、ICO、GIF，文件不超过 8 MiB。不配置或设为空字符串时显示面板默认图标。 |
 | `platforms` | 可选。Go 系统名，如 `linux`、`windows`、`darwin`；空数组表示不限制系统。 |
 | `requires` | 可选。依赖的软件标识数组，填写其他软件清单的 `id`，例如 `["redis", "mysql"]`；空数组表示无软件依赖。 |
 
@@ -201,7 +202,7 @@ func main() {
 
 上面是附加到完整清单的字段。`requires` 不是系统能力、容器镜像或 Go module 名称，只表示其他软件插件的标识，不包含版本要求。需要直接使用容器服务的插件可以只声明 `platforms: ["linux"]`，无需声明 `container` 依赖。
 
-通用 `Manager` 只校验依赖标识是否合法、是否包含自身，以及当前系统是否符合 `platforms`；不查询软件安装记录，也不替调用方启动依赖。独立使用此工具类时，依赖图和生命周期顺序由宿主负责，`Options` 只配置清单名称、宿主对象与原生符号。
+通用 `Manager` 只校验依赖标识是否合法、是否包含自身，以及当前系统是否符合 `platforms`；不查询软件安装记录，也不替调用方启动依赖。独立使用此工具类时，依赖图和生命周期顺序由宿主负责，`Options` 配置清单名称、归档限额、宿主对象与原生符号。
 
 当前面板的软件服务根据已安装软件检查依赖。安装、升级与启动需要依赖已安装且可用；依赖缺失会返回具体标识，不自动下载安装。自身依赖、非法标识及循环依赖均不允许。启动按依赖先后顺序执行，停止时反向处理；卸载依赖软件前，必须先卸载仍依赖它的软件。离线安装只检查已安装依赖，不启动插件；在线安装先启动依赖，面板启动或后续接口调用也会确保依赖先启动。
 
@@ -213,6 +214,7 @@ func main() {
 | 配置 | 说明 |
 | --- | --- |
 | `ManifestName` | 清单文件名，默认 `plugin.json`；软件服务使用 `software.json`。 |
+| `MaxArchiveSize` / `MaxExpandedSize` | ZIP 与展开总大小上限（字节）；零值分别为 32 MiB、64 MiB。扩大上限时，额外空间只供 `images/` 镜像归档使用，源码始终最多 64 MiB。 |
 | `Symbols` | 可选的额外原生符号，例如另行提供的包级函数或常量；`App` 及其业务类型自动导出，无需逐项填写。 |
 | `App` | `func(id string) interface{}`，按清单 ID 创建并传给插件 `New` 的宿主对象。 |
 
@@ -271,7 +273,7 @@ func New(app *sdk.App) *sdk.Plugin {
 
 宿主决定生命周期调用时机，例如软件导入成功前调用 `manager.Lifecycle(ctx, directory, "install", params)`，升级任务调用 `"upgrade"`。通用 `Manager` 的加载、导入不会自动安装或启动插件；释放已启动实例时会取消其后台上下文并调用 `Stop`。调用 `Remove` 前，可通过 `Lifecycle(..., "uninstall", ...)` 执行插件的业务卸载；未加载时尝试只加载源码、不调用 Start。加载失败会记录错误并跳过钩子，不阻塞后续删除代码目录。仅替换旧版本文件时无需执行卸载钩子。
 
-包限制：ZIP 不超过 32 MiB，展开不超过 64 MiB，最多 1000 个 ZIP 条目（含目录）；拒绝路径越界、重复路径、符号链接及特殊文件。清单不超过 256 KiB。`Page` 支持 `web/` 下的 `.ts`、`.tsx`、`.jsx`、`.js`、`.mjs` 源码以及 `.css`、`.png`、`.svg` 静态资源，单个资源不超过 8 MiB。静态资源可以读取，不代表前端模块加载器支持 CSS 导入。
+通用管理器默认限制：ZIP 不超过 32 MiB，展开不超过 64 MiB，最多 1000 个 ZIP 条目（含目录）；拒绝路径越界、重复路径、符号链接及特殊文件。软件服务单独设置大包上限：镜像归档合计 16 GiB、源码合计 64 MiB，ZIP 总量另留 16 MiB 元数据空间。`images/` 仅接受 `.tar`、`.tar.gz`、`.tgz` 归档和 `.json` 清单，JSON 仍计入源码预算；打包和解包均流式复制，不将镜像读入内存。清单不超过 256 KiB。`Page` 支持 `web/` 下的 `.ts`、`.tsx`、`.jsx`、`.js`、`.mjs` 源码以及 `.json`、`.css`、`.png`、`.svg`、`.jpg`、`.jpeg`、`.webp`、`.ico`、`.gif` 静态资源，单个资源不超过 8 MiB。静态资源可以读取，不代表前端模块加载器支持 CSS 导入。
 
 Manager 读取 `server/go.mod` 的模块名，将本模块和随包交付的 vendor 源码映射给 Yaegi；宿主 SDK 和业务类型由运行时直接提供，本地 `replace` 路径不会在服务器使用。不会在服务器自动下载依赖，也不能直接执行 CGO、汇编或解释器尚未支持的 Go 语法。插件在面板进程权限下运行，当前管理器不提供不可信代码沙箱。插件自己的 `fmt.Print` 等标准输出会被丢弃；业务日志使用宿主注入的日志能力。
 
@@ -286,6 +288,10 @@ Manager 读取 `server/go.mod` 的模块名，将本模块和随包交付的 ven
 软件插件使用 `sdk`，入口为 `func New(app *sdk.App) *sdk.Plugin`。`sdk.Plugin` 复用这里的 `Plugin`，`sdk.Context` 复用面板控制器上下文。接口路径为 `/software/<软件标识>/<方法名>`，沿用登录验证；控制器通过 `service.Software.Invoke(c, code, method)` 分发，插件负责校验参数和返回响应。
 
 `/software/<软件标识>/page` 直接返回清单 `frontend` 指定的入口，无需传入 ID 或路径参数；多文件资源使用 `/software/<软件标识>/page/<资源路径>`，路径相对插件的 `web/` 目录，例如 `/software/demo/page/components.js` 对应 `web/components.js`。软件标识和路径各段需分别 URL 编码。`page` 是保留资源路由，沿用登录验证，不交给 `Actions` 处理。
+
+列表、详情和安装响应的 `icon` 返回清单中的包内路径，例如 `web/icon.svg`；宿主通过已有资源接口 `/software/demo/page/icon.svg` 获取图片，URL 中不再添加 `web/`。图标也需要登录认证，由宿主携带认证信息读取后显示。图标路径缓存在服务内存中，启动、安装及升级时更新，卸载时移除；首次查询缺失项只读取清单并缓存，不解释插件代码，不新增数据库字段。
+
+省略 `icon` 或设置 `"icon": ""` 时，软件列表与默认管理标题使用应用图标（`AppstoreOutlined`）；图标加载期间、读取失败及图片解码失败也会回退，尺寸保持一致。生成的 demo 包含 `web/icon.svg`，并沿用宿主默认标题。插件自行设置 `modal.title` 会替换整个标题，宿主不会强行插入图标。删除图标文件前应同时移除清单配置，避免安装时因缺少声明的资源失败。
 
 从面板二进制即可开始开发，不需要面板源码：
 
@@ -306,7 +312,7 @@ Manager 读取 `server/go.mod` 的模块名，将本模块和随包交付的 ven
 ./server plugin uninstall my-plugin
 ```
 
-`install` 调用软件服务的 `Install(path)`，接受目录或 ZIP；服务自动临时打包目录中的清单、后端和前端，排除根目录的开发 SDK。`uninstall` 调用 `Uninstall(target)`，可传插件标识或软件记录 ID，直接清理插件数据。`Uninstall` 固定接收 `{"remove_data":true}`，负责删除自身拥有的业务资源，不再提供保留数据选项。卸载先停止已加载实例；未加载时尝试只加载源码、不启动，以执行 `Uninstall`，支持离线清理。源码加载失败会记录错误并继续删除软件记录和代码目录；此时无法执行插件自定义的清理钩子，也不能推断其任意创建的容器、数据库等外部资源，需按插件说明清理。服务等待后台卸载任务完成后返回结果，命令行和 HTTP 接口只负责传参及展示结果。在线命令中断等待不会取消面板已经接收的操作。
+`install` 调用软件服务的 `Install(path)`，接受目录或 ZIP；服务自动临时打包目录中的清单、后端、前端和可选 `images/`，排除根目录的开发 SDK。`uninstall` 调用 `Uninstall(target)`，可传插件标识或软件记录 ID，直接清理插件数据。`Uninstall` 固定接收 `{"remove_data":true}`，负责删除自身拥有的业务资源，不再提供保留数据选项。卸载先停止已加载实例；未加载时尝试只加载源码、不启动，以执行 `Uninstall`，支持离线清理。源码加载失败会记录错误并继续删除软件记录和代码目录；此时无法执行插件自定义的清理钩子，也不能推断其任意创建的容器、数据库等外部资源，需按插件说明清理。服务等待后台卸载任务完成后返回结果，命令行和 HTTP 接口只负责传参及展示结果。在线命令中断等待不会取消面板已经接收的操作。
 
 `list` 直接调用本地 software service，只读查询已安装软件。`install`、`uninstall` 在面板运行时通过本机进程通信交给面板的 software service 执行，复用插件、容器和后台任务；面板停止时自动直接调用本地服务。通信使用 Unix socket 或 Windows 命名管道，不请求面板 HTTP 接口，也不需要端口和登录 token。离线命令只打开现有数据库，不运行表结构同步，也不会启动网站或定时任务、清空系统任务日志。
 
@@ -420,7 +426,7 @@ export default function Page({software, request}: any) {
 }
 ```
 
-`software` 只包含 id、name、code、version、status、create_time、update_time 和 frontend，不包含 config、重复清单或进程任务信息。`request(method, params)` 调用当前软件的业务接口，成功返回响应中的 `data`，失败抛出错误；`onClose()` 关闭当前管理弹窗。模板采用侧栏工作台，窄屏导航改为横向；页面样式在 `styles.ts` 中通过 `antd-style` 定义，文档组件自行管理其章节样式。
+`software` 只包含 id、name、code、version、icon、status、create_time、update_time 和 frontend，不包含 config、重复清单或进程任务信息。`request(method, params)` 调用当前软件的业务接口，成功返回响应中的 `data`，失败抛出错误；`onClose()` 关闭当前管理弹窗。模板采用侧栏工作台，窄屏导航改为横向；页面样式在 `styles.ts` 中通过 `antd-style` 定义，文档组件自行管理其章节样式。
 
 | 示例页面 | 代码位置 | 可直接参考的功能 |
 | --- | --- | --- |
@@ -463,3 +469,30 @@ export const modal: PluginModal = ({compact, mobile, token}) => ({
 面板和 CLI 都支持服务器上的源码目录或 ZIP 路径，不提供软件包上传安装接口。先把文件放到服务器，再从「添加软件」填写路径，或执行 `./server plugin install /path/to/demo`、`./server plugin install /path/to/demo.zip`。同一软件标识再次安装会执行升级，安装目录是源码副本，修改开发目录不会自动影响运行中的软件。
 
 使用 `./server plugin init demo` 生成示例工程。生成的 `README.md` 包含从第一次调用到增加完整业务的教程，以及清单每个字段、生命周期与取消、所有示例 Action 的参数和响应、数据库与事务、Config/Cache、全部业务服务、PageTable、可配置弹窗、多文件与 vendor、发布和排错。开发时优先以该工程的 SDK 和可运行代码核对签名。
+
+## 8. 归档辅助 API 与相关工具
+
+除 Manager 外，包还公开 `PackageImageEntry(name string, directory bool) (bool, error)`，供打包和导入逻辑统一识别镜像文件。它只做分类，调用方必须先验证包内相对路径、拒绝符号链接和特殊文件；不要单独把此函数当成路径安全校验。
+
+| 输入 | 结果 |
+| --- | --- |
+| `images/base.tar`、`images/base.tar.gz`、`images/base.tgz` | `true, nil`，属于镜像预算 |
+| `images/config.json` | `false, nil`，仍占源码预算 |
+| `server/plugin.go` | `false, nil`，不属于镜像目录 |
+| `images/readme.txt` 或普通文件 `images` | 错误，不是允许的镜像目录文件 |
+| 目录条目，`directory=true` | `false, nil`；路径是否合法仍由调用方确认 |
+
+公开常量 `MaxPackageFiles=1000`、`MaxSourceSize=64 MiB`、`MaxImageSize=16 GiB` 用于统一归档策略；通用 Manager 的默认总量仍受 `Options.MaxArchiveSize` / `MaxExpandedSize` 限制，不能仅看 MaxImageSize 判断能否导入。
+
+```go
+package example
+
+import "server/app/util/plugin"
+
+// IsBundledImage 的 name 应是上层已校验过的归档相对路径。
+func IsBundledImage(name string, isDirectory bool) (bool, error) {
+    return plugin.PackageImageEntry(name, isDirectory)
+}
+```
+
+宿主 HTTP 接入见 [context](../context/README.md)，后台并发任务见 [job](../job/README.md)，容器实例与镜像管理见 [container](../container/README.md)，通用文件归档见 [archive](../archive/README.md)。返回 [util 工具索引](../README.md)。

@@ -76,7 +76,7 @@ func Init() {
 	Task = serviceTask.NewService(taskRepository, Type)
 	File = serviceFile.NewService(global.App.Cache)
 	Recycle = serviceRecycle.NewService()
-	System = serviceSystem.NewService(File, global.App.Daemon)
+	System = serviceSystem.NewService(File, Config, global.App.Daemon)
 	Database = serviceDatabase.NewService(databaseRepository, scriptRepository, typesRepository, Type, System, global.App.Database, global.App.Cache)
 	Container = serviceContainer.NewManager(global.App.Container, global.App.Cache)
 	Site, _ = serviceSite.NewService(siteRepository, siteDomainRepository, certRepository, secretRepository, Type, Config, Task, Recycle, global.App.Database, global.App.Cache)

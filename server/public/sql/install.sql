@@ -128,7 +128,7 @@ create table if not exists cloud_scripts
     id          bigint            not null
         constraint cloud_scripts_pk_id
             primary key,
-    module      varchar(50) default 'ssh' not null,
+    module      varchar(50) default 'script_ssh' not null,
     type_id     bigint  default 0 not null,
     name        varchar(100)      not null,
     script      text              not null,

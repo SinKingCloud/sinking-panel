@@ -1,12 +1,13 @@
 import {useCallback, useEffect, useRef, useState} from "react";
 import {App, Button, Empty, Form, Grid, Input, Tag} from "antd";
-import {Body, Icon, PageTable, ProModal, Title} from "sinking-antd";
+import {Body, PageTable, ProModal, Title} from "sinking-antd";
 import type {PageTableRef} from "sinking-antd";
 import ActionDropdown from "@/pages/components/action-dropdown";
 import {uninstallSoftware, getSoftwareList, updateSoftware} from "@/service/api/software";
 import {getParams} from "@/utils/page";
 import useEnum from "@/utils/enum";
 import ContainerManager from "./components/container";
+import SoftwareIcon from "./components/icon";
 import InstallSoftware from "./install";
 import SoftwareWorkspace from "./workspace";
 import useStyles from "./styles";
@@ -85,14 +86,15 @@ export default () => {
             search={{placeholder: "搜索软件名称或标识", maxLength: 100}}
             columns={[
                 {title: "软件名称", dataIndex: "name", key: "name", width: 220, sorter: true, render: (value: string, item: any) => <div className={styles.name}>
-                    <Icon type="AppstoreOutlined"/><button type="button" onClick={() => show(item)}>{value}</button>
+                    <SoftwareIcon code={item.code} icon={item.icon} updateTime={item.update_time}/>
+                    <button type="button" onClick={() => show(item)}>{value}</button>
                 </div>},
                 {title: "标识", dataIndex: "code", key: "code", width: 150, ellipsis: true},
                 {title: "版本", dataIndex: "version", key: "version", width: 100, ellipsis: true, render: (value: string) => value || "—"},
                 {title: "安装状态", dataIndex: "status", key: "status", width: 120, render: (value: number) => <Tag variant="filled"
                     color={Number(value) === 2 ? "success" : Number(value) === 4 ? "processing" : "default"}>{enumData.status?.[value] || value}</Tag>},
                 {title: "更新时间", dataIndex: "update_time", key: "update_time", width: 170, sorter: true},
-                {title: "操作", key: "action", width: 86, fixed: "right", align: "center", render: (_, item) => <ActionDropdown
+                {title: "操作", key: "action", width: 86, fixed: "right", align: "center", className: "action-cell", render: (_, item) => <ActionDropdown
                     disabled={busy || processing(item)} menu={{items: [
                         {key: "manage", label: "管理", onClick: () => show(item)},
                         {key: "rename", label: "修改", onClick: () => rename(item)},

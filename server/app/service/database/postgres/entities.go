@@ -46,7 +46,7 @@ type Result struct {
 type Config struct {
 	Host        string `json:"host" label:"主机地址" default:"127.0.0.1"`
 	Port        int    `json:"port" label:"端口" default:"5432" min:"1" max:"65535"`
-	User        string `json:"user" label:"用户名" aliases:"username"`
+	User        string `json:"user" label:"用户名"`
 	Password    string `json:"password" label:"密码" encrypt:"true"`
 	Database    string `json:"database" label:"默认数据库"`
 	SSLMode     string `json:"sslmode" label:"TLS 连接" default:"" options:":默认,disable:关闭,allow:允许,prefer:优先加密,require:要求加密,verify-ca:验证 CA,verify-full:完整验证"`

@@ -1,6 +1,8 @@
 package system
 
 import (
+	"errors"
+	"math"
 	"runtime"
 	"time"
 
@@ -17,6 +19,7 @@ func (s *service) startMonitor() {
 	// 首次同步更新，确保服务启动后即可读取监控数据
 	s.updateMonitor()
 	s.updateStaticMonitor()
+	s.startMonitorHistory()
 
 	s.wait.Add(2)
 	go func() {
@@ -58,6 +61,13 @@ func (s *service) updateMonitor() {
 	// 网卡统计只采集一次，同时用于网卡信息与速率计算
 	netCounters, netErr := net.IOCounters(true)
 	diskCounters, diskErr := disk.IOCounters()
+	// 部分平台的系统命令可能以成功状态返回空结果，不能将不可用数据记为零。
+	if netErr == nil && len(netCounters) == 0 {
+		netErr = errors.New("未读取到网卡计数器")
+	}
+	if diskErr == nil && len(diskCounters) == 0 {
+		diskErr = errors.New("未读取到磁盘计数器")
+	}
 	cpuInfo := s.getCpuInfo()
 	cpuUsage, _ := cpuInfo["usage"].(float64)
 
@@ -133,12 +143,22 @@ func (s *service) updateMonitor() {
 	s.networkInfoCacheLock.Lock()
 	s.networkInfoCache = networkInfo
 	s.networkInfoCacheLock.Unlock()
+
+	// 首次恢复计数器时只有基线，下一轮才有有效速率，不将首轮写成零流量。
+	if netErr == nil && !hasPreviousNetCounter {
+		netErr = errors.New("网卡计数器正在建立采样基线")
+	}
+	if diskErr == nil && !hasPreviousDiskCounter {
+		diskErr = errors.New("磁盘计数器正在建立采样基线")
+	}
+	// 与实时页面共用本轮采样；历史写入在独立协程内完成。
+	s.recordMonitor(now, cpuInfo, memoryInfo, loadInfo, netErr, diskErr)
 }
 
 // updateStaticMonitor 更新低频系统信息
 func (s *service) updateStaticMonitor() {
 	systemBase := s.getSystemBaseInfo()
-	disksInfo, _ := s.fileService.GetDisks()
+	disksInfo, diskErr := s.fileService.GetDisks()
 
 	s.systemBaseCacheLock.Lock()
 	s.systemBaseCache = systemBase
@@ -147,6 +167,7 @@ func (s *service) updateStaticMonitor() {
 	s.disksInfoCacheLock.Lock()
 	s.disksInfoCache = disksInfo
 	s.disksInfoCacheLock.Unlock()
+	s.updateMonitorDevices(diskErr == nil)
 }
 
 // updateNetworkRate 更新网卡速率
@@ -269,7 +290,7 @@ func (s *service) getCpuInfo() map[string]interface{} {
 	}
 
 	// 与上次监控周期的CPU时间进行比较，不额外阻塞采样
-	cpuPercent, _ := cpu.Percent(0, false)
+	cpuPercent, cpuErr := cpu.Percent(0, false)
 
 	// 获取CPU使用率
 	cpuUsage := 0.0
@@ -278,8 +299,9 @@ func (s *service) getCpuInfo() map[string]interface{} {
 	}
 
 	return map[string]interface{}{
-		"model":     s.cpuModel,       // CPU型号
-		"cores":     s.cpuCores,       // CPU核心数
+		"model":     s.cpuModel, // CPU型号
+		"cores":     s.cpuCores, // CPU核心数
+		"available": cpuErr == nil && len(cpuPercent) > 0,
 		"usage":     cpuUsage,         // CPU使用率(百分比)
 		"processor": runtime.NumCPU(), // CPU逻辑处理器数量
 	}
@@ -289,6 +311,7 @@ func (s *service) getCpuInfo() map[string]interface{} {
 func (s *service) getMemoryInfo() map[string]interface{} {
 	// 内存信息默认值
 	data := map[string]interface{}{
+		"available":    false,
 		"total":        uint64(0), // 总内存(字节)
 		"used":         uint64(0), // 已使用内存(字节)
 		"free":         uint64(0), // 空闲内存(字节)
@@ -298,6 +321,7 @@ func (s *service) getMemoryInfo() map[string]interface{} {
 	// 获取内存信息（错误处理）
 	if memInfo, err := mem.VirtualMemory(); err == nil {
 		data = map[string]interface{}{
+			"available":    true,
 			"total":        memInfo.Total,       // 总内存(字节)
 			"used":         memInfo.Used,        // 已使用内存(字节)
 			"free":         memInfo.Free,        // 空闲内存(字节)
@@ -312,27 +336,33 @@ func (s *service) getMemoryInfo() map[string]interface{} {
 func (s *service) getLoadInfo(cpuUsage float64) map[string]interface{} {
 	// 负载信息默认值
 	data := map[string]interface{}{
-		"load1":  0.0, // 1分钟平均负载
-		"load5":  0.0, // 5分钟平均负载
-		"load15": 0.0, // 15分钟平均负载
+		"available": false,
+		"load1":     0.0, // 1分钟平均负载
+		"load5":     0.0, // 5分钟平均负载
+		"load15":    0.0, // 15分钟平均负载
 	}
 
 	// Windows系统不支持原生load.Avg，需要模拟实现
 	if runtime.GOOS == "windows" {
-		// Windows复用本轮CPU利用率，避免为模拟负载再次阻塞采样
-		loadValue := cpuUsage / 100.0 * float64(runtime.NumCPU())
+		// Windows 没有 Unix load average，按实际间隔计算 CPU 忙碌核心数的移动均值。
+		now := time.Now()
+		values := estimateLoad(s.loadEstimate, cpuUsage/100*float64(runtime.NumCPU()), now.Sub(s.loadEstimatedAt).Seconds(), s.loadEstimatedAt.IsZero())
+		s.loadEstimate, s.loadEstimatedAt = values, now
 		data = map[string]interface{}{
-			"load1":  loadValue,
-			"load5":  loadValue,
-			"load15": loadValue,
+			"load1":     values[0],
+			"load5":     values[1],
+			"load15":    values[2],
+			"estimated": true,
+			"available": true,
 		}
 	} else {
 		// 在Unix/Linux系统上使用原生负载值
 		if loadInfo, err := load.Avg(); err == nil {
 			data = map[string]interface{}{
-				"load1":  loadInfo.Load1,  // 1分钟平均负载
-				"load5":  loadInfo.Load5,  // 5分钟平均负载
-				"load15": loadInfo.Load15, // 15分钟平均负载
+				"available": true,
+				"load1":     loadInfo.Load1,  // 1分钟平均负载
+				"load5":     loadInfo.Load5,  // 5分钟平均负载
+				"load15":    loadInfo.Load15, // 15分钟平均负载
 			}
 		}
 	}
@@ -404,4 +434,15 @@ func (s *service) createBasicDiskIOStats(counter disk.IOCountersStat) map[string
 		"write_count_rate": 0,                    // 写入次数速率(次/秒)
 		"io_latency":       ioLatency,            // IO延迟(毫秒)
 	}
+}
+
+// estimateLoad 使用实际采样间隔，防止慢采样将 1/5/15 分钟窗口压缩。
+func estimateLoad(previous [3]float64, value, elapsed float64, initial bool) [3]float64 {
+	if initial {
+		return [3]float64{value, value, value}
+	}
+	for index, window := range [3]float64{60, 300, 900} {
+		previous[index] += (value - previous[index]) * (1 - math.Exp(-math.Max(0, elapsed)/window))
+	}
+	return previous
 }

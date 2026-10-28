@@ -27,6 +27,8 @@ const (
 	ServerWAFLogPath = ServerPath + "/waf.log"     //HTTP 服务 WAF 日志
 	ServerConfigPath = ServerPath + "/config.json" //HTTP 服务配置快照
 
+	MonitorPath = PanelDataPath + "/monitor" //系统监控历史数据目录
+
 	DBPath = PanelDataPath //数据库文件目录
 	DBFile = "server.db"   //数据库文件
 

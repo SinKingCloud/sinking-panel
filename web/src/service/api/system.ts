@@ -35,6 +35,11 @@ export async function getSystemIO(params: API.RequestParams = {}) {
     return get("/system/io", params?.body, params?.onSuccess, params?.onFail, params?.onFinally);
 }
 
+/** 查询监控历史或设置监控状态 POST /system/monitor */
+export async function systemMonitor(params: API.RequestParams = {}) {
+    return post("/system/monitor", params?.body, params?.onSuccess, params?.onFail, params?.onFinally);
+}
+
 /** 查询或管理 HTTP 服务、配置及日志 POST /system/http */
 export async function systemHTTP(params: API.RequestParams = {}) {
     return post("/system/http", params?.body, params?.onSuccess, params?.onFail, params?.onFinally);

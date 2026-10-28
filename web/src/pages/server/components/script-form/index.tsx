@@ -64,19 +64,19 @@ const ScriptForm = forwardRef<any, any>(({instanceModule, onSuccess}, ref): any 
     const [scopeModule, setScopeModule] = useState<string>();
     const editing = scriptId !== undefined;
     const [categories, setCategories] = useState<Record<string, any[]>>({});
-    const selectedModule = AntForm.useWatch("module", form) || "ssh";
+    const selectedModule = AntForm.useWatch("module", form) || "script_ssh";
     const typeOptions = useMemo(() => [{label: "全部分类", value: 0}, ...(categories[selectedModule] || [])
         .map((item) => ({label: item.name, value: Number(item.id)}))], [categories, selectedModule]);
 
     const loadCategories = useCallback(async () => {
-        const response = await getTypeList({body: {module: instanceModule || "ssh", order_by_field: "sort", order_by_type: "asc"}});
+        const response = await getTypeList({body: {module: instanceModule || "script_ssh", order_by_field: "sort", order_by_type: "asc"}});
         if (response?.code !== 200) {
             throw new Error(response?.message || "获取脚本分类失败");
         }
         const items = Array.isArray(response?.data?.list) ? response?.data?.list.filter(Boolean) : [];
-        const modules = instanceModule ? ["ssh", instanceModule] : ["ssh"];
+        const modules = instanceModule ? ["script_ssh", instanceModule] : ["script_ssh"];
         return Object.fromEntries(modules.map((module) => [module,
-            module === "ssh" ? items.filter((item: any) => item.module === "ssh") : items,
+            module === "script_ssh" ? items.filter((item: any) => item.module === "script_ssh") : items,
         ]));
     }, [instanceModule]);
 
@@ -99,8 +99,8 @@ const ScriptForm = forwardRef<any, any>(({instanceModule, onSuccess}, ref): any 
         modalRef.current?.show();
         void loadCategories().then((data) => {
             if (requestRef.current !== requestId) return;
-            const module = defaultTypeId && !data.ssh.some((item: any) => Number(item.id) === defaultTypeId) && instanceModule
-                ? instanceModule : "ssh";
+            const module = defaultTypeId && !data.script_ssh?.some((item: any) => Number(item.id) === defaultTypeId) && instanceModule
+                ? instanceModule : "script_ssh";
             setCategories(data);
             form.setFieldsValue({
                 name: "",
@@ -242,7 +242,7 @@ const ScriptForm = forwardRef<any, any>(({instanceModule, onSuccess}, ref): any 
                                     <Select
                                         placeholder="请选择保存范围"
                                         options={[
-                                            {label: "全局脚本", value: "ssh"},
+                                            {label: "全局脚本", value: "script_ssh"},
                                             ...(scopeModule ? [{label: "实例脚本", value: scopeModule}] : []),
                                         ]}
                                         onChange={(module) => {

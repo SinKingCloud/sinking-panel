@@ -74,12 +74,13 @@ export default function Docs({software}: {software: any}) {
             <p>生成命令的目标目录必须不存在。当前工程已经生成时，直接修改并安装即可。除 <code>init</code> 外，命令从面板工作目录执行；Windows 使用 <code>server.exe</code>。</p>
             <p>安装会复制源码。修改开发目录后必须再次安装，再重新打开页面；部署服务器不需要 Go、Node 或前端构建工具。</p>
         </>},
-        {key: "manifest", title: "软件清单", summary: "清单描述身份、入口、运行系统和软件依赖；业务配置留给页面处理。", keywords: "software.json id name version frontend platforms requires 依赖 系统", files: ["software.json"], content: <>
-            <Code title="software.json">{JSON.stringify({id, name: software?.name || "开发示例", version: "1.0.0", frontend: "web/index.tsx", platforms: [], requires: []}, null, 2)}</Code>
+        {key: "manifest", title: "软件清单", summary: "清单描述身份、入口、图标、运行系统和软件依赖；业务配置留给页面处理。", keywords: "software.json id name version frontend icon platforms requires 图标 依赖 系统", files: ["software.json", "web/icon.svg"], content: <>
+            <Code title="software.json">{JSON.stringify({id, name: software?.name || "开发示例", version: "1.0.0", frontend: "web/index.tsx", icon: "web/icon.svg", platforms: [], requires: []}, null, 2)}</Code>
             {table(["字段", "填写方式"], [
                 ["id", "唯一软件标识，小写字母开头，可含数字、下划线、连字符，最长 64 字符。决定接口地址与目录。"],
                 ["name / version", "显示名称与版本文本。再次安装同一 id 即升级，包括相同版本；面板不判断版本大小。"],
                 ["frontend", "页面入口，必须位于 web/。纯后端插件可以留空。"],
+                ["icon", "可选图标，如 web/icon.svg；文件必须在 web/ 内且存在，最多 8 MiB，支持 SVG、PNG、JPG/JPEG、WebP、ICO、GIF。省略或留空使用默认应用图标。"],
                 ["platforms", "Go 系统名数组，如 linux、windows、darwin；空数组不限制。"],
                 ["requires", "依赖软件的 id 数组。不是镜像、Go 模块或宿主能力名称，不要填写 container。"],
             ])}
@@ -234,7 +235,8 @@ export default function Page({onClose}: PluginPageProps) {
     return <Button onClick={onClose}>关闭</Button>;
 }`}</Code>
             <p>modal 可以是原生 Modal 属性对象，也可以是同步配置函数。参数包含 software、compact、mobile、token、onClose。函数不能调用 Hooks 或返回 Promise；页面逻辑仍放在组件中。</p>
-            <p>software 提供 id、name、code、version、status、create_time、update_time 和 frontend。读取标识使用 software.code，版本使用 software.version；不会下发插件内部 config，也不包含重复的 manifest 对象。</p>
+            <p>demo 沿用宿主默认标题，显示软件名称与清单图标；没有图标时使用应用图标。设置 modal.title 会替换整个标题，希望自动显示清单图标时不需要设置这一项。</p>
+            <p>software 提供 id、name、code、version、icon、status、create_time、update_time 和 frontend。读取标识使用 software.code，版本使用 software.version；不会下发插件内部 config，也不包含重复的 manifest 对象。</p>
             <p>可设置 width、title、footer、style、styles、classNames、centered、mask 等。打开、关闭和销毁由宿主管理；页面内关闭调用 onClose，资源清理放在 effect 返回函数中。</p>
             <Code title="让 PageTable 管理请求、搜索与分页">{`// import {PageTable} from "sinking-antd";
 // 放在接收 request 属性的页面组件中：
@@ -263,7 +265,8 @@ import "plugin.local/${id}/internal/helper"
 import Notes from "./components/notes";
 const Details = React.lazy(() => import("./components/details"));`}</Code>
             <p>前端支持 ts、tsx、js、jsx、mjs、json。共享依赖为 react、antd、sinking-antd、antd-style、dayjs、sdk 与 React JSX runtime。不要使用面板源码的 @/ 别名。</p>
-            <p>CSS、Less、Sass 不能作为模块导入，使用 antd-style 或内联样式。web 下的图片等静态资源通过 <code>/software/{id}/page/资源路径</code> 访问；URL 不再增加 web 层。</p>
+            <p>CSS、Less、Sass 不能作为模块导入，使用 antd-style 或内联样式。web 下的 SVG、PNG、JPG/JPEG、WebP、ICO、GIF 图片通过受登录保护的 <code>/software/{id}/page/资源路径</code> 访问；URL 不再增加 web 层。清单 <code>icon: "web/icon.svg"</code> 对应 <code>/software/{id}/page/icon.svg</code>，由宿主带认证信息加载；替换后重新安装软件包即可生效。</p>
+            <p>清单省略 icon 或设置为空字符串时，软件列表和默认管理标题会显示应用图标（AppstoreOutlined）。加载期间、请求失败或图片无法显示时也会自动回退。删除图标文件时同时移除清单配置，否则安装会提示图标文件不存在。</p>
             <Code title="开发机准备额外 Go 依赖">{`cd ${id}/server
 go mod tidy
 go mod vendor

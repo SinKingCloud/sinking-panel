@@ -10,7 +10,7 @@ import (
 // Create 添加常用脚本
 func Create(c *context.Context) {
 	var form struct {
-		Module string `json:"module" default:"ssh" validate:"required,max=50" label:"所属模块"`
+		Module string `json:"module" default:"script_ssh" validate:"required,max=50" label:"所属模块"`
 		TypeId int64  `json:"type_id" default:"0" validate:"min=0" label:"脚本分类"`
 		Name   string `json:"name" default:"" validate:"required,max=100" label:"脚本名称"`
 		Script string `json:"script" default:"" validate:"required,max=131072" label:"脚本内容"`

@@ -15,6 +15,10 @@ func (s *service) UpdateByIds(ids []int64, data *repositoryTypes.UpdateType) err
 	if len(ids) == 0 || data == nil {
 		return errors.New("更新数据不能为空")
 	}
+	reorder := data.Reorder != nil && *data.Reorder
+	if reorder && (data.Module != nil || data.Name != nil || data.Sort != nil) {
+		return errors.New("调整分类顺序时不能同时修改其他信息")
+	}
 	var module string
 	if data.Module != nil {
 		if strings.TrimSpace(*data.Module) == "" || utf8.RuneCountInString(*data.Module) > 50 || strings.Contains(*data.Module, "%") {
@@ -28,44 +32,40 @@ func (s *service) UpdateByIds(ids []int64, data *repositoryTypes.UpdateType) err
 		if err != nil {
 			return err
 		}
+		if reorder && len(types) != len(ids) {
+			return errors.New("分类列表已变更，请刷新后重试")
+		}
 		scriptTypeIds := make([]int64, 0)
 		siteTypeIds := make([]int64, 0)
 		taskTypeIds := make([]int64, 0)
 		databaseTypeIds := make([]int64, 0)
+		// 改名、排序只更新分类；变更模块时才清理原业务关联。
 		for _, item := range types {
 			modules = append(modules, item.Module)
-			if module != "" && module != item.Module {
-				scriptTypeIds = append(scriptTypeIds, item.Id)
+			if module == "" || module == item.Module {
+				continue
 			}
-			if item.Module == type_module.Site {
+			scriptTypeIds = append(scriptTypeIds, item.Id)
+			switch item.Module {
+			case type_module.Site:
 				siteTypeIds = append(siteTypeIds, item.Id)
-			}
-			if item.Module == type_module.Task {
+			case type_module.Task:
 				taskTypeIds = append(taskTypeIds, item.Id)
-			}
-			if item.Module == type_module.Database {
+			case type_module.Database:
 				databaseTypeIds = append(databaseTypeIds, item.Id)
 			}
 		}
-		if len(scriptTypeIds) > 0 {
-			if err := s.repositoryScript.ClearTypeId(scriptTypeIds, tx); err != nil {
-				return err
-			}
+		if err := s.repositoryScript.ClearTypeId(scriptTypeIds, tx); err != nil {
+			return err
 		}
-		if module != "" && module != type_module.Site {
-			if err := s.repositorySite.ClearTypeId(siteTypeIds, tx); err != nil {
-				return err
-			}
+		if err := s.repositorySite.ClearTypeId(siteTypeIds, tx); err != nil {
+			return err
 		}
-		if module != "" && module != type_module.Task {
-			if err := s.repositoryTask.ClearTypeId(taskTypeIds, tx); err != nil {
-				return err
-			}
+		if err := s.repositoryTask.ClearTypeId(taskTypeIds, tx); err != nil {
+			return err
 		}
-		if module != "" && module != type_module.Database {
-			if err := s.repositoryDatabase.ClearTypeId(databaseTypeIds, tx); err != nil {
-				return err
-			}
+		if err := s.repositoryDatabase.ClearTypeId(databaseTypeIds, tx); err != nil {
+			return err
 		}
 		return s.repositoryTypes.UpdateByIds(ids, data, tx)
 	})

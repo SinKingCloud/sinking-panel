@@ -117,6 +117,13 @@ func (m *Manager) load(ctx context.Context, directory string, instance *instance
 	if err = i.Use(stdlib.Symbols); err != nil {
 		return err
 	}
+	// Yaegi 的标准库表止于 Go 1.22；补充目录约束文件 API，供插件安全管理持久文件。
+	if err = i.Use(interp.Exports{"os/os": {
+		"OpenRoot": reflect.ValueOf(os.OpenRoot),
+		"Root":     reflect.ValueOf((*os.Root)(nil)),
+	}}); err != nil {
+		return err
+	}
 	var app interface{}
 	if m.options.App != nil {
 		app = m.options.App(info.Manifest.Id)

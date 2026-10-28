@@ -130,6 +130,9 @@ func (s *service) Uninstall(target string) (int64, error) {
 				progress(system_task_status.Failed, 100, message)
 				return
 			}
+			s.mu.Lock()
+			delete(s.icons, record.Code)
+			s.mu.Unlock()
 			progress(system_task_status.Completed, 100, "卸载完成")
 		})
 		if s.system.GetTask(key) == nil {

@@ -8,7 +8,8 @@ type SelectType struct {
 
 // UpdateType 类型更新
 type UpdateType struct {
-	Module *string
-	Name   *string
-	Sort   *int64
+	Module  *string
+	Name    *string
+	Sort    *int64
+	Reorder *bool // 按传入ID顺序写入连续排序值。
 }

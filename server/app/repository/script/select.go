@@ -3,6 +3,7 @@ package script
 import (
 	"server/app/model"
 	"server/app/util/page"
+	"strconv"
 	"strings"
 )
 
@@ -11,13 +12,14 @@ func (r *Repository) Select(where *SelectScript, queryPage *page.Query) (*page.R
 	query := r.Database.Db.Model(&model.Script{})
 	if where != nil {
 		if where.Module != nil {
-			module, _, instance := strings.Cut(*where.Module, "_")
-			if instance {
-				// 精确匹配全局及当前实例，避免 ssh_1 命中 ssh_10 等其他实例。
-				query = query.Where("module IN ?", []string{module, *where.Module})
-			} else {
-				query = query.Where("module = ?", *where.Module)
+			modules := []string{*where.Module}
+			if index := strings.LastIndexByte(*where.Module, '_'); index > 0 {
+				if _, err := strconv.ParseUint((*where.Module)[index+1:], 10, 64); err == nil {
+					modules = append(modules, (*where.Module)[:index])
+				}
 			}
+			// 精确匹配全局及当前实例，避免实例 1 命中实例 10 的脚本。
+			query = query.Where("module IN ?", modules)
 		}
 		if where.TypeId != nil {
 			query = query.Where("type_id = ?", *where.TypeId)

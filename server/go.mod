@@ -6,6 +6,7 @@ require (
 	github.com/DeRuina/timberjack v1.4.8
 	github.com/SinKingCloud/sinking-go/sinking-web v0.0.0-20261001111349-2d40917e1e8c
 	github.com/afocus/captcha v0.0.0-20191010092841-4bd1f21c8868
+	github.com/aliyun/alibabacloud-oss-go-sdk-v2 v1.6.1
 	github.com/axgle/mahonia v0.0.0-20180208002826-3358181d7394
 	github.com/baidubce/bce-sdk-go v0.9.276
 	github.com/caddy-dns/alidns v1.0.29
@@ -28,6 +29,7 @@ require (
 	github.com/godbus/dbus/v5 v5.2.2
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/gorilla/websocket v1.5.3
+	github.com/huaweicloud/huaweicloud-sdk-go-obs v3.26.6+incompatible
 	github.com/libdns/alidns v1.0.7
 	github.com/libdns/huaweicloud v1.0.1
 	github.com/libdns/libdns v1.1.1
@@ -48,8 +50,10 @@ require (
 	github.com/shirou/gopsutil/v4 v4.26.9
 	github.com/spf13/viper v1.21.0
 	github.com/tailscale/go-winio v0.0.0-20231025203758-c4f33415bf55
+	github.com/tencentyun/cos-go-sdk-v5 v0.7.76
 	github.com/traefik/yaegi v0.16.1
 	github.com/vmihailenco/msgpack/v5 v5.4.1
+	github.com/volcengine/ve-tos-golang-sdk/v2 v2.9.10
 	github.com/wenlng/go-captcha-assets v1.0.7
 	github.com/wenlng/go-captcha/v2 v2.0.5
 	go.etcd.io/bbolt v1.5.0
@@ -95,6 +99,7 @@ require (
 	github.com/checkpoint-restore/go-criu/v8 v8.4.0 // indirect
 	github.com/chzyer/readline v1.5.1 // indirect
 	github.com/cilium/ebpf v0.22.0 // indirect
+	github.com/clbanning/mxj v1.8.4 // indirect
 	github.com/cloudflare/circl v1.6.5 // indirect
 	github.com/corazawaf/coraza-coreruleset/v4 v4.25.0 // indirect
 	github.com/corazawaf/libinjection-go v0.3.3 // indirect
@@ -129,6 +134,7 @@ require (
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/golang/snappy v1.0.0 // indirect
 	github.com/google/certificate-transparency-go v1.3.3 // indirect
+	github.com/google/go-querystring v1.0.0 // indirect
 	github.com/google/go-tpm v0.9.8 // indirect
 	github.com/google/go-tspi v0.3.0 // indirect
 	github.com/google/s2a-go v0.1.10 // indirect
@@ -161,10 +167,12 @@ require (
 	github.com/miekg/dns v1.1.73 // indirect
 	github.com/mitchellh/copystructure v1.2.0 // indirect
 	github.com/mitchellh/go-ps v1.0.0 // indirect
+	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
 	github.com/moby/sys/capability v0.4.0 // indirect
 	github.com/moby/sys/userns v0.2.1 // indirect
 	github.com/montanaflynn/stats v0.7.1 // indirect
+	github.com/mozillazg/go-httpheader v0.2.1 // indirect
 	github.com/mrunalp/fileutils v0.5.1 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/ncruces/go-strftime v1.1.0 // indirect

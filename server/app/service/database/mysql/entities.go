@@ -77,7 +77,7 @@ type Result struct {
 type Config struct {
 	Host     string `json:"host" label:"主机地址" default:"127.0.0.1"`
 	Port     int    `json:"port" label:"端口" default:"3306" min:"1" max:"65535"`
-	User     string `json:"user" label:"用户名" aliases:"username"`
+	User     string `json:"user" label:"用户名"`
 	Password string `json:"password" label:"密码" encrypt:"true"`
 	Database string `json:"database" label:"默认数据库"`
 	Socket   string `json:"socket" label:"Socket 路径"`

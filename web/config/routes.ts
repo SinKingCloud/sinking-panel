@@ -52,6 +52,14 @@ export default [
         component: "@/pages/database",
     },
     {
+        path: "monitor",
+        title: "监控管理",
+        name: "monitor",
+        icon: "LineChartOutlined",
+        hideInMenu: false,
+        component: "@/pages/monitor",
+    },
+    {
         path: "software",
         title: "软件管理",
         name: "software",

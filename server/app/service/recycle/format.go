@@ -3,7 +3,6 @@ package recycle
 import (
 	"encoding/base64"
 	rand2 "math/rand"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -41,14 +40,13 @@ func (s *service) decodeName(name string) (path string, deleteTime int64, id int
 			id = int(num)
 		}
 	}
-	if strings.HasPrefix(encodedPath, "v2_") {
-		decodedPath, err := base64.RawURLEncoding.DecodeString(strings.TrimPrefix(encodedPath, "v2_"))
-		if err != nil || len(decodedPath) == 0 {
-			return "", 0, 0
-		}
-		path = string(decodedPath)
-	} else {
-		path = filepath.FromSlash(strings.ReplaceAll(encodedPath, "_sk_", "/"))
+	if !strings.HasPrefix(encodedPath, "v2_") {
+		return "", 0, 0
 	}
+	decodedPath, err := base64.RawURLEncoding.DecodeString(strings.TrimPrefix(encodedPath, "v2_"))
+	if err != nil || len(decodedPath) == 0 {
+		return "", 0, 0
+	}
+	path = string(decodedPath)
 	return path, deleteTime, id
 }

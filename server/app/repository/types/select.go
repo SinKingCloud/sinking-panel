@@ -2,6 +2,7 @@ package types
 
 import (
 	"server/app/model"
+	"strconv"
 	"strings"
 
 	"gorm.io/gorm"
@@ -21,7 +22,6 @@ func (r *Repository) SelectByIds(ids []int64, tx ...*gorm.DB) ([]*model.Type, er
 	err := r.Database.BatchExecute(ids, 1000, func(batch interface{}) error {
 		var data []*model.Type
 		if err := db.Model(&model.Type{}).
-			Select("id", "module").
 			Where("id IN ?", batch.([]int64)).
 			Find(&data).Error; err != nil {
 			return err
@@ -62,10 +62,14 @@ func (r *Repository) Select(where *SelectType, orderByField, orderByType string)
 		if where.Module != nil {
 			if strings.Contains(*where.Module, "%") {
 				query = query.Where("module LIKE ? ESCAPE '!'", strings.NewReplacer("!", "!!", "_", "!_").Replace(*where.Module))
-			} else if module, _, scoped := strings.Cut(*where.Module, "_"); scoped {
-				query = query.Where("module IN ?", []string{module, *where.Module})
 			} else {
-				query = query.Where("module = ?", *where.Module)
+				modules := []string{*where.Module}
+				if index := strings.LastIndexByte(*where.Module, '_'); index > 0 {
+					if _, err := strconv.ParseUint((*where.Module)[index+1:], 10, 64); err == nil {
+						modules = append(modules, (*where.Module)[:index])
+					}
+				}
+				query = query.Where("module IN ?", modules)
 			}
 		}
 		if where.Name != nil {

@@ -8,6 +8,7 @@ import (
 // Service service接口
 type Service interface {
 	Group(group string) map[string]string
+	GroupWithError(group string) (map[string]string, error)
 	Set(key string, value string) error
 	Sets(configs map[string]string) error
 	Get(group string, key string) string

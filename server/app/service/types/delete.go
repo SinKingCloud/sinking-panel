@@ -19,13 +19,12 @@ func (s *service) DeleteByIds(ids []int64) error {
 		databaseTypeIds := make([]int64, 0)
 		for _, item := range types {
 			modules = append(modules, item.Module)
-			if item.Module == type_module.Site {
+			switch item.Module {
+			case type_module.Site:
 				siteTypeIds = append(siteTypeIds, item.Id)
-			}
-			if item.Module == type_module.Task {
+			case type_module.Task:
 				taskTypeIds = append(taskTypeIds, item.Id)
-			}
-			if item.Module == type_module.Database {
+			case type_module.Database:
 				databaseTypeIds = append(databaseTypeIds, item.Id)
 			}
 		}

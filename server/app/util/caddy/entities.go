@@ -222,14 +222,12 @@ type OWASPOptions struct {
 
 // WAFRule 保存一条可由业务层独立开关的 WAF 规则。
 type WAFRule struct {
-	ID         string         `json:"id"`         // 规则唯一标识
-	Name       string         `json:"name"`       // 规则显示名称
-	Enabled    bool           `json:"enabled"`    // 是否启用规则
-	Match      WAFMatch       `json:"match"`      // 多个条件组之间的匹配逻辑
-	Action     WAFAction      `json:"action"`     // 规则命中后的处理动作
-	Conditions []WAFCondition `json:"conditions"` // 旧版扁平条件，读取已有配置时继续兼容
-	Groups     []WAFGroup     `json:"groups"`     // 最多两层的条件分组
-	Directive  string         `json:"directive"`  // 旧版 Coraza 规则指令，仅用于兼容已有配置
+	ID      string     `json:"id"`      // 规则唯一标识
+	Name    string     `json:"name"`    // 规则显示名称
+	Enabled bool       `json:"enabled"` // 是否启用规则
+	Match   WAFMatch   `json:"match"`   // 多个条件组之间的匹配逻辑
+	Action  WAFAction  `json:"action"`  // 规则命中后的处理动作
+	Groups  []WAFGroup `json:"groups"`  // 最多两层的条件分组
 }
 
 // WAFGroup 定义 WAF 规则中的一组匹配条件。

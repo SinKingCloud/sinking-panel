@@ -14,9 +14,7 @@ const loadState = (): any => {
         const value = JSON.parse(window.localStorage.getItem(storageKey) || "{}");
         return {
             server: typeof value.server === "boolean" ? value.server : defaultState.server,
-            scripts: typeof value.scripts === "boolean"
-                ? value.scripts
-                : typeof value.commands === "boolean" ? value.commands : defaultState.scripts,
+            scripts: typeof value.scripts === "boolean" ? value.scripts : defaultState.scripts,
         };
     } catch {
         return {...defaultState};

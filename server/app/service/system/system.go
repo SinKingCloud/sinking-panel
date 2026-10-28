@@ -2,10 +2,13 @@ package system
 
 import (
 	"context"
+	"log"
 	"os"
 	"server/app/constant"
+	serviceConfig "server/app/service/config"
 	serviceFile "server/app/service/file"
 	"server/app/util/daemon"
+	"server/app/util/recordstore"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -24,6 +27,9 @@ type Service interface {
 	SetTimezone(name string) error                                           // 设置系统时区
 	GetStatis() map[string]interface{}                                       // CPU、内存、磁盘等资源统计
 	GetIO(netInterface, diskName string, after int64) map[string]interface{} // 网络与磁盘 I/O 统计
+	GetMonitorSettings() (recordstore.SeriesSettings, error)
+	SetMonitorSettings(enabled bool, days int) error
+	GetMonitorHistory(start, end int64) (recordstore.RecordResult, error)
 	GetTask(id string) *Task
 	TaskList(status *int) ([]*Task, error)
 	TaskCreate(id, name string, data interface{}, run func(context.Context, interface{}, func(int, float64, string)))
@@ -44,6 +50,7 @@ type service struct {
 	tasks                  map[string]*Task
 	mu                     sync.RWMutex
 	fileService            serviceFile.Service
+	configService          serviceConfig.Service
 	daemon                 *daemon.Daemon
 	restartPending         atomic.Bool
 	maxTaskWorkers         int    // 系统任务并发 worker 数量
@@ -80,10 +87,18 @@ type service struct {
 	monitorSequence      int64
 	monitorUpdatedAt     int64
 	monitorHistory       []map[string]interface{}
+	monitorRecorder      *recordstore.Recorder
+	monitorInitError     error
+	monitorDeviceMu      sync.RWMutex
+	monitorDisks         map[string]bool
+	monitorNetworks      map[string]bool
+	monitorDiskReady     bool
+	loadEstimate         [3]float64
+	loadEstimatedAt      time.Time
 }
 
 // NewService 实例化service
-func NewService(fileService serviceFile.Service, daemon *daemon.Daemon) *service {
+func NewService(fileService serviceFile.Service, configService serviceConfig.Service, daemon *daemon.Daemon) *service {
 	now := time.Now()
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &service{
@@ -93,6 +108,7 @@ func NewService(fileService serviceFile.Service, daemon *daemon.Daemon) *service
 		jobs:                   make(map[string]*job),
 		queue:                  make([]string, 0),
 		fileService:            fileService,
+		configService:          configService,
 		daemon:                 daemon,
 		maxTaskWorkers:         maxTaskWorkers,
 		systemTaskLogDirectory: constant.TaskPath,
@@ -149,4 +165,9 @@ func (s *service) Close() {
 	}
 	s.lifecycleMu.Unlock()
 	s.wait.Wait()
+	if s.monitorRecorder != nil {
+		if err := s.monitorRecorder.Close(); err != nil {
+			log.Printf("保存系统监控历史失败: %v", err)
+		}
+	}
 }

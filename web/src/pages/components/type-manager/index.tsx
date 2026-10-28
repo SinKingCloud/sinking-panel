@@ -747,6 +747,7 @@ const TypeManager = forwardRef<TypeManagerRef, TypeManagerProps>(({module, scope
         notify = false,
         animate = false,
     ): Promise<any[] | undefined> => {
+        if (!mountedRef.current) return;
         const requestId = ++requestRef.current;
         setLoading(true);
         try {
@@ -894,8 +895,10 @@ const TypeManager = forwardRef<TypeManagerRef, TypeManagerProps>(({module, scope
             if (lifecycleRef.current !== lifecycle) {
                 if (response?.code === 200) {
                     clearEnumCache(targetModule);
-                    onMutation?.();
-                    await reloadAfterChange();
+                    if (mountedRef.current) {
+                        onMutation?.();
+                        await reloadAfterChange();
+                    }
                 }
                 return;
             }
@@ -949,8 +952,10 @@ const TypeManager = forwardRef<TypeManagerRef, TypeManagerProps>(({module, scope
                     if (lifecycleRef.current !== lifecycle) {
                         if (response?.code === 200) {
                             clearEnumCache(module);
-                            onMutation?.();
-                            await reloadAfterChange();
+                            if (mountedRef.current) {
+                                onMutation?.();
+                                await reloadAfterChange();
+                            }
                         }
                         return;
                     }
@@ -995,12 +1000,7 @@ const TypeManager = forwardRef<TypeManagerRef, TypeManagerProps>(({module, scope
         if (oldIndex === newIndex) {
             return;
         }
-        const movedItem = originItems[oldIndex];
-        const targetItem = originItems[newIndex];
-        const nextSort = Number(targetItem.sort) + (newIndex < oldIndex ? -1 : 1);
-        const optimisticItems = nextItems.map((item) => (
-            item.id === movedItem.id ? {...item, sort: nextSort} : item
-        ));
+        const optimisticItems = nextItems.map((item, index) => ({...item, sort: index + 1}));
         itemsRef.current = optimisticItems;
         setItems(optimisticItems);
         const sortRequestId = ++sortRequestRef.current;
@@ -1010,8 +1010,8 @@ const TypeManager = forwardRef<TypeManagerRef, TypeManagerProps>(({module, scope
         try {
             const response = await updateType({
                 body: {
-                    ids: [movedItem.id],
-                    sort: String(nextSort),
+                    ids: nextItems.map((item) => item.id),
+                    reorder: true,
                 },
             });
             committed = response?.code === 200;

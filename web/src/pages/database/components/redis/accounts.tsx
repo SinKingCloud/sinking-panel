@@ -113,10 +113,10 @@ export default ({record}: any) => {
                     {title: "数据权限", key: "permissions", width: 210, ellipsis: true, render: (_, account) => <Tooltip title={account.roles || undefined}>{permissions(account).label}</Tooltip>},
                     {title: "操作", key: "operation", width: 90, fixed: "right", align: "center", render: (_, account) => account.protected
                         ? <Tooltip title={protectedReason}><span className="redis-account-protected">受保护</span></Tooltip>
-                        : busy ? null : <ActionDropdown menu={{items: [{key: "permissions", label: "权限", onClick: () => open("permissions", account)},
+                        : <ActionDropdown disabled={busy} menu={{items: [{key: "permissions", label: "权限", onClick: () => open("permissions", account)},
                             {key: "password", label: "密码", onClick: () => open("password", account)},
                             {type: "divider"}, {key: "delete", label: "删除", danger: true, onClick: () => remove(account)}]}}>
-                            <Button color="default" variant="filled" size="small">操作<DownOutlined/></Button>
+                            <Button color="default" variant="filled" size="small" disabled={busy}>操作<DownOutlined/></Button>
                         </ActionDropdown>},
                 ]}/>
         </div>

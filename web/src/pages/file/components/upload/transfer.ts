@@ -47,7 +47,6 @@ const FILE_UPLOAD_CHUNK_SIZE = 8 * 1024 * 1024;
 const FILE_UPLOAD_MAX_RETRIES = 3;
 const FILE_UPLOAD_CONCURRENCY = 2;
 const FILE_UPLOAD_RESUME_STORAGE_KEY = "file-upload-tasks";
-const FILE_UPLOAD_RESUME_LEGACY_STORAGE_PREFIX = "file-upload-task:";
 const FILE_UPLOAD_RESUME_MAX_AGE = 30 * 24 * 60 * 60 * 1000;
 const FILE_UPLOAD_RESUME_CLEANUP_INTERVAL = 60 * 60 * 1000;
 
@@ -177,30 +176,8 @@ const cleanupExpiredFileUploadResumeItems = () => {
     lastFileUploadResumeCleanup = now;
     try {
         const stored = readFileUploadResumeItems(now);
-        const items = stored.items;
-        let changed = stored.changed;
-        const legacyStorageKeys: string[] = [];
-        for (let index = localStorage.length - 1; index >= 0; index--) {
-            const storageKey = localStorage.key(index);
-            if (!storageKey?.startsWith(FILE_UPLOAD_RESUME_LEGACY_STORAGE_PREFIX)) {
-                continue;
-            }
-            legacyStorageKeys.push(storageKey);
-            try {
-                const item = JSON.parse(localStorage.getItem(storageKey) || "null") as any;
-                if (!isValidFileUploadResumeItem(item, now)) {
-                    continue;
-                }
-                const key = storageKey.slice(FILE_UPLOAD_RESUME_LEGACY_STORAGE_PREFIX.length);
-                if (!items[key] || items[key].updateTime < item.updateTime) {
-                    items[key] = item;
-                    changed = true;
-                }
-            } catch {
-            }
-        }
-        if ((!changed || writeFileUploadResumeItems(items))) {
-            legacyStorageKeys.forEach((storageKey) => localStorage.removeItem(storageKey));
+        if (stored.changed) {
+            writeFileUploadResumeItems(stored.items);
         }
     } catch {
     }

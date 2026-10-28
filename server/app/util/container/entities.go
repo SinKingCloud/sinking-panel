@@ -41,11 +41,9 @@ type ManagerOptions struct {
 
 // Mount 定义一个宿主机 bind mount。
 type Mount struct {
-	Source        string `json:"source"`                   // 宿主机挂载源绝对路径，须位于允许的挂载根目录内
-	Destination   string `json:"destination"`              // 容器内挂载目标绝对路径
-	ReadOnly      bool   `json:"read_only"`                // 是否以只读方式挂载
-	DirectoryMode string `json:"directory_mode,omitempty"` // 已废弃；为兼容源码保留，非空值会被拒绝
-	FileMode      string `json:"file_mode,omitempty"`      // 已废弃；为兼容源码保留，非空值会被拒绝
+	Source      string `json:"source"`      // 宿主机挂载源绝对路径，须位于允许的挂载根目录内
+	Destination string `json:"destination"` // 容器内挂载目标绝对路径
+	ReadOnly    bool   `json:"read_only"`   // 是否以只读方式挂载
 }
 
 // ResourceLimits 定义实例的 cgroup 限制；PidsLimit 为 0 时继承 Manager 默认值，其他字段为 0 表示不限制。

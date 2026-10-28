@@ -31,6 +31,11 @@ func (m *Manager) Page(directory, path string) ([]byte, string, string, error) {
 		".json": "application/json; charset=utf-8",
 		".png":  "image/png",
 		".svg":  "image/svg+xml",
+		".jpg":  "image/jpeg",
+		".jpeg": "image/jpeg",
+		".webp": "image/webp",
+		".ico":  "image/x-icon",
+		".gif":  "image/gif",
 	}
 	root, err := os.OpenRoot(m.root)
 	if err != nil {

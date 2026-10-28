@@ -12,8 +12,9 @@ import {getTypeList} from "@/service/api/type";
 import {getParams} from "@/utils/page";
 
 interface ScriptToolsProps {
-    instanceId: number | string;
-    value: string;
+    module?: string;
+    instanceId?: number | string;
+    value: string | (() => string);
     onUse: (script: string) => void;
     disabled?: boolean;
     mode?: string;
@@ -25,13 +26,12 @@ const useStyles = createStyles(({css, token}, {compact}: {compact: boolean}) => 
         &.modal-table-loading { min-height: ${compact ? 200 : 240}px; }
         && .ui-table-data > [role="status"] { min-height: ${compact ? 140 : 160}px; }
         .script-time { color: ${token.colorTextSecondary}; font-variant-numeric: tabular-nums; white-space: nowrap; }
-        .script-actions { display: flex; justify-content: center; gap: 6px; }
     `,
     editor: css`border: 1px solid ${token.colorBorderSecondary}; border-radius: ${token.borderRadius}px; overflow: hidden;`,
 }));
 
-// 工作区只注入此组件，脚本请求和分类管理留在宿主，数据库管理器可以独立复用。
-export default function ScriptTools({instanceId, value, onUse, disabled, mode = "sql", Editor}: ScriptToolsProps) {
+// 按模块及可选实例复用脚本库，终端、计划任务和数据库管理器共用脚本与分类接口。
+export default function ScriptTools({module = "script_database", instanceId, value, onUse, disabled, mode = "sql", Editor}: ScriptToolsProps) {
     const {message, modal} = App.useApp();
     const theme = useTheme();
     const compact = Boolean(theme?.isCompactTheme?.());
@@ -50,10 +50,11 @@ export default function ScriptTools({instanceId, value, onUse, disabled, mode = 
     const categories = useRef<TypeManagerRef | null>(null);
     const sequence = useRef(0);
     const typeRequest = useRef(0);
-    const scope = `database_${instanceId}`;
+    const scope = instanceId === undefined || instanceId === null ? module : `${module}_${instanceId}`;
+    const scopes = useMemo(() => [{value: module, label: "全局脚本"}, ...(scope === module ? [] : [{value: scope, label: "当前实例"}])], [module, scope]);
     const formModule = Form.useWatch("module", form) || scope;
     const formTypeId = Form.useWatch("type_id", form);
-    const formTypes = useMemo(() => formModule === "database" ? types.filter((item) => item.module === "database") : types, [formModule, types]);
+    const formTypes = useMemo(() => formModule === module ? types.filter((item) => item.module === module) : types, [formModule, module, types]);
     const typeNames = useMemo(() => Object.fromEntries(types.map(({id, name}) => [id, name])), [types]);
     const params = useMemo(() => ({module: scope, type_id: typeId}), [scope, typeId]);
     const handleTypesChange = useCallback((items: typeof types) => {
@@ -93,12 +94,21 @@ export default function ScriptTools({instanceId, value, onUse, disabled, mode = 
     }, []);
 
     const edit = async (item?: any) => {
+        let script = "";
+        if (!item) {
+            try {
+                script = typeof value === "function" ? value() : value;
+            } catch (error) {
+                message.error((error as Error)?.message || "读取脚本内容失败");
+                return;
+            }
+        }
         const id = ++sequence.current;
         setBusy(false); setLoading(Boolean(item)); setFormActive(true); setFormOpen(true);
         setEditing(item);
         form.resetFields();
         if (!item) {
-            form.setFieldsValue({name: "", module: scope, type_id: typeId ? Number(typeId) : 0, script: value});
+            form.setFieldsValue({name: "", module: scope, type_id: typeId ? Number(typeId) : 0, script});
             return;
         }
         try {
@@ -166,20 +176,21 @@ export default function ScriptTools({instanceId, value, onUse, disabled, mode = 
             columns={[
                 {title: "脚本名称", dataIndex: "name", width: 190, ellipsis: true},
                 {title: "分类", dataIndex: "type_id", width: 110, ellipsis: true, render: (id: number) => id ? typeNames[id] || "—" : "全部分类"},
-                {title: "保存范围", dataIndex: "module", width: 90, render: (value: string) => value === "database" ? "全局脚本" : "实例脚本"},
+                {title: "保存范围", dataIndex: "module", width: 90, render: (value: string) => value === module ? "全局脚本" : "实例脚本"},
                 {title: "更新时间", dataIndex: "update_time", width: 160, render: (value: string) => <span className="script-time">{value ? value.slice(0, 16) : "—"}</span>},
-                {title: "操作", key: "action", width: 144, align: "center", className: "action-cell", render: (_: unknown, item: any) => <div className="script-actions">
-                    <Button size="small" autoInsertSpace={false} disabled={disabled} onClick={() => void use(item)}>填入</Button>
+                {title: "操作", key: "action", width: 90, align: "center", className: "action-cell", render: (_: unknown, item: any) =>
                     <ActionDropdown menu={{items: [
+                        {key: "use", label: "填入", disabled, onClick: () => void use(item)},
                         {key: "edit", label: "编辑", onClick: () => void edit(item)},
                         {key: "delete", label: "删除", danger: true, onClick: () => remove(item)},
                     ]}}><Button size="small" autoInsertSpace={false}>操作</Button></ActionDropdown>
-                </div>
-            }]}
+                },
+            ]}
             modalProps={{zIndex: 1200, destroyOnHidden: true, style: {maxWidth: "calc(100vw - 24px)", top: "clamp(12px, 7vh, 72px)", paddingBottom: 24}}}/>
         <ProModal title={<Title>{editing?.id ? "编辑脚本" : "添加脚本"}</Title>} width={compact ? 540 : 580} onOk={form.submit}
             onCancel={() => { sequence.current++; setFormOpen(false); }}
             modalProps={{open: formOpen, forceRender: true, zIndex: 1250, confirmLoading: busy || loading, okText: "保存", cancelText: "取消", mask: {closable: true},
+                footer: loading ? null : undefined,
                 afterClose: () => setFormActive(false),
                 style: {maxWidth: "calc(100vw - 24px)", top: "clamp(12px, 7vh, 72px)", paddingBottom: 24}} as any}>
             <Form form={form} layout="vertical" variant="filled" onFinish={submit}>
@@ -190,7 +201,7 @@ export default function ScriptTools({instanceId, value, onUse, disabled, mode = 
                     {!editing?.id && <Row gutter={16}>
                         <Col xs={24} sm={12}>
                             <Form.Item name="module" label="保存范围" rules={[{required: true, message: "请选择保存范围"}]}>
-                                <Select placeholder="请选择保存范围" options={[{value: "database", label: "全局脚本"}, {value: scope, label: "当前实例"}]}/>
+                                <Select placeholder="请选择保存范围" options={scopes}/>
                             </Form.Item>
                         </Col>
                         <Col xs={24} sm={12}>
@@ -207,7 +218,7 @@ export default function ScriptTools({instanceId, value, onUse, disabled, mode = 
                 </>)}
             </Form>
         </ProModal>
-        <TypeManager ref={categories} module={scope} scopes={[{label: "全局分类", value: "database"}, {label: "实例分类", value: scope}]} zIndex={1300}
+        <TypeManager key={scope} ref={categories} module={scope} scopes={scope === module ? undefined : [{label: "全局分类", value: module}, {label: "实例分类", value: scope}]} zIndex={1300}
             onChange={handleTypesChange} onMutation={() => table.current?.reload()}/>
     </>;
 }

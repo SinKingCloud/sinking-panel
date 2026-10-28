@@ -62,16 +62,6 @@ func (s *service) Config(databaseType int, content string, id int64, stored stri
 		label := property.Tag.Get("label")
 		raw := values[name]
 		delete(values, name)
-		// 结构化字段统一使用规范名称，如 username 转为 user。
-		for _, alias := range strings.Split(property.Tag.Get("aliases"), ",") {
-			if alias == "" {
-				continue
-			}
-			if len(raw) == 0 || string(raw) == `""` || string(raw) == "null" {
-				raw = values[alias]
-			}
-			delete(values, alias)
-		}
 		target := value.Field(i)
 		text := ""
 		if len(raw) != 0 && string(raw) != "null" {

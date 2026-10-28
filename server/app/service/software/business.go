@@ -55,7 +55,7 @@ func (s *service) restoreTask(e *entry) error {
 	return nil
 }
 
-// Select 只查询列表摘要，避免读取源码、配置和容器状态。
+// Select 查询列表摘要；图标路径来自清单缓存，避免读取源码、配置和容器状态。
 func (s *service) Select(where *repositorySoftware.SelectSoftware, query *page.Query) (*page.Result[*repositorySoftware.Software], error) {
 	if where != nil && where.Status != nil {
 		if _, ok := software_status.Map()[*where.Status]; !ok {
@@ -80,7 +80,31 @@ func (s *service) Select(where *repositorySoftware.SelectSoftware, query *page.Q
 			}
 		}
 	}
-	return s.repository.Select(where, query)
+	result, err := s.repository.Select(where, query)
+	if err != nil {
+		return nil, err
+	}
+	for _, software := range result.List {
+		s.mu.Lock()
+		icon, cached := s.icons[software.Code]
+		s.mu.Unlock()
+		if !cached {
+			// 未 Boot 的服务也能返回图标；损坏的清单按无图标处理，不影响软件列表。
+			if manifest, err := s.plugins.Manifest(software.Code); err == nil {
+				icon = manifest.Icon
+			}
+			s.mu.Lock()
+			if current, exists := s.icons[software.Code]; exists {
+				// 并发安装可能已经更新缓存，保留已提交的新版本路径。
+				icon = current
+			} else {
+				s.icons[software.Code] = icon
+			}
+			s.mu.Unlock()
+		}
+		software.Icon = icon
+	}
+	return result, nil
 }
 
 // Info 读取软件公开信息及页面入口，不执行插件代码或返回内部配置。
@@ -102,6 +126,7 @@ func (s *service) Info(id int64) (*Info, error) {
 			Name:       record.Name,
 			Code:       record.Code,
 			Version:    record.Version,
+			Icon:       pkg.Manifest.Icon,
 			Status:     record.Status,
 			CreateTime: record.CreateTime,
 			UpdateTime: record.UpdateTime,
@@ -146,6 +171,11 @@ func (s *service) Boot() {
 	}
 	for _, record := range records {
 		pkg, err := s.plugins.Info(record.Code)
+		if err == nil {
+			s.mu.Lock()
+			s.icons[record.Code] = pkg.Manifest.Icon
+			s.mu.Unlock()
+		}
 		if err == nil && !pkg.Available {
 			err = errors.New(pkg.UnavailableReason)
 		}

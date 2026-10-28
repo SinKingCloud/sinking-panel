@@ -336,11 +336,11 @@ export default ({record, initialTab, engine, section = "browse", hidden = false,
             }}
             action={!rowKeys.some(Boolean) ? undefined : (row: any[], index: number) => {
                 const keys = rowKeys[index];
-                if (loading || !keys) return null;
-                return <ActionDropdown key={JSON.stringify(keys)} menu={{items: [
+                if (!keys) return null;
+                return <ActionDropdown key={JSON.stringify(keys)} disabled={loading} menu={{items: [
                     {key: "edit", label: "编辑", onClick: () => edit(row, index)},
                     {key: "delete", label: "删除", danger: true, onClick: () => remove(row, index)},
-                ]}}><Button color="default" variant="filled" size="small" autoInsertSpace={false}>操作</Button></ActionDropdown>;
+                ]}}><Button color="default" variant="filled" size="small" autoInsertSpace={false} disabled={loading}>操作</Button></ActionDropdown>;
             }}/>
         <div className="client-footer"><Tooltip title={screens.md ? undefined : rowSummary} trigger={["hover", "click"]}>
             <Typography.Text type="secondary">{screens.md ? rowSummary
@@ -365,10 +365,10 @@ export default ({record, initialTab, engine, section = "browse", hidden = false,
                 {title: "主键", dataIndex: "primary_key", width: 72, render: (value: any) => value ? "是" : "—"},
                 {title: "默认值", dataIndex: "default", width: 160, ellipsis: true, render: (value: any) => value == null ? "—" : String(value)},
                 {title: "备注", dataIndex: "comment", width: 180, ellipsis: true, render: (value: string) => value || "—"},
-                ...(!isView ? [{title: "操作", key: "action", width: 84, align: "center" as const, fixed: "right" as const, render: (_: any, column: any) => structureDisabled ? null : <ActionDropdown menu={{items: [
+                ...(!isView ? [{title: "操作", key: "action", width: 84, align: "center" as const, fixed: "right" as const, render: (_: any, column: any) => <ActionDropdown disabled={structureDisabled} menu={{items: [
                     ...(!column.generated ? [{key: "edit", label: "编辑", onClick: () => setSchemaEditor({mode: "update_column", column})}] : []),
                     {key: "delete", label: "删除", danger: true, onClick: () => deleteObject("drop_column", column)},
-                ]}}><Button color="default" variant="filled" size="small" autoInsertSpace={false}>操作</Button></ActionDropdown>}] : [])]}/>
+                ]}}><Button color="default" variant="filled" size="small" autoInsertSpace={false} disabled={structureDisabled}>操作</Button></ActionDropdown>}] : [])]}/>
     </>;
     const indexPanel = <>
         <VirtualTable className="sql-fill-table" rowKey="name" size="small" loading={metadataLoading} pagination={false} dataSource={indexes}
@@ -377,9 +377,9 @@ export default ({record, initialTab, engine, section = "browse", hidden = false,
             columns={[{title: "索引", dataIndex: "name", width: 160, ellipsis: true}, {title: "字段", dataIndex: "columns", render: (value: any) => value?.join(", ") || "—"},
                 {title: "唯一", dataIndex: "unique", width: 72, render: (value: any) => value ? "是" : "否"}, {title: "主键", dataIndex: "primary", width: 72, render: (value: any) => value ? "是" : "—"},
                 ...(features.index_comments === true ? [{title: "备注", dataIndex: "comment", width: 180, ellipsis: true, render: (value: string) => value || "—"}] : []),
-                ...(!isView ? [{title: "操作", key: "action", width: 84, align: "center" as const, fixed: "right" as const, render: (_: any, index: any) => structureDisabled ? null : <ActionDropdown menu={{items: [
+                ...(!isView ? [{title: "操作", key: "action", width: 84, align: "center" as const, fixed: "right" as const, render: (_: any, index: any) => <ActionDropdown disabled={structureDisabled} menu={{items: [
                     {key: "delete", label: "删除", danger: true, onClick: () => deleteObject("drop_index", index)},
-                ]}}><Button color="default" variant="filled" size="small" autoInsertSpace={false}>操作</Button></ActionDropdown>}] : [])]}/>
+                ]}}><Button color="default" variant="filled" size="small" autoInsertSpace={false} disabled={structureDisabled}>操作</Button></ActionDropdown>}] : [])]}/>
     </>;
     const refreshTable = <Button className="sql-toolbar-refresh" size="small" color="default" variant="filled" loading={loading || metadataLoading} aria-label="刷新数据表" icon={<Icon type="ReloadOutlined"/>}
         onClick={() => { if (tab === "data") reload(); else setDetailVersion((value) => value + 1); }}/>;

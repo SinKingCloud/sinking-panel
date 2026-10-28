@@ -1,7 +1,6 @@
 import {useCallback, useEffect, useState} from "react";
 import {readFileStorage, updateFileStorage} from "./file-storage";
 
-const preferencesVersion = 2;
 const availableThemes = new Set<string>([
     "auto",
     "github",
@@ -43,15 +42,9 @@ const loadPreferences = (): any => {
         const tabSize = [2, 4, 8].includes(Number(stored.tabSize))
             ? Number(stored.tabSize)
             : defaultPreferences.tabSize;
-        const usesLegacyDefaults = stored.version !== preferencesVersion
-            && Number(stored.fontSize) === 13
-            && (stored.theme === undefined || stored.theme === "auto")
-            && (stored.tabSize === undefined || Number(stored.tabSize) === 4)
-            && (stored.wrapEnabled === undefined || stored.wrapEnabled)
-            && (stored.showLineNumbers === undefined || stored.showLineNumbers);
         return {
             theme,
-            fontSize: clampInteger(usesLegacyDefaults ? 12 : stored.fontSize, 12, 24, defaultPreferences.fontSize),
+            fontSize: clampInteger(stored.fontSize, 12, 24, defaultPreferences.fontSize),
             tabSize,
             wrapEnabled: typeof stored.wrapEnabled === "boolean"
                 ? stored.wrapEnabled
@@ -73,10 +66,7 @@ const useFileEditorPreferences = () => {
             ...current,
             editor: {
                 ...current.editor,
-                preferences: {
-                    ...preferences,
-                    version: preferencesVersion,
-                },
+                preferences,
             },
         }));
     }, [preferences]);

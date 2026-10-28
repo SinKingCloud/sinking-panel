@@ -500,6 +500,7 @@ func loadSystemRoute(s *sinking_web.Engine) {
 	g.ANY("/timezone", context.HandleFunc(system.Timezone)) //系统时区
 	g.ANY("/statis", context.HandleFunc(system.Statis))     //系统资源统计
 	g.ANY("/io", context.HandleFunc(system.IO))             //网络与磁盘 I/O 统计
+	g.ANY("/monitor", context.HandleFunc(system.Monitor))   //系统监控历史与采集设置
 	g.ANY("/task", context.HandleFunc(system.Task))         //系统任务
 	g.ANY("/log", context.HandleFunc(system.Log))           //系统日志
 	g.ANY("/enum", context.HandleFunc(system.Enum))         //枚举类型

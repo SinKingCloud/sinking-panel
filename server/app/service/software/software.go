@@ -32,6 +32,7 @@ type service struct {
 	plugins    *plugin.Manager
 	mu         sync.Mutex
 	entries    map[int64]*entry
+	icons      map[string]string // 清单图标路径；与 entries 一样由 mu 保护
 	importing  sync.Mutex
 	closed     bool
 	booted     atomic.Bool
@@ -44,5 +45,6 @@ func NewService(repository repositorySoftware.Interface, system serviceSystem.Se
 		system:     system,
 		plugins:    plugins,
 		entries:    make(map[int64]*entry),
+		icons:      make(map[string]string),
 	}
 }

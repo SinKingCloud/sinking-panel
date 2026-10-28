@@ -167,11 +167,11 @@ export default ({record}: any) => {
                 {title: "操作", key: "action", width: 76, align: "center", fixed: "right", render: (_: any, item: any) => {
                     const editable = canUpdateSearch && ["text", "string"].includes(item.type) && ![false, "no", "not_analyzed"].includes(item.definition.index);
                     const extensible = multiFields && !item.isSubfield && ["text", "keyword", "string"].includes(item.type);
-                    if ((!editable && !extensible) || saving) return null;
-                    return <ActionDropdown menu={{items: [
+                    if (!editable && !extensible) return null;
+                    return <ActionDropdown disabled={saving} menu={{items: [
                         ...(editable ? [{key: "edit", label: "编辑", onClick: () => openEditor("edit", item)}] : []),
                         ...(extensible ? [{key: "subfield", label: "扩展", onClick: () => openEditor("subfield", item)}] : []),
-                    ]}}><Button color="default" variant="filled" size="small">操作</Button></ActionDropdown>;
+                    ]}}><Button color="default" variant="filled" size="small" disabled={saving}>操作</Button></ActionDropdown>;
                 }},
             ]}/></div>
         <ProModal title={<Title>完整配置</Title>} onOk={() => setRaw(false)} onCancel={() => setRaw(false)} modalProps={{

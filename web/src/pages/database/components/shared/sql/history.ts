@@ -1,12 +1,10 @@
 const storageKey = "database";
-const legacyKey = "database-query-history";
 let history: Record<string, any[]> = Object.create(null);
 let unsaved = false;
 let lastSaved: string | undefined;
 
 // 所有实例共用一个存储键；存储不可用时继续保留当前会话的历史。
 export default (id: string, execution?: any | null) => {
-    const legacyKeys: string[] = [];
     let storage: any;
     let records: any[] = [];
     let value: string | null = null;
@@ -18,23 +16,12 @@ export default (id: string, execution?: any | null) => {
             const saved = JSON.parse(value || "{}");
             storage = saved && typeof saved === "object" && !Array.isArray(saved) ? saved : {};
             if (!unsaved) {
-                // 已有的平铺历史在保存时转换为按实例 ID 分组的结构。
                 const savedHistory = storage.queryHistory;
-                records = Array.isArray(savedHistory) ? savedHistory : Object.entries(savedHistory || {}).flatMap(([id, items]) =>
-                    Array.isArray(items) ? items.map((item) => ({...item, id})) : []);
+                records = savedHistory && typeof savedHistory === "object" && !Array.isArray(savedHistory)
+                    ? Object.entries(savedHistory).flatMap(([id, items]) => Array.isArray(items) ? items.map((item) => ({...item, id})) : [])
+                    : [];
             }
         } catch { storage = {}; if (!unsaved) records = []; }
-        for (let index = 0; index < localStorage.length; index++) {
-            const key = localStorage.key(index);
-            if (key !== legacyKey && !key?.startsWith(`${legacyKey}:`)) continue;
-            legacyKeys.push(key);
-            // 写入失败时以内存为准，避免已清空的历史从旧缓存恢复。
-            if (unsaved) continue;
-            try {
-                const saved = JSON.parse(localStorage.getItem(key) || "[]");
-                if (Array.isArray(saved)) records = [...records, ...(key === legacyKey ? saved : saved.map((item) => ({...item, id: key.slice(legacyKey.length + 1)})))];
-            } catch { /* 单个旧缓存损坏不影响其他实例。 */ }
-        }
     } catch { /* 存储不可读时继续使用当前会话的历史。 */ }
     if (unsaved || !storage) records = Object.entries(history).flatMap(([id, items]) => items.map((item) => ({...item, id})));
     if (execution === null) records = records.filter((item) => String(item?.id) !== id);
@@ -63,8 +50,6 @@ export default (id: string, execution?: any | null) => {
         const serialized = JSON.stringify({...storage, queryHistory: history});
         if (serialized !== value) localStorage.setItem(storageKey, serialized);
         lastSaved = serialized;
-        // 新缓存成功写入后再移除旧键，避免迁移失败丢失历史。
-        legacyKeys.forEach((key) => localStorage.removeItem(key));
         unsaved = false;
     } catch { unsaved = true; }
     return history[id] || [];

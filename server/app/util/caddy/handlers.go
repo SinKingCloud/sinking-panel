@@ -403,16 +403,6 @@ func (m *Manager) buildWAFHandler(siteID string, options WAFOptions) (map[string
 			}
 		}
 	}
-	for _, rule := range options.Rules {
-		if !rule.Enabled || len(rule.Conditions) > 0 || len(rule.Groups) > 0 {
-			continue
-		}
-		for _, match := range ruleIDPattern.FindAllStringSubmatch(rule.Directive, -1) {
-			if id, parseErr := strconv.ParseInt(match[1], 10, 64); parseErr == nil {
-				usedRuleIDs[id] = struct{}{}
-			}
-		}
-	}
 	nextRuleID := int64(5_000_000)
 	allocateRuleID := func() (int64, error) {
 		const maxRuleID = int64(2_147_483_647)
@@ -438,9 +428,6 @@ func (m *Manager) buildWAFHandler(siteID string, options WAFOptions) (map[string
 	for _, rule := range options.Rules {
 		if !rule.Enabled {
 			continue
-		}
-		for _, condition := range rule.Conditions {
-			needsRequestBody = needsRequestBody || bodyTarget(condition.Target)
 		}
 		for _, group := range rule.Groups {
 			for _, condition := range group.Conditions {
@@ -493,17 +480,7 @@ func (m *Manager) buildWAFHandler(siteID string, options WAFOptions) (map[string
 		if !rule.Enabled {
 			continue
 		}
-		if len(rule.Conditions) == 0 && len(rule.Groups) == 0 {
-			directives = append(directives, rule.Directive)
-			continue
-		}
 		groups := rule.Groups
-		if len(rule.Groups) == 0 {
-			groups = []WAFGroup{{
-				Match:      rule.Match,
-				Conditions: rule.Conditions,
-			}}
-		}
 		phase := 1
 		for _, group := range groups {
 			for _, condition := range group.Conditions {

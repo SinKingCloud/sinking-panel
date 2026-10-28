@@ -1,13 +1,10 @@
 package software
 
 import (
-	"archive/zip"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"time"
@@ -40,61 +37,9 @@ func (s *service) Install(path string) (result *Info, err error) {
 			return nil, err
 		}
 		defer os.Remove(archive.Name())
-		writer := zip.NewWriter(archive)
-		var count int
-		var size int64
-		for _, name := range []string{"software.json", "server", "web"} {
-			if name == "web" {
-				if _, err := os.Lstat(filepath.Join(path, name)); errors.Is(err, fs.ErrNotExist) {
-					continue
-				}
-			}
-			err = filepath.WalkDir(filepath.Join(path, name), func(source string, entry fs.DirEntry, walkErr error) error {
-				if walkErr != nil {
-					return walkErr
-				}
-				if entry.IsDir() {
-					if entry.Name() == ".git" {
-						return filepath.SkipDir
-					}
-					return nil
-				}
-				info, err := entry.Info()
-				if err != nil {
-					return err
-				}
-				if !info.Mode().IsRegular() {
-					return fmt.Errorf("软件目录不支持符号链接或特殊文件: %s", source)
-				}
-				count++
-				size += info.Size()
-				if count > 1000 || size > 64<<20 {
-					return errors.New("软件包不能超过 1000 个文件或 64 MB，请移除无关文件和宿主依赖")
-				}
-				relative, err := filepath.Rel(path, source)
-				if err != nil {
-					return err
-				}
-				output, err := writer.Create(filepath.ToSlash(relative))
-				if err != nil {
-					return err
-				}
-				input, err := os.Open(source)
-				if err != nil {
-					return err
-				}
-				written, copyErr := io.Copy(output, io.LimitReader(input, info.Size()+1))
-				closeErr := input.Close()
-				if written != info.Size() {
-					return fmt.Errorf("打包期间文件发生变动: %s", source)
-				}
-				return errors.Join(copyErr, closeErr)
-			})
-			if err != nil {
-				break
-			}
-		}
-		if err = errors.Join(err, writer.Close(), archive.Close()); err != nil {
+		err = packDirectory(path, archive)
+		err = errors.Join(err, archive.Close())
+		if err != nil {
 			return nil, err
 		}
 		path = archive.Name()
@@ -217,7 +162,8 @@ func (s *service) Install(path string) (result *Info, err error) {
 		}
 		created = true
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	// 内置镜像首次解包和导入需要比纯源码安装更长的处理时间。
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 	if !isNew {
 		params, _ := json.Marshal(map[string]string{
@@ -253,6 +199,9 @@ func (s *service) Install(path string) (result *Info, err error) {
 		return nil, err
 	}
 	committed = true
+	s.mu.Lock()
+	s.icons[record.Code] = pkg.Manifest.Icon
+	s.mu.Unlock()
 	e.taskID = ""
 	if backedUp {
 		if err = s.plugins.Remove(backup); err != nil {

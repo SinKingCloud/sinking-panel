@@ -44,8 +44,8 @@ const fallbackCopyText = (value: string) => {
 
 const Scripts = ({styles, collapsed, connected, selectedId, onCollapsedChange, onInsert}: any) => {
     const {message, modal} = App.useApp();
-    const instanceModule = selectedId === undefined || selectedId === null ? undefined : `ssh_${selectedId}`;
-    const list = useScripts(instanceModule || "ssh");
+    const instanceModule = selectedId === undefined || selectedId === null ? undefined : `script_ssh_${selectedId}`;
+    const list = useScripts(instanceModule || "script_ssh");
     const formRef = useRef<any>({} as any);
     const typeManagerRef = useRef<TypeManagerRef>({} as TypeManagerRef);
     const typeRequestRef = useRef(0);
@@ -70,9 +70,15 @@ const Scripts = ({styles, collapsed, connected, selectedId, onCollapsedChange, o
     ], [typeOptions]);
     const activeTypeName = typeOptions.find((item) => item.value === list.typeId)?.label || "全部分类";
 
+    const handleTypesChange = useCallback((items: any[]) => {
+        typeRequestRef.current += 1;
+        setTypeItems(items);
+        list.setTypeId((current) => current !== "0" && !items.some((item) => String(item.id) === current) ? "0" : current);
+    }, [list.setTypeId]);
+
     const loadTypes = useCallback(async () => {
         const requestId = ++typeRequestRef.current;
-        const response = await getTypeList({body: {module: instanceModule || "ssh", order_by_field: "sort", order_by_type: "asc"}});
+        const response = await getTypeList({body: {module: instanceModule || "script_ssh", order_by_field: "sort", order_by_type: "asc"}});
         if (typeRequestRef.current !== requestId || !response) {
             return;
         }
@@ -81,9 +87,9 @@ const Scripts = ({styles, collapsed, connected, selectedId, onCollapsedChange, o
             return;
         }
         const items = Array.isArray(response?.data?.list) ? response?.data?.list.filter(Boolean) : [];
-        setTypeItems(items);
+        handleTypesChange(items);
         return items;
-    }, [instanceModule, message]);
+    }, [handleTypesChange, instanceModule, message]);
 
     useEffect(() => {
         void loadTypes();
@@ -258,14 +264,6 @@ const Scripts = ({styles, collapsed, connected, selectedId, onCollapsedChange, o
         } as any);
     }, [list.reload, message, modal]);
 
-    const handleTypesChange = useCallback((items: any[]) => {
-        typeRequestRef.current += 1;
-        setTypeItems(items);
-        if (list.typeId !== "0" && !items.some((item) => String(item.id) === list.typeId)) {
-            list.setTypeId("0");
-        }
-    }, [list.setTypeId, list.typeId]);
-
     const handleScroll = useCallback((event: React.UIEvent<HTMLDivElement>) => {
         const target = event.currentTarget;
         const horizontal = target.scrollWidth > target.clientWidth + 1;
@@ -365,7 +363,7 @@ const Scripts = ({styles, collapsed, connected, selectedId, onCollapsedChange, o
                             <div className="script-list">
                                 {list.items.map((record) => {
                                     const typeName = [
-                                        record.module === "ssh" ? "全局脚本" : "实例脚本",
+                                        record.module === "script_ssh" ? "全局脚本" : "实例脚本",
                                         record.type_id ? typeMap[String(record.type_id)] || "未知分类" : "",
                                     ].filter(Boolean).join(" · ");
                                     const copying = copyingId === record.id;
@@ -493,10 +491,11 @@ const Scripts = ({styles, collapsed, connected, selectedId, onCollapsedChange, o
 
             <ScriptForm ref={formRef} instanceModule={instanceModule} onSuccess={list.reload}/>
             <TypeManager
+                key={instanceModule || "script_ssh"}
                 ref={typeManagerRef}
-                module={instanceModule || "ssh"}
+                module={instanceModule || "script_ssh"}
                 scopes={instanceModule ? [
-                    {label: "全局分类", value: "ssh"},
+                    {label: "全局分类", value: "script_ssh"},
                     {label: "实例分类", value: instanceModule},
                 ] : undefined}
                 onChange={handleTypesChange}

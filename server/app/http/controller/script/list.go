@@ -13,7 +13,7 @@ import (
 func List(c *context.Context) {
 	query := c.ValidatePage("id", "desc", "id", "id,module,type_id,name,create_time,update_time")
 	var form struct {
-		Module  string `json:"module" default:"ssh" validate:"required,max=50" label:"所属模块"`
+		Module  string `json:"module" default:"script_ssh" validate:"required,max=50" label:"所属模块"`
 		TypeId  string `json:"type_id" default:"" validate:"omitempty,numeric" label:"类型ID"`
 		Keyword string `json:"keyword" default:"" validate:"omitempty" label:"关键词"`
 		Name    string `json:"name" default:"" validate:"omitempty,max=100" label:"脚本名称"`
