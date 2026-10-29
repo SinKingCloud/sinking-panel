@@ -9,7 +9,7 @@ import (
 )
 
 // unsupportedRequest 仅对缺失端点或明确不支持的请求回退，保留认证及连接错误。
-func unsupportedRequest(status int, err error) bool {
+func (m *Manager) unsupportedRequest(status int, err error) bool {
 	if err == nil {
 		return false
 	}
@@ -27,7 +27,7 @@ func unsupportedRequest(status int, err error) bool {
 func (m *Manager) indexStats(ctx context.Context, index string) (map[string]interface{}, error) {
 	path := ""
 	if index != "" {
-		if err := ValidateIndexName(index, false); err != nil {
+		if err := m.ValidateIndexName(index, false); err != nil {
 			return nil, err
 		}
 		path = "/" + url.PathEscape(index)
@@ -37,13 +37,13 @@ func (m *Manager) indexStats(ctx context.Context, index string) (map[string]inte
 		endpoint = path + "/_stats?clear=true&docs=true&store=true"
 	}
 	data, status, err := m.doRequest(ctx, http.MethodGet, endpoint, nil)
-	if unsupportedRequest(status, err) {
+	if m.unsupportedRequest(status, err) {
 		data, _, err = m.doRequest(ctx, http.MethodGet, path+"/_stats", nil)
 	}
 	if err != nil {
 		return nil, err
 	}
-	indices := object(object(data)["indices"])
+	indices := m.object(m.object(data)["indices"])
 	if indices == nil {
 		return nil, errors.New("Elasticsearch 统计响应缺少 indices")
 	}
@@ -58,7 +58,7 @@ func (m *Manager) metadataIndices(ctx context.Context, index string) (map[string
 		"filter_blocks":        {"true"},
 	}
 	if index != "" {
-		if err := ValidateIndexName(index, false); err != nil {
+		if err := m.ValidateIndexName(index, false); err != nil {
 			return nil, err
 		}
 		query.Set("filter_indices", index)
@@ -71,13 +71,13 @@ func (m *Manager) metadataIndices(ctx context.Context, index string) (map[string
 		endpoint = "/_cluster/state?" + query.Encode()
 	}
 	data, status, err := m.doRequest(ctx, http.MethodGet, endpoint, nil)
-	if m.major != 0 && unsupportedRequest(status, err) {
+	if m.major != 0 && m.unsupportedRequest(status, err) {
 		data, _, err = m.doRequest(ctx, http.MethodGet, "/_cluster/state?"+query.Encode(), nil)
 	}
 	if err != nil {
 		return nil, err
 	}
-	indices := object(object(object(data)["metadata"])["indices"])
+	indices := m.object(m.object(m.object(data)["metadata"])["indices"])
 	if indices == nil {
 		return nil, errors.New("Elasticsearch 元数据响应缺少 indices")
 	}
@@ -85,8 +85,8 @@ func (m *Manager) metadataIndices(ctx context.Context, index string) (map[string
 }
 
 // indexSetting 兼容 0.90 的 index.xxx 平面键和后续版本的 index 对象。
-func indexSetting(settings map[string]interface{}, name string) interface{} {
-	if value, exists := object(settings["index"])[name]; exists {
+func (m *Manager) indexSetting(settings map[string]interface{}, name string) interface{} {
+	if value, exists := m.object(settings["index"])[name]; exists {
 		return value
 	}
 	if value, exists := settings["index."+name]; exists {
@@ -98,8 +98,8 @@ func indexSetting(settings map[string]interface{}, name string) interface{} {
 // legacyIndices 在 CAT 缺失或不支持 JSON 时组合设置、统计及健康信息，包含关闭的索引。
 func (m *Manager) legacyIndices(ctx context.Context, keyword string) ([]Index, error) {
 	data, status, err := m.doRequest(ctx, http.MethodGet, "/_settings", nil)
-	settings := object(data)
-	if unsupportedRequest(status, err) {
+	settings := m.object(data)
+	if m.unsupportedRequest(status, err) {
 		settings, err = m.metadataIndices(ctx, "")
 	}
 	if err != nil {
@@ -116,13 +116,13 @@ func (m *Manager) legacyIndices(ctx context.Context, keyword string) ([]Index, e
 	if err != nil {
 		return nil, err
 	}
-	health := object(object(healthData)["indices"])
+	health := m.object(m.object(healthData)["indices"])
 	list := make([]Index, 0, len(settings))
 	for name, value := range settings {
-		if !visibleIndex(name, keyword) {
+		if !m.visibleIndex(name, keyword) {
 			continue
 		}
-		entry := object(value)
+		entry := m.object(value)
 		state, _ := entry["state"].(string)
 		if state == "close" {
 			state = "closed"
@@ -130,26 +130,26 @@ func (m *Manager) legacyIndices(ctx context.Context, keyword string) ([]Index, e
 		if state == "" {
 			state = "open"
 		}
-		indexHealth, _ := object(health[name])["status"].(string)
-		if object(stats[name]) == nil && health[name] == nil {
+		indexHealth, _ := m.object(health[name])["status"].(string)
+		if m.object(stats[name]) == nil && health[name] == nil {
 			state = "closed"
 		}
-		indexSettings := object(entry["settings"])
-		primary := object(object(stats[name])["primaries"])
-		total := object(object(stats[name])["total"])
+		indexSettings := m.object(entry["settings"])
+		primary := m.object(m.object(stats[name])["primaries"])
+		total := m.object(m.object(stats[name])["total"])
 		list = append(list, Index{
 			Name:          name,
 			Health:        indexHealth,
 			Status:        state,
-			Documents:     number(object(primary["docs"])["count"]),
-			SizeBytes:     number(object(total["store"])["size_in_bytes"]),
-			PrimaryShards: int(number(indexSetting(indexSettings, "number_of_shards"))),
-			Replicas:      int(number(indexSetting(indexSettings, "number_of_replicas"))),
+			Documents:     m.number(m.object(primary["docs"])["count"]),
+			SizeBytes:     m.number(m.object(total["store"])["size_in_bytes"]),
+			PrimaryShards: int(m.number(m.indexSetting(indexSettings, "number_of_shards"))),
+			Replicas:      int(m.number(m.indexSetting(indexSettings, "number_of_replicas"))),
 		})
 	}
 	return list, nil
 }
 
-func visibleIndex(name, keyword string) bool {
-	return ValidateIndexName(name, false) == nil && !strings.HasPrefix(name, ".") && strings.Contains(strings.ToLower(name), strings.ToLower(keyword))
+func (m *Manager) visibleIndex(name, keyword string) bool {
+	return m.ValidateIndexName(name, false) == nil && !strings.HasPrefix(name, ".") && strings.Contains(strings.ToLower(name), strings.ToLower(keyword))
 }

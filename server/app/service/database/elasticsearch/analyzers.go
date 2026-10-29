@@ -15,11 +15,11 @@ func (m *Manager) Analyzers(ctx context.Context) ([]map[string]interface{}, erro
 		return nil, err
 	}
 	names := make(map[string]bool)
-	for name := range object(object(indexSetting(settings, "analysis"))["analyzer"]) {
+	for name := range m.object(m.object(m.indexSetting(settings, "analysis"))["analyzer"]) {
 		names[name] = true
 	}
 	// 旧版本和 flat_settings 响应使用平铺键名。
-	if index := object(settings["index"]); index != nil {
+	if index := m.object(settings["index"]); index != nil {
 		settings = index
 	}
 	for key := range settings {
@@ -69,16 +69,16 @@ func (m *Manager) Analyzers(ctx context.Context) ([]map[string]interface{}, erro
 	if err = ctx.Err(); err != nil {
 		return nil, err
 	}
-	nodes := object(object(data)["nodes"])
+	nodes := m.object(m.object(data)["nodes"])
 	installed := func(name string) bool {
-		if pluginErr != nil || len(nodes) == 0 || number(object(object(data)["_nodes"])["failed"]) > 0 {
+		if pluginErr != nil || len(nodes) == 0 || m.number(m.object(m.object(data)["_nodes"])["failed"]) > 0 {
 			return false
 		}
 		for _, node := range nodes {
-			plugins, _ := object(node)["plugins"].([]interface{})
+			plugins, _ := m.object(node)["plugins"].([]interface{})
 			found := false
 			for _, plugin := range plugins {
-				if object(plugin)["name"] == name {
+				if m.object(plugin)["name"] == name {
 					found = true
 					break
 				}

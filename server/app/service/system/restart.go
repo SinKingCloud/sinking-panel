@@ -8,7 +8,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
-	"server/global"
 	"strings"
 	"time"
 )
@@ -26,7 +25,7 @@ func (s *service) Restart(action string, containers bool) error {
 		} else if _, err = os.Stat(executable); err != nil {
 			return fmt.Errorf("读取面板程序失败: %w", err)
 		}
-		manager := global.App.Container
+		manager := s.container
 		run = func() error {
 			if containers && manager != nil {
 				for _, instance := range manager.List() {
@@ -44,7 +43,7 @@ func (s *service) Restart(action string, containers bool) error {
 			return s.daemon.Restart()
 		}
 	case "server":
-		command, err := serverRestartCommand(runtime.GOOS)
+		command, err := s.serverRestartCommand(runtime.GOOS)
 		if err != nil {
 			return err
 		}
@@ -82,7 +81,7 @@ func (s *service) Restart(action string, containers bool) error {
 }
 
 // serverRestartCommand 使用各系统的正常关机流程，仅在命令不存在时选择备用命令。
-func serverRestartCommand(goos string) (*exec.Cmd, error) {
+func (s *service) serverRestartCommand(goos string) (*exec.Cmd, error) {
 	var commands [][]string
 	switch goos {
 	case "linux":

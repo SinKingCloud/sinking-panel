@@ -37,7 +37,7 @@ func (s *service) Install(path string) (result *Info, err error) {
 			return nil, err
 		}
 		defer os.Remove(archive.Name())
-		err = packDirectory(path, archive)
+		err = s.packDirectory(path, archive)
 		err = errors.Join(err, archive.Close())
 		if err != nil {
 			return nil, err

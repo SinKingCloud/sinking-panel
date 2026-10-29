@@ -194,7 +194,7 @@ func (s *service) Restore(id int64) error {
 	}
 	j := s.internalTasks[id]
 	if j == nil {
-		j = newJob(task, s)
+		j = s.newJob(task)
 	}
 	if j == nil {
 		return errors.New("任务实例化失败")
@@ -239,7 +239,7 @@ func (s *service) Run(id int64) error {
 	}
 	j := s.internalTasks[id]
 	if j == nil {
-		j = newJob(task, s)
+		j = s.newJob(task)
 	}
 	if j == nil {
 		s.taskLock.Unlock()
@@ -322,7 +322,7 @@ func (s *service) refresh(id int64) error {
 	}
 	j := s.internalTasks[id]
 	if j == nil {
-		j = newJob(task, s)
+		j = s.newJob(task)
 	}
 	if j == nil {
 		return errors.New("任务实例化失败")
@@ -443,7 +443,7 @@ func (s *service) Add(data *model.Task, run ...func(context.Context)) error {
 		data.EntryID = 0
 		return s.repositoryTask.Create(data)
 	}
-	j := newJob(data, s)
+	j := s.newJob(data)
 	if j == nil {
 		return errors.New("任务实例化失败")
 	}
@@ -474,7 +474,7 @@ func (s *service) Start() {
 				if task.Status != task_status.Running {
 					continue
 				}
-				job2 := newJob(task, s)
+				job2 := s.newJob(task)
 				if job2 != nil {
 					entryID, err2 := s.instance.AddJob(task.Spec, job2)
 					if err2 == nil && entryID > 0 {

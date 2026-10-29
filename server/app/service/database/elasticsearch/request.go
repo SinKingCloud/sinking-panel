@@ -36,7 +36,7 @@ func (m *Manager) Request(ctx context.Context, method, path, body string) (map[s
 		}
 	}
 	if method != http.MethodGet && method != http.MethodHead {
-		if err := ValidateIndexName(m.index, true); err != nil {
+		if err := m.ValidateIndexName(m.index, true); err != nil {
 			return nil, err
 		}
 		if len(decoded) == 0 || decoded[0] != m.index {
@@ -48,10 +48,10 @@ func (m *Manager) Request(ctx context.Context, method, path, body string) (map[s
 				return nil, errors.New("DELETE 仅允许当前具体索引或具体文档，不能批量或通配删除")
 			}
 			if len(decoded) == 3 {
-				if err := validateDocumentID(decoded[2]); err != nil {
+				if err := m.validateDocumentID(decoded[2]); err != nil {
 					return nil, err
 				}
-				if m.major < 7 && legacyDeleteEndpoint(decoded[2]) {
+				if m.major < 7 && m.legacyDeleteEndpoint(decoded[2]) {
 					return nil, errors.New("旧版 DELETE 文档路径不能使用保留端点名称，避免删除类型或按查询删除")
 				}
 			}
@@ -85,7 +85,7 @@ func (m *Manager) Request(ctx context.Context, method, path, body string) (map[s
 	}
 	var content interface{}
 	if strings.TrimSpace(body) != "" {
-		content, err = decodeObject(body, "REST 请求体", false)
+		content, err = m.decodeObject(body, "REST 请求体", false)
 		if err != nil {
 			return nil, err
 		}
@@ -95,7 +95,7 @@ func (m *Manager) Request(ctx context.Context, method, path, body string) (map[s
 		return nil, err
 	}
 	// 文档编辑使用原始 JSON 和读取时版本，避免浏览器丢失大整数精度或覆盖并发修改。
-	if value := object(data); method == http.MethodGet && value != nil && value["_source"] != nil && value["_id"] != nil {
+	if value := m.object(data); method == http.MethodGet && value != nil && value["_source"] != nil && value["_id"] != nil {
 		source, err := json.MarshalIndent(value["_source"], "", "  ")
 		if err != nil {
 			return nil, err
@@ -103,7 +103,7 @@ func (m *Manager) Request(ctx context.Context, method, path, body string) (map[s
 		value["_source_json"] = string(source)
 		for _, key := range []string{"_seq_no", "_primary_term", "_version"} {
 			if value[key] != nil {
-				value[key] = strconv.FormatInt(number(value[key]), 10)
+				value[key] = strconv.FormatInt(m.number(value[key]), 10)
 			}
 		}
 	}

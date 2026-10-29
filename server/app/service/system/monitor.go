@@ -2,16 +2,9 @@ package system
 
 import (
 	"errors"
-	"math"
-	"runtime"
 	"time"
 
-	"github.com/shirou/gopsutil/v4/cpu"
-	"github.com/shirou/gopsutil/v4/disk"
-	"github.com/shirou/gopsutil/v4/host"
-	"github.com/shirou/gopsutil/v4/load"
-	"github.com/shirou/gopsutil/v4/mem"
-	"github.com/shirou/gopsutil/v4/net"
+	"server/app/util/psutil"
 )
 
 // startMonitor 启动系统监控
@@ -54,70 +47,48 @@ func (s *service) startMonitor() {
 	}()
 }
 
-// updateMonitor 更新全部系统监控信息
+// updateMonitor 同步采集由 util 完成，service 负责发布缓存和记录采样历史。
 func (s *service) updateMonitor() {
-	now := time.Now()
-
-	// 网卡统计只采集一次，同时用于网卡信息与速率计算
-	netCounters, netErr := net.IOCounters(true)
-	diskCounters, diskErr := disk.IOCounters()
-	// 部分平台的系统命令可能以成功状态返回空结果，不能将不可用数据记为零。
-	if netErr == nil && len(netCounters) == 0 {
-		netErr = errors.New("未读取到网卡计数器")
+	snapshot := s.resourceSampler.Sample(s.ctx)
+	network := make([]psutil.NetworkIO, 0, len(snapshot.Network))
+	netReady, diskReady := false, false
+	for _, value := range snapshot.Network {
+		netReady = netReady || value.RateAvailable
+		if !value.IsLoopback {
+			network = append(network, value)
+		}
 	}
-	if diskErr == nil && len(diskCounters) == 0 {
-		diskErr = errors.New("未读取到磁盘计数器")
+	snapshot.Network = network
+	var netErr, diskErr error
+	if message := snapshot.Errors["network"]; message != "" {
+		netErr = errors.New(message)
 	}
-	cpuInfo := s.getCpuInfo()
-	cpuUsage, _ := cpuInfo["usage"].(float64)
-
-	memoryInfo := s.getMemoryInfo()
-	loadInfo := s.getLoadInfo(cpuUsage)
-	networkInfo := s.getNetworkInfo(netCounters)
-
-	s.ioCacheLock.Lock()
-	hasPreviousNetCounter := len(s.netIOCache) > 0
-	hasPreviousDiskCounter := len(s.diskIOCache) > 0
-	netUpdated := false
-	diskUpdated := false
+	if message := snapshot.Errors["disk"]; message != "" {
+		diskErr = errors.New(message)
+	}
+	s.monitorMu.Lock()
 	if netErr == nil {
-		interval := now.Sub(s.netLastUpdateTime).Seconds()
-		if interval <= 0 {
-			interval = 1
+		s.netRateCache = make(map[string]psutil.NetworkIO, len(network))
+		for _, value := range network {
+			s.netRateCache[value.Name] = value
 		}
-		s.updateNetworkRate(netCounters, interval)
-		netIOCache := make(map[string]net.IOCountersStat, len(netCounters))
-		for _, counter := range netCounters {
-			netIOCache[counter.Name] = counter
-		}
-		s.netIOCache = netIOCache
-		s.netLastUpdateTime = now
-		netUpdated = true
 	}
-
 	if diskErr == nil {
-		interval := now.Sub(s.diskLastUpdateTime).Seconds()
-		if interval <= 0 {
-			interval = 1
+		s.diskRateCache = make(map[string]psutil.DiskIO, len(snapshot.Disk))
+		for _, value := range snapshot.Disk {
+			s.diskRateCache[value.Name] = value
+			diskReady = diskReady || value.RateAvailable
 		}
-		s.updateDiskIORate(diskCounters, interval)
-		s.diskIOCache = diskCounters
-		s.diskLastUpdateTime = now
-		diskUpdated = true
 	}
-
-	if (netUpdated && hasPreviousNetCounter) || (diskUpdated && hasPreviousDiskCounter) {
-		s.monitorUpdatedAt = now.UnixMilli()
-		if s.monitorUpdatedAt > s.monitorSequence {
-			s.monitorSequence = s.monitorUpdatedAt
-		} else {
-			s.monitorSequence++
-		}
-		sample := map[string]interface{}{
-			"sample_id":   s.monitorSequence,
-			"sample_time": s.monitorUpdatedAt,
-			"network":     s.netRateCache,
-			"disk":        s.diskRateCache,
+	s.resourceCache = snapshot
+	if netReady || diskReady {
+		s.monitorUpdatedAt = snapshot.Time
+		s.monitorSequence = max(s.monitorSequence+1, snapshot.Time)
+		sample := monitorSample{
+			ID:      s.monitorSequence,
+			Time:    snapshot.Time,
+			Network: s.netRateCache,
+			Disk:    s.diskRateCache,
 		}
 		if len(s.monitorHistory) == 120 {
 			copy(s.monitorHistory, s.monitorHistory[1:])
@@ -126,323 +97,23 @@ func (s *service) updateMonitor() {
 			s.monitorHistory = append(s.monitorHistory, sample)
 		}
 	}
-	s.ioCacheLock.Unlock()
-
-	s.cpuInfoCacheLock.Lock()
-	s.cpuInfoCache = cpuInfo
-	s.cpuInfoCacheLock.Unlock()
-
-	s.memoryInfoCacheLock.Lock()
-	s.memoryInfoCache = memoryInfo
-	s.memoryInfoCacheLock.Unlock()
-
-	s.loadInfoCacheLock.Lock()
-	s.loadInfoCache = loadInfo
-	s.loadInfoCacheLock.Unlock()
-
-	s.networkInfoCacheLock.Lock()
-	s.networkInfoCache = networkInfo
-	s.networkInfoCacheLock.Unlock()
-
-	// 首次恢复计数器时只有基线，下一轮才有有效速率，不将首轮写成零流量。
-	if netErr == nil && !hasPreviousNetCounter {
+	s.monitorMu.Unlock()
+	if netErr == nil && !netReady {
 		netErr = errors.New("网卡计数器正在建立采样基线")
 	}
-	if diskErr == nil && !hasPreviousDiskCounter {
+	if diskErr == nil && !diskReady {
 		diskErr = errors.New("磁盘计数器正在建立采样基线")
 	}
-	// 与实时页面共用本轮采样；历史写入在独立协程内完成。
-	s.recordMonitor(now, cpuInfo, memoryInfo, loadInfo, netErr, diskErr)
+	s.recordMonitor(snapshot, netErr, diskErr)
 }
 
-// updateStaticMonitor 更新低频系统信息
+// updateStaticMonitor 低频刷新主机、磁盘容量与汇总设备，避免慢挂载点阻塞实时采样。
 func (s *service) updateStaticMonitor() {
-	systemBase := s.getSystemBaseInfo()
-	disksInfo, diskErr := s.fileService.GetDisks()
-
-	s.systemBaseCacheLock.Lock()
+	systemBase, _ := psutil.Host(s.ctx)
+	disks, diskErr := psutil.Disks(s.ctx)
+	s.monitorMu.Lock()
 	s.systemBaseCache = systemBase
-	s.systemBaseCacheLock.Unlock()
-
-	s.disksInfoCacheLock.Lock()
-	s.disksInfoCache = disksInfo
-	s.disksInfoCacheLock.Unlock()
+	s.disksInfoCache = disks
+	s.monitorMu.Unlock()
 	s.updateMonitorDevices(diskErr == nil)
-}
-
-// updateNetworkRate 更新网卡速率
-func (s *service) updateNetworkRate(netCounters []net.IOCountersStat, interval float64) {
-	// 新的网卡速率数据
-	newNetRateCache := make(map[string]map[string]interface{})
-
-	// 计算每个网卡的速率
-	for _, counter := range netCounters {
-		// 过滤掉一些虚拟网卡（可根据需要调整）
-		if (runtime.GOOS == "windows" && (counter.Name == "Loopback Pseudo-Interface 1" ||
-			counter.Name == "Loopback" || counter.Name == "lo" || counter.Name == "lo0")) ||
-			(runtime.GOOS == "linux" && (counter.Name == "lo" || counter.Name == "lo0")) ||
-			(runtime.GOOS == "darwin" && (counter.Name == "lo0")) {
-			continue
-		}
-
-		// 获取上一次的数据
-		var sendRateBps, recvRateBps float64
-		if prevCounter, exists := s.netIOCache[counter.Name]; exists {
-			// 计算速率（字节/秒）
-			if counter.BytesSent >= prevCounter.BytesSent {
-				sendRateBps = float64(counter.BytesSent-prevCounter.BytesSent) / interval
-			}
-			if counter.BytesRecv >= prevCounter.BytesRecv {
-				recvRateBps = float64(counter.BytesRecv-prevCounter.BytesRecv) / interval
-			}
-		}
-
-		// 构建网卡速率数据
-		newNetRateCache[counter.Name] = map[string]interface{}{
-			"bytes_sent":   counter.BytesSent,   // 总发送字节
-			"bytes_recv":   counter.BytesRecv,   // 总接收字节
-			"packets_sent": counter.PacketsSent, // 总发送数据包
-			"packets_recv": counter.PacketsRecv, // 总接收数据包
-			"errin":        counter.Errin,       // 接收错误
-			"errout":       counter.Errout,      // 发送错误
-			"dropin":       counter.Dropin,      // 接收丢包
-			"dropout":      counter.Dropout,     // 发送丢包
-			"send_rate":    sendRateBps,         // 发送速率 (字节/秒)
-			"recv_rate":    recvRateBps,         // 接收速率 (字节/秒)
-		}
-	}
-
-	s.netRateCache = newNetRateCache
-}
-
-// updateDiskIORate 更新磁盘IO速率
-func (s *service) updateDiskIORate(diskCounters map[string]disk.IOCountersStat, interval float64) {
-	// 新的磁盘IO速率数据
-	newDiskRateCache := make(map[string]map[string]interface{})
-
-	// 计算每个磁盘的IO速率
-	for name, counter := range diskCounters {
-		// 构建磁盘IO状态
-		diskStats := s.createBasicDiskIOStats(counter)
-
-		// 如果有上一次数据，计算速率
-		if prevCounter, exists := s.diskIOCache[name]; exists {
-			if counter.ReadBytes >= prevCounter.ReadBytes {
-				diskStats["read_bytes_rate"] = float64(counter.ReadBytes-prevCounter.ReadBytes) / interval
-			}
-			if counter.WriteBytes >= prevCounter.WriteBytes {
-				diskStats["write_bytes_rate"] = float64(counter.WriteBytes-prevCounter.WriteBytes) / interval
-			}
-			if counter.ReadCount >= prevCounter.ReadCount {
-				diskStats["read_count_rate"] = float64(counter.ReadCount-prevCounter.ReadCount) / interval
-			}
-			if counter.WriteCount >= prevCounter.WriteCount {
-				diskStats["write_count_rate"] = float64(counter.WriteCount-prevCounter.WriteCount) / interval
-			}
-		}
-
-		// 添加到磁盘IO速率缓存
-		newDiskRateCache[name] = diskStats
-	}
-
-	s.diskRateCache = newDiskRateCache
-}
-
-// 以下是基础信息获取方法
-
-// getSystemBaseInfo 获取系统基本信息
-func (s *service) getSystemBaseInfo() map[string]interface{} {
-	// 系统信息默认值
-	data := map[string]interface{}{
-		"hostname":         "Unknown",      // 主机名
-		"os":               runtime.GOOS,   // 操作系统类型
-		"platform":         "Unknown",      // 平台名称(如Windows、Linux等)
-		"platform_version": "Unknown",      // 平台版本(如Windows 10、CentOS 7等)
-		"kernel_version":   "Unknown",      // 内核版本
-		"kernel_arch":      runtime.GOARCH, // 内核架构(如x86_64、arm64等)
-		"uptime":           uint64(0),      // 系统运行时间(单位:秒)
-		"boot_time":        uint64(0),      // 系统启动时间(时间戳)
-	}
-
-	if hostInfo, err := host.Info(); err == nil {
-		data["hostname"] = hostInfo.Hostname
-		data["platform"] = hostInfo.Platform
-		data["platform_version"] = hostInfo.PlatformVersion
-		data["kernel_version"] = hostInfo.KernelVersion
-		data["kernel_arch"] = hostInfo.KernelArch
-		data["uptime"] = hostInfo.Uptime
-		data["boot_time"] = hostInfo.BootTime
-	}
-
-	return data
-}
-
-// getCpuInfo 获取CPU信息
-func (s *service) getCpuInfo() map[string]interface{} {
-	if !s.cpuInfoInitialized {
-		cpuInfo, _ := cpu.Info()
-		s.cpuModel = "Unknown"
-		if len(cpuInfo) > 0 {
-			s.cpuModel = cpuInfo[0].ModelName
-		}
-		s.cpuCores, _ = cpu.Counts(true)
-		s.cpuInfoInitialized = true
-	}
-
-	// 与上次监控周期的CPU时间进行比较，不额外阻塞采样
-	cpuPercent, cpuErr := cpu.Percent(0, false)
-
-	// 获取CPU使用率
-	cpuUsage := 0.0
-	if len(cpuPercent) > 0 {
-		cpuUsage = cpuPercent[0]
-	}
-
-	return map[string]interface{}{
-		"model":     s.cpuModel, // CPU型号
-		"cores":     s.cpuCores, // CPU核心数
-		"available": cpuErr == nil && len(cpuPercent) > 0,
-		"usage":     cpuUsage,         // CPU使用率(百分比)
-		"processor": runtime.NumCPU(), // CPU逻辑处理器数量
-	}
-}
-
-// getMemoryInfo 获取内存信息
-func (s *service) getMemoryInfo() map[string]interface{} {
-	// 内存信息默认值
-	data := map[string]interface{}{
-		"available":    false,
-		"total":        uint64(0), // 总内存(字节)
-		"used":         uint64(0), // 已使用内存(字节)
-		"free":         uint64(0), // 空闲内存(字节)
-		"used_percent": 0.0,       // 内存使用率(百分比)
-	}
-
-	// 获取内存信息（错误处理）
-	if memInfo, err := mem.VirtualMemory(); err == nil {
-		data = map[string]interface{}{
-			"available":    true,
-			"total":        memInfo.Total,       // 总内存(字节)
-			"used":         memInfo.Used,        // 已使用内存(字节)
-			"free":         memInfo.Free,        // 空闲内存(字节)
-			"used_percent": memInfo.UsedPercent, // 内存使用率(百分比)
-		}
-	}
-
-	return data
-}
-
-// getLoadInfo 获取系统负载信息
-func (s *service) getLoadInfo(cpuUsage float64) map[string]interface{} {
-	// 负载信息默认值
-	data := map[string]interface{}{
-		"available": false,
-		"load1":     0.0, // 1分钟平均负载
-		"load5":     0.0, // 5分钟平均负载
-		"load15":    0.0, // 15分钟平均负载
-	}
-
-	// Windows系统不支持原生load.Avg，需要模拟实现
-	if runtime.GOOS == "windows" {
-		// Windows 没有 Unix load average，按实际间隔计算 CPU 忙碌核心数的移动均值。
-		now := time.Now()
-		values := estimateLoad(s.loadEstimate, cpuUsage/100*float64(runtime.NumCPU()), now.Sub(s.loadEstimatedAt).Seconds(), s.loadEstimatedAt.IsZero())
-		s.loadEstimate, s.loadEstimatedAt = values, now
-		data = map[string]interface{}{
-			"load1":     values[0],
-			"load5":     values[1],
-			"load15":    values[2],
-			"estimated": true,
-			"available": true,
-		}
-	} else {
-		// 在Unix/Linux系统上使用原生负载值
-		if loadInfo, err := load.Avg(); err == nil {
-			data = map[string]interface{}{
-				"available": true,
-				"load1":     loadInfo.Load1,  // 1分钟平均负载
-				"load5":     loadInfo.Load5,  // 5分钟平均负载
-				"load15":    loadInfo.Load15, // 15分钟平均负载
-			}
-		}
-	}
-
-	return data
-}
-
-// getNetworkInfo 获取网卡信息
-func (s *service) getNetworkInfo(netStats []net.IOCountersStat) []map[string]interface{} {
-	var networkInfo []map[string]interface{}
-
-	// 处理网卡流量统计信息
-	for _, stat := range netStats {
-		name := stat.Name
-
-		// 过滤掉环回接口
-		if (runtime.GOOS == "windows" && (name == "Loopback Pseudo-Interface 1" ||
-			name == "Loopback" || name == "lo" || name == "lo0")) ||
-			(runtime.GOOS == "linux" && (name == "lo" || name == "lo0")) ||
-			(runtime.GOOS == "darwin" && (name == "lo0")) {
-			continue
-		}
-
-		// 创建网卡基本信息
-		netInfo := map[string]interface{}{
-			"name":         name,             // 网卡名称
-			"bytes_sent":   stat.BytesSent,   // 发送的字节数
-			"bytes_recv":   stat.BytesRecv,   // 接收的字节数
-			"packets_sent": stat.PacketsSent, // 发送的数据包数
-			"packets_recv": stat.PacketsRecv, // 接收的数据包数
-			"errin":        stat.Errin,       // 接收错误
-			"errout":       stat.Errout,      // 发送错误
-			"dropin":       stat.Dropin,      // 接收丢包
-			"dropout":      stat.Dropout,     // 发送丢包
-			"is_up":        true,             // 默认为启用状态
-			"is_loopback":  false,            // 已过滤掉环回接口
-		}
-		// 添加到结果集
-		networkInfo = append(networkInfo, netInfo)
-	}
-
-	return networkInfo
-}
-
-// createBasicDiskIOStats 创建基本磁盘IO统计信息
-func (s *service) createBasicDiskIOStats(counter disk.IOCountersStat) map[string]interface{} {
-	// IO延迟 = (读取时间 + 写入时间) / (读取计数 + 写入计数)
-	var ioLatency float64
-	totalOps := counter.ReadCount + counter.WriteCount
-	if totalOps > 0 {
-		totalTime := counter.ReadTime + counter.WriteTime
-		ioLatency = float64(totalTime) / float64(totalOps)
-	}
-
-	return map[string]interface{}{
-		"read_count":       counter.ReadCount,    // 读取次数
-		"write_count":      counter.WriteCount,   // 写入次数
-		"read_bytes":       counter.ReadBytes,    // 读取字节数
-		"write_bytes":      counter.WriteBytes,   // 写入字节数
-		"read_time":        counter.ReadTime,     // 读取时间
-		"write_time":       counter.WriteTime,    // 写入时间
-		"io_time":          counter.IoTime,       // IO时间
-		"weighted_io":      counter.WeightedIO,   // 加权IO
-		"name":             counter.Name,         // 磁盘名称
-		"serial_number":    counter.SerialNumber, // 序列号
-		"read_bytes_rate":  0,                    // 读取速率(字节/秒)
-		"write_bytes_rate": 0,                    // 写入速率(字节/秒)
-		"read_count_rate":  0,                    // 读取次数速率(次/秒)
-		"write_count_rate": 0,                    // 写入次数速率(次/秒)
-		"io_latency":       ioLatency,            // IO延迟(毫秒)
-	}
-}
-
-// estimateLoad 使用实际采样间隔，防止慢采样将 1/5/15 分钟窗口压缩。
-func estimateLoad(previous [3]float64, value, elapsed float64, initial bool) [3]float64 {
-	if initial {
-		return [3]float64{value, value, value}
-	}
-	for index, window := range [3]float64{60, 300, 900} {
-		previous[index] += (value - previous[index]) * (1 - math.Exp(-math.Max(0, elapsed)/window))
-	}
-	return previous
 }

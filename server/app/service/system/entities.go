@@ -2,6 +2,7 @@ package system
 
 import (
 	"context"
+	"server/app/util/psutil"
 	"time"
 )
 
@@ -27,4 +28,12 @@ type job struct {
 	ctx  context.Context
 	data interface{}
 	run  func(context.Context, interface{}, func(int, float64, string))
+}
+
+// monitorSample 保存前端增量读取所需的短期 I/O 快照，不写入资源工具类。
+type monitorSample struct {
+	ID      int64                       `json:"sample_id"`
+	Time    int64                       `json:"sample_time"`
+	Network map[string]psutil.NetworkIO `json:"network"`
+	Disk    map[string]psutil.DiskIO    `json:"disk"`
 }

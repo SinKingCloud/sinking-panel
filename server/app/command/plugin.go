@@ -100,7 +100,7 @@ func (s *Server) executePlugin(args []string) error {
 		if name == "" {
 			name = id
 		}
-		software := serviceSoftware.NewService(nil, nil, sdk.NewManager(constant.SoftwarePath, nil))
+		software := serviceSoftware.NewService(nil, nil, sdk.NewManager(constant.SoftwarePath, sdk.App{}))
 		defer software.Close()
 		if err := software.Init(directory, id, name); err != nil {
 			return err

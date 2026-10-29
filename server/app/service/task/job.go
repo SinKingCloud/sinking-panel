@@ -24,19 +24,19 @@ type job struct {
 	run     cron.Job
 }
 
-func newJob(task *model.Task, service *service) *job {
-	if task == nil || service == nil || task.Spec == "" {
+func (s *service) newJob(task *model.Task) *job {
+	if task == nil || s == nil || task.Spec == "" {
 		return nil
 	}
-	content, err := service.checkContent(task.Script, task.ExecType)
+	content, err := s.checkContent(task.Script, task.ExecType)
 	if err != nil {
 		return nil
 	}
 	task.Script = content
 	return &job{
 		Task:    task,
-		service: service,
-		ctx:     service.ctx,
+		service: s,
+		ctx:     s.ctx,
 	}
 }
 

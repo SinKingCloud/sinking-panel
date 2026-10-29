@@ -9,7 +9,7 @@ import (
 
 // CloseSearch 仅释放指定分页会话，不允许关闭其他查询或使用 _all。
 func (m *Manager) CloseSearch(ctx context.Context, pagination, searchID string) error {
-	if err := validateSearchID(searchID); err != nil {
+	if err := m.validateSearchID(searchID); err != nil {
 		return err
 	}
 	path := "/_search/scroll"
@@ -34,7 +34,7 @@ func (m *Manager) CloseSearch(ctx context.Context, pagination, searchID string) 
 	return err
 }
 
-func validateSearchID(id string) error {
+func (m *Manager) validateSearchID(id string) error {
 	if id == "" || len(id) > 131072 || id == "_all" {
 		return errors.New("分页会话不合法，请刷新后重新查询")
 	}

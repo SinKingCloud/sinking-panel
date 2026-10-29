@@ -2,111 +2,27 @@ package file
 
 import (
 	"context"
-	"runtime"
 	"server/app/util/file"
-	"slices"
-	"strings"
-
-	"github.com/shirou/gopsutil/v4/disk"
+	"server/app/util/psutil"
 )
 
+// GetDisks 返回文件管理可浏览的磁盘，采集由 psutil 统一处理。
 func (s *service) GetDisks() ([]Disk, error) {
-	partitions, err := disk.Partitions(true)
+	values, err := psutil.Disks(context.Background())
 	if err != nil {
 		return nil, err
 	}
-	excludedFs := map[string]struct{}{
-		"autofs":     {},
-		"cgroup":     {},
-		"cgroup2":    {},
-		"configfs":   {},
-		"debugfs":    {},
-		"devfs":      {},
-		"devpts":     {},
-		"devtmpfs":   {},
-		"efivarfs":   {},
-		"fusectl":    {},
-		"hugetlbfs":  {},
-		"mqueue":     {},
-		"overlay":    {},
-		"proc":       {},
-		"procfs":     {},
-		"pstore":     {},
-		"ramfs":      {},
-		"securityfs": {},
-		"squashfs":   {},
-		"sysfs":      {},
-		"tmpfs":      {},
-		"tracefs":    {},
-		"vfat":       {},
-	}
-	var disks []Disk
-	for _, p := range partitions {
-		// 基础校验
-		if p.Fstype == "" || p.Device == "" || p.Mountpoint == "" {
-			continue
-		}
-		// 过滤特殊文件系统
-		if _, ok := excludedFs[strings.ToLower(p.Fstype)]; ok {
-			continue
-		}
-		// macOS 的系统卷通过根目录统一访问，只列出根目录和可浏览的挂载卷。
-		if runtime.GOOS == "darwin" && p.Mountpoint != "/" &&
-			(p.Mountpoint == "/System/Volumes" || strings.HasPrefix(p.Mountpoint, "/System/Volumes/") || slices.Contains(p.Opts, "nobrowse")) {
-			continue
-		}
-		// 获取磁盘使用数据
-		usage, err := disk.Usage(p.Mountpoint)
-		if err != nil || usage.Total <= 0 {
-			continue
-		}
-		// APFS 根卷与数据卷共享容量，剩余空间反映整个容器，不能只统计只读系统卷的占用。
-		if runtime.GOOS == "darwin" && p.Mountpoint == "/" && p.Fstype == "apfs" && usage.Free <= usage.Total {
-			usage.Used = usage.Total - usage.Free
-			usage.UsedPercent = float64(usage.Used) / float64(usage.Total) * 100
-		}
-		// 构建路径格式
-		path := p.Mountpoint
-		if runtime.GOOS == "windows" && len(path) >= 2 && path[1] == ':' {
-			path = strings.ToUpper(string(path[0])) + "://"
-		}
-		// 构建inode数据
-		inodeUsed, inodeFree := int64(usage.InodesUsed), int64(usage.InodesFree)
-		// 计算百分比（避免除零）
-		inodePercent := 0
-		if usage.InodesTotal > 0 {
-			inodePercent = int(float64(inodeUsed) / float64(usage.InodesTotal) * 100)
-		}
-
-		disks = append(disks, Disk{
-			Filesystem: p.Device,
-			Type:       p.Fstype,
-			Path:       path,
-			Size: struct {
-				Total      int64 `json:"total"`
-				Used       int64 `json:"used"`
-				UnUsed     int64 `json:"un_used"`
-				Percentage int   `json:"percentage"`
-			}{
-				Total:      int64(usage.Total),
-				Used:       int64(usage.Used),
-				UnUsed:     int64(usage.Free),
-				Percentage: int(usage.UsedPercent),
-			},
-			Inodes: struct {
-				Total      int64 `json:"total"`
-				Used       int64 `json:"used"`
-				UnUsed     int64 `json:"un_used"`
-				Percentage int   `json:"percentage"`
-			}{
-				Total:      int64(usage.InodesTotal),
-				Used:       inodeUsed,
-				UnUsed:     inodeFree,
-				Percentage: inodePercent,
-			},
+	result := make([]Disk, 0, len(values))
+	for _, value := range values {
+		result = append(result, Disk{
+			Filesystem: value.Filesystem,
+			Type:       value.Type,
+			Path:       value.Path,
+			Size:       value.Size,
+			Inodes:     value.Inodes,
 		})
 	}
-	return disks, nil
+	return result, nil
 }
 
 // GetDiskPaths 获取磁盘路径

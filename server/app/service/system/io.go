@@ -1,83 +1,48 @@
 package system
 
+import "server/app/util/psutil"
+
 // GetIO 获取网卡和磁盘的 I/O 统计及采样历史。
 func (s *service) GetIO(netInterface, diskName string, after int64) map[string]interface{} {
-	s.ioCacheLock.RLock()
-	defer s.ioCacheLock.RUnlock()
+	s.monitorMu.RLock()
+	defer s.monitorMu.RUnlock()
 	if after > s.monitorSequence {
 		after = 0
 	}
-
-	result := map[string]interface{}{
-		"sample_id":   s.monitorSequence,
-		"sample_time": s.monitorUpdatedAt,
-	}
-
-	networkData := s.netRateCache
-	diskData := s.diskRateCache
-
-	// 如果指定了网卡，只返回该网卡的信息
-	if netInterface != "" {
-		if netData, exists := networkData[netInterface]; exists {
-			result["network"] = map[string]interface{}{
-				netInterface: netData,
-			}
-		} else {
-			result["network"] = make(map[string]interface{})
-		}
-	} else {
-		result["network"] = networkData
-	}
-
-	// 如果指定了磁盘，只返回该磁盘的信息
-	if diskName != "" {
-		if diskInfo, exists := diskData[diskName]; exists {
-			result["disk"] = map[string]interface{}{
-				diskName: diskInfo,
-			}
-		} else {
-			result["disk"] = make(map[string]interface{})
-		}
-	} else {
-		result["disk"] = diskData
-	}
-
-	history := make([]map[string]interface{}, 0)
-	for _, sample := range s.monitorHistory {
-		if sample["sample_id"].(int64) <= after {
-			continue
-		}
-
-		sampleNetwork := sample["network"].(map[string]map[string]interface{})
+	filter := func(sample monitorSample) monitorSample {
 		if netInterface != "" {
-			if netData, exists := sampleNetwork[netInterface]; exists {
-				sampleNetwork = map[string]map[string]interface{}{
-					netInterface: netData,
-				}
-			} else {
-				sampleNetwork = make(map[string]map[string]interface{})
+			network := make(map[string]psutil.NetworkIO, 1)
+			if value, ok := sample.Network[netInterface]; ok {
+				network[netInterface] = value
 			}
+			sample.Network = network
 		}
-
-		sampleDisk := sample["disk"].(map[string]map[string]interface{})
 		if diskName != "" {
-			if diskInfo, exists := sampleDisk[diskName]; exists {
-				sampleDisk = map[string]map[string]interface{}{
-					diskName: diskInfo,
-				}
-			} else {
-				sampleDisk = make(map[string]map[string]interface{})
+			disk := make(map[string]psutil.DiskIO, 1)
+			if value, ok := sample.Disk[diskName]; ok {
+				disk[diskName] = value
 			}
+			sample.Disk = disk
 		}
-
-		history = append(history, map[string]interface{}{
-			"sample_id":   sample["sample_id"],
-			"sample_time": sample["sample_time"],
-			"network":     sampleNetwork,
-			"disk":        sampleDisk,
-		})
+		return sample
 	}
-	result["history"] = history
-
-	return result
+	current := filter(monitorSample{
+		ID:      s.monitorSequence,
+		Time:    s.monitorUpdatedAt,
+		Network: s.netRateCache,
+		Disk:    s.diskRateCache,
+	})
+	history := make([]monitorSample, 0)
+	for _, sample := range s.monitorHistory {
+		if sample.ID > after {
+			history = append(history, filter(sample))
+		}
+	}
+	return map[string]interface{}{
+		"sample_id":   current.ID,
+		"sample_time": current.Time,
+		"network":     current.Network,
+		"disk":        current.Disk,
+		"history":     history,
+	}
 }

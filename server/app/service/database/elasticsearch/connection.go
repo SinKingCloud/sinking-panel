@@ -19,7 +19,8 @@ import (
 const maxPayload = 8 << 20
 
 // ValidateIndexName 只允许一个具体索引；写操作拒绝隐藏及系统索引。
-func ValidateIndexName(name string, writable bool) error {
+// 此方法不访问连接，Manager 零值也可用于提交任务前的参数校验。
+func (m *Manager) ValidateIndexName(name string, writable bool) error {
 	if name == "" || len(name) > 255 || !utf8.ValidString(name) || strings.ToLower(name) != name || name == "." || name == ".." ||
 		strings.ContainsAny(name, "\\/*?\"<>| ,#:%") || strings.ContainsAny(name[:1], "_+-") || strings.IndexFunc(name, func(r rune) bool { return unicode.IsControl(r) || unicode.IsSpace(r) }) >= 0 {
 		return errors.New("索引名应为小写的具体名称，不超过 255 字节，不能包含通配符、路径或空白")
@@ -31,13 +32,13 @@ func ValidateIndexName(name string, writable bool) error {
 }
 
 func (m *Manager) indexPath(writable bool) (string, error) {
-	if err := ValidateIndexName(m.index, writable); err != nil {
+	if err := m.ValidateIndexName(m.index, writable); err != nil {
 		return "", err
 	}
 	return "/" + url.PathEscape(m.index), nil
 }
 
-func decodeObject(text, label string, optional bool) (map[string]interface{}, error) {
+func (m *Manager) decodeObject(text, label string, optional bool) (map[string]interface{}, error) {
 	if strings.TrimSpace(text) == "" && optional {
 		return map[string]interface{}{}, nil
 	}
@@ -53,7 +54,7 @@ func decodeObject(text, label string, optional bool) (map[string]interface{}, er
 	return value, nil
 }
 
-func number(value interface{}) int64 {
+func (m *Manager) number(value interface{}) int64 {
 	switch value := value.(type) {
 	case json.Number:
 		result, _ := value.Int64()
@@ -71,7 +72,7 @@ func number(value interface{}) int64 {
 	return 0
 }
 
-func object(value interface{}) map[string]interface{} {
+func (m *Manager) object(value interface{}) map[string]interface{} {
 	result, _ := value.(map[string]interface{})
 	return result
 }
@@ -124,16 +125,16 @@ func (m *Manager) doRequest(ctx context.Context, method, relative string, body i
 	}
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		reason := http.StatusText(response.StatusCode)
-		if failure := object(object(result)["error"]); failure != nil {
+		if failure := m.object(m.object(result)["error"]); failure != nil {
 			if text, ok := failure["reason"].(string); ok {
 				reason = text
 			}
 			if cause, ok := failure["root_cause"].([]interface{}); ok && len(cause) > 0 {
-				if text, ok := object(cause[0])["reason"].(string); ok {
+				if text, ok := m.object(cause[0])["reason"].(string); ok {
 					reason = text
 				}
 			}
-		} else if text, ok := object(result)["error"].(string); ok {
+		} else if text, ok := m.object(result)["error"].(string); ok {
 			reason = text
 		} else if text, ok := result.(string); ok && text != "" {
 			reason = text

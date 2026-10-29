@@ -31,7 +31,7 @@ func (m *Manager) RefreshFields(ctx context.Context, progress func(float64, stri
 	if err != nil {
 		return nil, err
 	}
-	taskID, _ := object(data)["task"].(string)
+	taskID, _ := m.object(data)["task"].(string)
 	if taskID == "" {
 		return nil, errors.New("Elasticsearch 未返回历史文档回填任务ID")
 	}
@@ -58,7 +58,7 @@ func (m *Manager) RefreshFields(ctx context.Context, progress func(float64, stri
 		if err != nil {
 			return nil, err
 		}
-		result := object(data)
+		result := m.object(data)
 		completed, valid := result["completed"].(bool)
 		if !valid {
 			return nil, errors.New("Elasticsearch 回填任务状态不完整")
@@ -66,21 +66,21 @@ func (m *Manager) RefreshFields(ctx context.Context, progress func(float64, stri
 		if completed {
 			finished = true
 			if failure := result["error"]; failure != nil {
-				reason, _ := object(failure)["reason"].(string)
+				reason, _ := m.object(failure)["reason"].(string)
 				if reason == "" {
 					reason = fmt.Sprint(failure)
 				}
 				return result, m.cleanError(errors.New(reason))
 			}
-			response := object(result["response"])
+			response := m.object(result["response"])
 			if response == nil || response["total"] == nil || response["updated"] == nil {
-				response = object(result["results"])
+				response = m.object(result["results"])
 			}
 			if response == nil || response["total"] == nil || response["updated"] == nil {
 				return nil, errors.New("Elasticsearch 回填任务缺少执行结果")
 			}
 			if failures, _ := response["failures"].([]interface{}); len(failures) > 0 {
-				cause := object(object(failures[0])["cause"])
+				cause := m.object(m.object(failures[0])["cause"])
 				reason, _ := cause["reason"].(string)
 				if reason == "" {
 					reason = fmt.Sprint(failures[0])
@@ -90,18 +90,18 @@ func (m *Manager) RefreshFields(ctx context.Context, progress func(float64, stri
 			if response["timed_out"] == true {
 				return response, errors.New("历史文档回填超时，部分文档可能尚未处理")
 			}
-			if conflicts := number(response["version_conflicts"]); conflicts > 0 {
-				return response, fmt.Errorf("已有 %d 条文档完成回填，%d 条文档发生版本冲突，请重新回填", number(response["updated"]), conflicts)
+			if conflicts := m.number(response["version_conflicts"]); conflicts > 0 {
+				return response, fmt.Errorf("已有 %d 条文档完成回填，%d 条文档发生版本冲突，请重新回填", m.number(response["updated"]), conflicts)
 			}
 			if progress != nil {
-				progress(100, fmt.Sprintf("已回填 %d 条文档", number(response["updated"])))
+				progress(100, fmt.Sprintf("已回填 %d 条文档", m.number(response["updated"])))
 			}
 			return response, nil
 		}
-		status := object(object(result["task"])["status"])
+		status := m.object(m.object(result["task"])["status"])
 		if progress != nil && status != nil {
-			updated, total := number(status["updated"]), number(status["total"])
-			done := updated + number(status["deleted"]) + number(status["noops"]) + number(status["version_conflicts"])
+			updated, total := m.number(status["updated"]), m.number(status["total"])
+			done := updated + m.number(status["deleted"]) + m.number(status["noops"]) + m.number(status["version_conflicts"])
 			percent := float64(0)
 			if total > 0 {
 				percent = min(99, float64(done)*100/float64(total))

@@ -48,7 +48,7 @@ func (m *Manager) Documents(ctx context.Context, query, pagination, searchID, cu
 			pagination = "pit"
 		}
 	} else if pagination != "offset" {
-		if err := validateSearchID(searchID); err != nil {
+		if err := m.validateSearchID(searchID); err != nil {
 			return nil, err
 		}
 		if pagination == "scroll" && (cursor != "" || page < 2) {
@@ -58,7 +58,7 @@ func (m *Manager) Documents(ctx context.Context, query, pagination, searchID, cu
 	if pagination == "pit" && !m.atLeast(7, 12) {
 		return nil, errors.New("当前版本不支持稳定的 PIT 分页，请重新查询")
 	}
-	body, err := decodeObject(query, "搜索 DSL", true)
+	body, err := m.decodeObject(query, "搜索 DSL", true)
 	if err != nil {
 		return nil, err
 	}
@@ -139,7 +139,7 @@ func (m *Manager) Documents(ctx context.Context, query, pagination, searchID, cu
 		}
 		hasTieBreaker := false
 		for _, sort := range sorts {
-			if sort == "_shard_doc" || object(sort)["_shard_doc"] != nil {
+			if sort == "_shard_doc" || m.object(sort)["_shard_doc"] != nil {
 				hasTieBreaker = true
 			}
 		}
@@ -185,11 +185,11 @@ func (m *Manager) Documents(ctx context.Context, query, pagination, searchID, cu
 			if err != nil {
 				return nil, err
 			}
-			searchID, _ = object(data)["id"].(string)
-			if err = validateSearchID(searchID); err != nil {
+			searchID, _ = m.object(data)["id"].(string)
+			if err = m.validateSearchID(searchID); err != nil {
 				return nil, errors.New("Elasticsearch 未返回有效的分页会话")
 			}
-			if number(object(object(data)["_shards"])["failed"]) > 0 {
+			if m.number(m.object(m.object(data)["_shards"])["failed"]) > 0 {
 				return nil, errors.New("部分分片无法创建快照，请恢复分片后重新查询")
 			}
 		}
@@ -215,7 +215,7 @@ func (m *Manager) Documents(ctx context.Context, query, pagination, searchID, cu
 	default:
 		data, status, err = m.doRequest(ctx, http.MethodPost, path+"/_search", body)
 	}
-	result := object(data)
+	result := m.object(data)
 	if id, ok := result["pit_id"].(string); ok && pagination == "pit" {
 		searchID = id
 	}
@@ -231,10 +231,10 @@ func (m *Manager) Documents(ctx context.Context, query, pagination, searchID, cu
 	if result["timed_out"] == true || result["terminated_early"] == true {
 		return nil, errors.New("搜索未完整完成，请缩小查询范围后刷新重试")
 	}
-	if number(object(result["_shards"])["failed"]) > 0 {
+	if m.number(m.object(result["_shards"])["failed"]) > 0 {
 		return nil, errors.New("搜索存在失败的分片，无法返回完整分页数据，请刷新重试")
 	}
-	hits := object(result["hits"])
+	hits := m.object(result["hits"])
 	if hits == nil {
 		return nil, errors.New("Elasticsearch 搜索响应缺少 hits")
 	}
@@ -244,13 +244,13 @@ func (m *Manager) Documents(ctx context.Context, query, pagination, searchID, cu
 	}
 	documents := make([]map[string]interface{}, 0, len(values))
 	for _, value := range values {
-		item := object(value)
+		item := m.object(value)
 		if item == nil {
 			return nil, errors.New("Elasticsearch 返回了不完整的文档数据")
 		}
 		routing := item["_routing"]
 		if routing == nil {
-			routing = object(item["fields"])["_routing"]
+			routing = m.object(item["fields"])["_routing"]
 		}
 		if values, ok := routing.([]interface{}); ok && len(values) > 0 {
 			routing = values[0]
@@ -260,9 +260,9 @@ func (m *Manager) Documents(ctx context.Context, query, pagination, searchID, cu
 		}
 		documents = append(documents, item)
 	}
-	total, relation := number(hits["total"]), "eq"
-	if count := object(hits["total"]); count != nil {
-		total = number(count["value"])
+	total, relation := m.number(hits["total"]), "eq"
+	if count := m.object(hits["total"]); count != nil {
+		total = m.number(count["value"])
 		if text, ok := count["relation"].(string); ok {
 			relation = text
 		}
@@ -280,7 +280,7 @@ func (m *Manager) Documents(ctx context.Context, query, pagination, searchID, cu
 		nextCursor = string(encoded)
 	}
 	if pagination != "offset" {
-		if err := validateSearchID(searchID); err != nil {
+		if err := m.validateSearchID(searchID); err != nil {
 			return nil, errors.New("Elasticsearch 未返回有效的分页会话")
 		}
 	}
@@ -296,21 +296,21 @@ func (m *Manager) Documents(ctx context.Context, query, pagination, searchID, cu
 		Page:          page,
 		PageSize:      pageSize,
 		HasMore:       hasMore,
-		ElapsedMS:     number(result["took"]),
+		ElapsedMS:     m.number(result["took"]),
 		Pagination:    pagination,
 		SearchID:      searchID,
 		NextCursor:    nextCursor,
 	}, nil
 }
 
-func validateDocumentID(id string) error {
+func (m *Manager) validateDocumentID(id string) error {
 	if id == "" || len(id) > 512 || !utf8.ValidString(id) || strings.IndexFunc(id, unicode.IsControl) >= 0 {
 		return errors.New("文档 ID 应为 1 至 512 字节，不能包含控制字符")
 	}
 	return nil
 }
 
-func validateRouting(routing string) error {
+func (m *Manager) validateRouting(routing string) error {
 	if len(routing) > 512 || !utf8.ValidString(routing) || strings.IndexFunc(routing, unicode.IsControl) >= 0 {
 		return errors.New("文档路由值不能超过 512 字节或包含控制字符")
 	}
@@ -332,7 +332,7 @@ func (m *Manager) documentType(ctx context.Context, requested string) (string, e
 	if err != nil {
 		return "", err
 	}
-	if mappingDefinition(mappings) {
+	if m.mappingDefinition(mappings) {
 		return "_doc", nil
 	}
 	types := make([]string, 0)
@@ -359,10 +359,10 @@ func (m *Manager) Insert(ctx context.Context, documentID, document, documentType
 	if err != nil {
 		return nil, err
 	}
-	if err = validateRouting(routing); err != nil {
+	if err = m.validateRouting(routing); err != nil {
 		return nil, err
 	}
-	body, err := decodeObject(document, "文档内容", false)
+	body, err := m.decodeObject(document, "文档内容", false)
 	if err != nil {
 		return nil, err
 	}
@@ -373,7 +373,7 @@ func (m *Manager) Insert(ctx context.Context, documentID, document, documentType
 	path += "/" + url.PathEscape(typeName)
 	method := http.MethodPost
 	if documentID != "" {
-		if err := validateDocumentID(documentID); err != nil {
+		if err := m.validateDocumentID(documentID); err != nil {
 			return nil, err
 		}
 		path += "/" + url.PathEscape(documentID)
@@ -387,7 +387,7 @@ func (m *Manager) Insert(ctx context.Context, documentID, document, documentType
 		params.Set("routing", routing)
 	}
 	data, _, err := m.doRequest(ctx, method, path+"?"+params.Encode(), body)
-	return normalizeDocumentResult(data, "created"), err
+	return m.normalizeDocumentResult(data, "created"), err
 }
 
 // Update 完整替换已存在的 _source；使用读取到的版本防止并发覆盖或无意创建文档。
@@ -396,13 +396,13 @@ func (m *Manager) Update(ctx context.Context, documentID, document, documentType
 	if err != nil {
 		return nil, err
 	}
-	if err = validateDocumentID(documentID); err != nil {
+	if err = m.validateDocumentID(documentID); err != nil {
 		return nil, err
 	}
-	if err = validateRouting(routing); err != nil {
+	if err = m.validateRouting(routing); err != nil {
 		return nil, err
 	}
-	body, err := decodeObject(document, "文档内容", false)
+	body, err := m.decodeObject(document, "文档内容", false)
 	if err != nil {
 		return nil, err
 	}
@@ -433,7 +433,7 @@ func (m *Manager) Update(ctx context.Context, documentID, document, documentType
 		return nil, errors.New("缺少读取时的文档版本，请重新打开编辑")
 	}
 	data, _, err := m.doRequest(ctx, http.MethodPut, path+"?"+params.Encode(), body)
-	return normalizeDocumentResult(data, "updated"), err
+	return m.normalizeDocumentResult(data, "updated"), err
 }
 
 // Delete 删除一个具体文档，不提供批量匹配删除入口。
@@ -442,13 +442,13 @@ func (m *Manager) Delete(ctx context.Context, documentID, documentType, routing 
 	if err != nil {
 		return nil, err
 	}
-	if err = validateDocumentID(documentID); err != nil {
+	if err = m.validateDocumentID(documentID); err != nil {
 		return nil, err
 	}
-	if err = validateRouting(routing); err != nil {
+	if err = m.validateRouting(routing); err != nil {
 		return nil, err
 	}
-	if m.major < 7 && legacyDeleteEndpoint(documentID) {
+	if m.major < 7 && m.legacyDeleteEndpoint(documentID) {
 		return nil, errors.New("旧版文档删除不允许 _query、_mapping 或 _mappings 作为 ID，避免批量删除")
 	}
 	typeName, err := m.documentType(ctx, documentType)
@@ -460,20 +460,20 @@ func (m *Manager) Delete(ctx context.Context, documentID, documentType, routing 
 		params.Set("routing", routing)
 	}
 	data, status, err := m.doRequest(ctx, http.MethodDelete, path+"/"+url.PathEscape(typeName)+"/"+url.PathEscape(documentID)+"?"+params.Encode(), nil)
-	result := normalizeDocumentResult(data, "deleted")
+	result := m.normalizeDocumentResult(data, "deleted")
 	if (status == http.StatusNotFound || err == nil) && (result["found"] == false || result["result"] == "not_found") {
 		return result, errors.New("Elasticsearch 文档不存在或已被删除")
 	}
 	return result, err
 }
 
-func legacyDeleteEndpoint(id string) bool {
+func (m *Manager) legacyDeleteEndpoint(id string) bool {
 	return id == "_query" || id == "_mapping" || id == "_mappings"
 }
 
 // normalizeDocumentResult 保留旧版 ok/created/found 并补齐现代 result，调用方无需猜响应年代。
-func normalizeDocumentResult(data interface{}, operation string) map[string]interface{} {
-	result := object(data)
+func (m *Manager) normalizeDocumentResult(data interface{}, operation string) map[string]interface{} {
+	result := m.object(data)
 	if result == nil || result["result"] != nil {
 		return result
 	}

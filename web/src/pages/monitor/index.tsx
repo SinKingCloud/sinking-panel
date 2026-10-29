@@ -23,10 +23,12 @@ export default (): React.ReactNode => {
     const {token} = antdTheme.useToken();
     const screens = Grid.useBreakpoint();
     const isMobile = screens.md === false;
+    const pointLimit = screens.md === undefined ? undefined : isMobile ? 240 : 720;
     const {message} = App.useApp();
     const settingsRef = useRef<MonitorSettingsRef>(null);
     const historyRequestRef = useRef(0);
     const historyLoadingRef = useRef(false);
+    const [rangeKey, setRangeKey] = useState("");
     const [settings, setSettings] = useState<MonitorSettings>();
     const [historyError, setHistoryError] = useState("");
     const [loading, setLoading] = useState(true);
@@ -37,16 +39,21 @@ export default (): React.ReactNode => {
     const [data, setData] = useState<MonitorHistory>();
 
     const loadHistory = useCallback(async (background = false) => {
+        if (pointLimit === undefined) return;
         if (background && historyLoadingRef.current) return;
         const request = ++historyRequestRef.current;
         historyLoadingRef.current = true;
         const end = customRange ? Math.min(customRange[1].endOf("day").valueOf(), Date.now()) : Date.now();
         const start = customRange ? customRange[0].startOf("day").valueOf() : end - Number(period) * 3600000;
+        const span = end - start;
+        // 一天内的趋势不需要铺满像素，24 小时在桌面按 5 分钟、移动端按 15 分钟聚合。
+        const maxPoints = span > 6 * 3600000 && span <= 24 * 3600000 ? (isMobile ? 120 : 300) : pointLimit;
         if (!background) setLoading(true);
         try {
-            const response = await systemMonitor({body: {action: "history", start, end}});
+            const response = await systemMonitor({body: {action: "history", start, end, max_points: maxPoints}});
             if (request !== historyRequestRef.current) return;
             if (response?.code !== 200 || !response.data) throw new Error(response?.message || "读取监控历史失败");
+            setRangeKey(customRange ? customRange.map((date) => date.format("YYYY-MM-DD")).join("/") : period);
             setData({...response.data, points: Array.isArray(response.data.points) ? response.data.points : []});
             setHistoryError("");
         } catch (error) {
@@ -60,7 +67,7 @@ export default (): React.ReactNode => {
                 setInitialLoading(false);
             }
         }
-    }, [period, customRange]);
+    }, [period, customRange, pointLimit, isMobile]);
     useEffect(() => {
         void loadHistory();
         return () => {
@@ -218,7 +225,7 @@ export default (): React.ReactNode => {
                 tableRender={() => <div className={styles.charts}>
                     {charts.map(({capacity, ...chart}) => <MonitorChart key={chart.title} {...chart}
                         subtitle={capacity ? latest ? `${formatSize(latest[capacity[0]])} / ${formatSize(latest[capacity[1]])}` : "-- / --" : ""}
-                        history={data} loading={loading}/>)}
+                        history={data} loading={loading} rangeKey={rangeKey}/>)}
                 </div>}
             />
             <MonitorSettingsModal

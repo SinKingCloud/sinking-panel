@@ -9,7 +9,7 @@ import (
 )
 
 // mappingDefinition 区分旧版类型包装和字段映射本身，包括只配置元信息的映射。
-func mappingDefinition(value map[string]interface{}) bool {
+func (m *Manager) mappingDefinition(value map[string]interface{}) bool {
 	for _, key := range []string{"properties", "dynamic", "_source", "_meta", "_routing", "_all", "dynamic_templates", "date_detection", "numeric_detection", "dynamic_date_formats"} {
 		if _, exists := value[key]; exists {
 			return true
@@ -28,11 +28,11 @@ func (m *Manager) Mapping(ctx context.Context) (map[string]interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	result := object(object(object(data)[m.index])["mappings"])
+	result := m.object(m.object(m.object(data)[m.index])["mappings"])
 	if result == nil && m.major == 0 {
-		result = object(object(data)[m.index])
+		result = m.object(m.object(data)[m.index])
 	}
-	if result == nil && m.major == 1 && len(object(data)) == 0 {
+	if result == nil && m.major == 1 && len(m.object(data)) == 0 {
 		result = map[string]interface{}{}
 	}
 	if result == nil {
@@ -47,16 +47,16 @@ func (m *Manager) UpdateMapping(ctx context.Context, mapping string) (map[string
 	if err != nil {
 		return nil, err
 	}
-	body, err := decodeObject(mapping, "字段映射", false)
+	body, err := m.decodeObject(mapping, "字段映射", false)
 	if err != nil {
 		return nil, err
 	}
 	if m.major < 7 {
 		typeName := ""
-		if len(body) == 1 && !mappingDefinition(body) {
+		if len(body) == 1 && !m.mappingDefinition(body) {
 			for name, value := range body {
-				if object(value) != nil {
-					typeName, body = name, object(value)
+				if m.object(value) != nil {
+					typeName, body = name, m.object(value)
 				}
 			}
 		}
@@ -76,7 +76,7 @@ func (m *Manager) UpdateMapping(ctx context.Context, mapping string) (map[string
 		path += "/_mapping"
 	}
 	data, _, err := m.doRequest(ctx, http.MethodPut, path, body)
-	return object(data), err
+	return m.object(data), err
 }
 
 // Settings 返回索引设置；不读取集群认证与密钥配置。
@@ -89,7 +89,7 @@ func (m *Manager) Settings(ctx context.Context) (map[string]interface{}, error) 
 	if err != nil {
 		return nil, err
 	}
-	result := object(object(object(data)[m.index])["settings"])
+	result := m.object(m.object(m.object(data)[m.index])["settings"])
 	if result == nil {
 		return nil, errors.New("Elasticsearch 响应缺少索引设置")
 	}
@@ -102,12 +102,12 @@ func (m *Manager) UpdateSettings(ctx context.Context, settings string) (map[stri
 	if err != nil {
 		return nil, err
 	}
-	body, err := decodeObject(settings, "索引设置", false)
+	body, err := m.decodeObject(settings, "索引设置", false)
 	if err != nil {
 		return nil, err
 	}
 	data, _, err := m.doRequest(ctx, http.MethodPut, path+"/_settings", body)
-	return object(data), err
+	return m.object(data), err
 }
 
 // Status 并行读取集群健康和资源统计；旧版或无统计权限时仍返回健康信息。
@@ -120,7 +120,7 @@ func (m *Manager) Status(ctx context.Context) (map[string]interface{}, error) {
 	go func() {
 		defer close(done)
 		stats, _, statsErr = m.doRequest(requestCtx, http.MethodGet, "/_cluster/stats?timeout=10s", nil)
-		if statsErr == nil && object(stats) == nil {
+		if statsErr == nil && m.object(stats) == nil {
 			statsErr = errors.New("Elasticsearch 响应缺少集群统计")
 		}
 	}()

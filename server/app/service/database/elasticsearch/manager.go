@@ -45,8 +45,15 @@ func NewManager(ctx context.Context, config, databaseName string) (*Manager, err
 	if len(config) == 0 || len(config) > 1<<20 || config[0] != '{' || !json.Valid([]byte(config)) || decoder.Decode(&cfg) != nil {
 		return nil, errors.New("Elasticsearch 连接配置必须是 JSON 对象")
 	}
+	m := &Manager{
+		index:    databaseName,
+		user:     cfg.User,
+		password: cfg.Password,
+		apiKey:   cfg.APIKey,
+		secrets:  []string{cfg.Password, cfg.APIKey},
+	}
 	if databaseName != "" {
-		if err := ValidateIndexName(databaseName, false); err != nil {
+		if err := m.ValidateIndexName(databaseName, false); err != nil {
 			return nil, err
 		}
 	}
@@ -112,15 +119,8 @@ func NewManager(ctx context.Context, config, databaseName string) (*Manager, err
 		MaxIdleConnsPerHost:   2,
 		IdleConnTimeout:       30 * time.Second,
 	}
-	m := &Manager{
-		transport: transport,
-		base:      base,
-		index:     databaseName,
-		user:      cfg.User,
-		password:  cfg.Password,
-		apiKey:    cfg.APIKey,
-		secrets:   []string{cfg.Password, cfg.APIKey},
-	}
+	m.transport = transport
+	m.base = base
 	m.client = &http.Client{
 		Transport:     transport,
 		Timeout:       30 * time.Second,

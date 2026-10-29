@@ -76,7 +76,7 @@ func Init() {
 	Task = serviceTask.NewService(taskRepository, Type)
 	File = serviceFile.NewService(global.App.Cache)
 	Recycle = serviceRecycle.NewService()
-	System = serviceSystem.NewService(File, Config, global.App.Daemon)
+	System = serviceSystem.NewService(Config, global.App.Daemon, global.App.Container)
 	Database = serviceDatabase.NewService(databaseRepository, scriptRepository, typesRepository, Type, System, global.App.Database, global.App.Cache)
 	Container = serviceContainer.NewManager(global.App.Container, global.App.Cache)
 	Site, _ = serviceSite.NewService(siteRepository, siteDomainRepository, certRepository, secretRepository, Type, Config, Task, Recycle, global.App.Database, global.App.Cache)
@@ -96,7 +96,13 @@ func Init() {
 		Container: Container,
 		Database:  Database,
 	}
-	Software = serviceSoftware.NewService(repositorySoftware.NewRepository(global.App.Database), System, sdk.NewManager(constant.SoftwarePath, services))
+	Software = serviceSoftware.NewService(repositorySoftware.NewRepository(global.App.Database), System, sdk.NewManager(constant.SoftwarePath, sdk.App{
+		Service:  services,
+		Database: global.App.Database,
+		Cache:    global.App.Cache,
+		Config:   global.App.Config,
+		Log:      global.App.Log,
+	}))
 	services.Software = Software
 }
 

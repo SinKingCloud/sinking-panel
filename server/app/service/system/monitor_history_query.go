@@ -7,11 +7,15 @@ import (
 	"server/app/util/recordstore"
 )
 
-const monitorHistoryMaxPoints = 1440
+const (
+	monitorHistoryDefaultPoints = 480
+	monitorHistoryMinPoints     = 120
+	monitorHistoryMaxPoints     = 720
+)
 
 // fillMonitorHistory 从首条真实采样开始补齐时间桶，避免将采样前的空白显示为零值。
 // 不改变真实聚合和历史文件；中间及末尾的空桶仍通过 samples=0 标记。
-func fillMonitorHistory(result recordstore.RecordResult) (recordstore.RecordResult, error) {
+func (s *service) fillMonitorHistory(result recordstore.RecordResult) (recordstore.RecordResult, error) {
 	if result.Start <= 0 || result.End <= result.Start || result.Interval <= 0 || result.Interval > math.MaxInt64/1000 {
 		return result, errors.New("监控历史时间桶无效")
 	}

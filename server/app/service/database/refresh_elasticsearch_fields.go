@@ -12,7 +12,8 @@ import (
 
 // RefreshElasticsearchFields 将历史文档回填交给系统任务，关闭管理窗口不会中断执行。
 func (s *service) RefreshElasticsearchFields(id int64, databaseName string) (string, error) {
-	if err := clientElasticsearch.ValidateIndexName(databaseName, true); err != nil {
+	var validator clientElasticsearch.Manager
+	if err := validator.ValidateIndexName(databaseName, true); err != nil {
 		return "", err
 	}
 	if s.systemService == nil {

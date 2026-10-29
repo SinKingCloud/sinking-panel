@@ -6,15 +6,12 @@ import (
 	"os"
 	"server/app/constant"
 	serviceConfig "server/app/service/config"
-	serviceFile "server/app/service/file"
+	"server/app/util/container"
 	"server/app/util/daemon"
+	"server/app/util/psutil"
 	"server/app/util/recordstore"
 	"sync"
 	"sync/atomic"
-	"time"
-
-	"github.com/shirou/gopsutil/v4/disk"
-	"github.com/shirou/gopsutil/v4/net"
 )
 
 // Service 暴露方法。
@@ -29,7 +26,7 @@ type Service interface {
 	GetIO(netInterface, diskName string, after int64) map[string]interface{} // 网络与磁盘 I/O 统计
 	GetMonitorSettings() (recordstore.SeriesSettings, error)
 	SetMonitorSettings(enabled bool, days int) error
-	GetMonitorHistory(start, end int64) (recordstore.RecordResult, error)
+	GetMonitorHistory(start, end int64, maxPoints ...int) (recordstore.RecordResult, error)
 	GetTask(id string) *Task
 	TaskList(status *int) ([]*Task, error)
 	TaskCreate(id, name string, data interface{}, run func(context.Context, interface{}, func(int, float64, string)))
@@ -49,9 +46,9 @@ type service struct {
 	closed                 bool
 	tasks                  map[string]*Task
 	mu                     sync.RWMutex
-	fileService            serviceFile.Service
 	configService          serviceConfig.Service
 	daemon                 *daemon.Daemon
+	container              *container.Manager
 	restartPending         atomic.Bool
 	maxTaskWorkers         int    // 系统任务并发 worker 数量
 	systemTaskLogDirectory string // 系统任务日志目录
@@ -62,44 +59,25 @@ type service struct {
 	jobs      map[string]*job
 	logMu     sync.RWMutex
 
-	systemBaseCache      map[string]interface{}
-	systemBaseCacheLock  sync.RWMutex
-	cpuInfoCache         map[string]interface{}
-	cpuInfoCacheLock     sync.RWMutex
-	cpuModel             string
-	cpuCores             int
-	cpuInfoInitialized   bool
-	memoryInfoCache      map[string]interface{}
-	memoryInfoCacheLock  sync.RWMutex
-	disksInfoCache       []serviceFile.Disk
-	disksInfoCacheLock   sync.RWMutex
-	loadInfoCache        map[string]interface{}
-	loadInfoCacheLock    sync.RWMutex
-	networkInfoCache     []map[string]interface{}
-	networkInfoCacheLock sync.RWMutex
-	netIOCache           map[string]net.IOCountersStat
-	diskIOCache          map[string]disk.IOCountersStat
-	ioCacheLock          sync.RWMutex
-	netRateCache         map[string]map[string]interface{}
-	diskRateCache        map[string]map[string]interface{}
-	netLastUpdateTime    time.Time
-	diskLastUpdateTime   time.Time
-	monitorSequence      int64
-	monitorUpdatedAt     int64
-	monitorHistory       []map[string]interface{}
-	monitorRecorder      *recordstore.Recorder
-	monitorInitError     error
-	monitorDeviceMu      sync.RWMutex
-	monitorDisks         map[string]bool
-	monitorNetworks      map[string]bool
-	monitorDiskReady     bool
-	loadEstimate         [3]float64
-	loadEstimatedAt      time.Time
+	monitorMu        sync.RWMutex
+	resourceSampler  *psutil.Sampler
+	systemBaseCache  psutil.HostInfo
+	resourceCache    psutil.Snapshot
+	disksInfoCache   []psutil.DiskInfo
+	netRateCache     map[string]psutil.NetworkIO
+	diskRateCache    map[string]psutil.DiskIO
+	monitorSequence  int64
+	monitorUpdatedAt int64
+	monitorHistory   []monitorSample
+	monitorRecorder  *recordstore.Recorder
+	monitorInitError error
+	monitorDisks     map[string]bool
+	monitorNetworks  map[string]bool
+	monitorDiskReady bool
 }
 
 // NewService 实例化service
-func NewService(fileService serviceFile.Service, configService serviceConfig.Service, daemon *daemon.Daemon) *service {
-	now := time.Now()
+func NewService(configService serviceConfig.Service, daemon *daemon.Daemon, container *container.Manager) *service {
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &service{
 		ctx:                    ctx,
@@ -107,24 +85,17 @@ func NewService(fileService serviceFile.Service, configService serviceConfig.Ser
 		tasks:                  make(map[string]*Task),
 		jobs:                   make(map[string]*job),
 		queue:                  make([]string, 0),
-		fileService:            fileService,
 		configService:          configService,
 		daemon:                 daemon,
+		container:              container,
 		maxTaskWorkers:         maxTaskWorkers,
 		systemTaskLogDirectory: constant.TaskPath,
-		systemBaseCache:        make(map[string]interface{}),
-		cpuInfoCache:           make(map[string]interface{}),
-		memoryInfoCache:        make(map[string]interface{}),
-		disksInfoCache:         make([]serviceFile.Disk, 0),
-		loadInfoCache:          make(map[string]interface{}),
-		networkInfoCache:       make([]map[string]interface{}, 0),
-		netIOCache:             make(map[string]net.IOCountersStat),
-		diskIOCache:            make(map[string]disk.IOCountersStat),
-		netRateCache:           make(map[string]map[string]interface{}),
-		diskRateCache:          make(map[string]map[string]interface{}),
-		netLastUpdateTime:      now,
-		diskLastUpdateTime:     now,
-		monitorHistory:         make([]map[string]interface{}, 0, 120),
+		resourceSampler:        psutil.NewSampler(),
+		disksInfoCache:         make([]psutil.DiskInfo, 0),
+		resourceCache:          psutil.Snapshot{Network: make([]psutil.NetworkIO, 0)},
+		netRateCache:           make(map[string]psutil.NetworkIO),
+		diskRateCache:          make(map[string]psutil.DiskIO),
+		monitorHistory:         make([]monitorSample, 0, 120),
 	}
 	s.queueCond = sync.NewCond(&s.queueMu)
 	return s

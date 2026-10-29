@@ -41,7 +41,7 @@ func (m *Manager) Indices(ctx context.Context, keyword string, pageNumber, pageS
 	} else {
 		data, status, err := m.doRequest(ctx, http.MethodGet, "/_cat/indices?format=json&bytes=b&h=index,health,status,docs.count,store.size,pri,rep", nil)
 		_, textFormat := data.(string)
-		if unsupportedRequest(status, err) || err == nil && textFormat {
+		if m.unsupportedRequest(status, err) || err == nil && textFormat {
 			list, err = m.legacyIndices(ctx, keyword)
 			if err != nil {
 				return nil, err
@@ -55,9 +55,9 @@ func (m *Manager) Indices(ctx context.Context, keyword string, pageNumber, pageS
 			}
 			list = make([]Index, 0, len(values))
 			for _, value := range values {
-				item := object(value)
+				item := m.object(value)
 				name, _ := item["index"].(string)
-				if !visibleIndex(name, keyword) {
+				if !m.visibleIndex(name, keyword) {
 					continue
 				}
 				health, _ := item["health"].(string)
@@ -66,10 +66,10 @@ func (m *Manager) Indices(ctx context.Context, keyword string, pageNumber, pageS
 					Name:          name,
 					Health:        health,
 					Status:        status,
-					Documents:     number(item["docs.count"]),
-					SizeBytes:     number(item["store.size"]),
-					PrimaryShards: int(number(item["pri"])),
-					Replicas:      int(number(item["rep"])),
+					Documents:     m.number(item["docs.count"]),
+					SizeBytes:     m.number(item["store.size"]),
+					PrimaryShards: int(m.number(item["pri"])),
+					Replicas:      int(m.number(item["rep"])),
 				})
 			}
 		}
@@ -104,11 +104,11 @@ func (m *Manager) Info(ctx context.Context) (map[string]interface{}, error) {
 	var index map[string]interface{}
 	if m.atLeast(1, 4) {
 		data, status, requestErr := m.doRequest(ctx, http.MethodGet, path, nil)
-		if requestErr != nil && !unsupportedRequest(status, requestErr) {
+		if requestErr != nil && !m.unsupportedRequest(status, requestErr) {
 			return nil, requestErr
 		}
 		if requestErr == nil {
-			index = object(object(data)[m.index])
+			index = m.object(m.object(data)[m.index])
 			if index == nil {
 				return nil, errors.New("未返回选中索引的详情")
 			}
@@ -127,7 +127,7 @@ func (m *Manager) Info(ctx context.Context) (map[string]interface{}, error) {
 		if metadataErr != nil {
 			return nil, metadataErr
 		}
-		entry := object(metadata[m.index])
+		entry := m.object(metadata[m.index])
 		if entry == nil {
 			return nil, errors.New("未返回选中索引的元数据")
 		}
@@ -146,9 +146,9 @@ func (m *Manager) Info(ctx context.Context) (map[string]interface{}, error) {
 	stats, statsErr := m.indexStats(ctx, m.index)
 	if statsErr == nil {
 		result["stats"] = stats[m.index]
-		primaries := object(object(result["stats"])["primaries"])
-		result["documents"] = object(primaries["docs"])["count"]
-		result["size_bytes"] = object(primaries["store"])["size_in_bytes"]
+		primaries := m.object(m.object(result["stats"])["primaries"])
+		result["documents"] = m.object(primaries["docs"])["count"]
+		result["size_bytes"] = m.object(primaries["store"])["size_in_bytes"]
 	} else {
 		result["stats_error"] = statsErr.Error()
 	}
@@ -160,14 +160,14 @@ func (m *Manager) CreateIndex(ctx context.Context, name, settings, mapping strin
 	if name == "" {
 		name = m.index
 	}
-	if err := ValidateIndexName(name, true); err != nil {
+	if err := m.ValidateIndexName(name, true); err != nil {
 		return nil, err
 	}
-	settingsValue, err := decodeObject(settings, "索引设置", true)
+	settingsValue, err := m.decodeObject(settings, "索引设置", true)
 	if err != nil {
 		return nil, err
 	}
-	mappingValue, err := decodeObject(mapping, "字段映射", true)
+	mappingValue, err := m.decodeObject(mapping, "字段映射", true)
 	if err != nil {
 		return nil, err
 	}
@@ -176,7 +176,7 @@ func (m *Manager) CreateIndex(ctx context.Context, name, settings, mapping strin
 		body["settings"] = settingsValue
 	}
 	if len(mappingValue) > 0 {
-		if m.major < 7 && mappingDefinition(mappingValue) {
+		if m.major < 7 && m.mappingDefinition(mappingValue) {
 			typeName := "_doc"
 			if !m.atLeast(6, 2) {
 				typeName = "doc"
@@ -186,7 +186,7 @@ func (m *Manager) CreateIndex(ctx context.Context, name, settings, mapping strin
 		body["mappings"] = mappingValue
 	}
 	data, _, err := m.doRequest(ctx, http.MethodPut, "/"+url.PathEscape(name), body)
-	return object(data), err
+	return m.object(data), err
 }
 
 // DropIndex 删除一个普通索引，不接受通配符、别名列表或系统索引。
@@ -194,11 +194,11 @@ func (m *Manager) DropIndex(ctx context.Context, name string) (map[string]interf
 	if name == "" {
 		name = m.index
 	}
-	if err := ValidateIndexName(name, true); err != nil {
+	if err := m.ValidateIndexName(name, true); err != nil {
 		return nil, err
 	}
 	data, _, err := m.doRequest(ctx, http.MethodDelete, "/"+url.PathEscape(name), nil)
-	return object(data), err
+	return m.object(data), err
 }
 
 // DropIndices 先校验整批索引名称，再逐个删除并保留部分成功信息。
@@ -209,7 +209,7 @@ func (m *Manager) DropIndices(ctx context.Context, names []string) error {
 		return errors.New("请选择索引")
 	}
 	for _, name := range names {
-		if err := ValidateIndexName(name, true); err != nil {
+		if err := m.ValidateIndexName(name, true); err != nil {
 			return err
 		}
 	}

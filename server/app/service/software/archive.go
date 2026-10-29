@@ -16,7 +16,7 @@ import (
 const softwareArchiveLimit int64 = plugin.MaxImageSize + plugin.MaxSourceSize + (16 << 20)
 
 // packDirectory 只携带运行源码与可选镜像；大归档以 ZIP Store 流式复制。
-func packDirectory(directory string, output io.Writer) error {
+func (s *service) packDirectory(directory string, output io.Writer) error {
 	root, err := os.OpenRoot(directory)
 	if err != nil {
 		return err
