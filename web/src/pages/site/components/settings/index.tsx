@@ -4015,7 +4015,8 @@ const Settings = forwardRef(({onSuccess, onManageCert, onObtainCert, onDeployCer
     const theme = useTheme();
     const compact = Boolean(theme?.isCompactTheme?.());
     const screens = Grid.useBreakpoint();
-    const {styles} = useStyles({compact});
+    const styleProps = useMemo(() => ({compact}), [compact]);
+    const {styles} = useStyles(styleProps);
     const modalRef = useRef<ProModalRef>({} as ProModalRef);
     const settingsSessionRef = useRef(0);
     const navigationRef = useRef<HTMLDivElement>(null);
@@ -4144,7 +4145,6 @@ const Settings = forwardRef(({onSuccess, onManageCert, onObtainCert, onDeployCer
                         formId={formId}
                         onClose={() => modalRef.current?.hide()}/>
                 ),
-                forceRender: true,
                 closable: true,
                 keyboard: true,
                 style: {top: screens.md ? 100 : 24, paddingBottom: screens.md ? 100 : 24},

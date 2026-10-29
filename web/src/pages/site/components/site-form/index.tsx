@@ -111,7 +111,8 @@ const SiteForm = forwardRef(({onSuccess, typeItems}: any, ref): any => {
     const theme = useTheme();
     const screens = Grid.useBreakpoint();
     const compact = Boolean(theme?.isCompactTheme?.());
-    const {styles} = useStyles({compact});
+    const styleProps = useMemo(() => ({compact}), [compact]);
+    const {styles} = useStyles(styleProps);
     const modalRef = useRef<ProModalRef>({} as ProModalRef);
     const contentRef = useRef<HTMLDivElement>(null);
     const requestRef = useRef(0);
@@ -328,7 +329,6 @@ const SiteForm = forwardRef(({onSuccess, typeItems}: any, ref): any => {
             onOk={next}
             onCancel={close}
             modalProps={{
-                forceRender: true,
                 rootClassName: styles.modal,
                 closable: true,
                 keyboard: true,

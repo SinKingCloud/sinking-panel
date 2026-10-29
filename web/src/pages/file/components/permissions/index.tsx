@@ -84,7 +84,6 @@ const FilePermissions = forwardRef<any, any>(({onSuccess}, ref) => {
                     setState(undefined);
                     form.resetFields();
                 },
-                forceRender: true,
                 zIndex: layered ? 2000 : undefined,
                 style: {top: screens.md ? 100 : 24, paddingBottom: screens.md ? 100 : 24},
                 cancelText: "取消",

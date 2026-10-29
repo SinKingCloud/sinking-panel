@@ -189,7 +189,7 @@ export default function ScriptTools({module = "script_database", instanceId, val
             modalProps={{zIndex: 1200, destroyOnHidden: true, style: {maxWidth: "calc(100vw - 24px)", top: "clamp(12px, 7vh, 72px)", paddingBottom: 24}}}/>
         <ProModal title={<Title>{editing?.id ? "编辑脚本" : "添加脚本"}</Title>} width={compact ? 540 : 580} onOk={form.submit}
             onCancel={() => { sequence.current++; setFormOpen(false); }}
-            modalProps={{open: formOpen, forceRender: true, zIndex: 1250, confirmLoading: busy || loading, okText: "保存", cancelText: "取消", mask: {closable: true},
+            modalProps={{open: formOpen, zIndex: 1250, confirmLoading: busy || loading, okText: "保存", cancelText: "取消", mask: {closable: true},
                 footer: loading ? null : undefined,
                 afterClose: () => setFormActive(false),
                 style: {maxWidth: "calc(100vw - 24px)", top: "clamp(12px, 7vh, 72px)", paddingBottom: 24}} as any}>

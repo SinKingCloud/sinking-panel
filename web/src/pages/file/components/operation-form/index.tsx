@@ -240,7 +240,6 @@ const FileOperationForm = forwardRef<any, any>(({onTask, onSuccess}, ref) => {
                 afterClose: () => {
                     if (operation?.generation !== generationRef.current) setOperation(undefined);
                 },
-                forceRender: true,
                 rootClassName: styles.modal,
                 style: {top: screens.md ? 100 : 24, paddingBottom: screens.md ? 100 : 24},
                 cancelText: "取消",

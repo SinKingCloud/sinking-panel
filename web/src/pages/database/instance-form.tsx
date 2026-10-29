@@ -171,7 +171,7 @@ export default ({open, record, categories = [], onCancel, onSuccess}: any) => {
             afterOpenChange: setEntered,
             style: {top: screens.md ? 90 : 24, paddingBottom: screens.md ? 90 : 24, maxWidth: "calc(100vw - 24px)"},
             styles: type === 2 ? {body: {maxHeight: "none", overflow: "visible"}} : undefined,
-            closable: !busy, keyboard: !busy, mask: {closable: !busy}, forceRender: true,
+            closable: !busy, keyboard: !busy, mask: {closable: !busy},
             focusable: {focusTriggerAfterClose: false}, okText: "保存", cancelText: "取消",
             confirmLoading: busy === "save", okButtonProps: {disabled: unavailable || busy === "test"},
             footer: waiting ? null : undefined,

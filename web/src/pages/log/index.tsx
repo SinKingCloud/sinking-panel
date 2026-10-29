@@ -188,7 +188,6 @@ export default (): React.ReactNode => {
                     cancelButtonProps: {disabled: false},
                     closable: true,
                     keyboard: true,
-                    forceRender: true,
                     style: {top: 100, paddingBottom: 100},
                     mask: {closable: true},
                     afterClose: () => {

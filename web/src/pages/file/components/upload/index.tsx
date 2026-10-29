@@ -7,7 +7,7 @@ import useStyles from "./styles";
 
 const getUploadStatusText = (item: any) => {
     if (item.status === "waiting") return "等待中";
-    if (item.status === "checking") return "检查中";
+    if (item.status === "checking") return typeof item.hashPercent === "number" ? `检查中 ${item.hashPercent}%` : "检查中";
     if (item.status === "uploading") return `上传中 ${Math.floor(item.percent)}%`;
     if (item.status === "merging") return "合并中";
     if (item.status === "done") return "已完成";
@@ -27,7 +27,8 @@ const FileUpload = forwardRef<any, any>(({
     const {token} = theme.useToken();
     const appTheme = useTheme();
     const compact = Boolean(appTheme?.isCompactTheme?.());
-    const {styles} = useStyles({compact});
+    const styleProps = useMemo(() => ({compact}), [compact]);
+    const {styles} = useStyles(styleProps);
     const screens = Grid.useBreakpoint();
     const transfersRef = useRef(new Map<string, ReturnType<typeof uploadFile>>());
     const pendingNamesRef = useRef(new Set<string>());
@@ -65,7 +66,15 @@ const FileUpload = forwardRef<any, any>(({
         if (!mountedRef.current) {
             return;
         }
-        setItems((current) => current.map((item) => item.id === id ? {...item, ...values} : item));
+        setItems((current) => {
+            const index = current.findIndex((item) => item.id === id);
+            if (index < 0 || Object.keys(values).every((key) => current[index][key] === values[key])) {
+                return current;
+            }
+            const next = current.slice();
+            next[index] = {...current[index], ...values};
+            return next;
+        });
     };
 
     const getPendingKey = (targetPath: string, name: string) => `${targetPath}\0${name}`;
@@ -87,12 +96,13 @@ const FileUpload = forwardRef<any, any>(({
             path: targetPath,
             file,
             fileName: file.name,
-            onProgress: ({percent, phase}: any) => {
+            onProgress: ({percent, phase, hashPercent}: any) => {
                 if (phase === "complete") {
                     return;
                 }
                 update(id, {
                     percent: phase === "uploading" ? Math.min(99, Math.floor(percent)) : Math.floor(percent),
+                    hashPercent,
                     status: phase === "checking" ? "checking" : phase === "merging" ? "merging" : "uploading",
                 });
             },
@@ -293,7 +303,7 @@ const FileUpload = forwardRef<any, any>(({
                                         {item.error && <span className="upload-file-error" title={item.error}>{item.error}</span>}
                                     </div>
                                     <Progress
-                                        percent={item.percent}
+                                        percent={item.status === "checking" && typeof item.hashPercent === "number" ? item.hashPercent : item.percent}
                                         size="small"
                                         status={item.status === "error"
                                             ? "exception"

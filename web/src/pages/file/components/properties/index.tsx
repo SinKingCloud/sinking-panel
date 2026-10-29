@@ -1,4 +1,4 @@
-import React, {forwardRef, useCallback, useImperativeHandle, useRef, useState} from "react";
+import React, {forwardRef, useCallback, useImperativeHandle, useMemo, useRef, useState} from "react";
 import {App, Button, Grid, Tooltip} from "antd";
 import {Icon, ProModal, Title, useTheme} from "sinking-antd";
 import {getFileInfo} from "@/service/api/file";
@@ -10,7 +10,8 @@ const FileProperties = forwardRef<any, any>(({onRename, onPermissions}, ref) => 
     const theme = useTheme();
     const compact = Boolean(theme?.isCompactTheme?.());
     const screens = Grid.useBreakpoint();
-    const {styles} = useStyles({compact});
+    const styleProps = useMemo(() => ({compact}), [compact]);
+    const {styles} = useStyles(styleProps);
     const {message} = App.useApp();
     const requestRef = useRef(0);
     const generationRef = useRef(0);

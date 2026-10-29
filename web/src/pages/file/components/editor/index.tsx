@@ -57,7 +57,8 @@ const FileEditor = forwardRef(function FileEditor(
     const compact = Boolean(theme?.isCompactTheme?.());
     const dark = Boolean(theme?.isDarkMode?.() || theme?.isDarkTheme?.());
     const screens = Grid.useBreakpoint();
-    const {styles} = useStyles({compact, dark});
+    const styleProps = useMemo(() => ({compact, dark}), [compact, dark]);
+    const {styles} = useStyles(styleProps);
     const formRef = useRef<any>(null);
     const permissionsRef = useRef<any>(null);
     const workspaceRef = useRef<HTMLDivElement | null>(null);

@@ -55,7 +55,7 @@ export default ({open, types, categories = [], defaultType, defaultTypeId, onCan
         modalProps={{
             open, width: 400, zIndex: 1140, rootClassName: styles.modal,
             style: {top: screens.md ? 90 : 24, paddingBottom: screens.md ? 90 : 24, maxWidth: "calc(100vw - 24px)"},
-            closable: !busy, keyboard: !busy, mask: {closable: !busy}, forceRender: true,
+            closable: !busy, keyboard: !busy, mask: {closable: !busy},
             focusable: {focusTriggerAfterClose: false}, okText: "添加", cancelText: "取消",
             confirmLoading: busy, okButtonProps: {disabled: !Object.keys(types || {}).length}, cancelButtonProps: {disabled: busy},
         } as any}>

@@ -4,6 +4,7 @@ import React, {
     useCallback,
     useEffect,
     useImperativeHandle,
+    useMemo,
     useRef,
     useState,
 } from "react";
@@ -66,7 +67,8 @@ const persistTasks = (tasks: any[]) => {
 const FileTaskCenter = forwardRef<any, any>(({onSettled}, ref) => {
     const theme = useTheme();
     const compact = Boolean(theme?.isCompactTheme?.());
-    const {styles} = useStyles({compact});
+    const styleProps = useMemo(() => ({compact}), [compact]);
+    const {styles} = useStyles(styleProps);
     const {message} = App.useApp();
     const mountedRef = useRef(true);
     const tasksRef = useRef<any[]>([]);

@@ -1,4 +1,4 @@
-import {forwardRef, memo, useCallback, useEffect, useImperativeHandle, useRef, useState} from "react";
+import {forwardRef, memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState} from "react";
 import {
     App,
     Button,
@@ -940,7 +940,8 @@ const HTTPService = forwardRef<any, any>((_, ref): any => {
     const compact = Boolean(theme?.isCompactTheme?.());
     const dark = Boolean(theme?.isDarkMode?.() || theme?.isDarkTheme?.());
     const screens = Grid.useBreakpoint();
-    const {styles} = useStyles({compact});
+    const styleProps = useMemo(() => ({compact}), [compact]);
+    const {styles} = useStyles(styleProps);
     const modalRef = useRef<any>(null);
     const logRef = useRef<any>(null);
     const navigationRef = useRef<HTMLDivElement>(null);
@@ -1548,7 +1549,6 @@ const HTTPService = forwardRef<any, any>((_, ref): any => {
                     cancelText: "关闭",
                     okButtonProps: section === "service" ? {style: {display: "none"}} : undefined,
                     footer: loading || Boolean(loadError) ? null : undefined,
-                    forceRender: true,
                     closable: true,
                     keyboard: true,
                     mask: {closable: true},

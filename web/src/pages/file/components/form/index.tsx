@@ -133,7 +133,6 @@ const FileForm = forwardRef<any, any>(({onSuccess}, ref) => {
                     setEditor(undefined);
                     form.resetFields();
                 },
-                forceRender: true,
                 zIndex: layered ? 2000 : undefined,
                 closable: true,
                 keyboard: true,

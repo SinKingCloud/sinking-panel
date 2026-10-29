@@ -51,6 +51,10 @@ export default (): React.ReactNode | any => {
     }, []);
 
     const openSettings = useCallback((record: any, section: string) => settingsRef.current?.open(record, section), []);
+    const openCertManager = useCallback(() => certRef.current?.open(), []);
+    const obtainCert = useCallback((domain: string | string[], onObtained: (cert: any) => void) => certRef.current?.openObtain(domain, onObtained), []);
+    const deployCert = useCallback((domain: string, onSelected: (cert: any) => void) => certRef.current?.openDeploy(domain, onSelected), []);
+    const renewCert = useCallback((certificate: any, onRenewed: (cert: any) => void, domain: string) => certRef.current?.openRenew(certificate, onRenewed, domain), []);
     const openTypeManager = useCallback(() => typeManagerRef.current?.open(), []);
     const handleCertChange = useCallback(() => setCertVersion((value) => value + 1), []);
     const handleSecretChange = useCallback(() => {
@@ -86,7 +90,7 @@ export default (): React.ReactNode | any => {
         onRefresh: list.reload,
         onCreate: () => formRef.current?.open(),
         onHTTPSettings: () => httpRef.current?.open(),
-        onManageCert: () => certRef.current?.open(),
+        onManageCert: openCertManager,
         onManageSecret: () => secretRef.current?.open(),
     });
     const table = useSiteTable({
@@ -125,10 +129,10 @@ export default (): React.ReactNode | any => {
                 certVersion={certVersion}
                 typeItems={typeItems || undefined}
                 onSuccess={list.reload}
-                onObtainCert={(domain: string | string[], onObtained: (cert: any) => void) => certRef.current?.openObtain(domain, onObtained)}
-                onDeployCert={(domain: string, onSelected: (cert: any) => void) => certRef.current?.openDeploy(domain, onSelected)}
-                onRenewCert={(certificate: any, onRenewed: (cert: any) => void, domain: string) => certRef.current?.openRenew(certificate, onRenewed, domain)}
-                onManageCert={() => certRef.current?.open()}/>
+                onObtainCert={obtainCert}
+                onDeployCert={deployCert}
+                onRenewCert={renewCert}
+                onManageCert={openCertManager}/>
             <CertManager ref={certRef} secretVersion={secretVersion} onChange={handleCertChange}/>
             <SecretManager ref={secretRef} onChange={handleSecretChange}/>
             <HTTPService ref={httpRef}/>

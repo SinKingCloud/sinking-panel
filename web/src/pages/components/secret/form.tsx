@@ -233,7 +233,6 @@ const SecretForm = forwardRef<SecretFormRef, SecretFormProps>(({zIndex, onSucces
         modalProps={{
             rootClassName: styles.modal,
             zIndex,
-            forceRender: true,
             confirmLoading: submitting,
             okButtonProps: {disabled: loading || Boolean(loadError)},
             okText: editing ? "保存" : "添加",

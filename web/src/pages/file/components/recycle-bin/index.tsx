@@ -57,7 +57,8 @@ const FileRecycleBin = memo(forwardRef<any, any>(({onMutation}, ref) => {
     const appTheme = useTheme();
     const compact = Boolean(appTheme?.isCompactTheme?.());
     const screens = Grid.useBreakpoint();
-    const {styles} = useStyles({compact});
+    const styleProps = useMemo(() => ({compact}), [compact]);
+    const {styles} = useStyles(styleProps);
     const tableRef = useRef<ModalTableRef | null>(null);
     const countRequestRef = useRef(0);
     const [loading, setLoading] = useState(false);

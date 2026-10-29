@@ -102,7 +102,6 @@ const BatchVerification = forwardRef<BatchVerificationRef, BatchVerificationProp
                 <Button key="back" disabled={busy} onClick={() => modalRef.current?.hide()}>返回</Button>,
                 <Button key="verify" type="primary" loading={busy} disabled={!session} onClick={onVerify}>验证</Button>,
             ],
-            forceRender: true,
             closable: !busy,
             keyboard: !busy,
             mask: {closable: !busy},

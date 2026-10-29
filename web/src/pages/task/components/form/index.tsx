@@ -243,7 +243,6 @@ const Form = forwardRef<any, {typeData?: any; typeItems?: any[]; execTypeData?: 
             modalProps={{
                 rootClassName: styles.modal,
                 confirmLoading: submitting || infoLoading,
-                forceRender: true,
                 okText: editing ? "保存" : "创建",
                 cancelText: "取消",
                 footer: infoLoading ? null : undefined,

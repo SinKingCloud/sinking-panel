@@ -365,8 +365,17 @@ const uploadFileByChunks = async (
         total: options.file.size,
         percent: 0,
         phase: "checking",
+        hashPercent: 0,
     });
-    const fileHash = (await getFileMd5(options.file, signal)).toLowerCase();
+    const fileHash = (await getFileMd5(options.file, signal, (loaded, total) => {
+        options.onProgress?.({
+            loaded: 0,
+            total,
+            percent: 0,
+            phase: "checking",
+            hashPercent: total > 0 ? Math.floor(loaded / total * 100) : 100,
+        });
+    })).toLowerCase();
     const meta: any = {
         path: options.path,
         fileName,

@@ -785,11 +785,10 @@ const TypeManager = forwardRef<TypeManagerRef, TypeManagerProps>(({module, scope
         clearPointerDrag();
         setFormActive(false);
         setFormOpen(false);
-        form.resetFields();
         setFormRecord(undefined);
         clearEnumCache(module);
         void load(true);
-    }, [clearPointerDrag, form, load, module]);
+    }, [clearPointerDrag, load, module]);
 
     const reset = useCallback(() => {
         const reconcile = sortDirtyRef.current;
@@ -799,7 +798,6 @@ const TypeManager = forwardRef<TypeManagerRef, TypeManagerProps>(({module, scope
         actionRef.current = false;
         sortingRef.current = false;
         clearPointerDrag();
-        form.resetFields();
         setItems([]);
         setLoading(false);
         setFormActive(false);
@@ -812,7 +810,7 @@ const TypeManager = forwardRef<TypeManagerRef, TypeManagerProps>(({module, scope
             clearEnumCache(module);
             void load(true);
         }
-    }, [clearPointerDrag, form, load, module]);
+    }, [clearPointerDrag, load, module]);
 
     const open = useCallback(() => {
         lifecycleRef.current += 1;
@@ -820,7 +818,6 @@ const TypeManager = forwardRef<TypeManagerRef, TypeManagerProps>(({module, scope
         sortRequestRef.current += 1;
         actionRef.current = false;
         sortingRef.current = false;
-        form.resetFields();
         setFormActive(false);
         setFormOpen(false);
         setFormRecord(undefined);
@@ -828,7 +825,7 @@ const TypeManager = forwardRef<TypeManagerRef, TypeManagerProps>(({module, scope
         modalRef.current?.show();
         clearEnumCache(module);
         void load(true);
-    }, [form, load, module]);
+    }, [load, module]);
 
     useImperativeHandle(ref, () => ({open, refresh}), [open, refresh]);
 
@@ -1282,7 +1279,6 @@ const TypeManager = forwardRef<TypeManagerRef, TypeManagerProps>(({module, scope
                 cancelText: "取消",
                 closable: true,
                 keyboard: true,
-                forceRender: true,
                 footer: loading && items.length === 0 ? null : undefined,
                 okButtonProps: {disabled: loading || operationBusy},
                 mask: {closable: true},
@@ -1345,7 +1341,6 @@ const TypeManager = forwardRef<TypeManagerRef, TypeManagerProps>(({module, scope
                         closable: true,
                         keyboard: true,
                         mask: {closable: true},
-                        forceRender: true,
                         focusable: {focusTriggerAfterClose: false},
                         styles: {body: {paddingTop: compact ? 10 : 15}},
                     } as any}>

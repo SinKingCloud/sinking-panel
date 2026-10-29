@@ -587,7 +587,7 @@ const BatchCert = forwardRef<BatchCertRef, {onChange?: () => void; secretVersion
     return <>
         <ProModal ref={modalRef} title={<Title>申请证书</Title>} width={compact ? 560 : 600} onCancel={close}
             modalProps={{
-                rootClassName: styles.modal, zIndex: 1030, forceRender: true, closable: !closing, keyboard: !closing,
+                rootClassName: styles.modal, zIndex: 1030, closable: !closing, keyboard: !closing,
                 mask: {closable: !busy && !manual},
                 style: {top: screens.md ? 100 : 24, paddingBottom: screens.md ? 100 : 24},
                 focusable: {focusTriggerAfterClose: false},

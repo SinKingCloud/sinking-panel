@@ -161,7 +161,6 @@ const Form = forwardRef<any, any>(({authTypeData, layered = false, onSuccess}, r
                 zIndex: layered ? 2000 : undefined,
                 closable: true,
                 keyboard: true,
-                forceRender: true,
                 okText: editing ? "保存" : "添加",
                 cancelText: "取消",
                 style: {top: 100, paddingBottom: 100},

@@ -433,7 +433,8 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
     const theme = useTheme();
     const compact = Boolean(theme?.isCompactTheme?.());
     const screens = Grid.useBreakpoint();
-    const {styles} = useStyles({compact});
+    const styleProps = useMemo(() => ({compact}), [compact]);
+    const {styles} = useStyles(styleProps);
     const modalRef = useRef<ModalTableRef | null>(null);
     const formModalRef = useRef<any>(null);
     const manualModalRef = useRef<any>(null);
@@ -1398,7 +1399,6 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
                             {mode === "import" ? "导入" : mode === "obtain" ? "申请" : mode === "renew" ? "续签" : "保存"}
                         </Button>,
                     ],
-                    forceRender: true,
                     closable: true,
                     keyboard: true,
                     mask: {closable: true},
@@ -1668,7 +1668,6 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
                         <Button key="cancel" onClick={() => closeForm(true)}>取消</Button>,
                         <Button key="submit" type="primary" loading={submitting} onClick={form.submit}>验证</Button>,
                     ],
-                    forceRender: true,
                     closable: true,
                     keyboard: true,
                     mask: {closable: true},

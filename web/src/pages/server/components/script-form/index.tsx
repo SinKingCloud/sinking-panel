@@ -210,7 +210,6 @@ const ScriptForm = forwardRef<any, any>(({instanceModule, onSuccess}, ref): any 
             modalProps={{
                 rootClassName: styles.modal,
                 confirmLoading: submitting || infoLoading,
-                forceRender: true,
                 okText: editing ? "保存" : "添加",
                 cancelText: "取消",
                 style: {top: "clamp(12px, 7vh, 72px)", paddingBottom: 24},
