@@ -1,7 +1,7 @@
 import React, {useCallback, useEffect, useMemo, useState} from "react";
 import {Button, Empty, Input, Spin, Tooltip} from "antd";
 import {Icon, Title} from "sinking-antd";
-import ActionDropdown from "@/pages/components/action-dropdown";
+import ActionDropdown from "@/pages/components/ui/action-dropdown";
 
 const renderBatchSize = 80;
 

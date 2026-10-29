@@ -12,7 +12,7 @@ import {App, Button, Grid, Space, Tooltip} from "antd";
 import type {TableColumnsType} from "antd";
 import {Icon, ModalTable, Title, useTheme} from "sinking-antd";
 import type {ModalTableProps, ModalTableRef} from "sinking-antd";
-import ActionDropdown from "@/pages/components/action-dropdown";
+import ActionDropdown from "@/pages/components/ui/action-dropdown";
 import {
     clearRecycle,
     deleteRecycleItem,

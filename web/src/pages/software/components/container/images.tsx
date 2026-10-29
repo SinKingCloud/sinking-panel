@@ -16,7 +16,7 @@ import {
 } from "antd";
 import {ModalTable, ProModal, Title, useTheme} from "sinking-antd";
 import type {ModalTableProps, ModalTableRef} from "sinking-antd";
-import ActionDropdown from "@/pages/components/action-dropdown";
+import ActionDropdown from "@/pages/components/ui/action-dropdown";
 import FilePicker from "@/pages/components/file-picker";
 import {containerImages} from "@/service/api/container";
 

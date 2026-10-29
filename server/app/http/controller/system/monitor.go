@@ -38,7 +38,7 @@ func Monitor(c *context.Context) {
 		if form.MaxPoints != nil {
 			maxPoints = []int{*form.MaxPoints}
 		}
-		data, err := service.System.GetMonitorHistory(form.Start, form.End, maxPoints...)
+		data, err := service.System.GetMonitorHistory(c.Request.Context(), form.Start, form.End, maxPoints...)
 		if err != nil {
 			c.Error(err.Error())
 		} else {

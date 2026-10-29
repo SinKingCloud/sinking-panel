@@ -3,7 +3,7 @@ import {Col, Row} from "antd";
 import {createStyles} from "antd-style";
 import {Body} from "sinking-antd";
 import {getSystemStatis, getSystemIO, getSystemInfo} from "@/service/api/system";
-import {gutter, numberValue} from "./utils";
+import {formatUptime, gutter, numberValue} from "./utils";
 import HostOverview from "./components/host-overview";
 import MonitorOverview from "./components/monitor-overview";
 import ResourceOverview from "./components/resource-overview";
@@ -28,7 +28,9 @@ export default (): React.ReactNode => {
     const {styles} = useStyles();
     const mountedRef = useRef(true);
     const requestingRef = useRef(false);
-    const snapshotRef = useRef({statis: "", info: "", io: "", sampleId: 0, sampleTime: 0});
+    const requestRef = useRef(0);
+    const infoRef = useRef<{data: any; time: number} | undefined>(undefined);
+    const snapshotRef = useRef({statis: "", disks: "", info: "", io: "", sampleId: 0, sampleTime: 0});
     const [dashboard, setDashboard] = useState<any>(() => {
         const initialTime = Date.now();
         return {
@@ -46,39 +48,57 @@ export default (): React.ReactNode => {
     const [loading, setLoading] = useState(true);
     const {statis, info, io, throughputHistory} = dashboard;
 
-    const loadData = useCallback(async (initial = false) => {
+    const loadData = useCallback(async (initial = false, refreshInfo = false) => {
         if (requestingRef.current) {
             return;
         }
         requestingRef.current = true;
+        const request = ++requestRef.current;
         if (initial) {
             setLoading(true);
         }
 
         try {
-            const [statisResponse, infoResponse, ioResponse] = await Promise.all([
+            // 主机信息只有静态字段和按分钟显示的运行时间；实时资源与 I/O 仍每秒获取。
+            const [statisResult, infoResult, ioResult] = await Promise.allSettled([
                 getSystemStatis(),
-                getSystemInfo(),
+                !infoRef.current || refreshInfo || performance.now() - infoRef.current.time >= 30000
+                    ? getSystemInfo() : Promise.resolve(undefined),
                 getSystemIO({body: {after: snapshotRef.current.sampleId}}),
             ]);
-            if (!mountedRef.current) {
+            if (!mountedRef.current || request !== requestRef.current || document.visibilityState === "hidden") {
                 return;
             }
-
+            const statisResponse = statisResult.status === "fulfilled" ? statisResult.value : undefined;
+            const infoResponse = infoResult.status === "fulfilled" ? infoResult.value : undefined;
+            const ioResponse = ioResult.status === "fulfilled" ? ioResult.value : undefined;
             const statisData = statisResponse?.code === 200 && statisResponse?.data
-                ? statisResponse?.data
+                ? {cpu: statisResponse.data.cpu, memory: statisResponse.data.memory, load: statisResponse.data.load, disks: statisResponse.data.disks}
                 : undefined;
-            const infoData = infoResponse?.code === 200 && infoResponse?.data
-                ? infoResponse?.data
-                : undefined;
+            const now = performance.now();
+            const previousInfo = infoRef.current;
+            if (infoResponse?.code === 200 && infoResponse?.data) {
+                const data = infoResponse.data;
+                const uptime = previousInfo && previousInfo.data.boot_time === data.boot_time
+                    ? Math.max(numberValue(data.uptime), numberValue(previousInfo.data.uptime) + Math.floor((now - previousInfo.time) / 1000))
+                    : numberValue(data.uptime);
+                infoRef.current = {data: {...data, uptime}, time: now};
+            }
+            const baseInfo = infoRef.current;
+            const infoData = baseInfo ? {...baseInfo.data, uptime: numberValue(baseInfo.data.uptime) + Math.floor((now - baseInfo.time) / 1000)} : undefined;
             const ioData = ioResponse?.code === 200 && ioResponse?.data
                 ? ioResponse?.data
                 : undefined;
             const currentIOData = ioData ? {...ioData, history: undefined} : undefined;
-            const nextStatisSnapshot = JSON.stringify(statisData || null);
-            const nextInfoSnapshot = JSON.stringify(infoData || null);
-            const nextIOSnapshot = JSON.stringify(currentIOData || null);
-            const statisChanged = nextStatisSnapshot !== snapshotRef.current.statis;
+            const nextStatisSnapshot = statisData ? JSON.stringify([statisData.cpu, statisData.memory, statisData.load]) : snapshotRef.current.statis;
+            const nextDisksSnapshot = statisData ? JSON.stringify(statisData.disks || []) : snapshotRef.current.disks;
+            const nextInfoSnapshot = infoData ? JSON.stringify([
+                infoData.hostname, infoData.os, infoData.platform, infoData.platform_version,
+                infoData.kernel_version, infoData.kernel_arch, infoData.boot_time, formatUptime(infoData.uptime),
+            ]) : snapshotRef.current.info;
+            const nextIOSnapshot = currentIOData ? JSON.stringify([currentIOData.network, currentIOData.disk]) : snapshotRef.current.io;
+            const disksChanged = nextDisksSnapshot !== snapshotRef.current.disks;
+            const statisChanged = nextStatisSnapshot !== snapshotRef.current.statis || disksChanged;
             const infoChanged = nextInfoSnapshot !== snapshotRef.current.info;
             const ioChanged = nextIOSnapshot !== snapshotRef.current.io;
             const responseSampleId = numberValue(ioData?.sample_id);
@@ -103,18 +123,25 @@ export default (): React.ReactNode => {
                     const idDiff = numberValue(first?.sample_id) - numberValue(second?.sample_id);
                     return idDiff || numberValue(first?.sample_time) - numberValue(second?.sample_time);
                 });
-            const samples = ioSamples.map((item: any) => ({
-                sampleId: numberValue(item?.sample_id),
-                time: numberValue(item?.sample_time),
-                network: Object.fromEntries((Object.entries(item?.network || {}) as [string, any][]).map(([name, value]) => [name, {
-                    receiveRate: numberValue(value?.recv_rate),
-                    sendRate: numberValue(value?.send_rate),
-                }])),
-                disk: Object.fromEntries((Object.entries(item?.disk || {}) as [string, any][]).map(([name, value]) => [name, {
-                    readRate: numberValue(value?.read_bytes_rate),
-                    writeRate: numberValue(value?.write_bytes_rate),
-                }])),
-            }));
+            const samples = ioSamples.map((item: any) => {
+                const networkTotal = {first: 0, second: 0};
+                const diskTotal = {first: 0, second: 0};
+                const network = Object.fromEntries((Object.entries(item?.network || {}) as [string, any][]).map(([name, value]) => {
+                    const receiveRate = numberValue(value?.recv_rate);
+                    const sendRate = numberValue(value?.send_rate);
+                    networkTotal.first += receiveRate;
+                    networkTotal.second += sendRate;
+                    return [name, {receiveRate, sendRate}];
+                }));
+                const disk = Object.fromEntries((Object.entries(item?.disk || {}) as [string, any][]).map(([name, value]) => {
+                    const readRate = numberValue(value?.read_bytes_rate);
+                    const writeRate = numberValue(value?.write_bytes_rate);
+                    diskTotal.first += readRate;
+                    diskTotal.second += writeRate;
+                    return [name, {readRate, writeRate}];
+                }));
+                return {sampleId: numberValue(item?.sample_id), time: numberValue(item?.sample_time), network, disk, networkTotal, diskTotal};
+            });
             const latestSampleId = Math.max(
                 sampleCursor,
                 responseSampleId,
@@ -129,6 +156,7 @@ export default (): React.ReactNode => {
             if (statisChanged || infoChanged || ioChanged || ioSampleChanged) {
                 snapshotRef.current = {
                     statis: nextStatisSnapshot,
+                    disks: nextDisksSnapshot,
                     info: nextInfoSnapshot,
                     io: nextIOSnapshot,
                     sampleId: latestSampleId,
@@ -137,17 +165,13 @@ export default (): React.ReactNode => {
                 const commit = () => setDashboard((current: any) => {
                     let throughputHistory = current.throughputHistory;
                     if (samples.length > 0) {
-                        const history = new Map<number, any>();
-                        if (!sampleReset) {
-                            current.throughputHistory.forEach((item: any) => {
-                                if (!item.placeholder) {
-                                    history.set(item.time, item);
-                                }
-                            });
-                        }
-                        samples.forEach((item: any) => history.set(item.time, item));
-                        const realHistory = Array.from(history.values())
-                            .sort((first: any, second: any) => first.time - second.time)
+                        const previous = sampleReset ? [] : current.throughputHistory.filter((item: any) => !item.placeholder);
+                        const ordered = samples.every((item: any, index: number) => index === 0 || item.time > samples[index - 1].time);
+                        // 正常增量直接拼接；只有重叠/乱序批次才需要按时间去重排序。
+                        const appendOnly = ordered && (!previous.length || samples[0].time > previous[previous.length - 1].time);
+                        const realHistory = (appendOnly ? [...previous, ...samples]
+                            : Array.from(new Map([...previous, ...samples].map((item: any) => [item.time, item])).values())
+                                .sort((first: any, second: any) => first.time - second.time))
                             .slice(-throughputPointCount);
                         const placeholderCount = Math.max(0, throughputInitialPointCount - realHistory.length);
                         const firstTime = realHistory[0]?.time || Date.now();
@@ -161,7 +185,7 @@ export default (): React.ReactNode => {
                     }
 
                     return {
-                        statis: statisChanged && statisData ? statisData : current.statis,
+                        statis: statisChanged && statisData ? {...statisData, disks: disksChanged ? statisData.disks : current.statis?.disks} : current.statis,
                         info: infoChanged && infoData ? infoData : current.info,
                         io: ioChanged && currentIOData ? currentIOData : current.io,
                         throughputHistory,
@@ -177,8 +201,8 @@ export default (): React.ReactNode => {
         } catch {
             // 请求失败时保留已有数据，下一次轮询继续重试。
         } finally {
-            requestingRef.current = false;
-            if (mountedRef.current) {
+            if (request === requestRef.current) requestingRef.current = false;
+            if (mountedRef.current && request === requestRef.current) {
                 if (initial) {
                     setLoading(false);
                 }
@@ -189,40 +213,38 @@ export default (): React.ReactNode => {
     useEffect(() => {
         mountedRef.current = true;
         let stopped = false;
+        let polling = false;
+        let initial = true;
+        let refreshInfo = true;
         let timer = 0;
-        let nextPollAt = Date.now() + 1000;
-        const schedulePoll = () => {
-            const delay = Math.max(0, nextPollAt - Date.now());
-            timer = window.setTimeout(async () => {
-                if (stopped) {
-                    return;
-                }
-                if (document.visibilityState === "visible") {
-                    await loadData();
-                }
-                nextPollAt += 1000;
-                if (nextPollAt < Date.now() - 1000) {
-                    nextPollAt = Date.now();
-                }
-                schedulePoll();
-            }, delay);
+        let nextPollAt = Date.now();
+        const poll = async () => {
+            if (stopped || polling || document.visibilityState === "hidden") return;
+            polling = true;
+            const forceInfo = refreshInfo;
+            refreshInfo = false;
+            await loadData(initial, forceInfo);
+            initial = false;
+            polling = false;
+            if (stopped || document.hidden) return;
+            nextPollAt = Math.max(nextPollAt + 1000, Date.now());
+            timer = window.setTimeout(poll, Math.max(0, nextPollAt - Date.now()));
         };
-        void loadData(true).finally(() => {
-            if (!stopped) {
-                nextPollAt = Date.now() + 1000;
-                schedulePoll();
-            }
-        });
+        void poll();
         const handleVisibilityChange = () => {
+            window.clearTimeout(timer);
             if (document.visibilityState === "visible") {
-                nextPollAt = Date.now() + 1000;
-                void loadData();
+                nextPollAt = Date.now();
+                refreshInfo = true;
+                void poll();
             }
         };
         document.addEventListener("visibilitychange", handleVisibilityChange);
         return () => {
             stopped = true;
             mountedRef.current = false;
+            requestRef.current += 1;
+            requestingRef.current = false;
             window.clearTimeout(timer);
             document.removeEventListener("visibilitychange", handleVisibilityChange);
         };
@@ -233,8 +255,9 @@ export default (): React.ReactNode => {
             <Row className={styles.page} gutter={[0, gutter]}>
                 <Col span={24}>
                     <HostOverview
-                        statis={statis}
                         info={info}
+                        cpuCount={statis?.cpu?.processor}
+                        memoryTotal={statis?.memory?.total}
                     />
                 </Col>
                 <ResourceOverview statis={statis} diskSizeBase={info?.os === "darwin" ? 1000 : 1024}/>

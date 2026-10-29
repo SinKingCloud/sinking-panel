@@ -8,7 +8,7 @@ import {formatSize} from "@/utils/string";
 import MonitorChart from "./components/chart";
 import MonitorSettingsModal from "./components/settings";
 import type {MonitorSettingsRef} from "./components/settings";
-import type {MonitorHistory, MonitorSample, MonitorSeries, MonitorSettings} from "./types";
+import type {MonitorHistory, MonitorSeries, MonitorSettings} from "./types";
 import useStyles from "./styles";
 
 const periods = [
@@ -54,7 +54,7 @@ export default (): React.ReactNode => {
             if (request !== historyRequestRef.current) return;
             if (response?.code !== 200 || !response.data) throw new Error(response?.message || "读取监控历史失败");
             setRangeKey(customRange ? customRange.map((date) => date.format("YYYY-MM-DD")).join("/") : period);
-            setData({...response.data, points: Array.isArray(response.data.points) ? response.data.points : []});
+            setData({...response.data, data: Array.isArray(response.data.data) ? response.data.data : []});
             setHistoryError("");
         } catch (error) {
             if (request === historyRequestRef.current) {
@@ -91,8 +91,8 @@ export default (): React.ReactNode => {
         };
     }, [loadHistory, customRange, settings?.enabled]);
 
-    const latest = data?.points[data.points.length - 1];
-    const charts = useMemo<{title: string; capacity?: [keyof MonitorSample, keyof MonitorSample]; unit: "percent" | "bytes" | "load"; series: MonitorSeries[]}[]>(() => [
+    const latest = data?.data[data.data.length - 1];
+    const charts = useMemo<{title: string; capacity?: [MonitorSeries["key"], MonitorSeries["key"]]; unit: "percent" | "bytes" | "load"; series: MonitorSeries[]}[]>(() => [
         {title: "系统负载", unit: "load", series: [
             {key: "load1", label: "1 分钟", color: token.colorPrimary},
             {key: "load5", label: "5 分钟", color: "#50b6b2"},
@@ -225,7 +225,7 @@ export default (): React.ReactNode => {
                 tableRender={() => <div className={styles.charts}>
                     {charts.map(({capacity, ...chart}) => <MonitorChart key={chart.title} {...chart}
                         subtitle={capacity ? latest ? `${formatSize(latest[capacity[0]])} / ${formatSize(latest[capacity[1]])}` : "-- / --" : ""}
-                        history={data} loading={loading} rangeKey={rangeKey}/>)}
+                        history={data} rangeKey={rangeKey}/>)}
                 </div>}
             />
             <MonitorSettingsModal

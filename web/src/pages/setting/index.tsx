@@ -6,7 +6,7 @@ import Account from "./components/account";
 import Ui from "./components/ui";
 import Web from "./components/web";
 import Timezone from "./components/timezone";
-import HeroGraphic from "@/pages/components/hero-graphic";
+import HeroGraphic from "@/pages/components/ui/hero-graphic";
 import useStyles from "./styles";
 
 const items = [
@@ -42,7 +42,7 @@ export default (): React.ReactNode => {
                                 <div className="eyebrow"><span className="status-dot"/>SYSTEM SETTINGS</div>
                                 <h1>系统设置</h1>
                             </div>
-                            <div className="hero-visual"><HeroGraphic variant="task"/></div>
+                            <div className="hero-visual"><HeroGraphic/></div>
                         </section>
                         <div className={styles.settingsMain}>
                             <div className={styles.leftMenu}>

@@ -2,7 +2,7 @@ import {useCallback, useEffect, useMemo, useRef, useState} from "react";
 import {App, Button, Empty, Tag} from "antd";
 import {Body, Icon, PageTable} from "sinking-antd";
 import type {PageTableRef} from "sinking-antd";
-import ActionDropdown from "@/pages/components/action-dropdown";
+import ActionDropdown from "@/pages/components/ui/action-dropdown";
 import TypeManager from "@/pages/components/type-manager";
 import type {TypeManagerRef} from "@/pages/components/type-manager";
 import {deleteDatabase, getDatabaseList} from "@/service/api/database";

@@ -24,7 +24,7 @@ import AceEditor from "@/components/ace-editor";
 import FilePicker from "@/pages/components/file-picker";
 import Log from "@/pages/components/task-log";
 import ProcessControls from "../process-controls";
-import ActionDropdown from "@/pages/components/action-dropdown";
+import ActionDropdown from "@/pages/components/ui/action-dropdown";
 import {
     comparableFilePath,
     isAbsoluteFilePath,

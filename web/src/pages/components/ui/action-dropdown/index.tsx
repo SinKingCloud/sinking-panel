@@ -2,7 +2,7 @@ import {forwardRef} from "react";
 import type {DropdownProps} from "antd";
 import {createStyles} from "antd-style";
 import {useTheme} from "sinking-antd";
-import Dropdown from "@/pages/components/stable-dropdown";
+import Dropdown from "@/pages/components/ui/stable-dropdown";
 
 const useStyles = createStyles(({css, token}, {compact}: {compact: boolean}) => ({
     menu: css`

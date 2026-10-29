@@ -27,6 +27,12 @@ const MonitorOverview = React.memo(({io, throughputHistory}: any) => {
     const theme = useTheme();
     const [networkDevice, setNetworkDevice] = useState(allDevices);
     const [diskDevice, setDiskDevice] = useState(allDevices);
+    const networkSeries = useMemo(() => [
+        {label: "下载", color: token.colorSuccess}, {label: "上传", color: token.colorPrimary},
+    ], [token.colorSuccess, token.colorPrimary]);
+    const diskSeries = useMemo(() => [
+        {label: "读取", color: token.colorInfo}, {label: "写入", color: diskWriteColor},
+    ], [token.colorInfo]);
 
     const networkList = useMemo<any[]>(() => {
         return (Object.entries(io?.network || {}) as [string, any][]).map(([name, item]) => ({
@@ -139,28 +145,33 @@ const MonitorOverview = React.memo(({io, throughputHistory}: any) => {
         },
     ], [diskThroughput, token.colorInfo]);
 
+    // 历史点不可变，保留点的投影也可复用；切换设备时才重算完整窗口。
+    const networkCache = useMemo(() => new WeakMap<object, any>(), [networkDevice]);
+    const diskCache = useMemo(() => new WeakMap<object, any>(), [diskDevice]);
     const networkChartData = useMemo(() => throughputHistory.map((sample: any) => {
-        const data = sample.network || {};
-        const items: any[] = networkDevice === allDevices
-            ? Object.values(data)
-            : (data[networkDevice] ? [data[networkDevice]] : []);
-        return {
+        const cached = networkCache.get(sample);
+        if (cached) return cached;
+        const selected = sample.network?.[networkDevice];
+        const value = {
             time: sample.time,
-            first: items.reduce((total, item) => total + numberValue(item.receiveRate), 0),
-            second: items.reduce((total, item) => total + numberValue(item.sendRate), 0),
+            first: numberValue(networkDevice === allDevices ? sample.networkTotal?.first : selected?.receiveRate),
+            second: numberValue(networkDevice === allDevices ? sample.networkTotal?.second : selected?.sendRate),
         };
-    }), [networkDevice, throughputHistory]);
+        networkCache.set(sample, value);
+        return value;
+    }), [networkDevice, throughputHistory, networkCache]);
     const diskChartData = useMemo(() => throughputHistory.map((sample: any) => {
-        const data = sample.disk || {};
-        const items: any[] = diskDevice === allDevices
-            ? Object.values(data)
-            : (data[diskDevice] ? [data[diskDevice]] : []);
-        return {
+        const cached = diskCache.get(sample);
+        if (cached) return cached;
+        const selected = sample.disk?.[diskDevice];
+        const value = {
             time: sample.time,
-            first: items.reduce((total, item) => total + numberValue(item.readRate), 0),
-            second: items.reduce((total, item) => total + numberValue(item.writeRate), 0),
+            first: numberValue(diskDevice === allDevices ? sample.diskTotal?.first : selected?.readRate),
+            second: numberValue(diskDevice === allDevices ? sample.diskTotal?.second : selected?.writeRate),
         };
-    }), [diskDevice, throughputHistory]);
+        diskCache.set(sample, value);
+        return value;
+    }), [diskDevice, throughputHistory, diskCache]);
 
     return (
         <Row gutter={[gutter, gutter]} align="stretch">
@@ -172,8 +183,8 @@ const MonitorOverview = React.memo(({io, throughputHistory}: any) => {
                     onDeviceChange={setNetworkDevice}
                     metrics={networkMetrics}
                     data={networkChartData}
-                    first={{label: "下载", color: token.colorSuccess}}
-                    second={{label: "上传", color: token.colorPrimary}}
+                    first={networkSeries[0]}
+                    second={networkSeries[1]}
                     isDarkMode={theme?.isDarkMode?.()}
                 />
             </Col>
@@ -185,8 +196,8 @@ const MonitorOverview = React.memo(({io, throughputHistory}: any) => {
                     onDeviceChange={setDiskDevice}
                     metrics={diskMetrics}
                     data={diskChartData}
-                    first={{label: "读取", color: token.colorInfo}}
-                    second={{label: "写入", color: diskWriteColor}}
+                    first={diskSeries[0]}
+                    second={diskSeries[1]}
                     isDarkMode={theme?.isDarkMode?.()}
                 />
             </Col>

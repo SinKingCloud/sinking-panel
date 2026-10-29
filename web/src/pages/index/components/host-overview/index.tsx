@@ -3,7 +3,7 @@ import {App, Button, Card, Col, Row, Tooltip, Typography} from "antd";
 import {createStyles} from "antd-style";
 import dayjs from "dayjs";
 import {Icon, useTheme} from "sinking-antd";
-import Dropdown from "@/pages/components/stable-dropdown";
+import Dropdown from "@/pages/components/ui/stable-dropdown";
 import {getSystemInfo, restartSystem} from "@/service/api/system";
 import request, {pauseConnectionErrors} from "@/utils/request";
 import {formatSize} from "@/utils/string";
@@ -455,7 +455,7 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, {compact}: {compa
     `,
 }));
 
-const HostOverview = React.memo(({info, statis}: any) => {
+const HostOverview = React.memo(({info, cpuCount, memoryTotal}: any) => {
     const theme = useTheme();
     const {styles} = useStyles({compact: Boolean(theme?.isCompactTheme?.())});
     const {message, modal} = App.useApp();
@@ -465,8 +465,6 @@ const HostOverview = React.memo(({info, statis}: any) => {
     const mountedRef = useRef(true);
     const [operatingSystemEllipsis, setOperatingSystemEllipsis] = useState(false);
     const system = info;
-    const cpu = statis?.cpu;
-    const memory = statis?.memory;
     const systemVisual = systemVisuals[String(system?.os || "").toLowerCase()] || {
         icon: "DesktopOutlined",
         name: system?.os || "未知系统",
@@ -630,7 +628,7 @@ const HostOverview = React.memo(({info, statis}: any) => {
                                     <div className="host-summary-item">
                                         <span className="summary-label"><Icon type="ClusterOutlined"/>主机架构</span>
                                         <strong className="summary-value">{system?.kernel_arch || "--"}</strong>
-                                        <small className="summary-meta">{numberValue(cpu?.processor)} 个逻辑处理器 · {formatSize(memory?.total)} 内存</small>
+                                        <small className="summary-meta">{numberValue(cpuCount)} 个逻辑处理器 · {formatSize(memoryTotal)} 内存</small>
                                     </div>
                                 </Col>
                             </Row>

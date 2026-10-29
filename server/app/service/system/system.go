@@ -26,7 +26,7 @@ type Service interface {
 	GetIO(netInterface, diskName string, after int64) map[string]interface{} // 网络与磁盘 I/O 统计
 	GetMonitorSettings() (recordstore.SeriesSettings, error)
 	SetMonitorSettings(enabled bool, days int) error
-	GetMonitorHistory(start, end int64, maxPoints ...int) (recordstore.RecordResult, error)
+	GetMonitorHistory(ctx context.Context, start, end int64, maxPoints ...int) (MonitorHistory, error)
 	GetTask(id string) *Task
 	TaskList(status *int) ([]*Task, error)
 	TaskCreate(id, name string, data interface{}, run func(context.Context, interface{}, func(int, float64, string)))
@@ -59,21 +59,26 @@ type service struct {
 	jobs      map[string]*job
 	logMu     sync.RWMutex
 
-	monitorMu        sync.RWMutex
-	resourceSampler  *psutil.Sampler
-	systemBaseCache  psutil.HostInfo
-	resourceCache    psutil.Snapshot
-	disksInfoCache   []psutil.DiskInfo
-	netRateCache     map[string]psutil.NetworkIO
-	diskRateCache    map[string]psutil.DiskIO
-	monitorSequence  int64
-	monitorUpdatedAt int64
-	monitorHistory   []monitorSample
-	monitorRecorder  *recordstore.Recorder
-	monitorInitError error
-	monitorDisks     map[string]bool
-	monitorNetworks  map[string]bool
-	monitorDiskReady bool
+	monitorMu           sync.RWMutex
+	resourceSampler     *psutil.Sampler
+	processSampler      *psutil.ProcessSampler
+	processCache        psutil.ProcessTopSnapshot
+	monitorProcessStore *monitorProcessStore
+	monitorProcessError error
+	monitorSettingsMu   sync.Mutex
+	systemBaseCache     psutil.HostInfo
+	resourceCache       psutil.Snapshot
+	disksInfoCache      []psutil.DiskInfo
+	netRateCache        map[string]psutil.NetworkIO
+	diskRateCache       map[string]psutil.DiskIO
+	monitorSequence     int64
+	monitorUpdatedAt    int64
+	monitorHistory      []monitorSample
+	monitorRecorder     *recordstore.Recorder
+	monitorInitError    error
+	monitorDisks        map[string]bool
+	monitorNetworks     map[string]bool
+	monitorDiskReady    bool
 }
 
 // NewService 实例化service
@@ -91,6 +96,7 @@ func NewService(configService serviceConfig.Service, daemon *daemon.Daemon, cont
 		maxTaskWorkers:         maxTaskWorkers,
 		systemTaskLogDirectory: constant.TaskPath,
 		resourceSampler:        psutil.NewSampler(),
+		processSampler:         psutil.NewProcessSampler(),
 		disksInfoCache:         make([]psutil.DiskInfo, 0),
 		resourceCache:          psutil.Snapshot{Network: make([]psutil.NetworkIO, 0)},
 		netRateCache:           make(map[string]psutil.NetworkIO),
@@ -136,6 +142,11 @@ func (s *service) Close() {
 	}
 	s.lifecycleMu.Unlock()
 	s.wait.Wait()
+	if s.monitorProcessStore != nil {
+		if err := s.monitorProcessStore.Close(); err != nil {
+			log.Printf("保存监控进程历史失败: %v", err)
+		}
+	}
 	if s.monitorRecorder != nil {
 		if err := s.monitorRecorder.Close(); err != nil {
 			log.Printf("保存系统监控历史失败: %v", err)

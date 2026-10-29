@@ -2,7 +2,7 @@ import {useCallback, useEffect, useRef, useState} from "react";
 import {App, Button, Empty, Form, Grid, Input, Tag} from "antd";
 import {Body, PageTable, ProModal, Title} from "sinking-antd";
 import type {PageTableRef} from "sinking-antd";
-import ActionDropdown from "@/pages/components/action-dropdown";
+import ActionDropdown from "@/pages/components/ui/action-dropdown";
 import {uninstallSoftware, getSoftwareList, updateSoftware} from "@/service/api/software";
 import {getParams} from "@/utils/page";
 import useEnum from "@/utils/enum";

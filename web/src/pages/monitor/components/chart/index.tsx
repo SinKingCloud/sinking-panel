@@ -1,11 +1,12 @@
 import React, {useEffect, useMemo, useRef, useState} from "react";
 import {Line} from "@ant-design/charts";
-import {Empty, Grid, Spin, theme as antdTheme} from "antd";
+import {Empty, Grid, theme as antdTheme} from "antd";
 import dayjs from "dayjs";
 import {Title, useTheme} from "sinking-antd";
 import {formatSize} from "@/utils/string";
 import type {MonitorHistory, MonitorSeries} from "../../types";
 import useTimeRange from "./use-time-range";
+import useTooltip from "./use-tooltip";
 import useStyles from "./styles";
 
 type Props = {
@@ -14,7 +15,6 @@ type Props = {
     history?: MonitorHistory;
     series: MonitorSeries[];
     unit: "percent" | "bytes" | "load";
-    loading: boolean;
     rangeKey: string;
 };
 
@@ -30,11 +30,12 @@ const metricValue = (value: number | undefined, unit: Props["unit"]) => {
     return {value: value.toFixed(unit === "percent" ? 1 : 2), suffix: unit === "percent" ? "%" : ""};
 };
 
-const MonitorChart = React.memo(({title, subtitle, history, series, unit, loading, rangeKey}: Props) => {
+const MonitorChart = React.memo(({title, subtitle, history, series, unit, rangeKey}: Props) => {
     const theme = useTheme();
     const {styles} = useStyles({compact: Boolean(theme?.isCompactTheme?.())});
     const {token} = antdTheme.useToken();
     const screens = Grid.useBreakpoint();
+    const mobile = screens.md === false;
     const chartHeight = screens.sm === false ? 228 : 248;
     const dark = Boolean(theme?.isDarkMode?.() || theme?.isDarkTheme?.());
     const containerRef = useRef<HTMLDivElement | null>(null);
@@ -42,11 +43,17 @@ const MonitorChart = React.memo(({title, subtitle, history, series, unit, loadin
     const [inView, setInView] = useState(false);
     const [view, setView] = useState<{history?: MonitorHistory; rangeKey: string}>();
     const timeRange = useTimeRange(view?.rangeKey || "");
-    const points = view?.history?.points;
+    const points = view?.history?.data;
     const start = view?.history?.start;
     const end = view?.history?.end;
     const pointCount = points?.length || 0;
-    const latest = history?.points[history.points.length - 1];
+    const latest = history?.data[history.data.length - 1];
+    const processMetric = series[0]?.key === "cpu" ? "cpu" : series[0]?.key === "memory" ? "memory" : series[0]?.key === "disk_read" ? "disk_io" : undefined;
+    const tooltip = useTooltip(processMetric, view?.history, series, unit);
+
+    useEffect(() => {
+        if (!inView) tooltip.hide();
+    }, [inView, tooltip]);
 
     // 离屏保留实例和选区，暂停接收绘图数据；重新进入视口时一次更新到最新结果。
     useEffect(() => {
@@ -118,9 +125,6 @@ const MonitorChart = React.memo(({title, subtitle, history, series, unit, loadin
             while (unitIndex < units.length - 1 && maximum >= 1024 ** (unitIndex + 1)) unitIndex += 1;
         }
         const displayUnit = unit === "percent" ? "%" : unit === "load" ? "负载" : units[unitIndex];
-        const formatValue = (value: number | null | undefined) => value == null || !Number.isFinite(value)
-            ? "无数据"
-            : unit === "bytes" ? `${formatSize(value)}/s` : `${numberLabel(value)}${unit === "percent" ? "%" : ""}`;
         const labelTime = (value: any) => {
             const date = dayjs(value instanceof Date ? value : Number(value));
             return date.format((end || 0) - (start || 0) > 86400000 ? "MM-DD HH:mm" : "HH:mm");
@@ -163,11 +167,13 @@ const MonitorChart = React.memo(({title, subtitle, history, series, unit, loadin
             },
             legend: false,
             tooltip: {
-                title: (datum: any) => `${dayjs(datum?.time).format("YYYY-MM-DD HH:mm")}${datum?.samples === 0 ? "（无采样）" : ""}`,
+                title: false,
                 items: [(datum: any) => ({
                     name: datum?.series,
                     color: series.find((item) => item.label === datum?.series)?.color,
-                    value: formatValue(datum?.value),
+                    value: datum?.value,
+                    time: datum?.time,
+                    samples: datum?.samples,
                 })],
             },
             slider: pointCount > 1 && start !== undefined && end !== undefined && end > start ? {
@@ -198,8 +204,11 @@ const MonitorChart = React.memo(({title, subtitle, history, series, unit, loadin
                 },
             } : false,
             interaction: {
-                tooltip: {shared: true, series: true, crosshairs: true},
-                sliderFilter: {adaptiveMode: false, wait: 32, leading: true, trailing: true},
+                tooltip: {
+                    shared: true, series: true, crosshairs: true,
+                    body: false, disableAutoHide: mobile, wait: 0,
+                },
+                sliderFilter: {adaptiveMode: false, wait: 32, leading: true, trailing: true, getInitValues: timeRange.getInitValues},
             },
             point: pointCount <= 2 ? {size: 3, shape: "point"} : false,
             // 主系列的淡色面积与折线使用相同的后端数据。
@@ -217,14 +226,19 @@ const MonitorChart = React.memo(({title, subtitle, history, series, unit, loadin
             animate: false,
         };
         return {config, displayUnit};
-    }, [chartData, start, end, pointCount, series, unit, dark, timeRange, token.colorTextSecondary, token.colorBorderSecondary, token.colorPrimary, token.colorFillTertiary, token.colorBgContainer]);
+    }, [chartData, start, end, pointCount, series, unit, dark, mobile, timeRange, token.colorTextSecondary, token.colorBorderSecondary, token.colorPrimary, token.colorFillTertiary, token.colorBgContainer]);
 
     useEffect(() => {
         if (!chartRef.current?.chart || !chart.config.slider || start === undefined || end === undefined) return;
-        return timeRange.bind(chartRef.current.chart, start, end, chart.config.slider.x.values);
+        return timeRange.bind(chartRef.current.chart, start, end);
     }, [timeRange, chart.config, start, end]);
 
-    // 加载状态只更新遮罩，避免图表组件为相同配置重复复制数据并重新绘制。
+    useEffect(() => {
+        if (!chartRef.current?.chart || !pointCount) return;
+        return tooltip.bind(chartRef.current.chart);
+    }, [tooltip, pointCount > 0]);
+
+    // 刷新由工具栏显示状态，图表保留实例和内容，收到新数据后再更新。
     const plot = useMemo(() => (
         <Line ref={chartRef} {...chart.config} height={chartHeight}
               containerStyle={{height: chartHeight, width: "100%"}}/>
@@ -252,11 +266,9 @@ const MonitorChart = React.memo(({title, subtitle, history, series, unit, loadin
             </div>
             <div ref={containerRef} className={styles.plot}>
                 <div className="chart-unit">{chart.displayUnit}</div>
-                <Spin spinning={loading}>
-                    {!view ? <div style={{height: chartHeight}}/> : points?.length
-                        ? plot
-                        : <div className="chart-empty" style={{height: chartHeight}}><Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={loading ? "正在加载监控数据" : "所选时间暂无监控数据"}/></div>}
-                </Spin>
+                {!view ? <div style={{height: chartHeight}}/> : points?.length
+                    ? plot
+                    : <div className="chart-empty" style={{height: chartHeight}}><Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="所选时间暂无监控数据"/></div>}
             </div>
         </section>
     );

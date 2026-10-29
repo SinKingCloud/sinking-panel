@@ -2,7 +2,7 @@ import React, {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useStat
 import {Button, Empty, Spin, Tooltip, Tree} from "antd";
 import type {MenuProps, TreeProps} from "antd";
 import {Icon} from "sinking-antd";
-import Dropdown from "@/pages/components/stable-dropdown";
+import Dropdown from "@/pages/components/ui/stable-dropdown";
 import {getFileIconType} from "../../utils";
 
 const useStableEvent = <T extends (...args: any[]) => any>(callback: T): T => {

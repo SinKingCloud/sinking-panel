@@ -2,8 +2,11 @@ package system
 
 import (
 	"context"
-	"server/app/util/psutil"
+	"sync"
 	"time"
+
+	"server/app/util/psutil"
+	"server/app/util/recordstore"
 )
 
 // Task 任务信息
@@ -36,4 +39,67 @@ type monitorSample struct {
 	Time    int64                       `json:"sample_time"`
 	Network map[string]psutil.NetworkIO `json:"network"`
 	Disk    map[string]psutil.DiskIO    `json:"disk"`
+}
+
+// MonitorHistory 是监控页面的返回结构，进程排行随对应时间桶一同返回。
+type MonitorHistory struct {
+	Data         []map[string]interface{} `json:"data"`
+	Interval     int64                    `json:"interval"`
+	Start        int64                    `json:"start"`
+	End          int64                    `json:"end"`
+	ProcessError string                   `json:"process_error,omitempty"`
+}
+
+type monitorProcessItem struct {
+	PID   int32   `json:"pid"`
+	Name  string  `json:"name"`
+	Value float64 `json:"value"`
+}
+
+type monitorProcessRanking struct {
+	Time    int64                `json:"time"`
+	Items   []monitorProcessItem `json:"items"`
+	Partial bool                 `json:"partial,omitempty"`
+}
+
+type monitorProcessData struct {
+	CPU    *monitorProcessRanking `json:"cpu,omitempty"`
+	Memory *monitorProcessRanking `json:"memory,omitempty"`
+	DiskIO *monitorProcessRanking `json:"disk_io,omitempty"`
+}
+
+// MonitorProcessGroup 是区间内 Top 5 合计占用最高的一次采样，而非曲线均值时刻。
+// Time 保留真实采样时间；无记录、权限不足和零占用有不同的可用性标记。
+type MonitorProcessGroup struct {
+	Time      int64                   `json:"time"`
+	Items     []psutil.ProcessTopItem `json:"items"`
+	Available bool                    `json:"available"`
+	Partial   bool                    `json:"partial"`
+}
+
+type processPeaks [3]MonitorProcessGroup
+
+type pendingProcessPeaks struct {
+	peaks   processPeaks
+	version uint64
+}
+
+// monitorProcessStore 只接受有界 Top 5 快照。采集线程仅合并内存，文件 I/O 全部交给单个 worker。
+type monitorProcessStore struct {
+	store      *recordstore.Store
+	collection *recordstore.Collection
+	path       string
+	cancel     context.CancelFunc
+	done       chan struct{}
+	wake       chan struct{}
+	queries    chan struct{}
+	mu         sync.Mutex
+	pending    map[int64]pendingProcessPeaks
+	enabled    bool
+	closed     bool
+	days       int
+	acceptFrom int64
+	lastError  error
+	dropped    uint64
+	closeError error
 }

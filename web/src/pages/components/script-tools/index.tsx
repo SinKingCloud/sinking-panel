@@ -4,7 +4,7 @@ import {App, Button, Col, Form, Input, Row, Select, Spin} from "antd";
 import {createStyles} from "antd-style";
 import {ModalTable, ProModal, Title, useTheme} from "sinking-antd";
 import type {ModalTableRef} from "sinking-antd";
-import ActionDropdown from "@/pages/components/action-dropdown";
+import ActionDropdown from "@/pages/components/ui/action-dropdown";
 import TypeManager from "@/pages/components/type-manager";
 import type {TypeManagerRef} from "@/pages/components/type-manager";
 import {createScript, deleteScript, getScriptInfo, getScriptList, updateScript} from "@/service/api/script";

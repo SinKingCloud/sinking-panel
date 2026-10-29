@@ -16,7 +16,7 @@ import type {
 import {App, Button, Empty, Form as AntForm, Input, Select, Spin} from "antd";
 import {createStyles} from "antd-style";
 import {Icon, ProModal, ProModalRef, Title, useTheme} from "sinking-antd";
-import ActionDropdown from "@/pages/components/action-dropdown";
+import ActionDropdown from "@/pages/components/ui/action-dropdown";
 import {
     createType,
     deleteType,

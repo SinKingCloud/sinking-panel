@@ -3,7 +3,7 @@ import {App, Button, Tooltip} from "antd";
 import type {MenuProps, TableColumnsType} from "antd";
 import {Icon} from "sinking-antd";
 import {isFilePreviewable} from "@/pages/components/file-preview";
-import ActionDropdown from "@/pages/components/action-dropdown";
+import ActionDropdown from "@/pages/components/ui/action-dropdown";
 import DirectorySize from "../directory-size";
 import {copyTextToClipboard} from "../properties/utils";
 import useStyles from "./styles";

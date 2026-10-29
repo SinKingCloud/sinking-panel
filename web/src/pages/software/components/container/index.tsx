@@ -2,7 +2,7 @@ import {forwardRef, lazy, memo, Suspense, useCallback, useEffect, useImperativeH
 import {App, Button, Grid, Tooltip, Typography} from "antd";
 import {ModalTable, Title, useTheme} from "sinking-antd";
 import type {ModalTableProps, ModalTableRef} from "sinking-antd";
-import ActionDropdown from "@/pages/components/action-dropdown";
+import ActionDropdown from "@/pages/components/ui/action-dropdown";
 import {getContainerList, removeContainer, restartContainer, startContainer, stopContainer} from "@/service/api/container";
 
 import useEnum from "@/utils/enum";

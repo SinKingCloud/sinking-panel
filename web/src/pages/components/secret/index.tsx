@@ -3,7 +3,7 @@ import {App, Button, Empty, Grid, Tooltip} from "antd";
 import {createStyles} from "antd-style";
 import {ModalTable, Title, useTheme} from "sinking-antd";
 import type {ModalTableProps, ModalTableRef} from "sinking-antd";
-import ActionDropdown from "@/pages/components/action-dropdown";
+import ActionDropdown from "@/pages/components/ui/action-dropdown";
 import {deleteSecret, getSecretList} from "@/service/api/secret";
 import {getEnum as getSystemEnum} from "@/service/api/system";
 import SecretForm from "./form";

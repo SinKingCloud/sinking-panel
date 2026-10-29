@@ -1,6 +1,6 @@
 import {useMemo, useState} from "react";
 import {Button, Tooltip} from "antd";
-import ActionDropdown from "@/pages/components/action-dropdown";
+import ActionDropdown from "@/pages/components/ui/action-dropdown";
 import type {PageTableProps} from "sinking-antd";
 import {getFullPathByName, historyPush} from "@/utils/route";
 import {ago} from "@/utils/time";

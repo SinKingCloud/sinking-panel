@@ -30,7 +30,7 @@ import {createStyles} from "antd-style";
 import dayjs from "dayjs";
 import {Icon, ModalTable, ProModal, Title, useTheme} from "sinking-antd";
 import type {ModalTableRef} from "sinking-antd";
-import ActionDropdown from "@/pages/components/action-dropdown";
+import ActionDropdown from "@/pages/components/ui/action-dropdown";
 import {
     createCert,
     deleteCert,

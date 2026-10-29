@@ -1,6 +1,6 @@
 import {useRef} from "react";
 import {Redis, Mysql, Postgres, Mongo, SqlServer, Sqlite, Elasticsearch} from "./components";
-import ActionDropdown from "@/pages/components/action-dropdown";
+import ActionDropdown from "@/pages/components/ui/action-dropdown";
 import FilePicker from "@/pages/components/file-picker";
 import AceEditor from "@/components/ace-editor";
 import {databaseRequests} from "@/service/api/database";
