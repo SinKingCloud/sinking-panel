@@ -6,7 +6,13 @@ type TooltipEvent = {nativeEvent?: boolean; client?: {x: number; y: number}; dat
 export type ChartTooltipModel = {
     title: string;
     values: string[];
-    process?: {rows: {name: string; pid: string; value: string}[]; time: string; state: string};
+};
+
+export type ChartTooltipOptions<T extends ChartTooltipModel> = {
+    width?: number;
+    className?: string;
+    // 绑定时创建内容节点，数据点变化时更新；避免悬浮移动触发 React 渲染。
+    renderContent?: (container: HTMLElement) => (model: T) => void;
 };
 
 function element<K extends keyof HTMLElementTagNameMap>(tag: K, className = "", text?: string) {
@@ -20,28 +26,15 @@ function text(node: HTMLElement, value: string) {
     if (node.textContent !== value) node.textContent = value;
 }
 
-function visible(node: HTMLElement, show: boolean) {
-    if (node.hidden === show) node.hidden = !show;
-}
-
-export default function useChartTooltip(models: ReadonlyMap<number, ChartTooltipModel>, series: {label: string; color: string}[], process?: {title: string; valueLabel: string}) {
-    const {styles} = useStyles({hasProcess: Boolean(process)});
-    const data = useMemo(() => {
-        let pidWidth = 0;
-        let valueWidth = 0;
-        if (process) models.forEach((model) => model.process?.rows.forEach((row) => {
-            pidWidth = Math.max(pidWidth, row.pid.length);
-            valueWidth = Math.max(valueWidth, row.value.length);
-        }));
-        return {models, pidWidth, valueWidth};
-    }, [models, process]);
-    const source = useRef(data);
-    useLayoutEffect(() => { source.current = data; }, [data]);
+export default function useChartTooltip<T extends ChartTooltipModel>(models: ReadonlyMap<number, T>, series: {label: string; color: string}[], {width = 220, className = "", renderContent}: ChartTooltipOptions<T> = {}) {
+    const {styles} = useStyles();
+    const source = useRef(models);
+    useLayoutEffect(() => { source.current = models; }, [models]);
     // 数据更新只替换查找表，复用悬浮节点和事件绑定，避免实时图表每秒拆装面板。
     return useMemo(() => {
         let node: HTMLDivElement | undefined;
-        let active: ChartTooltipModel | undefined;
-        let pending: ChartTooltipModel | undefined;
+        let active: T | undefined;
+        let pending: T | undefined;
         let frame = 0;
         const hide = () => {
             window.cancelAnimationFrame(frame);
@@ -53,10 +46,11 @@ export default function useChartTooltip(models: ReadonlyMap<number, ChartTooltip
             hide,
             bind: (chart: Chart, {zIndex}: {zIndex?: number} = {}) => {
                 const container = chart.getContainer();
-                const root = node = element("div", styles.tooltip);
+                const root = node = element("div", `${styles.tooltip} ${className}`.trim());
+                root.style.width = `${width}px`;
                 if (zIndex !== undefined) root.style.zIndex = String(zIndex);
                 root.hidden = true;
-                const title = element("div", "tooltip-time");
+                const title = element("div", "tooltip-title");
                 root.append(title);
                 const values = series.map((item) => {
                     const row = element("div", "tooltip-metric");
@@ -67,29 +61,18 @@ export default function useChartTooltip(models: ReadonlyMap<number, ChartTooltip
                     root.append(row);
                     return value;
                 });
-                const section = element("div", "process-section");
-                const heading = element("div", "process-heading");
-                if (process) heading.append(element("span", "", process.title), element("span", "", process.valueLabel));
-                const time = element("div", "process-time");
-                const list = element("ol", "process-list");
-                const rows = Array.from({length: process ? 5 : 0}, () => {
-                    const node = element("li", "process-row");
-                    const pid = element("span", "process-pid");
-                    const name = element("span", "process-name");
-                    const value = element("span", "process-value");
-                    node.append(pid, name, value);
-                    list.append(node);
-                    return {node, name, pid, value};
-                });
-                const state = element("div", "process-state");
-                section.append(heading, time, list, state);
-                if (process) root.append(section);
+                let updateContent: ((model: T) => void) | undefined;
+                if (renderContent) {
+                    const content = element("div");
+                    root.append(content);
+                    updateContent = renderContent(content);
+                }
                 document.body.append(root);
                 let cursorX = 0;
                 let cursorY = 0;
                 let maxX = 0;
                 let maxY = 0;
-                let width = 0;
+                let measuredWidth = 0;
                 let flipX = 0;
                 let offsetX = 16;
                 let offsetY = 16;
@@ -98,7 +81,7 @@ export default function useChartTooltip(models: ReadonlyMap<number, ChartTooltip
 
                 const show = (event: TooltipEvent) => {
                     if (!event.nativeEvent || !event.client) return;
-                    const model = source.current.models.get(Number(event.data?.items?.[0]?.time));
+                    const model = source.current.get(Number(event.data?.items?.[0]?.time));
                     if (!model) return hide();
                     pending = model;
                     // G2 复用事件坐标对象，立即取数；同帧只处理最后一次移动。
@@ -113,43 +96,26 @@ export default function useChartTooltip(models: ReadonlyMap<number, ChartTooltip
                         if (active !== model) {
                             active = model;
                             text(title, model.title);
-                            values.forEach((value, index) => text(value, model.values[index]));
-                            if (process) {
-                                const info = model.process;
-                                const hasRows = Boolean(info?.rows.length);
-                                visible(time, hasRows);
-                                visible(list, hasRows);
-                                visible(state, !hasRows);
-                                text(hasRows ? time : state, hasRows ? info!.time : info?.state || "该时段暂无进程记录");
-                                rows.forEach((row, index) => {
-                                    const item = info?.rows[index];
-                                    visible(row.node, Boolean(item));
-                                    if (!item) return;
-                                    text(row.name, item.name);
-                                    text(row.pid, item.pid);
-                                    text(row.value, item.value);
-                                });
-                            }
+                            values.forEach((value, index) => text(value, model.values[index] ?? ""));
+                            updateContent?.(model);
                         }
                         const opening = root.hidden;
                         if (opening) {
                             // 打开时缓存尺寸和边界，移动时只做数值判断与 transform 更新。
-                            root.style.setProperty("--process-pid-width", `${source.current.pidWidth + 1}ch`);
-                            root.style.setProperty("--process-value-width", `${source.current.valueWidth + 1}ch`);
                             root.style.visibility = "hidden";
                             root.hidden = false;
-                            width = root.offsetWidth;
+                            measuredWidth = root.offsetWidth;
                             const height = root.offsetHeight;
                             const bounds = container.getBoundingClientRect();
-                            maxX = document.documentElement.clientWidth - width - 8;
+                            maxX = document.documentElement.clientWidth - measuredWidth - 8;
                             maxY = document.documentElement.clientHeight - height - 8;
-                            flipX = Math.min(maxX - 16, Math.max((bounds.left + bounds.right) / 2, bounds.right - width - 16));
-                            offsetX = cursorX > flipX ? -width - 16 : 16;
+                            flipX = Math.min(maxX - 16, Math.max((bounds.left + bounds.right) / 2, bounds.right - measuredWidth - 16));
+                            offsetX = cursorX > flipX ? -measuredWidth - 16 : 16;
                             offsetY = cursorY + 16 > maxY ? -height - 16 : 16;
                             lastX = lastY = -1;
                         }
                         // 靠近图表右侧自动切左，退回 24px 再切右，避免边界来回抖动。
-                        if (offsetX > 0 && cursorX > flipX) offsetX = -width - 16;
+                        if (offsetX > 0 && cursorX > flipX) offsetX = -measuredWidth - 16;
                         else if (offsetX < 0 && cursorX < flipX - 24) offsetX = 16;
                         const x = Math.max(8, Math.min(cursorX + offsetX, maxX));
                         const y = Math.max(8, Math.min(cursorY + offsetY, maxY));
@@ -189,5 +155,5 @@ export default function useChartTooltip(models: ReadonlyMap<number, ChartTooltip
                 };
             },
         };
-    }, [series, process, styles.tooltip]);
+    }, [series, width, className, renderContent, styles.tooltip]);
 }
