@@ -4,6 +4,7 @@ import (
 	"errors"
 	"strings"
 
+	"server/app/enum/software_state"
 	"server/app/enum/software_status"
 	"server/app/util/context"
 )
@@ -14,7 +15,7 @@ func (s *service) Invoke(c *context.Context, code, method string) error {
 		return errors.New("软件请求上下文不能为空")
 	}
 	method = strings.TrimSpace(method)
-	record, err := s.repository.FindByCode(code)
+	record, err := s.record(code)
 	if err != nil {
 		return err
 	}
@@ -34,15 +35,18 @@ func (s *service) Invoke(c *context.Context, code, method string) error {
 	if e.busy.Load() {
 		return errors.New("软件任务正在执行")
 	}
-	record, err = s.repository.FindById(id)
+	record, err = s.record(code)
 	if err != nil {
 		return err
 	}
-	if record == nil {
-		return errors.New("软件不存在")
+	if record == nil || record.Id != id {
+		return errors.New("软件已变更，请重新打开")
 	}
-	if record.Status != software_status.Installed {
+	if record.State != software_state.Installed {
 		return errors.New("软件任务正在执行")
+	}
+	if record.Status != software_status.Enabled {
+		return errors.New("软件已禁用")
 	}
 	pkg, err := s.plugins.Info(record.Code)
 	if err != nil {
@@ -55,7 +59,12 @@ func (s *service) Invoke(c *context.Context, code, method string) error {
 	if err != nil {
 		return err
 	}
-	if err = s.start(append(dependencies, record)); err != nil {
+	release, err := s.start(dependencies)
+	if err != nil {
+		return err
+	}
+	defer release()
+	if _, err = s.plugins.Lifecycle(c.Request.Context(), record.Code, "start", "{}"); err != nil {
 		return err
 	}
 	return s.plugins.Call(c.Request.Context(), record.Code, method, c)

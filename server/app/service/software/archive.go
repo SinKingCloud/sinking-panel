@@ -2,6 +2,7 @@ package software
 
 import (
 	"archive/zip"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -16,13 +17,13 @@ import (
 const softwareArchiveLimit int64 = plugin.MaxImageSize + plugin.MaxSourceSize + (16 << 20)
 
 // packDirectory 只携带运行源码与可选镜像；大归档以 ZIP Store 流式复制。
-func (s *service) packDirectory(directory string, output io.Writer) error {
+func (s *service) packDirectory(ctx context.Context, directory string, output io.Writer) error {
 	root, err := os.OpenRoot(directory)
 	if err != nil {
 		return err
 	}
 	defer root.Close()
-	writer := zip.NewWriter(&archiveWriter{writer: output, remaining: softwareArchiveLimit})
+	writer := zip.NewWriter(&archiveWriter{ctx: ctx, writer: output, remaining: softwareArchiveLimit})
 	var count int
 	var codeSize, imageSize int64
 	for _, name := range []string{"software.json", "server", "web", "images"} {
@@ -93,11 +94,15 @@ func (s *service) packDirectory(directory string, output io.Writer) error {
 
 // archiveWriter 同时限制 ZIP 实际体积，避免镜像加上源码和目录元数据越过上限。
 type archiveWriter struct {
+	ctx       context.Context
 	writer    io.Writer
 	remaining int64
 }
 
 func (w *archiveWriter) Write(data []byte) (int, error) {
+	if err := w.ctx.Err(); err != nil {
+		return 0, err
+	}
 	if int64(len(data)) > w.remaining {
 		return 0, errors.New("软件 ZIP 包超过允许大小")
 	}

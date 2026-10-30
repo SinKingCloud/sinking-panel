@@ -5,6 +5,8 @@ import (
 	"server/app/service"
 	"server/app/util/context"
 	"server/app/util/file"
+
+	"github.com/SinKingCloud/sinking-go/sinking-web"
 )
 
 // Count 统计信息
@@ -26,7 +28,7 @@ func Count(c *context.Context) {
 		c.Error("获取失败:" + err.Error())
 	} else {
 		service.Log.Create(c.GetRequestIp(), log_type.EventShow, "统计文件数据", "统计文件或目录["+form.Path+"]数据")
-		c.SuccessWithData("获取成功", map[string]int64{
+		c.SuccessWithData("获取成功", sinking_web.H{
 			"size": totalSize,
 			"file": fileCount,
 			"dir":  dirCount,

@@ -6,6 +6,8 @@ import (
 	"server/app/util/context"
 	"server/app/util/file"
 	"time"
+
+	"github.com/SinKingCloud/sinking-go/sinking-web"
 )
 
 func Info(c *context.Context) {
@@ -30,7 +32,7 @@ func Info(c *context.Context) {
 		c.Error("获取失败")
 		return
 	}
-	data := map[string]interface{}{
+	data := sinking_web.H{
 		"name":        info.Name,
 		"size":        info.Size,
 		"mode":        info.Mode,

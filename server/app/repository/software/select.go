@@ -8,13 +8,16 @@ import (
 // Select 分页查询软件，不读取配置及关联资源。
 func (r *Repository) Select(where *SelectSoftware, queryPage *page.Query) (*page.Result[*Software], error) {
 	query := r.Database.Db.Model(&model.Software{}).
-		Select("id", "name", "code", "version", "status", "create_time", "update_time")
+		Select("id", "name", "code", "version", "status", "state", "create_time", "update_time")
 	if where != nil {
 		if where.Code != nil {
 			query = query.Where("code = ?", *where.Code)
 		}
 		if where.Status != nil {
 			query = query.Where("status = ?", *where.Status)
+		}
+		if where.State != nil {
+			query = query.Where("state = ?", *where.State)
 		}
 		if where.Name != nil {
 			query = query.Where("name LIKE ?", "%"+*where.Name+"%")

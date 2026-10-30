@@ -23,6 +23,9 @@ func (r *Repository) UpdateById(id int64, data *UpdateSoftware, tx ...*gorm.DB) 
 	if data.Status != nil {
 		updates["status"] = *data.Status
 	}
+	if data.State != nil {
+		updates["state"] = *data.State
+	}
 	if data.Config != nil {
 		updates["config"] = *data.Config
 	}

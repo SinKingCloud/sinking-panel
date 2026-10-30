@@ -2,7 +2,8 @@ import React, {useCallback, useEffect, useRef, useState} from "react";
 import {Col, Row} from "antd";
 import {createStyles} from "antd-style";
 import {Body} from "sinking-antd";
-import {getSystemStatis, getSystemIO, getSystemInfo} from "@/service/api/system";
+import {useModel} from "umi";
+import {getSystemStatis, getSystemIO} from "@/service/api/system";
 import {formatUptime, gutter, numberValue} from "./utils";
 import HostOverview from "./components/host-overview";
 import MonitorOverview from "./components/monitor-overview";
@@ -29,7 +30,9 @@ export default (): React.ReactNode => {
     const mountedRef = useRef(true);
     const requestingRef = useRef(false);
     const requestRef = useRef(0);
-    const infoRef = useRef<{data: any; time: number} | undefined>(undefined);
+    const systemInfo = useModel("system", (model) => model.info);
+    const infoRef = useRef(systemInfo);
+    infoRef.current = systemInfo;
     const snapshotRef = useRef({statis: "", disks: "", info: "", io: "", sampleId: 0, sampleTime: 0});
     const [dashboard, setDashboard] = useState<any>(() => {
         const initialTime = Date.now();
@@ -48,7 +51,7 @@ export default (): React.ReactNode => {
     const [loading, setLoading] = useState(true);
     const {statis, info, io, throughputHistory} = dashboard;
 
-    const loadData = useCallback(async (initial = false, refreshInfo = false) => {
+    const loadData = useCallback(async (initial = false) => {
         if (requestingRef.current) {
             return;
         }
@@ -59,36 +62,31 @@ export default (): React.ReactNode => {
         }
 
         try {
-            // 主机信息只有静态字段和按分钟显示的运行时间；实时资源与 I/O 仍每秒获取。
-            const [statisResult, infoResult, ioResult] = await Promise.allSettled([
+            // 主机信息复用全局数据；实时资源与 I/O 仍每秒获取。
+            const [statisResult, ioResult] = await Promise.allSettled([
                 getSystemStatis(),
-                !infoRef.current || refreshInfo || performance.now() - infoRef.current.time >= 30000
-                    ? getSystemInfo() : Promise.resolve(undefined),
                 getSystemIO({body: {after: snapshotRef.current.sampleId}}),
             ]);
             if (!mountedRef.current || request !== requestRef.current || document.visibilityState === "hidden") {
                 return;
             }
             const statisResponse = statisResult.status === "fulfilled" ? statisResult.value : undefined;
-            const infoResponse = infoResult.status === "fulfilled" ? infoResult.value : undefined;
             const ioResponse = ioResult.status === "fulfilled" ? ioResult.value : undefined;
             const statisData = statisResponse?.code === 200 && statisResponse?.data
                 ? {cpu: statisResponse.data.cpu, memory: statisResponse.data.memory, load: statisResponse.data.load, disks: statisResponse.data.disks}
                 : undefined;
-            const now = performance.now();
-            const previousInfo = infoRef.current;
-            if (infoResponse?.code === 200 && infoResponse?.data) {
-                const data = infoResponse.data;
-                const uptime = previousInfo && previousInfo.data.boot_time === data.boot_time
-                    ? Math.max(numberValue(data.uptime), numberValue(previousInfo.data.uptime) + Math.floor((now - previousInfo.time) / 1000))
-                    : numberValue(data.uptime);
-                infoRef.current = {data: {...data, uptime}, time: now};
-            }
-            const baseInfo = infoRef.current;
-            const infoData = baseInfo ? {...baseInfo.data, uptime: numberValue(baseInfo.data.uptime) + Math.floor((now - baseInfo.time) / 1000)} : undefined;
             const ioData = ioResponse?.code === 200 && ioResponse?.data
                 ? ioResponse?.data
                 : undefined;
+            const baseInfo = infoRef.current;
+            const sampleTime = numberValue(ioData?.sample_time) || snapshotRef.current.sampleTime;
+            const infoData = baseInfo ? {
+                ...baseInfo,
+                // 使用服务器采样时间，避免浏览器与服务器的时钟差影响运行时长。
+                uptime: sampleTime > 0 && baseInfo.boot_time > 0
+                    ? Math.max(numberValue(baseInfo.uptime), Math.floor(sampleTime / 1000) - baseInfo.boot_time)
+                    : numberValue(baseInfo.uptime),
+            } : undefined;
             const currentIOData = ioData ? {...ioData, history: undefined} : undefined;
             const nextStatisSnapshot = statisData ? JSON.stringify([statisData.cpu, statisData.memory, statisData.load]) : snapshotRef.current.statis;
             const nextDisksSnapshot = statisData ? JSON.stringify(statisData.disks || []) : snapshotRef.current.disks;
@@ -215,15 +213,12 @@ export default (): React.ReactNode => {
         let stopped = false;
         let polling = false;
         let initial = true;
-        let refreshInfo = true;
         let timer = 0;
         let nextPollAt = Date.now();
         const poll = async () => {
             if (stopped || polling || document.visibilityState === "hidden") return;
             polling = true;
-            const forceInfo = refreshInfo;
-            refreshInfo = false;
-            await loadData(initial, forceInfo);
+            await loadData(initial);
             initial = false;
             polling = false;
             if (stopped || document.hidden) return;
@@ -235,7 +230,6 @@ export default (): React.ReactNode => {
             window.clearTimeout(timer);
             if (document.visibilityState === "visible") {
                 nextPollAt = Date.now();
-                refreshInfo = true;
                 void poll();
             }
         };

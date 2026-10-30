@@ -12,9 +12,12 @@ import (
 )
 
 // Import 解包并检查插件清单，返回临时目录，由调用方提交到正式目录或清理。
-func (m *Manager) Import(path string) (*Package, error) {
+func (m *Manager) Import(ctx context.Context, path string) (*Package, error) {
+	ctx, cancel := context.WithCancel(ctx)
+	stop := context.AfterFunc(m.ctx, cancel)
+	defer func() { stop(); cancel() }()
 	m.mu.Lock()
-	if m.ctx.Err() != nil {
+	if m.ctx.Err() != nil || ctx.Err() != nil {
 		m.mu.Unlock()
 		return nil, errors.New("插件管理器已关闭")
 	}
@@ -68,7 +71,7 @@ func (m *Manager) Import(path string) (*Package, error) {
 	seen := make(map[string]bool, len(archive.File))
 	var expanded, codeSize, imageSize int64
 	for _, item := range archive.File {
-		if err = m.ctx.Err(); err != nil {
+		if err = ctx.Err(); err != nil {
 			return nil, err
 		}
 		name := strings.TrimSuffix(item.Name, "/")
@@ -121,7 +124,7 @@ func (m *Manager) Import(path string) (*Package, error) {
 			_ = input.Close()
 			return nil, err
 		}
-		size, copyErr := io.Copy(output, io.LimitReader(&importReader{ctx: m.ctx, reader: input}, remaining+1))
+		size, copyErr := io.Copy(output, io.LimitReader(&importReader{ctx: ctx, reader: input}, remaining+1))
 		closeErr := errors.Join(output.Close(), input.Close())
 		if copyErr != nil || closeErr != nil {
 			return nil, fmt.Errorf("解压插件文件失败: %w", errors.Join(copyErr, closeErr))
@@ -147,7 +150,7 @@ func (m *Manager) Import(path string) (*Package, error) {
 	if err = root.Close(); err != nil {
 		return nil, err
 	}
-	if err = m.ctx.Err(); err != nil {
+	if err = ctx.Err(); err != nil {
 		return nil, err
 	}
 	retained = true

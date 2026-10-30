@@ -10,13 +10,13 @@ import (
 	"strings"
 	"time"
 
-	"server/app/enum/software_status"
+	"server/app/enum/software_state"
 	"server/app/enum/system_task_status"
 	repositorySoftware "server/app/repository/software"
 	"server/app/util/str"
 )
 
-// Uninstall 按标识或 ID 卸载软件并清理插件数据，保留任务进度并等待完成。
+// Uninstall 按标识或 ID 卸载软件并清理插件数据，提交后台任务后立即返回任务 ID。
 func (s *service) Uninstall(target string) (int64, error) {
 	target = strings.TrimSpace(target)
 	record, err := s.repository.FindByCode(target)
@@ -69,7 +69,7 @@ func (s *service) Uninstall(target string) (int64, error) {
 			if other.Id == id {
 				continue
 			}
-			manifest, err := s.plugins.Manifest(other.Code)
+			manifest, err := s.manifest(other.Code)
 			if err != nil {
 				return 0, fmt.Errorf("读取软件 %s 的依赖失败: %w", other.Code, err)
 			}
@@ -83,15 +83,17 @@ func (s *service) Uninstall(target string) (int64, error) {
 		// 卸载按标识清理固定目录，不依赖软件配置或代码能否加载。
 		directory := record.Code
 		// 重试中断的卸载，失败或取消时恢复为已安装状态。
-		if record.Status == software_status.Removing {
-			record.Status = software_status.Installed
+		if record.State == software_state.Removing {
+			record.State = software_state.Installed
 		}
 		taskID := str.GetSnowWorkIns().GetId()
 		key := strconv.FormatInt(taskID, 10)
-		status := software_status.Removing
-		if err = s.repository.UpdateById(id, &repositorySoftware.UpdateSoftware{Status: &status}); err != nil {
+		state := software_state.Removing
+		if err = s.repository.UpdateById(id, &repositorySoftware.UpdateSoftware{State: &state}); err != nil {
 			return 0, err
 		}
+		s.invalidate(record.Code)
+		e.created = false
 		e.busy.Store(true)
 		e.pending = record
 		e.taskID = key
@@ -110,6 +112,8 @@ func (s *service) Uninstall(target string) (int64, error) {
 			}
 			e.pending = nil
 			defer e.busy.Store(false)
+			defer s.invalidate(record.Code)
+			defer s.invalidateManifest(record.Code)
 			progress(system_task_status.Running, 10, "正在卸载软件")
 			ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 			defer cancel()
@@ -125,7 +129,7 @@ func (s *service) Uninstall(target string) (int64, error) {
 				runErr = s.repository.DeleteById(id)
 			}
 			if runErr != nil {
-				saveErr := s.repository.UpdateById(id, &repositorySoftware.UpdateSoftware{Status: &record.Status})
+				saveErr := s.repository.UpdateById(id, &repositorySoftware.UpdateSoftware{State: &record.State})
 				message := errors.Join(runErr, saveErr).Error()
 				progress(system_task_status.Failed, 100, message)
 				return
@@ -143,29 +147,5 @@ func (s *service) Uninstall(target string) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
-	key := strconv.FormatInt(taskID, 10)
-	ticker := time.NewTicker(200 * time.Millisecond)
-	defer ticker.Stop()
-	timeout := time.NewTimer(10 * time.Minute)
-	defer timeout.Stop()
-	for {
-		task := s.system.GetTask(key)
-		if task == nil {
-			return taskID, errors.New("卸载任务不存在，请查看软件列表确认状态")
-		}
-		switch task.Status {
-		case system_task_status.Completed:
-			return taskID, nil
-		case system_task_status.Failed, system_task_status.Canceled:
-			if task.Message == "" {
-				return taskID, errors.New("软件卸载失败或已取消")
-			}
-			return taskID, errors.New(task.Message)
-		}
-		select {
-		case <-ticker.C:
-		case <-timeout.C:
-			return taskID, fmt.Errorf("卸载仍在执行，请在后台任务中查看进度，任务 ID: %s", key)
-		}
-	}
+	return taskID, nil
 }

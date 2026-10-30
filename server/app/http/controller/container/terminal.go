@@ -13,6 +13,8 @@ import (
 	"server/app/util/context"
 
 	"github.com/gorilla/websocket"
+
+	"github.com/SinKingCloud/sinking-go/sinking-web"
 )
 
 // Terminal 连接容器交互终端，复用 Manager 的 PTY，不依赖容器内安装 SSH 服务。
@@ -48,7 +50,7 @@ func Terminal(c *context.Context) {
 	}
 	session, err := service.Container.Terminal(form.Id, form.Height, form.Width)
 	if err != nil {
-		payload, _ := json.Marshal(map[string]string{
+		payload, _ := json.Marshal(sinking_web.H{
 			"event":   "error",
 			"content": err.Error(),
 		})

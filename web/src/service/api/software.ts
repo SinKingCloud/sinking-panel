@@ -11,21 +11,19 @@ export async function getSoftwareInfo(params: API.RequestParams = {}) {
     return get("/software/info", params.body, params.onSuccess, params.onFail, params.onFinally);
 }
 
-/** 安装服务器上的软件包或源码目录。 */
+/** 提交软件安装任务。 */
 export async function installSoftware(params: API.RequestParams = {}) {
-    return post("/software/install", params.body, params.onSuccess, params.onFail, params.onFinally,
-        undefined, {timeout: 660000});
+    return post("/software/install", params.body, params.onSuccess, params.onFail, params.onFinally);
 }
 
-/** 修改软件名称。 */
+/** 修改软件名称或启用状态。 */
 export async function updateSoftware(params: API.RequestParams = {}) {
     return post("/software/update", params.body, params.onSuccess, params.onFail, params.onFinally);
 }
 
-/** 卸载软件并等待完成，进度仍可在后台任务查看。 */
+/** 提交软件卸载任务，进度在后台任务查看。 */
 export async function uninstallSoftware(params: API.RequestParams = {}) {
-    return post("/software/uninstall", params.body, params.onSuccess, params.onFail, params.onFinally,
-        undefined, {timeout: 660000});
+    return post("/software/uninstall", params.body, params.onSuccess, params.onFail, params.onFinally);
 }
 
 /** 按软件标识调用管理接口，业务参数直接传入请求体。 */

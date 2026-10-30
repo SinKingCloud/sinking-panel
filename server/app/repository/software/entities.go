@@ -8,6 +8,7 @@ type SelectSoftware struct {
 	Name    *string
 	Code    *string
 	Status  *int
+	State   *int
 }
 
 // UpdateSoftware 软件更新内容，唯一标识创建后不修改。
@@ -15,6 +16,7 @@ type UpdateSoftware struct {
 	Name    *string
 	Version *string
 	Status  *int
+	State   *int
 	Config  *string
 }
 
@@ -26,6 +28,7 @@ type Software struct {
 	Version    string       `gorm:"column:version" json:"version"`
 	Icon       string       `gorm:"-" json:"icon"` // 由服务从包清单缓存填充，不写入数据库
 	Status     int          `gorm:"column:status" json:"status"`
+	State      int          `gorm:"column:state" json:"state"`
 	CreateTime str.DateTime `gorm:"column:create_time" json:"create_time"`
 	UpdateTime str.DateTime `gorm:"column:update_time" json:"update_time"`
 }

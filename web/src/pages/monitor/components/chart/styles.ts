@@ -121,6 +121,9 @@ export default createStyles(({css, token}, {compact}: {compact: boolean}) => ({
         min-width: 0;
         margin-top: 2px;
 
+        /* 横向手势用于选区，纵向和双指手势交给浏览器；覆盖画布的内联 none。 */
+        canvas { touch-action: pan-y pinch-zoom !important; }
+
         .chart-unit {
             height: 17px;
             color: ${token.colorTextTertiary};

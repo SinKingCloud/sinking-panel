@@ -5,6 +5,8 @@ import (
 	repositoryTypes "server/app/repository/types"
 	"server/app/service"
 	"server/app/util/context"
+
+	"github.com/SinKingCloud/sinking-go/sinking-web"
 )
 
 // List 获取类型列表
@@ -31,6 +33,6 @@ func List(c *context.Context) {
 		c.Error("获取失败")
 	} else {
 		service.Log.Create(c.GetRequestIp(), log_type.EventShow, "查看类型列表", "查看类型列表数据")
-		c.SuccessWithData("获取成功", map[string]interface{}{"list": data})
+		c.SuccessWithData("获取成功", sinking_web.H{"list": data})
 	}
 }

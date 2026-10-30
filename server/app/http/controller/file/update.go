@@ -7,6 +7,8 @@ import (
 	"server/app/util/context"
 	"server/app/util/file"
 	"strconv"
+
+	"github.com/SinKingCloud/sinking-go/sinking-web"
 )
 
 // Update 更新文件
@@ -84,7 +86,7 @@ func Update(c *context.Context) {
 		c.Error("请指定要执行的操作：重命名、修改权限或更新内容")
 		return
 	}
-	data := map[string]interface{}{
+	data := sinking_web.H{
 		"operations": operations,
 		"path":       currentPath,
 	}

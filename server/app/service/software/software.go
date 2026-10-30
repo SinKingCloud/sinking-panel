@@ -1,6 +1,7 @@
 package software
 
 import (
+	"server/app/model"
 	repositorySoftware "server/app/repository/software"
 	serviceSystem "server/app/service/system"
 	"server/app/util/context"
@@ -15,9 +16,9 @@ type Service interface {
 	Init(string, string, string) error
 	Select(*repositorySoftware.SelectSoftware, *page.Query) (*page.Result[*repositorySoftware.Software], error)
 	Info(int64) (*Info, error)
-	Install(string) (*Info, error)
+	Install(string) (int64, error)
 	Uninstall(string) (int64, error)
-	Update(int64, string) error
+	Update(int64, *repositorySoftware.UpdateSoftware) error
 	GetConfig(string) (string, error)
 	SetConfig(string, string) error
 	Invoke(*context.Context, string, string) error
@@ -32,7 +33,10 @@ type service struct {
 	plugins    *plugin.Manager
 	mu         sync.Mutex
 	entries    map[int64]*entry
+	manifests  map[string]*plugin.Manifest
 	icons      map[string]string // 清单图标路径；与 entries 一样由 mu 保护
+	cacheMu    sync.RWMutex
+	records    map[string]*model.Software
 	importing  sync.Mutex
 	closed     bool
 	booted     atomic.Bool
@@ -46,5 +50,7 @@ func NewService(repository repositorySoftware.Interface, system serviceSystem.Se
 		plugins:    plugins,
 		entries:    make(map[int64]*entry),
 		icons:      make(map[string]string),
+		manifests:  make(map[string]*plugin.Manifest),
+		records:    make(map[string]*model.Software),
 	}
 }

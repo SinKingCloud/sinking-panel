@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"server/app/constant"
+	"server/app/util/platform"
 	"server/app/util/psutil"
 	"server/app/util/recordstore"
 )
@@ -39,6 +40,7 @@ func (s *service) GetInfo() map[string]interface{} {
 		"platform_version": info.PlatformVersion,
 		"kernel_version":   info.KernelVersion,
 		"kernel_arch":      info.KernelArch,
+		"container":        platform.CanRunContainer(),
 		"uptime":           info.Uptime,
 		"boot_time":        info.BootTime,
 		"version":          constant.Version,

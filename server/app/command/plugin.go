@@ -13,9 +13,12 @@ import (
 	"strconv"
 	"strings"
 	"text/tabwriter"
+	"time"
 
 	"server/app/constant"
+	"server/app/enum/software_state"
 	"server/app/enum/software_status"
+	"server/app/enum/system_task_status"
 	repositorySoftware "server/app/repository/software"
 	"server/app/service"
 	serviceSoftware "server/app/service/software"
@@ -39,7 +42,8 @@ init 默认创建以 ID 命名的新目录，包含插件示例和当前版本 S
 init 不需要启动面板或管理员权限，也不读取面板数据库。
 其余命令从面板工作目录执行；安装目录会自动打包。
 面板运行时通过本机通信安装、卸载，停止时直接调用软件服务；list 直接读取列表。
-uninstall 同时删除插件数据。`
+在线安装、卸载立即返回任务 ID，可在面板后台任务中查看结果。
+离线命令等待任务完成后退出；uninstall 同时删除插件数据。`
 
 // executePlugin 在守护进程、权限检查和数据库初始化之前处理插件命令。
 func (s *Server) executePlugin(args []string) error {
@@ -176,7 +180,8 @@ func (s *Server) executePlugin(args []string) error {
 		writer := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
 		defer writer.Flush()
 		statuses := software_status.Map()
-		fmt.Fprintln(writer, "ID\t标识\t名称\t版本\t状态")
+		states := software_state.Map()
+		fmt.Fprintln(writer, "ID\t标识\t名称\t版本\t启用状态\t安装状态")
 		for number := 1; ; number++ {
 			data, err := software.Select(nil, &page.Query{
 				Page:         number,
@@ -195,7 +200,11 @@ func (s *Server) executePlugin(args []string) error {
 				if status == "" {
 					status = strconv.Itoa(record.Status)
 				}
-				fmt.Fprintf(writer, "%d\t%s\t%s\t%s\t%s\n", record.Id, record.Code, record.Name, record.Version, status)
+				state := states[record.State]
+				if state == "" {
+					state = strconv.Itoa(record.State)
+				}
+				fmt.Fprintf(writer, "%d\t%s\t%s\t%s\t%s\t%s\n", record.Id, record.Code, record.Name, record.Version, status, state)
 			}
 			if len(data.List) < 100 || (data.Total != nil && int64(number*100) >= *data.Total) {
 				break
@@ -230,10 +239,35 @@ func (s *Server) executePlugin(args []string) error {
 		service.System.Close()
 		service.Task.Close()
 	}()
-	message, err := s.runPluginCommand(service.Software, action, target)
+	taskID, err := s.runPluginCommand(service.Software, action, target)
 	if err != nil {
 		return err
 	}
-	fmt.Println(message)
-	return nil
+	key := strconv.FormatInt(taskID, 10)
+	fmt.Printf("任务已提交: %s，等待执行完成\n", key)
+	// 离线进程是后台任务的宿主，完成或取消后才能释放服务。
+	ticker := time.NewTicker(200 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		task := service.System.GetTask(key)
+		if task == nil {
+			return errors.New("软件任务不存在")
+		}
+		switch task.Status {
+		case system_task_status.Completed:
+			fmt.Println(task.Message)
+			return nil
+		case system_task_status.Failed, system_task_status.Canceled:
+			if task.Message != "" {
+				return errors.New(task.Message)
+			}
+			return errors.New("软件任务失败或已取消")
+		}
+		select {
+		case <-ticker.C:
+		case <-ctx.Done():
+			service.System.TaskCancel(key)
+			return ctx.Err()
+		}
+	}
 }

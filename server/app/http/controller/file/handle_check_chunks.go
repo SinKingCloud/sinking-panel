@@ -3,6 +3,8 @@ package file
 import (
 	"server/app/service"
 	"server/app/util/context"
+
+	"github.com/SinKingCloud/sinking-go/sinking-web"
 )
 
 func handleCheckChunks(c *context.Context) {
@@ -25,7 +27,7 @@ func handleCheckChunks(c *context.Context) {
 		return
 	}
 	if completed != nil {
-		c.SuccessWithData("文件已上传完成", map[string]interface{}{
+		c.SuccessWithData("文件已上传完成", sinking_web.H{
 			"upload_id":       meta.UploadID,
 			"total_chunks":    meta.TotalChunks,
 			"uploaded_chunks": uploadedChunks,
@@ -34,7 +36,7 @@ func handleCheckChunks(c *context.Context) {
 		})
 		return
 	}
-	c.SuccessWithData("获取分片状态成功", map[string]interface{}{
+	c.SuccessWithData("获取分片状态成功", sinking_web.H{
 		"upload_id":       meta.UploadID,
 		"total_chunks":    meta.TotalChunks,
 		"uploaded_chunks": uploadedChunks,

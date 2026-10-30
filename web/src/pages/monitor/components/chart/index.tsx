@@ -6,6 +6,7 @@ import {Title, useTheme} from "sinking-antd";
 import {formatSize} from "@/utils/string";
 import type {MonitorHistory, MonitorSeries} from "../../types";
 import useTimeRange from "./use-time-range";
+import "./range-interaction";
 import useTooltip from "./use-tooltip";
 import useStyles from "./styles";
 
@@ -137,6 +138,7 @@ const MonitorChart = React.memo(({title, subtitle, history, series, unit, rangeK
             seriesField: "series",
             shape: "smooth",
             connectNulls: false,
+            clip: true,
             margin: 0,
             marginBottom: 4,
             paddingRight: 8,
@@ -151,6 +153,7 @@ const MonitorChart = React.memo(({title, subtitle, history, series, unit, rangeK
             axis: {
                 x: {
                     title: false, line: false, tick: false, tickCount: 4,
+                    tickMethod: (min: number, max: number) => Array.from({length: 4}, (_, index) => min + (max - min) * index / 3),
                     labelSpacing: 2,
                     labelFill: token.colorTextSecondary, labelFontSize: 11, labelOpacity: 1,
                     labelTextAlign: ({value}: {value: number}) => value < .15 ? "left" : value > .85 ? "right" : "center",
@@ -208,7 +211,8 @@ const MonitorChart = React.memo(({title, subtitle, history, series, unit, rangeK
                     shared: true, series: true, crosshairs: true,
                     body: false, disableAutoHide: mobile, wait: 0,
                 },
-                sliderFilter: {adaptiveMode: false, wait: 32, leading: true, trailing: true, getInitValues: timeRange.getInitValues},
+                sliderFilter: false,
+                monitorTimeRange: {getValues: timeRange.getValues, onChange: timeRange.setValues, start, end, labelFormatter: labelTime},
             },
             point: pointCount <= 2 ? {size: 3, shape: "point"} : false,
             // 主系列的淡色面积与折线使用相同的后端数据。
@@ -230,7 +234,7 @@ const MonitorChart = React.memo(({title, subtitle, history, series, unit, rangeK
 
     useEffect(() => {
         if (!chartRef.current?.chart || !chart.config.slider || start === undefined || end === undefined) return;
-        return timeRange.bind(chartRef.current.chart, start, end);
+        return timeRange.bind(chartRef.current.chart);
     }, [timeRange, chart.config, start, end]);
 
     useEffect(() => {

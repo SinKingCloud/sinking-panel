@@ -16,6 +16,7 @@ type Info struct {
 type entry struct {
 	mu      sync.RWMutex
 	busy    atomic.Bool
-	taskID  string          // 仅用于恢复排队中的卸载任务，由 mu 保护。
+	created bool            // 排队安装创建的记录，取消时删除。
+	taskID  string          // 提交时持 importing 和 mu 写入，任务结束后不清空。
 	pending *model.Software // 回调开始前保留原记录，排队任务取消时恢复。
 }

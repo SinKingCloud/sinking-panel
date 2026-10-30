@@ -13,7 +13,8 @@ type Software struct {
 	Name       string       `gorm:"column:name" json:"name"`               // 显示名称
 	Code       string       `gorm:"column:code" json:"code"`               // 软件唯一标识
 	Version    string       `gorm:"column:version" json:"version"`         // 当前软件包版本
-	Status     int          `gorm:"column:status" json:"status"`           // 安装状态
+	Status     int          `gorm:"column:status" json:"status"`           // 启用状态
+	State      int          `gorm:"column:state" json:"state"`             // 安装状态
 	Config     string       `gorm:"column:config" json:"config"`           // 插件内部配置
 	CreateTime str.DateTime `gorm:"column:create_time" json:"create_time"` // 创建时间
 	UpdateTime str.DateTime `gorm:"column:update_time" json:"update_time"` // 更新时间

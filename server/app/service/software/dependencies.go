@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"server/app/enum/software_state"
 	"server/app/enum/software_status"
 	"server/app/model"
 	"server/app/util/plugin"
@@ -26,14 +27,14 @@ func (s *service) dependencies(manifest *plugin.Manifest) ([]*model.Software, er
 		if visited[code] == 2 {
 			return nil
 		}
-		record, err := s.repository.FindByCode(code)
+		record, err := s.record(code)
 		if err != nil {
 			return err
 		}
 		if record == nil {
 			return fmt.Errorf("缺少依赖软件 %s，请先安装", code)
 		}
-		if record.Status != software_status.Installed {
+		if record.Status != software_status.Enabled || record.State != software_state.Installed {
 			return fmt.Errorf("依赖软件 %s 尚未就绪或正在卸载", code)
 		}
 		pkg, err := s.plugins.Info(record.Code)
@@ -66,34 +67,41 @@ func (s *service) dependencies(manifest *plugin.Manifest) ([]*model.Software, er
 	return ordered, nil
 }
 
-// start 依次启动已经排好顺序的软件，任一依赖失败时不继续启动使用它的软件。
-// Manager 的 start 是幂等的，已运行的插件不会再次执行 Start 回调。
-func (s *service) start(records []*model.Software) error {
+// start 锁定整条依赖链并启动，调用方完成操作后释放，禁止依赖在中途被禁用或卸载。
+func (s *service) start(records []*model.Software) (func(), error) {
+	locked := make([]*entry, 0, len(records))
+	release := func() {
+		for i := len(locked) - 1; i >= 0; i-- {
+			locked[i].mu.RUnlock()
+		}
+	}
 	for _, record := range records {
 		e, err := s.entry(record.Id)
 		if err != nil {
-			return err
+			release()
+			return nil, err
 		}
 		if !e.mu.TryRLock() {
-			return fmt.Errorf("软件 %s 正在执行操作，请稍后重试", record.Code)
+			release()
+			return nil, fmt.Errorf("软件 %s 正在执行操作", record.Code)
 		}
-		err = func() error {
-			defer e.mu.RUnlock()
-			current, err := s.repository.FindById(record.Id)
-			if err != nil {
-				return err
-			}
-			if current == nil || e.busy.Load() || current.Status != software_status.Installed {
-				return errors.New("软件尚未就绪或正在卸载")
-			}
-			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-			defer cancel()
-			_, err = s.plugins.Lifecycle(ctx, current.Code, "start", "{}")
-			return err
-		}()
+		locked = append(locked, e)
+		current, err := s.record(record.Code)
 		if err != nil {
-			return fmt.Errorf("启动软件 %s 失败: %w", record.Code, err)
+			release()
+			return nil, err
+		}
+		if current == nil || current.Id != record.Id || e.busy.Load() || current.Status != software_status.Enabled || current.State != software_state.Installed {
+			release()
+			return nil, errors.New("软件尚未就绪或已禁用")
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		_, err = s.plugins.Lifecycle(ctx, current.Code, "start", "{}")
+		cancel()
+		if err != nil {
+			release()
+			return nil, fmt.Errorf("启动软件 %s 失败: %w", record.Code, err)
 		}
 	}
-	return nil
+	return release, nil
 }

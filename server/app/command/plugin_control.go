@@ -27,22 +27,15 @@ type pluginCommandResponse struct {
 	Error   string `json:"error,omitempty"`
 }
 
-// runPluginCommand 统一离线命令和本机通信的执行结果，业务仍由软件服务处理。
-func (s *Server) runPluginCommand(service software.Service, action, target string) (string, error) {
+// runPluginCommand 统一提交安装、卸载任务，业务由软件服务处理。
+func (s *Server) runPluginCommand(service software.Service, action, target string) (int64, error) {
 	switch action {
 	case "install":
-		installed, err := service.Install(target)
-		if err != nil {
-			return "", err
-		}
-		return fmt.Sprintf("插件已安装: %s %s", installed.Code, installed.Version), nil
+		return service.Install(target)
 	case "uninstall":
-		if _, err := service.Uninstall(target); err != nil {
-			return "", err
-		}
-		return "卸载完成", nil
+		return service.Uninstall(target)
 	default:
-		return "", errors.New("不支持的插件命令")
+		return 0, errors.New("不支持的插件命令")
 	}
 }
 
@@ -68,8 +61,7 @@ func (s *Server) sendPluginCommand(ctx context.Context, action, target string) (
 	if err = json.NewEncoder(connection).Encode(request); err != nil {
 		return true, "", fmt.Errorf("提交插件命令失败，请查看插件列表确认状态: %w", err)
 	}
-	// 命令行中断等待不会再次提交或中断面板内的操作。
-	_ = connection.SetDeadline(time.Now().Add(11 * time.Minute))
+	// 只等待任务提交结果，执行进度由面板后台任务提供。
 	var response pluginCommandResponse
 	if err = json.NewDecoder(io.LimitReader(connection, 64<<10)).Decode(&response); err != nil {
 		return true, "", fmt.Errorf("等待插件操作结果失败，操作可能仍在面板执行，请查看插件列表确认状态: %w", err)
@@ -110,7 +102,11 @@ func (s *Server) listenPluginCommand(service software.Service) (func(), error) {
 				if err != nil {
 					err = fmt.Errorf("读取插件命令失败: %w", err)
 				} else {
-					response.Message, err = s.runPluginCommand(service, request.Action, request.Target)
+					var taskID int64
+					taskID, err = s.runPluginCommand(service, request.Action, request.Target)
+					if err == nil {
+						response.Message = fmt.Sprintf("任务已提交: %d，请在面板后台任务中查看结果", taskID)
+					}
 				}
 				if err != nil {
 					response.Error = err.Error()

@@ -4,6 +4,7 @@ import type {InputRef, TableRef} from "antd";
 import useVariant from "antd/es/form/hooks/useVariants";
 import {Icon, ProModal, Title, useTheme} from "sinking-antd";
 import {getFileDisks, getFileInfo, getFileList} from "@/service/api/file";
+import {readFileStorage, updateFileStorage} from "@/pages/file/hooks/file-storage";
 import {
     buildFileBreadcrumbs,
     comparableFilePath as comparablePath,
@@ -36,6 +37,7 @@ const FilePicker = forwardRef<InputRef, any>(({
     const [variant] = useVariant("input", inputProps.variant, inputProps.bordered);
     const requestRef = useRef(0);
     const selectionRequestRef = useRef(0);
+    const restoredPathRef = useRef("");
     const pathRef = useRef<HTMLOListElement>(null);
     const pathInputRef = useRef<InputRef>(null);
     const currentPathRef = useRef<HTMLButtonElement>(null);
@@ -103,7 +105,19 @@ const FilePicker = forwardRef<InputRef, any>(({
         const absolute = isAbsoluteFilePath(input) ? normalizeFilePath(input) : "";
         const preferred = String(initialPath || "").trim();
         const preferredPath = isAbsoluteFilePath(preferred) ? normalizeFilePath(preferred) : "";
-        const initialDirectory = preferredPath || (mode === "file" && absolute ? parentFilePath(absolute) : absolute);
+        let initialDirectory = preferredPath || (mode === "file" && absolute ? parentFilePath(absolute) : absolute);
+        restoredPathRef.current = "";
+        if (!initialDirectory) {
+            try {
+                const saved = readFileStorage()?.pickerPaths?.[mode];
+                if (typeof saved === "string" && isAbsoluteFilePath(saved)) {
+                    initialDirectory = normalizeFilePath(saved);
+                    restoredPathRef.current = initialDirectory;
+                }
+            } catch {
+                // 本地存储不可用时，仍可正常浏览和选择。
+            }
+        }
         const breadcrumbs = absolute ? buildFileBreadcrumbs(absolute) : [];
         const initialName = breadcrumbs.length > 1 ? breadcrumbs[breadcrumbs.length - 1].label : "";
         const selectionRequest = ++selectionRequestRef.current;
@@ -301,6 +315,17 @@ const FilePicker = forwardRef<InputRef, any>(({
             }
             setItems(nextItems);
             setLoadedPath(path);
+            restoredPathRef.current = "";
+            try {
+                if (readFileStorage()?.pickerPaths?.[mode] !== path) {
+                    updateFileStorage((current) => ({
+                        ...current,
+                        pickerPaths: {...current.pickerPaths, [mode]: path},
+                    }));
+                }
+            } catch {
+                // 记忆路径失败不影响文件选择。
+            }
         }).catch(() => {
             if (requestRef.current === requestId) {
                 setItems([]);
@@ -314,6 +339,18 @@ const FilePicker = forwardRef<InputRef, any>(({
             }
         });
     }, [mode, open, page, path, reload]);
+
+    useEffect(() => {
+        if (!open || !error || !disks.length || restoredPathRef.current !== path) {
+            return;
+        }
+        // 记忆目录已失效时回到磁盘根目录，手动输入的错误路径仍按原方式提示。
+        restoredPathRef.current = "";
+        const fallback = disks[0];
+        if (comparablePath(fallback) !== comparablePath(path)) {
+            navigate(fallback);
+        }
+    }, [disks, error, navigate, open, path]);
 
     return (
         <>

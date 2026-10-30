@@ -197,7 +197,7 @@ const ContainerExec = forwardRef<any, {onChange?: () => void}>(({onChange}, ref)
 
     return <ProModal title={<Title>执行命令</Title>} width={compact ? 520 : 560}
         onOk={() => form.submit()} onCancel={close} okText="执行" modalProps={{
-            open, forceRender: true, rootClassName: styles.modal, zIndex: 1050,
+            open, rootClassName: styles.modal, zIndex: 1050,
             style: {top: screens.md ? 80 : 20, paddingBottom: 40},
             confirmLoading: executing, cancelText: "关闭", mask: {closable: true},
             okButtonProps: {disabled: statusLoading || Boolean(statusError) || status?.status !== "running"},

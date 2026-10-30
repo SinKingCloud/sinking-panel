@@ -51,9 +51,10 @@ export default function useChartTooltip(models: ReadonlyMap<number, ChartTooltip
         };
         return {
             hide,
-            bind: (chart: Chart) => {
+            bind: (chart: Chart, {zIndex}: {zIndex?: number} = {}) => {
                 const container = chart.getContainer();
                 const root = node = element("div", styles.tooltip);
+                if (zIndex !== undefined) root.style.zIndex = String(zIndex);
                 root.hidden = true;
                 const title = element("div", "tooltip-time");
                 root.append(title);
@@ -88,6 +89,8 @@ export default function useChartTooltip(models: ReadonlyMap<number, ChartTooltip
                 let cursorY = 0;
                 let maxX = 0;
                 let maxY = 0;
+                let width = 0;
+                let flipX = 0;
                 let offsetX = 16;
                 let offsetY = 16;
                 let lastX = -1;
@@ -130,19 +133,24 @@ export default function useChartTooltip(models: ReadonlyMap<number, ChartTooltip
                         }
                         const opening = root.hidden;
                         if (opening) {
-                            // 首次显示测量尺寸并选择方向，移动时仅更新 transform，不反复翻转或测量。
+                            // 打开时缓存尺寸和边界，移动时只做数值判断与 transform 更新。
                             root.style.setProperty("--process-pid-width", `${source.current.pidWidth + 1}ch`);
                             root.style.setProperty("--process-value-width", `${source.current.valueWidth + 1}ch`);
                             root.style.visibility = "hidden";
                             root.hidden = false;
-                            const width = root.offsetWidth;
+                            width = root.offsetWidth;
                             const height = root.offsetHeight;
+                            const bounds = container.getBoundingClientRect();
                             maxX = document.documentElement.clientWidth - width - 8;
                             maxY = document.documentElement.clientHeight - height - 8;
-                            offsetX = cursorX + 16 > maxX ? -width - 16 : 16;
+                            flipX = Math.min(maxX - 16, Math.max((bounds.left + bounds.right) / 2, bounds.right - width - 16));
+                            offsetX = cursorX > flipX ? -width - 16 : 16;
                             offsetY = cursorY + 16 > maxY ? -height - 16 : 16;
                             lastX = lastY = -1;
                         }
+                        // 靠近图表右侧自动切左，退回 24px 再切右，避免边界来回抖动。
+                        if (offsetX > 0 && cursorX > flipX) offsetX = -width - 16;
+                        else if (offsetX < 0 && cursorX < flipX - 24) offsetX = 16;
                         const x = Math.max(8, Math.min(cursorX + offsetX, maxX));
                         const y = Math.max(8, Math.min(cursorY + offsetY, maxY));
                         if (x !== lastX || y !== lastY) {

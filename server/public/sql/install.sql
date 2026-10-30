@@ -301,6 +301,7 @@ create table if not exists cloud_software
     code        varchar(100)             not null,
     version     varchar(50)  default ''  not null,
     status      integer      default 0  not null,
+    state       integer      default 1  not null,
     config      text        default '{}' not null,
     update_time text                    not null,
     create_time text                    not null

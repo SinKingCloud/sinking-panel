@@ -4,7 +4,8 @@ import {createStyles} from "antd-style";
 import dayjs from "dayjs";
 import {Icon, useTheme} from "sinking-antd";
 import Dropdown from "@/pages/components/ui/stable-dropdown";
-import {getSystemInfo, restartSystem} from "@/service/api/system";
+import {useModel} from "umi";
+import {restartSystem} from "@/service/api/system";
 import request, {pauseConnectionErrors} from "@/utils/request";
 import {formatSize} from "@/utils/string";
 import {formatUptime, gutter, numberValue} from "../../utils";
@@ -459,6 +460,7 @@ const HostOverview = React.memo(({info, cpuCount, memoryTotal}: any) => {
     const theme = useTheme();
     const {styles} = useStyles({compact: Boolean(theme?.isCompactTheme?.())});
     const {message, modal} = App.useApp();
+    const {getInfo, setInfo} = useModel("system", (model) => ({getInfo: model.getInfo, setInfo: model.setInfo}));
     const [restarting, setRestarting] = useState(false);
     const restartConfirmRef = useRef<ReturnType<typeof modal.confirm> | null>(null);
     const restartControllerRef = useRef<AbortController | null>(null);
@@ -503,13 +505,14 @@ const HostOverview = React.memo(({info, cpuCount, memoryTotal}: any) => {
                 setRestarting(true);
                 try {
                     // 先读取启动时间，避免把仍在响应的旧进程误判为重启完成。
-                    const info = await getSystemInfo();
+                    const info = await getInfo();
                     if (!mountedRef.current || controller.signal.aborted) return;
-                    if (info?.code !== 200 || !info?.data) {
-                        message.error(info?.message || "获取系统信息失败，请重试");
+                    if (!info) {
+                        message.error("获取系统信息失败，请重试");
                         throw new Error("获取系统信息失败");
                     }
-                    const previousStartTime = info?.data?.[startTimeField];
+                    setInfo(info);
+                    const previousStartTime = info?.[startTimeField];
                     const timeout = 180000;
                     const deadline = Date.now() + timeout;
                     resumeConnectionErrors = pauseConnectionErrors(controller.signal, timeout);
@@ -535,6 +538,7 @@ const HostOverview = React.memo(({info, cpuCount, memoryTotal}: any) => {
                             errorHandler: () => undefined,
                         }).catch(() => undefined);
                         if (!mountedRef.current || controller.signal.aborted) return;
+                        if (status?.code === 200 && status?.data) setInfo(status.data);
                         const nextStartTime = status?.data?.[startTimeField];
                         const recovered = previousStartTime && nextStartTime
                             ? String(previousStartTime) !== String(nextStartTime)

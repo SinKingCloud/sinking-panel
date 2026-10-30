@@ -19,15 +19,14 @@ export default function InstallSoftware({open, onCancel, onSuccess}: any) {
         try {
             const response = await installSoftware({body: {path: path.trim()}});
             if (!active.current) return;
-            if (response?.code !== 200 || !response?.data) throw new Error(response?.message || "安装软件失败");
-            if (Number(response?.data?.status) !== 2) throw new Error("软件未安装成功，请重新安装");
+            if (response?.code !== 200 || !response?.data?.task_id) throw new Error(response?.message || "提交安装任务失败");
             onSuccess(response?.data);
         } catch (reason: any) { if (active.current) message.error(reason?.message || "安装软件失败"); }
         finally { pending.current = false; if (active.current) setBusy(false); }
     };
 
     return <ProModal title={<Title>添加软件</Title>} onOk={form.submit} onCancel={() => { if (!pending.current) onCancel(); }}
-        modalProps={{open, forceRender: true, width: 360, zIndex: 1100,
+        modalProps={{open, width: 360, zIndex: 1100,
             style: {top: screens.md ? 90 : 24, paddingBottom: screens.md ? 90 : 24, maxWidth: "calc(100vw - 24px)"},
             okText: "安装", cancelText: "取消", confirmLoading: busy, closable: !busy, keyboard: !busy,
             mask: {closable: !busy}, cancelButtonProps: {disabled: busy}, afterClose: () => form.resetFields()} as any}>

@@ -503,7 +503,7 @@ const RunContainer = forwardRef<any, { onChange?: () => void }>(({onChange}, ref
     return <ProModal title={<Title>添加容器</Title>} width={compact ? 560 : 600} onOk={() => form.submit()}
                      onCancel={close}
                      okText="创建" modalProps={{
-        open, forceRender: true, rootClassName: styles.modal, zIndex: 1050,
+        open, rootClassName: styles.modal, zIndex: 1050,
         style: {top: screens.md ? 80 : 20, paddingBottom: 40},
         closable: !submitting, keyboard: !submitting, mask: {closable: !submitting},
         confirmLoading: submitting, cancelText: "取消", cancelButtonProps: {disabled: submitting},

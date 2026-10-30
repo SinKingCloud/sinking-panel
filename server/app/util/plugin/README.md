@@ -119,7 +119,7 @@ func run() error {
     manager := plugin.NewManager("./data/plugins", plugin.Options{})
     defer manager.Close()
 
-    pkg, err := manager.Import("./demo.zip")
+    pkg, err := manager.Import(context.Background(), "./demo.zip")
     if err != nil {
         return err
     }
@@ -281,15 +281,15 @@ Manager 读取 `server/go.mod` 的模块名，将本模块和随包交付的 ven
 
 实际用法见 [业务服务初始化](../../service/service.go) 和 [SDK 管理器](../../service/software/sdk/manager.go)：清单使用 `software.json`，代码存储在 `constant.SoftwarePath`，注入软件 SDK。软件服务负责安装记录、依赖检查、卸载任务和版本切换；首次导入时用 `{}` 执行安装生命周期，成功后即可使用。配置表单与容器初始化由插件自己的页面和业务接口负责。
 
-软件服务按清单 `id` 判断安装或升级：首次导入调用 `Install`，已存在时调用新包的 `Upgrade`，相同版本再次导入也按升级处理。新清单的依赖也会重新检查，不能通过升级引入缺失或循环依赖。升级参数为 `{"previous_version":"1.0.0","version":"1.1.0"}`。在线升级依次停止旧版本、执行新包 `Upgrade` 和 `Start`，成功后更新版本并删除旧包，软件 ID、名称和业务配置保留。失败时恢复旧版本 `Stop` 完成后的内部配置与代码，再尝试恢复旧版本运行；插件需要自行处理业务表、公共配置组及外部资源迁移的回滚。
+软件服务按清单 `id` 判断安装或升级：首次导入调用 `Install`，已存在时调用新包的 `Upgrade`，相同版本再次导入也按升级处理。新清单的依赖也会重新检查，不能通过升级引入缺失或循环依赖。升级参数为 `{"previous_version":"1.0.0","version":"1.1.0"}`。在线升级依次停止旧版本、执行新包 `Upgrade`，启用的软件再执行 `Start`，成功后更新版本并删除旧包，软件 ID、名称和业务配置保留。失败时恢复旧版本 `Stop` 完成后的内部配置与代码，再尝试恢复旧版本运行；插件需要自行处理业务表、公共配置组及外部资源迁移的回滚。
 
-`app.InstanceID` 直接使用清单的 `id`。宿主不注入默认业务接口，容器启动、停止、重启、日志等功能均由插件在 `Plugin.Actions` 中自行注册，再调用 `app.Service.Container`。软件表的 `Config` 只保存插件内部配置，通过 `app.Service.Software.GetConfig(app.InstanceID)` 和 `SetConfig(app.InstanceID, data)` 原样读写字符串，可以为空，不强制 JSON。目录直接使用软件标识，依赖从已安装清单读取，不写入内部配置。首次安装在生命周期前建立记录，使 `Install`、`Start` 可以保存设置；失败时回滚。软件详情、列表和安装响应都不返回 `Config`。
+`app.InstanceID` 直接使用清单的 `id`。宿主不注入默认业务接口，容器启动、停止、重启、日志等功能均由插件在 `Plugin.Actions` 中自行注册，再调用 `app.Service.Container`。软件表的 `Config` 只保存插件内部配置，通过 `app.Service.Software.GetConfig(app.InstanceID)` 和 `SetConfig(app.InstanceID, data)` 原样读写字符串，可以为空，不强制 JSON。目录直接使用软件标识，依赖从已安装清单读取，不写入内部配置。首次安装在生命周期前建立记录，使 `Install`、`Start` 可以保存设置；失败时回滚。软件详情、列表都不返回 `Config`，安装接口只返回任务 ID。
 
 软件插件使用 `sdk`，入口为 `func New(app *sdk.App) *sdk.Plugin`。`sdk.Plugin` 复用这里的 `Plugin`，`sdk.Context` 复用面板控制器上下文。接口路径为 `/software/<软件标识>/<方法名>`，沿用登录验证；控制器通过 `service.Software.Invoke(c, code, method)` 分发，插件负责校验参数和返回响应。
 
 `/software/<软件标识>/page` 直接返回清单 `frontend` 指定的入口，无需传入 ID 或路径参数；多文件资源使用 `/software/<软件标识>/page/<资源路径>`，路径相对插件的 `web/` 目录，例如 `/software/demo/page/components.js` 对应 `web/components.js`。软件标识和路径各段需分别 URL 编码。`page` 是保留资源路由，沿用登录验证，不交给 `Actions` 处理。
 
-列表、详情和安装响应的 `icon` 返回清单中的包内路径，例如 `web/icon.svg`；宿主通过已有资源接口 `/software/demo/page/icon.svg` 获取图片，URL 中不再添加 `web/`。图标也需要登录认证，由宿主携带认证信息读取后显示。图标路径缓存在服务内存中，启动、安装及升级时更新，卸载时移除；首次查询缺失项只读取清单并缓存，不解释插件代码，不新增数据库字段。
+列表、详情的 `icon` 返回清单中的包内路径，例如 `web/icon.svg`；宿主通过已有资源接口 `/software/demo/page/icon.svg` 获取图片，URL 中不再添加 `web/`。图标也需要登录认证，由宿主携带认证信息读取后显示。图标路径缓存在服务内存中，启动、安装及升级时更新，卸载时移除；首次查询缺失项只读取清单并缓存，不解释插件代码，不新增数据库字段。
 
 省略 `icon` 或设置 `"icon": ""` 时，软件列表与默认管理标题使用应用图标（`AppstoreOutlined`）；图标加载期间、读取失败及图片解码失败也会回退，尺寸保持一致。生成的 demo 包含 `web/icon.svg`，并沿用宿主默认标题。插件自行设置 `modal.title` 会替换整个标题，宿主不会强行插入图标。删除图标文件前应同时移除清单配置，避免安装时因缺少声明的资源失败。
 
@@ -312,13 +312,15 @@ Manager 读取 `server/go.mod` 的模块名，将本模块和随包交付的 ven
 ./server plugin uninstall my-plugin
 ```
 
-`install` 调用软件服务的 `Install(path)`，接受目录或 ZIP；服务自动临时打包目录中的清单、后端、前端和可选 `images/`，排除根目录的开发 SDK。`uninstall` 调用 `Uninstall(target)`，可传插件标识或软件记录 ID，直接清理插件数据。`Uninstall` 固定接收 `{"remove_data":true}`，负责删除自身拥有的业务资源，不再提供保留数据选项。卸载先停止已加载实例；未加载时尝试只加载源码、不启动，以执行 `Uninstall`，支持离线清理。源码加载失败会记录错误并继续删除软件记录和代码目录；此时无法执行插件自定义的清理钩子，也不能推断其任意创建的容器、数据库等外部资源，需按插件说明清理。服务等待后台卸载任务完成后返回结果，命令行和 HTTP 接口只负责传参及展示结果。在线命令中断等待不会取消面板已经接收的操作。
+`install` 调用软件服务的 `Install(path)`，接受目录或 ZIP；服务自动临时打包目录中的清单、后端、前端和可选 `images/`，排除根目录的开发 SDK。`uninstall` 调用 `Uninstall(target)`，可传插件标识或软件记录 ID，直接清理插件数据。`Uninstall` 固定接收 `{"remove_data":true}`，负责删除自身拥有的业务资源，不再提供保留数据选项。卸载先停止已加载实例；未加载时尝试只加载源码、不启动，以执行 `Uninstall`，支持离线清理。源码加载失败会记录错误并继续删除软件记录和代码目录；此时无法执行插件自定义的清理钩子，也不能推断其任意创建的容器、数据库等外部资源，需按插件说明清理。Install(path) 和 Uninstall(target) 均返回任务 ID 与错误，返回成功表示任务已提交，实际结果从系统后台任务获取。HTTP 接口返回 task_id；在线 CLI 提交后退出，离线 CLI 等待完成后退出，避免关闭任务宿主。
 
 `list` 直接调用本地 software service，只读查询已安装软件。`install`、`uninstall` 在面板运行时通过本机进程通信交给面板的 software service 执行，复用插件、容器和后台任务；面板停止时自动直接调用本地服务。通信使用 Unix socket 或 Windows 命名管道，不请求面板 HTTP 接口，也不需要端口和登录 token。离线命令只打开现有数据库，不运行表结构同步，也不会启动网站或定时任务、清空系统任务日志。
 
 面板在网站、计划任务等业务运行时就绪后，根据 `requires` 先启动依赖软件，再启动依赖它的软件。单个插件启动失败会记录错误，依赖它的软件不会带着失败的依赖继续启动；其他无关插件仍可启动。面板退出时先停止依赖方，再停止它们依赖的软件，最后关闭计划任务、网站、系统任务、数据库和缓存，插件的 `Stop` 仍可使用宿主服务。
 
-面板重启使用 `Start` / `Stop`。在线安装会启动插件，卸载和替换版本前会停止已加载的旧实例。在线命令行安装同样启动插件；离线安装不启动常驻任务，之后由面板启动恢复。软件状态只包括已安装和卸载中。
+面板重启使用 `Start` / `Stop`。在线首次安装会启动插件，卸载和替换版本前会停止已加载的旧实例。在线命令行安装同样启动插件；离线安装不启动常驻任务，之后由面板启动恢复。
+
+软件记录的 `status` 表示启用状态：0 禁用、1 启用；独立的 `state` 表示安装进度：1 安装中、2 已安装、3 升级中、4 卸载中。只有已安装且启用的软件可以访问 Actions 或页面资源。禁用调用 `Stop`，重新启用调用 `Start`；升级保留启用状态，禁用的软件不会被升级或面板启动重新拉起。进程异常退出导致升级中断时，会恢复代码并禁用软件，检查配置后再启用。软件信息缓存在进程内，由软件服务写入后刷新，接口和资源请求无需反复查库。
 
 `Start` 的 `ctx` 供异步任务长期使用：方法应创建 goroutine 后及时返回，成功返回后不会受本次启动调用的超时影响。宿主在调用 `Stop` 前取消该上下文；`Stop` 使用新的停止上下文，负责等待 goroutine 退出并清理资源。同一实例重复启动、停止不会重复执行钩子。软件服务关闭时遵守反向依赖顺序；耗时操作必须响应上下文取消，宿主无法强行结束忽略取消的 Go 协程。
 
@@ -426,7 +428,7 @@ export default function Page({software, request}: any) {
 }
 ```
 
-`software` 只包含 id、name、code、version、icon、status、create_time、update_time 和 frontend，不包含 config、重复清单或进程任务信息。`request(method, params)` 调用当前软件的业务接口，成功返回响应中的 `data`，失败抛出错误；`onClose()` 关闭当前管理弹窗。模板采用侧栏工作台，窄屏导航改为横向；页面样式在 `styles.ts` 中通过 `antd-style` 定义，文档组件自行管理其章节样式。
+`software` 只包含 id、name、code、version、icon、status、state、create_time、update_time 和 frontend，不包含 config、重复清单或进程任务信息。`request(method, params)` 调用当前软件的业务接口，成功返回响应中的 `data`，失败抛出错误；`onClose()` 关闭当前管理弹窗。模板采用侧栏工作台，窄屏导航改为横向；页面样式在 `styles.ts` 中通过 `antd-style` 定义，文档组件自行管理其章节样式。
 
 | 示例页面 | 代码位置 | 可直接参考的功能 |
 | --- | --- | --- |

@@ -85,7 +85,7 @@ export default (): React.ReactNode => {
             width: 170,
             sorter: true,
             render: (value: string) => (
-                <Tooltip title={value || "-"}><span className="log-time">{value || "-"}</span></Tooltip>
+                <span className="log-time">{value || "-"}</span>
             ),
         },
     ], [typeData]);

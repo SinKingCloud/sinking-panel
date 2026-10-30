@@ -6,6 +6,8 @@ import (
 	"server/app/service"
 	"server/app/util/context"
 	"strconv"
+
+	"github.com/SinKingCloud/sinking-go/sinking-web"
 )
 
 // Create 添加密钥凭据。
@@ -27,7 +29,7 @@ func Create(c *context.Context) {
 	err := service.Secret.Create(data)
 	if err == nil {
 		service.Log.Create(c.GetRequestIp(), log_type.EventCreate, "添加密钥", "添加密钥["+strconv.FormatInt(data.Id, 10)+"]")
-		c.SuccessWithData("添加成功", map[string]int64{"id": data.Id})
+		c.SuccessWithData("添加成功", sinking_web.H{"id": data.Id})
 	} else {
 		c.Error(err.Error())
 	}

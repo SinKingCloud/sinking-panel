@@ -1,10 +1,12 @@
 import {memo, useEffect, useMemo, useRef, useState} from "react";
 import {Line} from "@ant-design/charts";
-import {Alert, Spin, Tooltip, theme as antdTheme} from "antd";
+import {Alert, Grid, Spin, Tooltip, theme as antdTheme} from "antd";
 import {createStyles} from "antd-style";
 import {useTheme} from "sinking-antd";
 import dayjs from "dayjs";
 import {getContainerStatus} from "@/service/api/container";
+import useChartTooltip from "@/pages/components/ui/chart-tooltip";
+import type {ChartTooltipModel} from "@/pages/components/ui/chart-tooltip";
 
 import {formatSize} from "@/utils/string";
 
@@ -48,13 +50,39 @@ const useStyles = createStyles(({css, token}: any) => ({
     `,
 }));
 
-const ResourceChart = memo(({title, data, series, readings, kind, dark, wide, emptyText, loading, height}: {
-    title: string; data: any[]; series: any[]; readings: string[];
+const ResourceChart = memo(({title, data, series, readings, kind, dark, wide, emptyText, loading, height, active}: {
+    title: string; data: {time: number; value: number; series: string}[]; series: {label: string; color: string}[]; readings: string[];
     kind: "percent" | "bytes" | "rate"; dark: boolean; wide?: boolean; emptyText: string; loading?: boolean; height: number;
+    active: boolean;
 }) => {
     const {token} = antdTheme.useToken();
+    const mobile = Grid.useBreakpoint().md === false;
     const containerRef = useRef<HTMLDivElement>(null);
     const chartRef = useRef<any>(null);
+    const appliedRef = useRef<{instance: any; config: any; data: typeof data} | undefined>(undefined);
+    const hasData = data.length > 0;
+    const singlePoint = data.length <= series.length;
+    const prepared = useMemo(() => {
+        const models = new Map<number, ChartTooltipModel>();
+        const indexes = new Map(series.map((item, index) => [item.label, index]));
+        let maximum = 0;
+        data.forEach((item) => {
+            maximum = Math.max(maximum, item.value);
+            let model = models.get(item.time);
+            if (!model) {
+                model = {title: timeText(item.time), values: series.map(() => "—")};
+                models.set(item.time, model);
+            }
+            model.values[indexes.get(item.series)!] = kind === "percent" ? `${item.value.toFixed(1)}%`
+                : `${formatSize(item.value)}${kind === "rate" ? "/s" : ""}`;
+        });
+        return {models, maximum};
+    }, [data, kind, series]);
+    const tooltip = useChartTooltip(prepared.models, series);
+    useEffect(() => {
+        if (!active || !hasData || !chartRef.current?.chart) return;
+        return tooltip.bind(chartRef.current.chart, {zIndex: token.zIndexPopupBase + 100});
+    }, [active, hasData, tooltip, token.zIndexPopupBase]);
 
     useEffect(() => {
         const container = containerRef.current;
@@ -72,12 +100,11 @@ const ResourceChart = memo(({title, data, series, readings, kind, dark, wide, em
         return () => { window.clearTimeout(timer); observer.disconnect(); };
     }, []);
 
+    let unitIndex = 0;
+    while (kind !== "percent" && unitIndex < byteUnits.length - 1 && prepared.maximum >= 1024 ** (unitIndex + 1)) unitIndex += 1;
+    const domainMax = prepared.maximum <= (kind === "percent" ? 1 : 0) ? 1 : undefined;
     const config = useMemo<any>(() => {
-        const maxValue = data.reduce((max, item) => Math.max(max, item.value), 0);
-        let unitIndex = 0;
-        while (kind !== "percent" && unitIndex < byteUnits.length - 1 && maxValue >= 1024 ** (unitIndex + 1)) unitIndex += 1;
         const unit = kind === "percent" ? "%" : `${byteUnits[unitIndex]}${kind === "rate" ? "/s" : ""}`;
-        const formatValue = (value: number) => kind === "percent" ? `${value.toFixed(1)}%` : `${formatSize(value)}${kind === "rate" ? "/s" : ""}`;
         return {
             data,
             height,
@@ -96,7 +123,7 @@ const ResourceChart = memo(({title, data, series, readings, kind, dark, wide, em
             scale: {
                 x: {type: "time", nice: false},
                 color: {domain: series.map((item) => item.label), range: series.map((item) => item.color)},
-                y: {domainMin: 0, domainMax: kind === "percent" ? Math.max(1, maxValue) : maxValue > 0 ? undefined : 1, nice: true},
+                y: {domainMin: 0, domainMax, nice: true},
             },
             axis: {
                 x: {
@@ -114,33 +141,34 @@ const ResourceChart = memo(({title, data, series, readings, kind, dark, wide, em
             },
             legend: false,
             tooltip: {
-                title: (datum: any) => timeText(datum?.time),
+                title: false,
                 items: [(datum: any) => ({
                     name: datum?.series,
-                    color: series.find((item) => item.label === datum?.series)?.color,
-                    value: formatValue(datum?.value),
+                    value: datum?.value,
+                    time: datum?.time,
                 })],
             },
             interaction: {tooltip: {
                 shared: true, series: true, crosshairs: true,
-                css: {
-                    ".g2-tooltip": {
-                        "font-size": "12px", "font-family": token.fontFamily, "line-height": "18px",
-                        "padding": "6px 8px", "min-width": "112px", "background-color": token.colorBgElevated,
-                        "color": token.colorText, "box-shadow": token.boxShadowSecondary,
-                    },
-                    ".g2-tooltip-title": {"font-size": "12px", "color": token.colorTextSecondary},
-                    ".g2-tooltip-list-item": {"font-size": "12px", "line-height": "18px"},
-                    ".g2-tooltip-list-item-value": {"font-size": "12px", "font-weight": "400", "margin-left": "12px", "color": token.colorText},
-                },
+                body: false, wait: 0, disableAutoHide: mobile,
             }},
             theme: {type: dark ? "classicDark" : "classic"},
             autoFit: true,
             style: {lineWidth: 1.5, lineCap: "round", lineJoin: "round"},
-            point: data.length <= series.length ? {sizeField: 2, shapeField: "circle"} : undefined,
+            point: singlePoint ? {sizeField: 2, shapeField: "circle"} : undefined,
             animate: false,
         };
-    }, [data, dark, height, kind, series, token.boxShadowSecondary, token.colorBgElevated, token.colorBorderSecondary, token.colorText, token.colorTextSecondary, token.colorTextTertiary, token.fontFamily, wide]);
+    }, [hasData, dark, height, kind, series, unitIndex, domainMax, singlePoint, mobile, token.colorBorderSecondary, token.colorTextTertiary, wide]);
+    useEffect(() => {
+        const instance = chartRef.current?.chart;
+        if (!hasData || !instance) return;
+        const previous = appliedRef.current;
+        appliedRef.current = {instance, config, data};
+        // 和首页一致，普通采样仅更新数据，复用图表配置及悬浮事件。
+        if (!previous || previous.instance !== instance || previous.config !== config || previous.data === data) return;
+        void instance.changeData(data);
+    }, [config, data, hasData]);
+    const plot = useMemo(() => <Line ref={chartRef} {...config}/>, [config]);
 
     return <section ref={containerRef} className={`resource-chart${wide ? " resource-chart-wide" : ""}`} aria-label={`${title}趋势`}>
         <div className="resource-chart-header">
@@ -152,7 +180,7 @@ const ResourceChart = memo(({title, data, series, readings, kind, dark, wide, em
                 <strong>{readings[index]}</strong>
             </span>)}</div>
         </div>
-        {data.length ? <div className="resource-plot" style={{height}}><Line ref={chartRef} {...config}/></div> : <div className="resource-empty" style={{height}}>
+        {hasData ? <div className="resource-plot" style={{height}}>{plot}</div> : <div className="resource-empty" style={{height}}>
             {loading ? <><Spin size="small"/><span>等待采样</span></> : emptyText}
         </div>}
     </section>;
@@ -310,12 +338,12 @@ const ContainerResources = ({id, active = true, visible = true, onStatus}: {
         {error && <Alert type="warning" showIcon title={error}/>}
         <div className="resource-grid">
             <ResourceChart title="CPU 使用率" data={plots.cpu} series={series.cpu} readings={[currentRates ? `${currentRates.cpu.toFixed(1)}%` : "—"]}
-                           kind="percent" dark={dark} emptyText={rateEmptyText} loading={waiting} height={chartHeight}/>
+                           kind="percent" dark={dark} emptyText={rateEmptyText} loading={waiting} height={chartHeight} active={active}/>
             <ResourceChart title="内存用量" data={plots.memory} series={series.memory} readings={[currentRates ? displayBytes(status?.memory_usage) : "—"]}
-                           kind="bytes" dark={dark} emptyText={rateEmptyText} loading={waiting} height={chartHeight}/>
+                           kind="bytes" dark={dark} emptyText={rateEmptyText} loading={waiting} height={chartHeight} active={active}/>
             <ResourceChart title="磁盘 I/O" data={plots.io} series={series.io}
                            readings={[currentRates ? `${formatSize(currentRates.read)}/s` : "—", currentRates ? `${formatSize(currentRates.write)}/s` : "—"]}
-                           kind="rate" dark={dark} wide emptyText={rateEmptyText} loading={waiting} height={chartHeight}/>
+                           kind="rate" dark={dark} wide emptyText={rateEmptyText} loading={waiting} height={chartHeight} active={active}/>
         </div>
         <div className="resource-details">{metricGroups.map((group) => <section className="resource-metric-group" key={group.title} aria-label={`${group.title}指标`}>
             <h3 className="resource-metric-title">{group.title}</h3>

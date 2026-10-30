@@ -20,7 +20,10 @@ func Update(c *context.Context) {
 		c.Error(msg)
 		return
 	}
-	data := &repositoryDatabase.UpdateDatabase{TypeId: form.TypeId}
+	data := &repositoryDatabase.UpdateDatabase{}
+	if form.TypeId != nil {
+		data.TypeId = form.TypeId
+	}
 	if form.Name != "" {
 		data.Name = &form.Name
 	}

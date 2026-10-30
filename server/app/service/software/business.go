@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 	"log"
-	"strings"
 	"time"
 
+	"server/app/enum/software_state"
 	"server/app/enum/software_status"
 	"server/app/enum/system_task_status"
 	"server/app/model"
@@ -46,17 +46,29 @@ func (s *service) restoreTask(e *entry) error {
 		return nil
 	}
 	record := e.pending
-	if err := s.repository.UpdateById(record.Id, &repositorySoftware.UpdateSoftware{Status: &record.Status}); err != nil {
+	var err error
+	if e.created {
+		err = s.repository.DeleteById(record.Id)
+	} else {
+		err = s.repository.UpdateById(record.Id, &repositorySoftware.UpdateSoftware{State: &record.State})
+	}
+	s.invalidate(record.Code)
+	s.invalidateManifest(record.Code)
+	if err != nil {
 		return err
 	}
 	e.pending = nil
-	e.taskID = ""
 	e.busy.Store(false)
 	return nil
 }
 
 // Select 查询列表摘要；图标路径来自清单缓存，避免读取源码、配置和容器状态。
 func (s *service) Select(where *repositorySoftware.SelectSoftware, query *page.Query) (*page.Result[*repositorySoftware.Software], error) {
+	if where != nil && where.State != nil {
+		if _, ok := software_state.Map()[*where.State]; !ok {
+			return nil, errors.New("安装状态不合法")
+		}
+	}
 	if where != nil && where.Status != nil {
 		if _, ok := software_status.Map()[*where.Status]; !ok {
 			return nil, errors.New("软件状态不合法")
@@ -88,7 +100,7 @@ func (s *service) Select(where *repositorySoftware.SelectSoftware, query *page.Q
 		s.mu.Lock()
 		icon, cached := s.icons[software.Code]
 		s.mu.Unlock()
-		if !cached {
+		if !cached && s.plugins != nil {
 			// 未 Boot 的服务也能返回图标；损坏的清单按无图标处理，不影响软件列表。
 			if manifest, err := s.plugins.Manifest(software.Code); err == nil {
 				icon = manifest.Icon
@@ -128,6 +140,7 @@ func (s *service) Info(id int64) (*Info, error) {
 			Version:    record.Version,
 			Icon:       pkg.Manifest.Icon,
 			Status:     record.Status,
+			State:      record.State,
 			CreateTime: record.CreateTime,
 			UpdateTime: record.UpdateTime,
 		},
@@ -135,41 +148,69 @@ func (s *service) Info(id int64) (*Info, error) {
 	}, nil
 }
 
-func (s *service) Update(id int64, name string) error {
-	name = strings.TrimSpace(name)
-	if name == "" || len([]rune(name)) > 100 {
-		return errors.New("软件名称不能为空且不能超过100个字符")
-	}
-	return s.repository.UpdateById(id, &repositorySoftware.UpdateSoftware{Name: &name})
-}
-
 // Boot 按依赖顺序启动插件；失败保留安装状态，之后调用或启动面板时可重试。
 func (s *service) Boot() {
 	s.importing.Lock()
-	defer s.importing.Unlock()
 	s.mu.Lock()
 	if s.closed || !s.booted.CompareAndSwap(false, true) {
 		s.mu.Unlock()
+		s.importing.Unlock()
 		return
 	}
 	s.mu.Unlock()
 	records, err := s.repository.SelectAll()
 	if err != nil {
 		log.Printf("读取插件启动列表失败: %v", err)
+		s.importing.Unlock()
 		return
 	}
-	// 先恢复中断的卸载状态，避免依赖顺序受数据库记录顺序影响。
+	// 新安装中断移除未提交代码；升级中断恢复备份，避免将半安装的软件启动。
 	for _, record := range records {
-		if record.Status == software_status.Removing {
-			status := software_status.Installed
-			if err := s.repository.UpdateById(record.Id, &repositorySoftware.UpdateSoftware{Status: &status}); err != nil {
-				log.Printf("恢复插件 %s 状态失败: %v", record.Code, err)
-			} else {
-				record.Status = status
+		switch record.State {
+		case software_state.Installing:
+			if err := s.plugins.Remove(record.Code); err != nil {
+				log.Printf("清理中断安装 %s 失败: %v", record.Code, err)
+				continue
 			}
+			if err := s.repository.DeleteById(record.Id); err != nil {
+				log.Printf("清理中断安装记录失败: %v", err)
+			}
+			s.invalidate(record.Code)
+			continue
+		case software_state.Upgrading:
+			// 升级钩子可能已改写持久配置，异常退出恢复代码后先禁用，避免自动运行不一致版本。
+			record.Status = software_status.Disabled
+			backup := ".backup-" + record.Code
+			if _, err := s.plugins.Manifest(backup); err == nil {
+				if err = s.plugins.Remove(record.Code); err == nil {
+					err = s.plugins.Rename(backup, record.Code)
+				}
+				if err != nil {
+					log.Printf("恢复升级 %s 失败: %v", record.Code, err)
+					continue
+				}
+			}
+		case software_state.Removing:
+		default:
+			continue
+		}
+		state := software_state.Installed
+		if err := s.repository.UpdateById(record.Id, &repositorySoftware.UpdateSoftware{State: &state, Status: &record.Status}); err != nil {
+			log.Printf("恢复软件 %s 状态失败: %v", record.Code, err)
+		} else {
+			if record.State == software_state.Upgrading {
+				log.Printf("软件 %s 升级被中断，已恢复并禁用，请检查配置后重新启用", record.Code)
+			}
+			record.State = state
+			s.invalidate(record.Code)
 		}
 	}
+
+	s.importing.Unlock()
 	for _, record := range records {
+		if record.Status != software_status.Enabled || record.State != software_state.Installed {
+			continue
+		}
 		pkg, err := s.plugins.Info(record.Code)
 		if err == nil {
 			s.mu.Lock()
@@ -183,7 +224,11 @@ func (s *service) Boot() {
 			var dependencies []*model.Software
 			dependencies, err = s.dependencies(pkg.Manifest)
 			if err == nil {
-				err = s.start(append(dependencies, record))
+				var release func()
+				release, err = s.start(append(dependencies, record))
+				if release != nil {
+					release()
+				}
 			}
 		}
 		if err != nil {
@@ -196,15 +241,34 @@ func (s *service) Boot() {
 func (s *service) Close() {
 	// 安装提交或回滚完成后再关闭 Manager，确保临时目录完成清理。
 	s.importing.Lock()
-	defer s.importing.Unlock()
 	s.mu.Lock()
 	if s.closed {
 		s.mu.Unlock()
+		s.importing.Unlock()
 		return
 	}
 	s.closed = true
 	entries := s.entries
+	taskIDs := make([]string, 0, len(entries))
+	for _, e := range entries {
+		if e.busy.Load() {
+			taskIDs = append(taskIDs, e.taskID)
+		}
+	}
 	s.mu.Unlock()
+	s.importing.Unlock()
+	for _, taskID := range taskIDs {
+		s.system.TaskCancel(taskID)
+	}
+	for _, e := range entries {
+		e.mu.Lock()
+		if e.pending != nil {
+			if err := s.restoreTask(e); err != nil {
+				log.Printf("恢复软件任务失败: %v", err)
+			}
+		}
+		e.mu.Unlock()
+	}
 	if s.repository != nil && s.plugins != nil {
 		records, err := s.repository.SelectAll()
 		if err != nil {
@@ -245,24 +309,38 @@ func (s *service) Close() {
 	if s.plugins != nil {
 		s.plugins.Close()
 	}
-	for _, e := range entries {
-		e.mu.Lock()
-		if e.pending != nil {
-			s.system.TaskCancel(e.taskID)
-			_ = s.restoreTask(e)
-		}
-		e.mu.Unlock()
-	}
 }
 
 // Page 读取 web 目录内的相对路径，省略路径时返回清单中的前端入口。
 func (s *service) Page(code, path string) ([]byte, string, string, error) {
-	record, err := s.repository.FindByCode(code)
+	record, err := s.record(code)
 	if err != nil {
 		return nil, "", "", err
 	}
 	if record == nil {
 		return nil, "", "", errors.New("软件不存在")
+	}
+	id := record.Id
+	e, err := s.entry(id)
+	if err != nil {
+		return nil, "", "", err
+	}
+	if !e.mu.TryRLock() {
+		return nil, "", "", errors.New("软件正在执行操作")
+	}
+	defer e.mu.RUnlock()
+	record, err = s.record(code)
+	if err != nil {
+		return nil, "", "", err
+	}
+	if record == nil || record.Id != id {
+		return nil, "", "", errors.New("软件已变更，请重新打开")
+	}
+	if e.busy.Load() || record.State != software_state.Installed {
+		return nil, "", "", errors.New("软件尚未就绪")
+	}
+	if record.Status != software_status.Enabled {
+		return nil, "", "", errors.New("软件已禁用")
 	}
 	if path == "" {
 		pkg, err := s.plugins.Info(record.Code)

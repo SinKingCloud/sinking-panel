@@ -3,7 +3,6 @@ package recordstore
 import (
 	"errors"
 	"fmt"
-	"log"
 	"math"
 	"sync"
 	"sync/atomic"
@@ -119,9 +118,6 @@ func (r *Recorder) Report(err error) {
 func (r *Recorder) setError(target *error, err error) {
 	r.healthMu.Lock()
 	defer r.healthMu.Unlock()
-	if err != nil && (*target == nil || (*target).Error() != err.Error()) {
-		log.Printf("历史记录失败: %v", err)
-	}
 	*target = err
 }
 

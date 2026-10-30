@@ -42,10 +42,22 @@ const useStyles = createStyles((): any => {
 const ProLayout = () => {
     const web = useModel("web");
     const user = useModel("user");
+    const {getInfo, setInfo} = useModel("system", (model) => ({getInfo: model.getInfo, setInfo: model.setInfo}));
     const routes = useSelectedRoutes();
     const {styles: {load}} = useStyles();
     const currentRoute = routes?.at(-1)?.route as any;
     const isPublic = currentRoute?.auth === false;
+    const authenticated = !isPublic && Boolean(user?.web);
+
+    useEffect(() => {
+        let active = true;
+        if (authenticated) {
+            void getInfo().then((data) => { if (active) setInfo(data); });
+        } else {
+            setInfo(undefined);
+        }
+        return () => { active = false; };
+    }, [authenticated, getInfo, setInfo]);
 
     // 初始化 iconfont 地址
     useEffect(() => {

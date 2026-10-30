@@ -5,6 +5,8 @@ import (
 	"server/app/service"
 	"server/app/util/context"
 	"strconv"
+
+	"github.com/SinKingCloud/sinking-go/sinking-web"
 )
 
 func handleFileUpload(c *context.Context) {
@@ -35,7 +37,7 @@ func handleFileUpload(c *context.Context) {
 			return
 		}
 		service.Log.Create(c.GetRequestIp(), log_type.EventCreate, "上传文件", "上传文件["+data.Path+"]")
-		c.SuccessWithData("文件上传成功", map[string]interface{}{
+		c.SuccessWithData("文件上传成功", sinking_web.H{
 			"name": data.Name,
 			"path": data.Path,
 			"size": data.Size,
@@ -70,7 +72,7 @@ func handleFileUpload(c *context.Context) {
 		c.SuccessWithData("文件已上传完成", completed)
 		return
 	}
-	c.SuccessWithData("分片上传成功", map[string]interface{}{
+	c.SuccessWithData("分片上传成功", sinking_web.H{
 		"upload_id":   meta.UploadID,
 		"chunk_index": chunkIndex,
 		"file_name":   meta.FileName,

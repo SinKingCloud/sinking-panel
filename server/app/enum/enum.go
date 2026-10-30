@@ -17,6 +17,7 @@ import (
 	"server/app/enum/site_name"
 	"server/app/enum/site_status"
 	"server/app/enum/site_type"
+	"server/app/enum/software_state"
 	"server/app/enum/software_status"
 	"server/app/enum/system_task_status"
 	"server/app/enum/task_exec_type"
@@ -28,7 +29,8 @@ import (
 // Data 枚举信息
 var Data = map[string]interface{}{
 	"software": map[string]interface{}{
-		"status": software_status.Map(), //软件安装状态
+		"status": software_status.Map(), //软件启用状态
+		"state":  software_state.Map(),  //软件安装状态
 	},
 	"database": func() interface{} {
 		return map[string]interface{}{
