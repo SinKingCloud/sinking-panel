@@ -173,7 +173,9 @@ TTL 清理和删除会释放可复用的数据库页面，不保证物理文件�
 
 **数值序列。** 初始化 `[]Field{{Name: "requests", Aggregate: Sum}, ...}` 后，用 `recorder.Record(timestamp, map[string]float64{...})` 提交完整字段集合。支持 `Mean`（按实际样本数加权）、`Max`、`Min`、`Sum`、`Last`；`Sum` 提交周期增量，`Last` 按提交顺序取值。底层 `Series.Add(Point{Time: ..., Samples: ..., Values: ...})` 可指定权重，`Sum` 不会再次乘以 `Samples`。
 
-`Recorder` 有 120 条队列，队列满时返回错误并在 `Settings.LastError` 累计提示；成功返回表示入队。它自动按分钟汇总和刷新、按小时清理，退出时 `Close` 排空队列并落盘。`Series` 本身不启动协程，由业务调用 `Flush`、`Cleanup`。数值目录默认开启、保留 30 天，可设置 1–365 天；这套默认值不适用于通用 `Store`。
+`Recorder` 有 120 条队列，队列满时返回错误并在 `Settings.LastError` 累计提示；启用时成功返回仅表示入队，停用时直接忽略。它自动按分钟汇总和刷新、按小时清理，退出时 `Close` 排空队列并落盘。`Series` 本身不启动协程，由业务调用 `Flush`、`Cleanup`。数值目录默认开启、保留 30 天，可设置 1–365 天；这套默认值不适用于通用 `Store`。
+
+需要关联其他内存记录时，可传 `recorder.Record(timestamp, values, committed)`。回调在当前代次采样成功合并后执行一次；队满、停用、代次已失效或合并失败时不执行。回调在写入锁内执行，只做短小内存操作，不可重入记录器，也不代表数据已落盘。关闭时先 `Recorder.Close()` 排空回调，再关闭回调依赖的存储。系统监控用此方式配对同轮指标与进程快照。
 
 字段名称、顺序和聚合规则的校验值保存在 `.series` 日文件头。打开目录时验证已有日文件，拒绝不匹配的字段定义，不读取额外的字段定义文件。每条分钟记录占 `16 + 8 × 字段数` 字节。
 

@@ -44,8 +44,11 @@ type ProcessTopSnapshot struct {
 	Memory          []ProcessTopItem `json:"memory"`
 	IO              []ProcessTopItem `json:"disk_io"`
 	CPUAvailable    bool             `json:"cpu_available"`
+	CPUPartial      bool             `json:"cpu_partial"`
 	MemoryAvailable bool             `json:"memory_available"`
+	MemoryPartial   bool             `json:"memory_partial"`
 	IOAvailable     bool             `json:"io_available"`
+	IOPartial       bool             `json:"io_partial"`
 	Partial         bool             `json:"partial"`
 	Scanned         int              `json:"scanned"`
 	Skipped         int              `json:"skipped"`
@@ -58,30 +61,52 @@ func (s ProcessTopSnapshot) Clone() ProcessTopSnapshot {
 	return s
 }
 
+// ProcessSampleOptions 共用主机计数和时间，使进程速率与主机指标属于同一采样窗口。
+type ProcessSampleOptions struct {
+	Snapshot *Snapshot
+}
+
 type processCounter struct {
-	item          ProcessTopItem
-	cpu, totalCPU float64
-	read, write   uint64
-	at, nameAt    time.Time
-	cpuOK, ioOK   bool
+	item        ProcessTopItem
+	cpu         float64
+	round       uint64
+	read, write uint64
+	at, nameAt  time.Time
+	cpuOK, ioOK bool
 }
 
 // ProcessSampler 包装 gopsutil 的同步读取和差分，不安排周期任务或启动后台协程。
 // 同一实例串行采样；预算为 Linux 200ms、macOS/Windows 500ms，按 PID 轮转避免遗漏后续进程。
 type ProcessSampler struct {
-	mu       sync.Mutex
-	previous map[int32]processCounter
-	cursor   int32
+	mu        sync.Mutex
+	previous  map[int32]processCounter
+	cursor    int32
+	round     uint64
+	totalCPU  float64
+	sampleAt  int64
+	diskReady bool
 }
 
 func NewProcessSampler() *ProcessSampler { return &ProcessSampler{} }
 
-func (s *ProcessSampler) Sample(ctx context.Context) ProcessTopSnapshot {
+func (s *ProcessSampler) Sample(ctx context.Context, options ...ProcessSampleOptions) ProcessTopSnapshot {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	result := ProcessTopSnapshot{Time: time.Now().UnixMilli(), CPU: make([]ProcessTopItem, 0, processTopLimit), Memory: make([]ProcessTopItem, 0, processTopLimit), IO: make([]ProcessTopItem, 0, processTopLimit)}
+	s.round++
+	if len(options) > 1 {
+		result.Partial, result.CPUPartial, result.MemoryPartial, result.IOPartial, result.Error = true, true, true, true, "进程采样只接受一组选项"
+		return result
+	}
+	var option ProcessSampleOptions
+	if len(options) == 1 {
+		option = options[0]
+	}
+	if option.Snapshot != nil {
+		result.Time = option.Snapshot.Time
+	}
 	if runtime.GOOS != "linux" && runtime.GOOS != "darwin" && runtime.GOOS != "windows" {
-		result.Partial, result.Error = true, "当前平台暂不支持进程排行榜采集"
+		result.Partial, result.CPUPartial, result.MemoryPartial, result.IOPartial, result.Error = true, true, true, true, "当前平台暂不支持进程排行榜采集"
 		return result
 	}
 	budget := 500 * time.Millisecond
@@ -90,17 +115,38 @@ func (s *ProcessSampler) Sample(ctx context.Context) ProcessTopSnapshot {
 	}
 	ctx, cancel := context.WithTimeout(ctx, budget)
 	defer cancel()
-	total, _, err := cpuTimes(ctx)
-	if err != nil {
-		result.Partial, result.Error = true, err.Error()
-		return result
+	var total float64
+	if option.Snapshot != nil {
+		// CPU 失败时 Snapshot 可能保留初始化计数，不能作为本轮差分基线。
+		if option.Snapshot.Errors["cpu"] == "" {
+			total = option.Snapshot.CPU.TotalTime
+		}
+	} else {
+		var err error
+		total, _, err = cpuTimes(ctx)
+		if err != nil {
+			s.totalCPU = 0
+			result.Partial, result.CPUPartial, result.MemoryPartial, result.IOPartial, result.Error = true, true, true, true, err.Error()
+			return result
+		}
 	}
+	previousTotal, previousTime := s.totalCPU, s.sampleAt
+	cpuReady := previousTotal > 0 && total > previousTotal && result.Time > previousTime &&
+		!math.IsNaN(total) && !math.IsInf(total, 0) && (option.Snapshot == nil || option.Snapshot.CPU.Available)
+	s.totalCPU, s.sampleAt = total, result.Time
+	result.CPUPartial = !cpuReady
+	elapsed := float64(result.Time-previousTime) / 1000
+	diskReady := option.Snapshot == nil || option.Snapshot.Errors["disk"] == ""
+	// 整机磁盘读取失败后的恢复轮仍覆盖多个周期，进程单轮速率不能与其配对。
+	ioReady := previousTime > 0 && elapsed > 0 && s.diskReady && diskReady
+	s.diskReady = diskReady
+	result.IOPartial = !ioReady || runtime.GOOS == "windows"
 	pids, err := process.PidsWithContext(ctx) // 库已按 PID 排序，不重复排序所有进程。
 	if err != nil || ctx.Err() != nil {
 		if err == nil {
 			err = ctx.Err()
 		}
-		result.Partial, result.Error = true, err.Error()
+		result.Partial, result.CPUPartial, result.MemoryPartial, result.IOPartial, result.Error = true, true, true, true, err.Error()
 		return result
 	}
 	pids = slices.DeleteFunc(pids, func(pid int32) bool { return pid <= 0 })
@@ -111,17 +157,20 @@ func (s *ProcessSampler) Sample(ctx context.Context) ProcessTopSnapshot {
 	for pid, previous := range s.previous {
 		_, visible := slices.BinarySearch(pids, pid)
 		if !visible || now.Sub(previous.at) > processBaselineTTL {
+			// 轮间退出的进程无法恢复最后一段 CPU，不能把排行榜标成完整。
+			if !visible && previous.round+1 == s.round {
+				result.CPUPartial, result.IOPartial = true, true
+			}
 			delete(s.previous, pid)
 		}
 	}
-	hasBaseline := len(s.previous) > 0
 	start, found := slices.BinarySearch(pids, s.cursor)
 	if found {
 		start++
 	}
 	for offset := 0; offset < len(pids); offset++ {
 		if ctx.Err() != nil || result.Scanned >= processScanLimit {
-			result.Partial, result.Error = true, "进程扫描预算或上下文已结束，下轮继续后续 PID"
+			result.Partial, result.CPUPartial, result.MemoryPartial, result.IOPartial, result.Error = true, true, true, true, "进程扫描预算或上下文已结束，下轮继续后续 PID"
 			break
 		}
 		pid := pids[(start+offset)%len(pids)]
@@ -132,10 +181,10 @@ func (s *ProcessSampler) Sample(ctx context.Context) ProcessTopSnapshot {
 		if err != nil || created <= 0 || ctx.Err() != nil {
 			delete(s.previous, pid)
 			result.Skipped++
-			result.Partial = true
+			result.Partial, result.CPUPartial, result.MemoryPartial, result.IOPartial = true, true, true, true
 			continue
 		}
-		current := processCounter{item: ProcessTopItem{PID: pid, CreateTime: created}, totalCPU: total, at: time.Now()}
+		current := processCounter{item: ProcessTopItem{PID: pid, CreateTime: created}, round: s.round, at: time.Now()}
 		if times, err := p.TimesWithContext(ctx); err == nil && times != nil {
 			current.cpu = times.User + times.System
 			current.cpuOK = current.cpu >= 0 && !math.IsNaN(current.cpu) && !math.IsInf(current.cpu, 0)
@@ -161,10 +210,9 @@ func (s *ProcessSampler) Sample(ctx context.Context) ProcessTopSnapshot {
 			break
 		}
 		if !current.cpuOK && !memoryOK && !current.ioOK {
-			// 没有任何可发布指标时无需再次查身份，也不保留无法参与差分的基线。
 			delete(s.previous, pid)
 			result.Skipped++
-			result.Partial = true
+			result.Partial, result.CPUPartial, result.MemoryPartial, result.IOPartial = true, true, true, true
 			continue
 		}
 		// CreateTime 在 Process 对象内有缓存，必须用新对象复核，防止混入复用 PID 的数据。
@@ -172,29 +220,47 @@ func (s *ProcessSampler) Sample(ctx context.Context) ProcessTopSnapshot {
 		if err != nil || check != created || ctx.Err() != nil {
 			delete(s.previous, pid)
 			result.Skipped++
-			result.Partial = true
+			result.Partial, result.CPUPartial, result.MemoryPartial, result.IOPartial = true, true, true, true
 			continue
 		}
 		previous, exists := s.previous[pid]
-		if exists && previous.item.CreateTime == created {
+		sameProcess := exists && previous.item.CreateTime == created
+		if sameProcess {
 			current.item.Name, current.nameAt = previous.item.Name, previous.nameAt
-			if current.cpuOK && previous.cpuOK && current.cpu >= previous.cpu && total > previous.totalCPU {
-				current.item.CPUPercent = min(100, max(0, (current.cpu-previous.cpu)/(total-previous.totalCPU)*100))
+			if cpuReady && current.cpuOK && previous.cpuOK && previous.round+1 == s.round && current.cpu >= previous.cpu {
+				current.item.CPUPercent = min(100, max(0, (current.cpu-previous.cpu)/(total-previousTotal)*100))
 				current.item.CPUAvailable = true
 			}
-			if elapsed := current.at.Sub(previous.at).Seconds(); elapsed > 0 && current.ioOK && previous.ioOK && current.read >= previous.read && current.write >= previous.write {
+			if ioReady && current.ioOK && previous.ioOK && previous.round+1 == s.round && current.read >= previous.read && current.write >= previous.write {
 				current.item.ReadRate = float64(current.read-previous.read) / elapsed
 				current.item.WriteRate = float64(current.write-previous.write) / elapsed
+				current.item.IOAvailable = true
+			}
+		} else if created > previousTime && created <= result.Time {
+			// 本窗口内启动的新进程，累计用量全部属于当前窗口，避免漏掉第一轮。
+			if cpuReady && current.cpuOK {
+				current.item.CPUPercent = min(100, max(0, current.cpu/(total-previousTotal)*100))
+				current.item.CPUAvailable = true
+			}
+			if ioReady && current.ioOK {
+				current.item.ReadRate = float64(current.read) / elapsed
+				current.item.WriteRate = float64(current.write) / elapsed
 				current.item.IOAvailable = true
 			}
 		}
 		if exists || len(s.previous) < processBaselineLimit {
 			s.previous[pid] = current
 		} else {
-			result.Partial = true
+			result.Partial, result.CPUPartial, result.MemoryPartial, result.IOPartial = true, true, true, true
 		}
-		if !current.cpuOK || !memoryOK || !current.ioOK || (hasBaseline && (!current.item.CPUAvailable || !current.item.IOAvailable)) {
-			result.Partial = true
+		if !current.item.CPUAvailable {
+			result.CPUPartial = true
+		}
+		if !memoryOK {
+			result.MemoryPartial = true
+		}
+		if !current.item.IOAvailable {
+			result.IOPartial = true
 		}
 		if current.item.CPUAvailable {
 			result.CPUAvailable = true
@@ -256,8 +322,9 @@ func (s *ProcessSampler) Sample(ctx context.Context) ProcessTopSnapshot {
 		}
 	}
 	if ctx.Err() != nil {
-		result.Partial, result.Error = true, "进程扫描预算或上下文已结束，下轮继续后续 PID"
+		result.Partial, result.CPUPartial, result.MemoryPartial, result.IOPartial, result.Error = true, true, true, true, "进程扫描预算或上下文已结束，下轮继续后续 PID"
 	}
+	result.Partial = result.Partial || result.CPUPartial || result.MemoryPartial || result.IOPartial
 	if result.Partial && result.Error == "" {
 		result.Error = "部分进程指标正在建立基线，或因权限、退出及扫描预算限制不可读取"
 		if runtime.GOOS == "windows" {

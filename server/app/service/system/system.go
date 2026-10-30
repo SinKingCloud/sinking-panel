@@ -142,14 +142,15 @@ func (s *service) Close() {
 	}
 	s.lifecycleMu.Unlock()
 	s.wait.Wait()
-	if s.monitorProcessStore != nil {
-		if err := s.monitorProcessStore.Close(); err != nil {
-			log.Printf("保存监控进程历史失败: %v", err)
-		}
-	}
+	// 记录器排空后才关闭进程库，保留最后一批成功指标对应的进程快照。
 	if s.monitorRecorder != nil {
 		if err := s.monitorRecorder.Close(); err != nil {
 			log.Printf("保存系统监控历史失败: %v", err)
+		}
+	}
+	if s.monitorProcessStore != nil {
+		if err := s.monitorProcessStore.Close(); err != nil {
+			log.Printf("保存监控进程历史失败: %v", err)
 		}
 	}
 }

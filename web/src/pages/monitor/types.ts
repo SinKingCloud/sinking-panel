@@ -53,4 +53,6 @@ export type MonitorProcessGroup = {
     time: number;
     items: MonitorProcess[];
     partial?: boolean;
+    // 同轮整机指标：CPU/内存为百分比，磁盘 I/O 为读写合计 B/s；旧记录缺省。
+    peak?: number;
 };

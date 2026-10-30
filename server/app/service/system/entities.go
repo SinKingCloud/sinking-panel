@@ -60,6 +60,7 @@ type monitorProcessRanking struct {
 	Time    int64                `json:"time"`
 	Items   []monitorProcessItem `json:"items"`
 	Partial bool                 `json:"partial,omitempty"`
+	Peak    *float64             `json:"peak,omitempty"`
 }
 
 type monitorProcessData struct {
@@ -68,13 +69,14 @@ type monitorProcessData struct {
 	DiskIO *monitorProcessRanking `json:"disk_io,omitempty"`
 }
 
-// MonitorProcessGroup 是区间内 Top 5 合计占用最高的一次采样，而非曲线均值时刻。
-// Time 保留真实采样时间；无记录、权限不足和零占用有不同的可用性标记。
+// MonitorProcessGroup 保留整机 CPU、内存或磁盘 I/O 高点同轮的进程排行。
+// Peak 的单位依次为整机 CPU 百分比、已用内存百分比、磁盘读写字节/秒；nil 表示旧版独立采样。
 type MonitorProcessGroup struct {
 	Time      int64                   `json:"time"`
 	Items     []psutil.ProcessTopItem `json:"items"`
 	Available bool                    `json:"available"`
 	Partial   bool                    `json:"partial"`
+	Peak      *float64                `json:"peak,omitempty"`
 }
 
 type processPeaks [3]MonitorProcessGroup

@@ -116,7 +116,6 @@ func (s *service) startMonitor() {
 	s.updateMonitor()
 	s.updateStaticMonitor()
 	s.startMonitorHistory()
-	s.startMonitorProcesses()
 
 	s.wait.Add(2)
 	go func() {
@@ -154,6 +153,8 @@ func (s *service) startMonitor() {
 // updateMonitor 同步采集由 util 完成，service 负责发布缓存和记录采样历史。
 func (s *service) updateMonitor() {
 	snapshot := s.resourceSampler.Sample(s.ctx)
+	// 三类进程指标与整机共享每秒采样窗口，逐进程读取不持有缓存锁。
+	processes := s.processSampler.Sample(s.ctx, psutil.ProcessSampleOptions{Snapshot: &snapshot})
 	network := make([]psutil.NetworkIO, 0, len(snapshot.Network))
 	netReady, diskReady := false, false
 	for _, value := range snapshot.Network {
@@ -171,6 +172,7 @@ func (s *service) updateMonitor() {
 		diskErr = errors.New(message)
 	}
 	s.monitorMu.Lock()
+	s.processCache = processes
 	if netErr == nil {
 		s.netRateCache = make(map[string]psutil.NetworkIO, len(network))
 		for _, value := range network {
@@ -283,7 +285,17 @@ func (s *service) updateMonitor() {
 	if values["disk_total"] > 0 {
 		values["disk_usage"] = values["disk_used"] / values["disk_total"] * 100
 	}
-	_ = recorder.Record(snapshot.Time, values)
+	var committed func()
+	if store := s.monitorProcessStore; store != nil {
+		peaks := [3]float64{values["cpu"], values["memory"], values["disk_read"] + values["disk_write"]}
+		committed = func() { store.Record(processes, peaks) }
+	}
+	// 指标合并成功后再提交同轮进程，写入失败或启停丢弃的采样不会留下孤立排行。
+	s.monitorSettingsMu.Lock()
+	defer s.monitorSettingsMu.Unlock()
+	if recorder.Enabled() {
+		_ = recorder.Record(snapshot.Time, values, committed)
+	}
 }
 
 // updateStaticMonitor 低频刷新主机、磁盘容量与汇总设备，避免慢挂载点阻塞实时采样。
@@ -319,37 +331,6 @@ func (s *service) updateStaticMonitor() {
 	s.monitorNetworks = networks
 	s.monitorDiskReady = diskErr == nil
 	s.monitorMu.Unlock()
-}
-
-// startMonitorProcesses 独立低频 worker，不向每秒主机采样路径增加逐进程开销。
-func (s *service) startMonitorProcesses() {
-	s.wait.Add(1)
-	go func() {
-		defer s.wait.Done()
-		for {
-			if s.ctx.Err() != nil {
-				return
-			}
-			snapshot := s.processSampler.Sample(s.ctx)
-			if s.ctx.Err() != nil {
-				return
-			}
-			s.monitorMu.Lock()
-			s.processCache = snapshot
-			s.monitorMu.Unlock()
-			if s.monitorProcessStore != nil && s.monitorRecorder != nil && s.monitorRecorder.Enabled() {
-				s.monitorProcessStore.Record(snapshot)
-			}
-			// 采样完成后再等待，慢扫描不会积压 ticker 或并发启动下一轮。
-			timer := time.NewTimer(5 * time.Second)
-			select {
-			case <-s.ctx.Done():
-				timer.Stop()
-				return
-			case <-timer.C:
-			}
-		}
-	}()
 }
 
 // 字段顺序与已保存的历史文件保持一致；聚合和存储由通用记录器负责。
@@ -439,7 +420,8 @@ func (s *service) startMonitorHistory() {
 		log.Printf("打开系统监控历史失败: %v", s.monitorInitError)
 		return
 	}
-	s.monitorProcessStore, s.monitorProcessError = openMonitorProcessStore(s.ctx, filepath.Join(constant.MonitorPath, "processes"), configuration)
+	// 退出时先排空指标记录器的回调，再显式关闭进程库，避免尾部快照先被关闭丢弃。
+	s.monitorProcessStore, s.monitorProcessError = openMonitorProcessStore(context.WithoutCancel(s.ctx), filepath.Join(constant.MonitorPath, "processes"), configuration)
 	if s.monitorProcessError != nil {
 		log.Printf("打开监控进程历史失败: %v", s.monitorProcessError)
 	}
@@ -607,10 +589,11 @@ func (s *service) GetMonitorHistory(ctx context.Context, start, end int64, maxPo
 			// 上游已排序，只返回各榜单实际展示的指标与实际采样时刻。
 			var groups [3]*monitorProcessRanking
 			for index, group := range peaks[point["time"].(int64)/step*step] {
-				if !group.Available || len(group.Items) == 0 {
+				// 旧版独立高点不能用于归因；两份存储不匹配时也不展示其他秒的 CPU 排行。
+				if group.Peak == nil || (index == 0 && *group.Peak != point["cpu_max"].(float64)) {
 					continue
 				}
-				ranking := &monitorProcessRanking{Time: group.Time, Partial: group.Partial, Items: make([]monitorProcessItem, 0, len(group.Items))}
+				ranking := &monitorProcessRanking{Time: group.Time, Peak: group.Peak, Partial: group.Partial, Items: make([]monitorProcessItem, 0, len(group.Items))}
 				for _, item := range group.Items {
 					ranking.Items = append(ranking.Items, monitorProcessItem{PID: item.PID, Name: item.Name, Value: processMetricValue(item, index)})
 				}
@@ -651,9 +634,11 @@ func openMonitorProcessStore(ctx context.Context, dir string, configuration reco
 	return h, nil
 }
 
-func (h *monitorProcessStore) Record(snapshot psutil.ProcessTopSnapshot) {
-	if !snapshot.CPUAvailable && !snapshot.MemoryAvailable && !snapshot.IOAvailable {
-		return
+func (h *monitorProcessStore) Record(snapshot psutil.ProcessTopSnapshot, peaks [3]float64) {
+	for _, peak := range peaks {
+		if math.IsNaN(peak) || math.IsInf(peak, 0) || peak < 0 {
+			return
+		}
 	}
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -677,8 +662,10 @@ func (h *monitorProcessStore) Record(snapshot psutil.ProcessTopSnapshot) {
 	}
 	lists := [3][]psutil.ProcessTopItem{snapshot.CPU, snapshot.Memory, snapshot.IO}
 	available := [3]bool{snapshot.CPUAvailable, snapshot.MemoryAvailable, snapshot.IOAvailable}
+	partial := [3]bool{snapshot.CPUPartial, snapshot.MemoryPartial, snapshot.IOPartial}
 	for index, items := range lists {
-		group := MonitorProcessGroup{Time: snapshot.Time, Items: items, Available: available[index], Partial: snapshot.Partial}
+		// 即使扫描超时或榜单为空，也保留真正高点，不能用低点的完整榜单替代。
+		group := MonitorProcessGroup{Time: snapshot.Time, Peak: &peaks[index], Items: items, Available: available[index], Partial: partial[index] || !available[index]}
 		if betterProcessPeak(group, pending.peaks[index], index) {
 			group.Items = append([]psutil.ProcessTopItem{}, items[:min(len(items), 5)]...)
 			pending.peaks[index] = group
@@ -697,6 +684,21 @@ func processPeakScore(group MonitorProcessGroup, metric int) float64 {
 }
 
 func betterProcessPeak(next, previous MonitorProcessGroup, metric int) bool {
+	if next.Peak != nil || previous.Peak != nil {
+		if next.Peak == nil {
+			return false
+		}
+		if previous.Peak == nil || *next.Peak != *previous.Peak {
+			return previous.Peak == nil || *next.Peak > *previous.Peak
+		}
+		if next.Available != previous.Available {
+			return next.Available
+		}
+		if next.Partial != previous.Partial {
+			return !next.Partial
+		}
+		return next.Time > previous.Time
+	}
 	if !next.Available {
 		return false
 	}
@@ -919,7 +921,7 @@ func (h *monitorProcessStore) history(ctx context.Context, start, end, step int6
 	}
 	accept := func(peaks processPeaks) {
 		for metric, group := range peaks {
-			if !group.Available || group.Time < start || group.Time > end {
+			if (group.Peak == nil && !group.Available) || group.Time < start || group.Time > end {
 				continue
 			}
 			bucket := group.Time / step * step
@@ -983,7 +985,7 @@ func (h *monitorProcessStore) history(ctx context.Context, start, end, step int6
 		for metric, group := range peaks {
 			// 克隆最终榜单并限五项，兼容旧记录；不修改共享缓存。
 			peaks[metric] = func() MonitorProcessGroup {
-				if !group.Available {
+				if !group.Available && group.Peak == nil {
 					return MonitorProcessGroup{}
 				}
 				items := make([]psutil.ProcessTopItem, 0, 5)
@@ -1004,9 +1006,11 @@ func (h *monitorProcessStore) history(ctx context.Context, start, end, step int6
 					}
 					return int(a.PID) - int(b.PID)
 				})
-				if len(items) == 0 {
+				if len(items) == 0 && group.Peak == nil {
 					return MonitorProcessGroup{}
 				}
+				group.Partial = group.Partial || len(items) < len(group.Items) || len(items) == 0
+				group.Available = len(items) > 0
 				group.Items = items
 				return group
 			}()

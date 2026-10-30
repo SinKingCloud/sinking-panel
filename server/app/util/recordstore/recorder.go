@@ -20,6 +20,7 @@ type RecordResult struct {
 type queuedRecord struct {
 	point      Point
 	generation uint64
+	committed  func()
 }
 
 // Recorder 为数值序列提供异步写入、即时启停和自动清理；不负责业务采集。
@@ -66,11 +67,15 @@ func (r *Recorder) Enabled() bool { return r.enabled.Load() && !r.closed.Load() 
 
 // Record 复制数值后加入有界队列，不在采集线程中执行文件 I/O。
 // 每次提交完整的字段集合；停用时忽略记录，队列满时返回错误并计入健康状态。
-func (r *Recorder) Record(timestamp int64, values map[string]float64) error {
+// committed 在同代次采样成功合并后调用一次，不代表已落盘；仅用于短小内存操作，不可重入记录器。
+func (r *Recorder) Record(timestamp int64, values map[string]float64, committed ...func()) error {
 	r.inputMu.Lock()
 	defer r.inputMu.Unlock()
 	if r.closed.Load() {
 		return errors.New("历史记录器已关闭")
+	}
+	if len(committed) > 1 {
+		return errors.New("历史记录只接受一个成功回调")
 	}
 	if !r.enabled.Load() {
 		return nil
@@ -100,8 +105,12 @@ func (r *Recorder) Record(timestamp int64, values map[string]float64) error {
 		}
 		point.Values[index] = value
 	}
+	record := queuedRecord{point: point, generation: r.generation.Load()}
+	if len(committed) == 1 {
+		record.committed = committed[0]
+	}
 	select {
-	case r.queue <- queuedRecord{point: point, generation: r.generation.Load()}:
+	case r.queue <- record:
 		r.Report(nil)
 		return nil
 	default:
@@ -138,7 +147,11 @@ func (r *Recorder) run() {
 				return
 			}
 			if record.generation == r.generation.Load() && r.enabled.Load() {
-				r.setError(&r.writeError, r.series.Add(record.point))
+				err := r.series.Add(record.point)
+				r.setError(&r.writeError, err)
+				if err == nil && record.committed != nil {
+					record.committed()
+				}
 			}
 			r.writeMu.Unlock()
 		case now := <-ticker.C:

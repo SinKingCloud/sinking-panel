@@ -186,11 +186,11 @@ if err != nil {
 
 名称仅为三榜并集最多 15 个进程调用 `NameWithContext`，按进程创建时间绑定并缓存一分钟，失败时保留同一进程已知名称或显示 PID。返回值不包含命令参数、完整路径、用户、环境和线程信息。底层库可能读取命令行或可执行路径以恢复名称，本包不额外调用这些接口，也不把相关内容返回或存储。Linux/macOS/Windows 的这些采样接口不逐进程执行外部命令。
 
-工具类不安排周期任务或后台 worker、不读业务配置、不写数据库。调用方维护一个采样器并决定刷新周期；系统监控 service 使用独立 worker，每轮结束后等待 5 秒，不阻塞每秒主机采样。`ProcessTopSnapshot.Clone()` 复制榜单切片，可用于发布不共享可变切片的缓存。
+工具类不安排周期任务或后台 worker、不读业务配置、不写数据库。调用方维护一个采样器并决定刷新周期。`Sample(ctx, ProcessSampleOptions{Snapshot: &snapshot})` 共用该轮主机采样的时间与总 CPU 计数；省略选项自行读取主机计数。系统监控 service 每秒同轮采集主机与进程的 CPU、RSS、磁盘 I/O，保留限时与限量预算。`ProcessTopSnapshot.Clone()` 复制榜单切片，可用于发布不共享可变切片的缓存。
 
-扫描采用协作式预算：Linux 为 200ms，macOS/Windows 为 500ms，每轮最多读取 10000 个进程。超限后保留轮转位置，下一轮继续后续 PID，不能把未扫描进程算成零。基线按 PID 和库返回的毫秒创建时间绑定；采样前后使用不同的 gopsutil 进程对象复核身份，避免对象的创建时间缓存掩盖 PID 复用。进程退出、身份变化或计数器回退时重新建立对应基线。未扫描基线最多保留 2 分钟，最多跟踪 100000 个进程；轮转后的速率是该进程两次成功采样之间的平均值。单个不可中断的系统调用仍可能超过预算，不承诺硬实时取消。包初始化时启用 gopsutil 的启动时间缓存，减少 Linux 进程查询中的重复文件读取，运行中不切换该全局开关。
+扫描采用协作式预算：Linux 为 200ms，macOS/Windows 为 500ms，每轮最多读取 10000 个进程。超限后保留轮转位置，下一轮继续后续 PID，不能把未扫描进程算成零。基线按 PID 和库返回的毫秒创建时间绑定；采样前后使用不同的 gopsutil 进程对象复核身份，避免对象的创建时间缓存掩盖 PID 复用。进程退出、身份变化或计数器回退时重新建立对应基线。未扫描基线最多保留 2 分钟，最多跟踪 100000 个进程。CPU 和磁盘 I/O 只比较相邻两轮成功读取的进程计数；轮转或失败跳过的进程先重建基线，不把跨多轮平均值当成当前窗口占用。创建时间明确处于当前窗口的新进程可直接使用其累计 CPU/I/O，避免漏掉第一轮；已在两轮间退出的进程无法恢复，会标记速率排行不完整。磁盘 I/O 使用同轮主机快照之间的时间间隔。主机 CPU 读取错误时丢弃可能陈旧的总计数，恢复首轮仅建立基线；主机磁盘读取错误及恢复首轮暂停进程 I/O 速率，避免把单轮进程速率配给跨周期整机速率。其他可用指标继续返回。单个不可中断的系统调用仍可能超过预算，不承诺硬实时取消。包初始化时启用 gopsutil 的启动时间缓存，减少 Linux 进程查询中的重复文件读取，运行中不切换该全局开关。
 
-`ProcessTopSnapshot` 的 `cpu / memory / disk_io` 均为 `ProcessTopItem` 切片。对应 `CPUAvailable / MemoryAvailable / IOAvailable` 表示本轮是否有有效排行；`Partial` 表示进程退出、权限或预算导致结果不完整，`Error` 给出摘要，不能把部分扫描称为全机精确 Top 5。三个指标都不可读取的进程计入 `Skipped` 并标记 `Partial`，不保留无效基线或继续查询身份；只要存在可用指标，仍完成采样前后的身份复核。每项的 CPU、RSS、读取速率、写入速率 JSON 字段分别为 `cpu / memory / disk_read / disk_write`；单位分别为百分比、字节、字节/秒、字节/秒，`CreateTime` 为 Unix 毫秒。单项 `CPUAvailable / IOAvailable` 可区分内存榜单里的速率尚未就绪与真实零值。
+`ProcessTopSnapshot` 的 `cpu / memory / disk_io` 均为 `ProcessTopItem` 切片。对应 `CPUAvailable / MemoryAvailable / IOAvailable` 表示本轮是否有有效排行；`CPUPartial / MemoryPartial / IOPartial` 分别表示对应排行存在基线、退出、权限或预算缺项，Windows 缺少磁盘排行不影响 CPU 完整性；`Partial` 表示任一采集指标不完整，`Error` 给出摘要，不能把部分扫描称为全机精确 Top 5。身份不可读取或改变的进程计入 `Skipped` 并清除基线；CPU 或 I/O 读取失败会重新建立对应基线，不影响同一进程的其他有效指标。每项的 CPU、RSS、读取速率、写入速率 JSON 字段分别为 `cpu / memory / disk_read / disk_write`；单位分别为百分比、字节、字节/秒、字节/秒，`CreateTime` 为 Unix 毫秒。单项 `CPUAvailable / IOAvailable` 可区分内存榜单里的速率尚未就绪与真实零值。
 
 排行榜只包装现成 gopsutil API，不再维护独立的 procfs、sysctl、libproc 或 Windows 原生实现。当前依赖版本在 Linux/macOS 的 `DiskReadBytes / DiskWriteBytes` 提供实际磁盘计数，Linux 的 `ReadBytes / WriteBytes` 是逻辑 I/O，不能替代使用。macOS 库的 CPU/RSS 查询在部分权限失败时可能返回零结构而不报错，因此累计 CPU 为零、RSS 为零时保守标记相应指标不可用；真实刚创建进程可能延后一轮进入 CPU 榜单。Windows 通用进程 I/O 混合文件、网络和设备传输，因此进程磁盘 Top 5 暂不可用（`IOAvailable=false`、空列表，并返回说明）；CPU、内存排行和整机磁盘趋势不受影响。已有 `Process.Sample` 接口保持不变。其他平台的排行榜返回不可用信息，不影响已有进程详情 API。
 
