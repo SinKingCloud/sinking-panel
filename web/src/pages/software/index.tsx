@@ -114,7 +114,7 @@ export default () => {
             search={{placeholder: "搜索软件名称或标识", maxLength: 100}}
             columns={[
                 {title: "软件名称", dataIndex: "name", key: "name", width: 220, sorter: true, render: (value: string, item: any) => <div className={styles.name}>
-                    <SoftwareIcon code={item.code} icon={Number(item.status) === 1 && Number(item.state) === 2 ? item.icon : undefined} updateTime={item.update_time}/>
+                    <SoftwareIcon code={item.code} icon={Number(item.state) === 2 ? item.icon : undefined} updateTime={item.update_time}/>
                     <button type="button" onClick={() => show(item)}>{value}</button>
                 </div>},
                 {title: "标识", dataIndex: "code", key: "code", width: 150, ellipsis: true},

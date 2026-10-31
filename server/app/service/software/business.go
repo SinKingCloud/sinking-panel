@@ -311,7 +311,7 @@ func (s *service) Close() {
 	}
 }
 
-// Page 读取 web 目录内的相对路径，省略路径时返回清单中的前端入口。
+// Page 读取 web 目录内的相对路径，省略路径时返回清单中的前端入口；禁用时仅允许清单图标。
 func (s *service) Page(code, path string) ([]byte, string, string, error) {
 	record, err := s.record(code)
 	if err != nil {
@@ -340,7 +340,14 @@ func (s *service) Page(code, path string) ([]byte, string, string, error) {
 		return nil, "", "", errors.New("软件尚未就绪")
 	}
 	if record.Status != software_status.Enabled {
-		return nil, "", "", errors.New("软件已禁用")
+		manifest, err := s.plugins.Manifest(record.Code)
+		if err != nil {
+			return nil, "", "", err
+		}
+		// 只放行明确声明的图标文件，不解析页面入口或扩展名，也不启动插件。
+		if path == "" || "web/"+path != manifest.Icon {
+			return nil, "", "", errors.New("软件已禁用")
+		}
 	}
 	if path == "" {
 		pkg, err := s.plugins.Info(record.Code)
