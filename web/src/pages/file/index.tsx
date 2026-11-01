@@ -2,6 +2,7 @@ import React, {useCallback, useLayoutEffect, useRef, useState} from "react";
 import {App, Button, Empty} from "antd";
 import {Body, Icon, PageTable} from "sinking-antd";
 import FileDialogHost from "./components/dialog-host";
+import useDiskTable from "./components/disk-table";
 import FilePathBar from "./components/path-bar";
 import useFileTable from "./components/table";
 import useFileClipboard from "./hooks/clipboard";
@@ -29,6 +30,11 @@ export default (): React.ReactNode => {
     const {
         list,
         disks,
+        showingDisks,
+        showDisks,
+        disksLoading,
+        disksError,
+        reloadDisks,
         keyword,
         setKeyword,
         navigate,
@@ -40,19 +46,20 @@ export default (): React.ReactNode => {
     const operationLock = useFileOperationLock();
     const selection = useFileSelection({
         path: list.path,
-        items: list.items,
+        items: showingDisks ? [] : list.items,
         operatingPaths: operationLock.paths,
     });
     const {counts: directoryCounts, countDirectory} = useDirectoryCounts({
         path: list.path,
         items: list.items,
-        enabled: list.loaded,
+        enabled: !showingDisks && list.loaded,
     });
     const download = useFileDownload(list.path);
     const trackTask = useCallback((taskId: string, title: string) => {
         dialogHostRef.current?.trackTask(taskId, title);
     }, []);
     const clipboard = useFileClipboard({
+        enabled: !showingDisks,
         path: list.path,
         loaded: list.loaded,
         loading: list.loading,
@@ -174,11 +181,12 @@ export default (): React.ReactNode => {
     });
     const selectionOperationDisabled = list.loading || list.navigating || selection.hasBusySelection;
     const selectionClipboardDisabled = selectionOperationDisabled || clipboard.pasting;
+    const diskTable = useDiskTable({disks, keyword, active: showingDisks, loading: disksLoading, onOpen: navigate});
 
     return (
         <Body>
             <PageTable
-                {...fileTable}
+                {...(showingDisks ? diskTable : fileTable)}
                 ariaLabel="文件管理"
                 paginationAffix={{offsetBottom: 15}}
                 hero={{
@@ -201,12 +209,16 @@ export default (): React.ReactNode => {
                 toolbar={{
                     search: {
                         value: keyword,
-                        ariaLabel: "搜索当前目录",
-                        placeholder: "搜索当前目录",
+                        ariaLabel: showingDisks ? "搜索磁盘" : "搜索当前目录",
+                        placeholder: showingDisks ? "搜索磁盘" : "搜索当前目录",
                         onChange: setKeyword,
                     },
-                    refresh: {loading: list.loading, ariaLabel: "刷新文件列表", onClick: list.reload},
-                    actions: [
+                    refresh: {
+                        loading: showingDisks ? disksLoading : list.loading,
+                        ariaLabel: showingDisks ? "刷新磁盘列表" : "刷新文件列表",
+                        onClick: showingDisks ? reloadDisks : list.reload,
+                    },
+                    actions: showingDisks ? [] : [
                         {
                             key: "create",
                             type: "button",
@@ -248,7 +260,9 @@ export default (): React.ReactNode => {
                     content: <FilePathBar
                         path={list.path}
                         roots={disks}
-                        disabled={!list.loaded || list.navigating}
+                        showingDisks={showingDisks}
+                        disabled={!showingDisks && list.navigating}
+                        onShowDisks={showDisks}
                         onNavigate={navigate}/>,
                     ariaLabel: "当前目录操作",
                     actions: [
@@ -256,7 +270,7 @@ export default (): React.ReactNode => {
                             key: "editor", type: "button" as const, label: "编辑器", icon: "EditOutlined",
                             "aria-label": "恢复文件编辑器", onClick: restoreEditor,
                         }] : []),
-                        ...(clipboard.count > 0 ? [{
+                        ...(!showingDisks && clipboard.count > 0 ? [{
                             key: "paste",
                             type: "button" as const,
                             label: `${clipboard.mode === "move" ? "移动" : "粘贴"} ${clipboard.count} 项`,
@@ -270,7 +284,7 @@ export default (): React.ReactNode => {
                         }] : []),
                     ],
                 }}
-                rowSelection={{
+                rowSelection={showingDisks ? diskTable.rowSelection : {
                     ...fileTable.rowSelection,
                     onClear: selection.clear,
                     clearDisabled: list.loading || list.navigating,
@@ -293,19 +307,19 @@ export default (): React.ReactNode => {
                         },
                     ],
                 }}
-                empty={list.initialized && list.items.length === 0}
-                emptyContent={list.initialError ? (
-                    <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="无法读取当前目录">
+                empty={showingDisks ? !disksLoading && diskTable.dataSource.length === 0 : list.initialized && list.items.length === 0}
+                emptyContent={(showingDisks ? disksError : list.initialError) ? (
+                    <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={showingDisks ? "无法读取磁盘列表" : "无法读取当前目录"}>
                         <Button
                             size="small"
-                            aria-label="重新加载文件列表"
+                            aria-label={showingDisks ? "重新加载磁盘列表" : "重新加载文件列表"}
                             icon={<Icon type="ReloadOutlined"/>}
-                            onClick={list.reload}>
+                            onClick={showingDisks ? reloadDisks : list.reload}>
                             重新加载
                         </Button>
                     </Empty>
                 ) : undefined}
-                pagination={{
+                pagination={showingDisks ? false : {
                     page: list.page,
                     pageSize: list.pageSize,
                     total: list.total,
@@ -317,7 +331,7 @@ export default (): React.ReactNode => {
                 ref={dialogHostRef}
                 path={list.path}
                 roots={disks}
-                loaded={list.loaded}
+                loaded={!showingDisks && list.loaded}
                 loading={list.loading}
                 navigating={list.navigating}
                 uploading={uploading}

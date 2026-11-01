@@ -41,11 +41,11 @@ import {
     renewCert,
     updateCert,
 } from "@/service/api/cert";
-import {getEnum as getSystemEnum} from "@/service/api/system";
-import SecretManager, {SecretManagerRef} from "@/pages/components/secret";
+import {SecretSelect} from "@/pages/components/secret";
 import type {SecretChange} from "@/pages/components/secret";
 import Log, {LogRef} from "@/pages/components/task-log";
 import BatchCert, {BatchCertRef} from "./batch";
+import CertSettings, {CertSettingsRef} from "./settings";
 
 const requestCertLog = (params: API.RequestParams) => {
     const {id: _id, ...body} = params.body || {};
@@ -440,14 +440,11 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
     const manualModalRef = useRef<any>(null);
     const manualContentRef = useRef<HTMLDivElement | null>(null);
     const batchRef = useRef<BatchCertRef | null>(null);
-    const secretManagerRef = useRef<SecretManagerRef | null>(null);
+    const settingsRef = useRef<CertSettingsRef | null>(null);
     const logRef = useRef<LogRef | null>(null);
-    const secretFormRequestRef = useRef<number | null>(null);
-    const createdSecretRef = useRef<number | null>(null);
     const secretVersionRef = useRef(secretVersion);
     const listRequestRef = useRef(0);
     const formRequestRef = useRef(0);
-    const secretRequestRef = useRef(0);
     const formOpenRef = useRef(false);
     const submittingRef = useRef(false);
     const manualSessionRef = useRef<{ data: any, method: "obtain" | "renew", id?: number } | null>(null);
@@ -469,9 +466,7 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
     const [challenge, setChallenge] = useState("http");
     const [manualSession, setManualSession] = useState<any>(null);
     const manualChallenges = useMemo(() => Array.isArray(manualSession?.challenges) ? manualSession?.challenges.filter(Boolean) : [], [manualSession]);
-    const [secretOptions, setSecretOptions] = useState<{ label: string, value: number }[]>([]);
-    const [secretLoading, setSecretLoading] = useState(false);
-    const [secretLoadError, setSecretLoadError] = useState(false);
+    const [secretRefresh, setSecretRefresh] = useState(0);
     const [wildcard, setWildcard] = useState(false);
     const [ipAddress, setIPAddress] = useState(false);
     const [record, setRecord] = useState<any>();
@@ -490,10 +485,6 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
     const automaticDNS = challenge === "dns" && certificateType === 2;
     const renewalNeedsKey = automaticDNS && !selectedSecretId;
     const manualVerification = certificateType === 1;
-    const secretNames = useMemo(() => Object.fromEntries(secretOptions.map(({
-                                                                                value,
-                                                                                label
-                                                                            }) => [value, label])), [secretOptions]);
 
     useLayoutEffect(() => {
         const content = manualContentRef.current;
@@ -561,42 +552,11 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
         }
     }, [appliedField, appliedKeyword, message, page, pageSize]);
 
-    const loadSecrets = useCallback(async () => {
-        const requestId = ++secretRequestRef.current;
-        setSecretLoading(true);
-        setSecretLoadError(false);
-        try {
-            const response = await getSystemEnum({body: {name: "secret"}});
-            if (secretRequestRef.current !== requestId) return;
-            if (response?.code !== 200 || !response?.data?.name) {
-                setSecretLoadError(true);
-                return;
-            }
-            const options = Object.entries(response?.data?.name || {}).map(([value, label]) => ({
-                value: Number(value),
-                label: String(label),
-            }));
-            setSecretOptions(options);
-            if (!formOpenRef.current) return;
-            const selected = form.getFieldValue("secret_id");
-            if (selected && !options.some((option) => option.value === selected)) {
-                form.setFieldsValue({secret_id: undefined, auto_renew: 0});
-            }
-        } catch {
-            if (secretRequestRef.current === requestId) {
-                setSecretLoadError(true);
-            }
-        } finally {
-            if (secretRequestRef.current === requestId) setSecretLoading(false);
-        }
-    }, [form]);
-
     useEffect(() => {
         if (secretVersionRef.current === secretVersion) return;
         secretVersionRef.current = secretVersion;
-        if (active || (formOpenRef.current && mode !== "import")) void loadSecrets();
         if (active) void loadList();
-    }, [active, loadList, loadSecrets, mode, secretVersion]);
+    }, [active, loadList, secretVersion]);
 
     const cancelManual = useCallback(() => {
         const session = manualSessionRef.current;
@@ -625,30 +585,18 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
             formModalRef.current?.show();
             return;
         }
-        secretFormRequestRef.current = null;
-        createdSecretRef.current = null;
-        secretRequestRef.current += 1;
         formOpenRef.current = false;
         obtainRef.current = null;
         suggestedNameRef.current = "";
         formModalRef.current?.hide();
         setFormOpen(false);
-        setSecretLoading(false);
     }, [cancelManual]);
-
-    const openSecretManager = useCallback((create = false) => {
-        secretFormRequestRef.current = formOpenRef.current ? formRequestRef.current : null;
-        createdSecretRef.current = null;
-        if (create) secretManagerRef.current?.openCreate();
-        else secretManagerRef.current?.open();
-    }, []);
 
     const openForm = useCallback((nextMode: string, nextRecord?: any) => {
         batchRef.current?.close();
         formRequestRef.current += 1;
         cancelManual();
         manualModalRef.current?.hide();
-        secretRequestRef.current += 1;
         formOpenRef.current = true;
         submittingRef.current = false;
         obtainRef.current = null;
@@ -660,8 +608,6 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
         form.resetFields();
         suggestedNameRef.current = "";
         setChallenge("http");
-        setSecretLoading(false);
-        setSecretLoadError(false);
         setWildcard(false);
         setIPAddress(false);
         if (nextMode === "obtain") {
@@ -704,9 +650,7 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
         }
         setFormOpen(true);
         formModalRef.current?.show();
-        if (nextMode === "obtain" || nextMode === "renew") {
-            void loadSecrets();
-        }
+        setSecretRefresh((value) => value + 1);
         if (nextMode !== "edit" && nextMode !== "view") {
             return;
         }
@@ -735,7 +679,6 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
             setChallenge(data.challenge);
             setWildcard(data.domains.some((domain: string) => domain.startsWith("*.")));
             setIPAddress(data.domains.some(isIPAddress));
-            if (data.type === 1 || data.type === 2) void loadSecrets();
         }).catch(() => {
             if (formRequestRef.current === requestId) {
                 message.error("获取证书详情失败");
@@ -746,7 +689,7 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
                 setFormLoading(false);
             }
         });
-    }, [cancelManual, closeForm, form, loadSecrets, message]);
+    }, [cancelManual, closeForm, form, message]);
 
     const open = useCallback((selection?: { domain: string, onSelected: (cert: any) => void }) => {
         batchRef.current?.close();
@@ -765,13 +708,13 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
         setAppliedKeyword("");
         setAppliedField("keyword");
         modalRef.current?.show();
-        void loadSecrets();
+        setSecretRefresh((value) => value + 1);
         if (active) void loadList(1, pageSize, "", "keyword");
-    }, [active, closeForm, loadList, loadSecrets, pageSize]);
+    }, [active, closeForm, loadList, pageSize]);
 
     const close = useCallback(() => {
         batchRef.current?.close();
-        secretManagerRef.current?.close();
+        settingsRef.current?.close();
         closeForm();
         deployRef.current = null;
         setDeployDomain("");
@@ -857,7 +800,6 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
     useEffect(() => () => {
         listRequestRef.current += 1;
         formRequestRef.current += 1;
-        secretRequestRef.current += 1;
         formOpenRef.current = false;
         obtainRef.current = null;
         deployRef.current = null;
@@ -1143,7 +1085,7 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
             key: "issuance",
             width: 220,
             render: (_: any, item: any) => {
-                const secretName = item.secret_id ? secretNames[item.secret_id] || `密钥 #${item.secret_id}` : "未关联密钥";
+                const secretName = item.secret_id ? item.secret_name || `密钥 #${item.secret_id}` : "未关联密钥";
                 return (
                     <div className="record-issuance">
                         <span
@@ -1191,7 +1133,7 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
             className: "action-cell",
             render: (_: any, item: any) => renderActions(item),
         },
-    ], [deployDomain, openForm, renderActions, secretNames]);
+    ], [deployDomain, openForm, renderActions]);
 
     const download = useCallback((field: string) => {
         const content = String(form.getFieldValue(field) || "");
@@ -1209,17 +1151,12 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
 
     const onSecretChange = useCallback((change: SecretChange) => {
         onChange?.();
+        setRecord((current: any) => current?.secret_id === change.id ? {...current, secret_name: undefined} : current);
         if (active) void loadList();
         if (active || (formOpenRef.current && mode !== "import")) {
-            if (secretFormRequestRef.current === formRequestRef.current && change.action === "create") {
-                createdSecretRef.current = change.id;
-            }
-            const selectCreated = change.action === "update" && createdSecretRef.current === change.id && secretFormRequestRef.current === formRequestRef.current && form.getFieldValue("challenge") === "dns" && Number(form.getFieldValue("type")) === 2;
-            if (selectCreated) form.setFieldValue("secret_id", change.id);
-            if (selectCreated || (change.action === "delete" && createdSecretRef.current === change.id)) createdSecretRef.current = null;
-            void loadSecrets();
+            setSecretRefresh((value) => value + 1);
         }
-    }, [active, form, loadList, loadSecrets, mode, onChange]);
+    }, [active, loadList, mode, onChange]);
 
     const formTitle = {
         view: "查看证书",
@@ -1255,22 +1192,13 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
             preserve={false}
             name="secret_id"
             label="关联密钥"
-            extra={<>
-                {secretLoadError ? <span>密钥列表加载失败，<Button type="link" size="small" htmlType="button"
-                                                                  onClick={() => void loadSecrets()}>重试</Button></span> : !secretLoading && secretOptions.length === 0 ?
-                    <span>暂无密钥，请先<Button type="link" size="small" htmlType="button"
-                                               onClick={() => openSecretManager(true)}>添加密钥</Button>并填写密钥信息。</span> : mode === "edit" ? "DNS 续签前需关联密钥。" : "请选择具有该域名 DNS 解析权限的密钥。"}
-                <Button type="link" size="small" htmlType="button" onClick={() => openSecretManager()}>管理密钥</Button>
-            </>}
             rules={mode === "edit" ? [] : [{required: true, message: "请选择云密钥"}]}>
-            <Select
+            <SecretSelect
                 allowClear={mode === "edit"}
-                loading={secretLoading}
-                disabled={secretLoading}
-                showSearch={false}
+                refreshKey={`${secretVersion}:${secretRefresh}`}
+                records={record?.secret_id === selectedSecretId && record?.secret_name ? [{id: record.secret_id, name: record.secret_name}] : undefined}
                 placeholder={mode === "edit" ? "暂不关联密钥" : "请选择云密钥"}
-                options={secretOptions}
-                notFoundContent={secretLoading ? <Spin size="small"/> : "暂无可用密钥"}/>
+                onSecretsChange={onSecretChange}/>
         </Form.Item>
     );
     const renewalField = (
@@ -1340,11 +1268,11 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
                             onClick: () => openForm("obtain")
                         },
                         {
-                            key: "secret",
+                            key: "settings",
                             type: "button",
-                            label: "密钥",
-                            icon: "KeyOutlined",
-                            onClick: () => openSecretManager()
+                            label: "设置",
+                            icon: "SettingOutlined",
+                            onClick: () => settingsRef.current?.open()
                         },
                         {
                             key: "log",
@@ -1394,7 +1322,6 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
                                                                     onClick={() => closeForm()}>关闭</Button>] : [
                         <Button key="cancel" onClick={() => closeForm()}>取消</Button>,
                         <Button key="submit" type="primary" loading={submitting}
-                                disabled={(mode === "obtain" || mode === "renew") && automaticDNS && (secretLoading || secretLoadError)}
                                 onClick={form.submit}>
                             {mode === "import" ? "导入" : mode === "obtain" ? "申请" : mode === "renew" ? "续签" : "保存"}
                         </Button>,
@@ -1518,7 +1445,7 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
                                                 ...(record.challenge === "dns" ? [{
                                                     key: "secret_id",
                                                     label: "关联密钥",
-                                                    children: record.secret_id ? secretNames[record.secret_id] || `密钥 #${record.secret_id}` : "未关联"
+                                                    children: record.secret_id ? record.secret_name || `密钥 #${record.secret_id}` : "未关联"
                                                 }] : []),
                                             ] : []),
                                         ]}/>
@@ -1756,7 +1683,7 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
             </ProModal>
             <BatchCert ref={batchRef} onChange={onChange} secretVersion={secretVersion}/>
             <Log ref={logRef} request={requestCertLog} title="续签日志"/>
-            <SecretManager ref={secretManagerRef} onChange={onSecretChange}/>
+            <CertSettings ref={settingsRef}/>
         </>
     );
 });

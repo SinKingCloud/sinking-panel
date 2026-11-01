@@ -36,9 +36,9 @@ create index if not exists cloud_logs_updateTime_index
 
 create table if not exists cloud_servers
 (
-    id          bigint            not null
+    id          integer           not null
         constraint pk_id
-            primary key,
+            primary key autoincrement,
     ip          varchar(100)      not null,
     port        integer           not null,
     user        varchar(50),
@@ -69,9 +69,9 @@ create index if not exists cloud_servers_user_index
 
 create table if not exists cloud_tasks
 (
-    id          bigint            not null
+    id          integer           not null
         constraint cloud_tasks_pk_id
-            primary key,
+            primary key autoincrement,
     entry_id    integer default 0 not null,
     name        varchar(50)       not null,
     spec        varchar(50)       not null,
@@ -101,9 +101,9 @@ create index if not exists cloud_tasks_updateTime_index
 
 create table if not exists cloud_types
 (
-    id          bigint            not null
+    id          integer           not null
         constraint cloud_types_pk_id
-            primary key,
+            primary key autoincrement,
     module      varchar(50)       not null,
     name        varchar(50)       not null,
     sort        integer default 0 not null,
@@ -125,9 +125,9 @@ create index if not exists cloud_types_updateTime_index
 
 create table if not exists cloud_scripts
 (
-    id          bigint            not null
+    id          integer           not null
         constraint cloud_scripts_pk_id
-            primary key,
+            primary key autoincrement,
     module      varchar(50) default 'script_ssh' not null,
     type_id     bigint  default 0 not null,
     name        varchar(100)      not null,
@@ -181,9 +181,9 @@ create index if not exists cloud_sites_updateTime_index
 
 create table if not exists cloud_secrets
 (
-    id          bigint       not null
+    id          integer      not null
         constraint cloud_secrets_pk_id
-            primary key,
+            primary key autoincrement,
     name        varchar(100) not null,
     provider    integer default 0 not null,
     data        text         not null,
@@ -203,11 +203,35 @@ create index if not exists cloud_secrets_createTime_index
 create index if not exists cloud_secrets_updateTime_index
     on cloud_secrets (update_time);
 
+create table if not exists cloud_oss
+(
+    id          integer      not null
+        constraint cloud_oss_pk_id
+            primary key autoincrement,
+    name        varchar(100) not null,
+    secret_id   bigint       not null,
+    config      text         not null,
+    update_time text         not null,
+    create_time text         not null
+);
+
+create index if not exists cloud_oss_name_index
+    on cloud_oss (name);
+
+create index if not exists cloud_oss_secretId_index
+    on cloud_oss (secret_id);
+
+create index if not exists cloud_oss_createTime_index
+    on cloud_oss (create_time);
+
+create index if not exists cloud_oss_updateTime_index
+    on cloud_oss (update_time);
+
 create table if not exists cloud_certs
 (
-    id            bigint                 not null
+    id            integer                not null
         constraint cloud_certs_pk_id
-            primary key,
+            primary key autoincrement,
     name          varchar(100)           not null,
     type          integer default 0      not null,
     challenge     varchar(20) default '' not null,
@@ -269,9 +293,9 @@ create index if not exists cloud_site_domains_updateTime_index
 
 create table if not exists cloud_databases
 (
-    id          bigint            not null
+    id          integer           not null
         constraint cloud_databases_pk_id
-            primary key,
+            primary key autoincrement,
     type_id     bigint  default 0 not null,
     name        varchar(100)      not null,
     type        integer           not null,

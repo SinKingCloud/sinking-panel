@@ -15,6 +15,11 @@ export async function getCertLog(params: API.RequestParams = {}) {
     return post("/cert/log", params?.body, params?.onSuccess, params?.onFail, params?.onFinally);
 }
 
+/** 获取或修改自动续签设置 POST /cert/settings */
+export async function certSettings(params: API.RequestParams = {}) {
+    return post("/cert/settings", params?.body, params?.onSuccess, params?.onFail, params?.onFinally);
+}
+
 /** 导入证书 POST /cert/create */
 export async function createCert(params: API.RequestParams = {}) {
     return post("/cert/create", params?.body, params?.onSuccess, params?.onFail, params?.onFinally);

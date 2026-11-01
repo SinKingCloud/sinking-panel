@@ -5,7 +5,7 @@ const defaultQuery: any = {
     path: "/",
     keyword: "",
     page: 1,
-        pageSize: 20,
+    pageSize: 20,
     generation: 0,
 };
 
@@ -15,7 +15,7 @@ const normalizeOrder = (value?: string): any => (
     value === "asc" || value === "ascend" ? "asc" : "desc"
 );
 
-const useFileList = (initialPath = "/") => {
+const useFileList = (initialPath = "/", enabled = true) => {
     const requestRef = useRef(0);
     const committedPathRef = useRef(normalizePath(initialPath));
     const keywordRef = useRef("");
@@ -26,13 +26,18 @@ const useFileList = (initialPath = "/") => {
     const [committedPath, setCommittedPath] = useState(committedPathRef.current);
     const [items, setItems] = useState<any[]>([]);
     const [total, setTotal] = useState(0);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(enabled);
     const [initialized, setInitialized] = useState(false);
     const [loaded, setLoaded] = useState(false);
     const [error, setError] = useState("");
     const {path, keyword, page, pageSize, sort, order, generation} = query;
 
     useEffect(() => {
+        // 磁盘列表是虚拟目录，保留文件查询状态但暂停实际请求。
+        if (!enabled) {
+            setLoading(false);
+            return;
+        }
         const requestId = ++requestRef.current;
         let active = true;
         let pageAdjusted = false;
@@ -103,7 +108,7 @@ const useFileList = (initialPath = "/") => {
                 requestRef.current += 1;
             }
         };
-    }, [generation, keyword, order, page, pageSize, path, sort]);
+    }, [enabled, generation, keyword, order, page, pageSize, path, sort]);
 
     const navigate = useCallback((nextPath: string) => {
         const value = normalizePath(nextPath);

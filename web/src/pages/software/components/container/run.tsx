@@ -1,10 +1,10 @@
 import {forwardRef, memo, useCallback, useEffect, useImperativeHandle, useRef, useState} from "react";
-import {App, Button, Collapse, Dropdown, Form, Grid, Input, InputNumber, Select, Spin, Switch} from "antd";
+import {App, Button, Collapse, Dropdown, Form, Grid, Input, InputNumber, Switch} from "antd";
 import {createStyles} from "antd-style";
 import {Icon, ProModal, Title, useTheme} from "sinking-antd";
 import FilePicker from "@/pages/components/file-picker";
 import {containerImages, runContainer} from "@/service/api/container";
-import {getEnum} from "@/service/api/system";
+import ImageSelect from "@/pages/components/image-select";
 
 const useStyles = createStyles(({css, token}, {compact}: { compact: boolean }) => ({
     modal: css`
@@ -346,54 +346,17 @@ const RunContainer = forwardRef<any, { onChange?: () => void }>(({onChange}, ref
     const {styles} = useStyles({compact});
     const [form] = Form.useForm<any>();
     const sessionRef = useRef(0);
-    const listRequestRef = useRef(0);
     const imageRequestRef = useRef(0);
     const submittingRef = useRef(false);
     const validationTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
     const [open, setOpen] = useState(false);
     const [submitting, setSubmitting] = useState(false);
-    const [images, setImages] = useState<any[]>([]);
     const [image, setImage] = useState<any>();
+    const [initialImage, setInitialImage] = useState<any>();
     const [imageLoading, setImageLoading] = useState(false);
-    const [listLoading, setListLoading] = useState(false);
-    const [listError, setListError] = useState("");
     const [expanded, setExpanded] = useState<string[]>([]);
     const mounts = Form.useWatch("mounts", form) || [];
     const variables = Form.useWatch("env", form) || [];
-
-    const loadImages = useCallback(async () => {
-        const session = sessionRef.current;
-        const requestId = ++listRequestRef.current;
-        setListLoading(true);
-        setListError("");
-        try {
-            // 动态枚举每次打开重新获取，导入或删除镜像后立即生效。
-            const response = await getEnum({body: {name: "container"}});
-            if (sessionRef.current !== session || listRequestRef.current !== requestId) return;
-            if (response?.code !== 200 || !response?.data) throw new Error(response?.message || "获取镜像失败");
-            const names = response?.data?.image || {};
-            setImages(Object.entries(names).map(([value, label]) => ({
-                value,
-                label: String(label),
-                title: String(label)
-            }))
-                .sort((left, right) => left.label.localeCompare(right.label)));
-            const selected = form.getFieldValue("image_id");
-            if (selected && !Object.hasOwn(names, selected)) {
-                form.setFieldValue("image_id", undefined);
-                imageRequestRef.current += 1;
-                setImage(undefined);
-                setImageLoading(false);
-            }
-        } catch (error) {
-            if (sessionRef.current === session && listRequestRef.current === requestId) {
-                setListError(error instanceof Error ? error.message : "获取镜像失败");
-            }
-        } finally {
-            if (sessionRef.current === session && listRequestRef.current === requestId) setListLoading(false);
-        }
-    }, [form]);
-
     const selectImage = useCallback(async (id: string) => {
         const session = sessionRef.current;
         const requestId = ++imageRequestRef.current;
@@ -420,22 +383,20 @@ const RunContainer = forwardRef<any, { onChange?: () => void }>(({onChange}, ref
     useImperativeHandle(ref, () => ({
         open: (selected?: any) => {
             sessionRef.current += 1;
-            listRequestRef.current += 1;
             imageRequestRef.current += 1;
             submittingRef.current = false;
             form.resetFields();
             form.setFieldsValue({image_id: selected?.id, mounts: [], env: [], auto_restart: true});
             setSubmitting(false);
-            setImages(selected ? [{value: selected.id, label: selected.name || selected.id}] : []);
+            setInitialImage(selected);
             setImage(undefined);
             setImageLoading(false);
             clearTimeout(validationTimerRef.current);
             setExpanded([]);
             setOpen(true);
-            void loadImages();
             if (selected) void selectImage(selected.id);
         },
-    }), [form, loadImages, selectImage]);
+    }), [form, selectImage]);
 
     useEffect(() => () => {
         sessionRef.current += 1;
@@ -450,7 +411,7 @@ const RunContainer = forwardRef<any, { onChange?: () => void }>(({onChange}, ref
     }, []);
 
     const submit = useCallback(async (values: any) => {
-        if (submittingRef.current || listLoading || imageLoading || listError) return;
+        if (submittingRef.current || imageLoading) return;
         const session = sessionRef.current;
         submittingRef.current = true;
         clearTimeout(validationTimerRef.current);
@@ -498,7 +459,7 @@ const RunContainer = forwardRef<any, { onChange?: () => void }>(({onChange}, ref
             // 启动失败也可能生成实例；列表刷新失败不影响创建结果。
             void Promise.resolve().then(() => onChange?.()).catch(() => undefined);
         }
-    }, [message, onChange, listLoading, imageLoading, listError]);
+    }, [message, onChange, imageLoading]);
 
     return <ProModal title={<Title>添加容器</Title>} width={compact ? 560 : 600} onOk={() => form.submit()}
                      onCancel={close}
@@ -507,7 +468,7 @@ const RunContainer = forwardRef<any, { onChange?: () => void }>(({onChange}, ref
         style: {top: screens.md ? 80 : 20, paddingBottom: 40},
         closable: !submitting, keyboard: !submitting, mask: {closable: !submitting},
         confirmLoading: submitting, cancelText: "取消", cancelButtonProps: {disabled: submitting},
-        okButtonProps: {disabled: imageLoading || listLoading || Boolean(listError)},
+        okButtonProps: {disabled: imageLoading},
     } as any}>
         <Form form={form} layout="vertical" variant="filled" className={styles.form} disabled={submitting}
               initialValues={{auto_restart: true, mounts: [], env: []}} onFinish={submit}
@@ -524,17 +485,12 @@ const RunContainer = forwardRef<any, { onChange?: () => void }>(({onChange}, ref
                       focus: true
                   }), 300);
               }}>
-            <Form.Item name="image_id" label="运行镜像" rules={[{required: true, message: "请选择要运行的镜像"}]}
-                       extra={listError ? <div className="run-image-status">
-                           <span className="run-image-error">{listError}</span>
-                           <Button size="small" color="default" variant="filled" loading={listLoading}
-                                   onClick={() => void loadImages()}>重试</Button>
-                       </div> : undefined}>
-                <Select showSearch={{optionFilterProp: "label"}} options={images} loading={listLoading || imageLoading}
-                        disabled={submitting || listLoading}
-                        placeholder="搜索或选择镜像"
-                        onChange={(value) => void selectImage(value)}
-                        notFoundContent={listLoading ? <Spin size="small"/> : listError ? "镜像加载失败" : "暂无镜像"}/>
+            <Form.Item name="image_id" label="运行镜像" rules={[{required: true, message: "请选择要运行的镜像"}]}>
+                <ImageSelect refreshKey={sessionRef.current}
+                    disabled={submitting}
+                    records={image || initialImage ? [image || initialImage] : []}
+                    resolveRecord={undefined}
+                    onChange={(value) => void selectImage(String(value))}/>
             </Form.Item>
             <Form.Item name="name" label="容器名称">
                 <Input placeholder={image?.name || "例如：测试数据库（可不填）"} maxLength={100}/>

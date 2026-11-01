@@ -4,13 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"maps"
 	"path/filepath"
 	"slices"
 	"strings"
 	"time"
 
-	"server/app/constant"
 	"server/app/enum/container_status"
 	"server/app/util/container"
 	"server/app/util/page"
@@ -266,35 +264,6 @@ func (m *Manager) Images(where *SelectImage, queryPage *page.Query) (*page.Resul
 	return page.New(queryPage, total, data), nil
 }
 
-// GetImageNameMap 缓存全部镜像名称及标签，镜像变动后重新生成。
-func (m *Manager) GetImageNameMap() (map[string]string, error) {
-	if err := m.available(); err != nil {
-		return nil, err
-	}
-	m.enumMu.Lock()
-	defer m.enumMu.Unlock()
-	if data, ok := m.cache.Get(constant.CacheNameWithContainerImageEnum).(map[string]string); ok {
-		return maps.Clone(data), nil
-	}
-	list := m.manager.Images()
-	data := make(map[string]string, len(list))
-	for _, item := range list {
-		name := strings.TrimSpace(item.Name)
-		if name == "" {
-			name = item.ID
-		}
-		names := []string{name}
-		for _, tag := range item.Tags {
-			if tag = strings.TrimSpace(tag); tag != "" && !slices.Contains(names, tag) {
-				names = append(names, tag)
-			}
-		}
-		data[item.ID] = strings.Join(names, " / ")
-	}
-	m.cache.SetWithExpire(constant.CacheNameWithContainerImageEnum, data, constant.CacheTimeWithContainerImageEnum)
-	return maps.Clone(data), nil
-}
-
 // Image 按 ID、名称或标签查询已导入的镜像。
 func (m *Manager) Image(id string) (*ImageInfo, error) {
 	if err := m.available(); err != nil {
@@ -332,10 +301,6 @@ func (m *Manager) Import(source string) (*ImageInfo, error) {
 		return nil, err
 	}
 	item, err := m.manager.Import(source)
-	// 与枚举填充共用锁，防止并发读取将导入前的旧列表重新写入缓存。
-	m.enumMu.Lock()
-	m.cache.Delete(constant.CacheNameWithContainerImageEnum)
-	m.enumMu.Unlock()
 	if err != nil {
 		return nil, err
 	}
@@ -353,9 +318,5 @@ func (m *Manager) RemoveImage(ids []string) error {
 			errs = append(errs, fmt.Errorf("镜像[%s]：%w", id, err))
 		}
 	}
-	// 部分删除成功或元数据清理失败时，镜像索引也可能已经改变。
-	m.enumMu.Lock()
-	m.cache.Delete(constant.CacheNameWithContainerImageEnum)
-	m.enumMu.Unlock()
 	return errors.Join(errs...)
 }

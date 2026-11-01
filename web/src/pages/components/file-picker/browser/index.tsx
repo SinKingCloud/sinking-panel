@@ -1,5 +1,5 @@
 import React, {memo, useCallback, useMemo} from "react";
-import {Button, Empty, Input, Pagination, Select, Table, Tooltip, Typography} from "antd";
+import {Button, Empty, Input, Pagination, Table, Tooltip, Typography} from "antd";
 import type {InputRef, TableProps, TableRef} from "antd";
 import {Icon} from "sinking-antd";
 import {
@@ -7,7 +7,6 @@ import {
     formatFileSize,
     formatFileTime,
     getFileIconType,
-    isFilePathWithin as isPathWithin,
     joinFilePath,
 } from "@/pages/file/utils";
 
@@ -18,12 +17,9 @@ type FilePickerBrowserProps = {
     path: string;
     loadedPath: string;
     selectedFile?: any;
-    disks: string[];
-    selectedDisk?: string;
+    showingDisks: boolean;
     pathBreadcrumbs: any[];
-    parentPath: string;
-    diskRoot: string;
-    canGoUp: boolean;
+    parentPath?: string;
     editingPath: boolean;
     pathDraft: string;
     loading: boolean;
@@ -54,12 +50,9 @@ const FilePickerBrowser = ({
     path,
     loadedPath,
     selectedFile,
-    disks,
-    selectedDisk,
+    showingDisks,
     pathBreadcrumbs,
     parentPath,
-    diskRoot,
-    canGoUp,
     editingPath,
     pathDraft,
     loading,
@@ -87,14 +80,14 @@ const FilePickerBrowser = ({
             title: "名称",
             dataIndex: "name",
             render: (name: string, record) => {
-                const recordPath = joinFilePath(path, name);
-                const selected = !record.is_dir
+                const recordPath = showingDisks ? record.path : joinFilePath(path, name);
+                const selected = !showingDisks && !record.is_dir
                     && comparablePath(selectedFile?.path || "") === comparablePath(recordPath);
                 return (
                     <div className="file-picker-name-cell">
-                        <Icon type={getFileIconType(name, record.is_dir)} className="file-picker-icon"/>
+                        <Icon type={getFileIconType(name, showingDisks || record.is_dir)} className="file-picker-icon"/>
                         <span className="file-picker-name" title={name}>{name}</span>
-                        {!record.is_dir && mode === "file" ? (
+                        {!showingDisks && !record.is_dir && mode === "file" ? (
                             <span className="file-picker-row-action">
                                 {selected && <Icon type="CheckOutlined"/>}
                             </span>
@@ -103,7 +96,11 @@ const FilePickerBrowser = ({
                 );
             },
         },
-        {
+        ...(showingDisks ? [{
+            title: "路径",
+            dataIndex: "path",
+            ellipsis: true,
+        }] : [{
             title: "大小",
             dataIndex: "size",
             width: compact ? 80 : 96,
@@ -114,40 +111,35 @@ const FilePickerBrowser = ({
             dataIndex: "update_time",
             width: compact ? 132 : 154,
             render: formatFileTime,
-        },
-    ], [compact, mode, path, selectedFile?.path]);
-
-    const diskOptions = useMemo(
-        () => disks.map((disk) => ({label: disk, value: disk})),
-        [disks],
-    );
+        }]),
+    ], [compact, mode, path, selectedFile?.path, showingDisks]);
 
     const getRowClassName = useCallback((record: any) => {
         if (loading) {
             return "file-picker-passive";
         }
-        const recordPath = joinFilePath(path, record.name);
-        const selected = !record.is_dir
+        const recordPath = showingDisks ? record.path : joinFilePath(path, record.name);
+        const selected = !showingDisks && !record.is_dir
             && comparablePath(selectedFile?.path || "") === comparablePath(recordPath);
         if (selected) {
             return "file-picker-selectable file-picker-selected";
         }
-        if (record.is_dir) {
+        if (showingDisks || record.is_dir) {
             return "file-picker-directory";
         }
         return mode === "file" ? "file-picker-selectable" : "file-picker-passive";
-    }, [loading, mode, path, selectedFile?.path]);
+    }, [loading, mode, path, selectedFile?.path, showingDisks]);
 
     const getRowProps = useCallback<NonNullable<TableProps<any>["onRow"]>>((record) => {
         if (loading) {
             return {"aria-disabled": true};
         }
-        const recordPath = joinFilePath(path, record.name);
-        if (record.is_dir) {
+        const recordPath = showingDisks ? record.path : joinFilePath(path, record.name);
+        if (showingDisks || record.is_dir) {
             return {
                 role: "button",
                 tabIndex: 0,
-                "aria-label": `打开目录 ${record.name}`,
+                "aria-label": showingDisks ? `打开磁盘 ${record.path}` : `打开目录 ${record.name}`,
                 title: `进入 ${record.name}`,
                 onClick: () => onNavigate(recordPath),
                 onKeyDown: (event) => {
@@ -178,7 +170,7 @@ const FilePickerBrowser = ({
                 }
             },
         };
-    }, [loading, mode, onConfirm, onNavigate, onSelectFile, path, selectedFile?.path]);
+    }, [loading, mode, onConfirm, onNavigate, onSelectFile, path, selectedFile?.path, showingDisks]);
 
     const emptyText = error ? (
         <div className="file-picker-error">
@@ -187,35 +179,36 @@ const FilePickerBrowser = ({
         </div>
     ) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无数据"/>;
 
-    const statusPath = mode === "directory" ? path : selectedFile?.path;
-    const statusLabel = mode === "directory" ? "当前目录" : "选择结果";
-    const statusText = statusPath || (mode === "directory" ? "正在读取磁盘..." : "未选择");
-    const statusIcon = mode === "directory"
+    const statusPath = showingDisks ? undefined : mode === "directory" ? path : selectedFile?.path;
+    const statusLabel = showingDisks ? "本地存储" : mode === "directory" ? "当前目录" : "选择结果";
+    const statusText = showingDisks ? "请选择磁盘或输入路径" : statusPath || (mode === "directory" ? "正在读取磁盘..." : "未选择");
+    const statusIcon = showingDisks || mode === "directory"
         ? "FolderOpenOutlined"
         : selectedFile ? getFileIconType(selectedFile.name) : "FileOutlined";
     const rangeStart = total > 0 ? (page - 1) * pageSize + 1 : 0;
     const rangeEnd = Math.min(page * pageSize, total);
     const countText = loading && !loadedPath
         ? "加载中"
-        : total > pageSize ? `${rangeStart}-${rangeEnd} / ${total} 项` : `${total} 项`;
+        : !showingDisks && total > pageSize ? `${rangeStart}-${rangeEnd} / ${total} 项` : `${total} 项`;
 
     return (
         <div className={className}>
-            <div className={`file-picker-toolbar${disks.length > 1 ? " file-picker-toolbar-with-disks" : ""}`}>
+            <div className="file-picker-toolbar">
                 <Tooltip title="上一级">
                     <Button
                         type="text"
                         className="file-picker-up"
-                        disabled={!canGoUp || loading}
+                        disabled={parentPath === undefined || loading}
                         aria-label="返回上一级"
                         icon={<Icon type="ArrowLeftOutlined"/>}
-                        onClick={() => onNavigate(isPathWithin(parentPath, diskRoot) ? parentPath : diskRoot)}/>
+                        onClick={() => parentPath !== undefined && onNavigate(parentPath)}/>
                 </Tooltip>
                 {editingPath ? (
                     <Input
                         ref={pathInputRef}
                         className="file-picker-path-input"
                         value={pathDraft}
+                        placeholder="请输入绝对路径"
                         aria-label="编辑当前路径"
                         onChange={(event) => onPathDraftChange(event.target.value)}
                         onBlur={() => onCancelPathEditor()}
@@ -233,7 +226,7 @@ const FilePickerBrowser = ({
                             }
                         }}/>
                 ) : (
-                    <ol ref={pathRef} className="file-picker-path" aria-label={`当前路径：${path || "正在读取"}`}>
+                    <ol ref={pathRef} className="file-picker-path" aria-label={showingDisks ? "当前路径：/，磁盘列表" : `当前路径：${path || "正在读取"}`}>
                         {pathBreadcrumbs.length > 0 ? pathBreadcrumbs.map((item, index) => {
                             const current = index === pathBreadcrumbs.length - 1;
                             return (
@@ -249,10 +242,10 @@ const FilePickerBrowser = ({
                                             ref={currentPathRef}
                                             className="file-picker-path-current"
                                             type="button"
-                                            title="点击编辑路径"
+                                            title={showingDisks ? "输入路径" : "点击编辑路径"}
                                             disabled={loading}
                                             aria-current="page"
-                                            aria-label={`编辑路径 ${item.path}`}
+                                            aria-label={showingDisks ? "输入路径" : `编辑路径 ${item.path}`}
                                             onClick={onOpenPathEditor}>
                                             <span>{item.label}</span>
                                         </button>
@@ -260,9 +253,9 @@ const FilePickerBrowser = ({
                                         <button
                                             className="file-picker-path-button"
                                             type="button"
-                                            title={item.path}
+                                            title={item.path || "磁盘列表"}
                                             disabled={loading}
-                                            aria-label={`前往 ${item.path}`}
+                                            aria-label={item.path ? `前往 ${item.path}` : "返回磁盘列表"}
                                             onClick={() => onNavigate(item.path)}>
                                             <span>{item.label}</span>
                                         </button>
@@ -274,22 +267,12 @@ const FilePickerBrowser = ({
                         )}
                     </ol>
                 )}
-                {disks.length > 1 && (
-                    <Select
-                        className="file-picker-disks"
-                        value={selectedDisk}
-                        aria-label="切换磁盘"
-                        placeholder="切换磁盘"
-                        disabled={loading}
-                        options={diskOptions}
-                        onChange={onNavigate}/>
-                )}
             </div>
 
             <Table<any>
                 ref={tableRef}
                 className="file-picker-table"
-                rowKey="name"
+                rowKey={showingDisks ? "path" : "name"}
                 size="small"
                 rowHoverable={false}
                 tableLayout="auto"
@@ -319,7 +302,7 @@ const FilePickerBrowser = ({
                 </div>
                 <div className="file-picker-status-meta">
                     <span className="file-picker-count">{countText}</span>
-                    {total > pageSize && (
+                    {!showingDisks && total > pageSize && (
                         <Pagination
                             className="file-picker-pagination"
                             size="small"

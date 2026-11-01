@@ -1,8 +1,11 @@
 import {memo} from "react";
-import {Button, Collapse, Form, Select, Spin, Tooltip} from "antd";
+import {Collapse, Form, Select} from "antd";
 import type {FormInstance} from "antd";
 import {createStyles} from "antd-style";
-import {Icon, useTheme} from "sinking-antd";
+import {useTheme} from "sinking-antd";
+import {SecretSelect} from "@/pages/components/secret";
+import type {SecretChange} from "@/pages/components/secret";
+import {getSecretInfo} from "@/service/api/secret";
 
 export interface BatchFormProps {
     index: number;
@@ -12,11 +15,8 @@ export interface BatchFormProps {
     disabled: boolean;
     expanded: boolean;
     onToggle: (index: number) => void;
-    secretOptions: {value: number; label: string}[];
-    secretLoading: boolean;
-    secretError: boolean;
-    onReloadSecrets: () => void;
-    onManageSecrets: (index: number, create?: boolean) => void;
+    secretVersion: string;
+    onSecretsChange: (change: SecretChange) => void;
     error?: string;
 }
 
@@ -57,14 +57,6 @@ const useStyles = createStyles(({css, token}: any, props: {compact: boolean}) =>
         .ant-form-item-label > label { height: ${props.compact ? 24 : 28}px; color: ${token.colorTextSecondary}; font-size: ${props.compact ? 12 : 13}px; font-weight: 400; }
         .ant-form-item-control { flex: 1; min-width: 0; }
     `,
-    secret: css`
-        display: flex;
-        align-items: flex-start;
-        gap: 6px;
-        min-width: 0;
-        > .ant-form-item { flex: 1; }
-        > .ant-btn { flex: none; }
-    `,
     error: css`
         padding: 4px 10px;
         color: ${token.colorError};
@@ -74,7 +66,7 @@ const useStyles = createStyles(({css, token}: any, props: {compact: boolean}) =>
     `,
 }));
 
-const BatchForm = ({index, domain, renew = false, form, disabled, expanded, onToggle, secretOptions, secretLoading, secretError, onReloadSecrets, onManageSecrets, error}: BatchFormProps) => {
+const BatchForm = ({index, domain, renew = false, form, disabled, expanded, onToggle, secretVersion, onSecretsChange, error}: BatchFormProps) => {
     const theme = useTheme();
     const compact = Boolean(theme?.isCompactTheme?.());
     const {styles} = useStyles({compact});
@@ -84,8 +76,7 @@ const BatchForm = ({index, domain, renew = false, form, disabled, expanded, onTo
     const ipAddress = address.includes(":") || (/^(?:\d{1,3}\.){3}\d{1,3}$/.test(address) && address.split(".").every((part) => Number(part) <= 255));
     const manual = Number(values.type ?? 2) === 1;
     const automaticDNS = !manual && (wildcard || (!ipAddress && values.challenge === "dns"));
-    const noSecrets = !secretLoading && !secretError && secretOptions.length === 0;
-    const secretName = secretOptions.find((option) => option.value === Number(values.secret_id))?.label;
+    const secretName = values.secret_name;
     const summary = [
         wildcard ? "DNS" : ipAddress ? "HTTP" : String(values.challenge || "http").toUpperCase(),
         manual ? "手动验证" : "自动验证",
@@ -141,20 +132,22 @@ const BatchForm = ({index, domain, renew = false, form, disabled, expanded, onTo
                             {label: "测试环境", value: "staging"},
                         ]}/>
                     </Form.Item>
-                    {automaticDNS && <Form.Item label="关联密钥">
-                        <div className={styles.secret}>
-                            <Form.Item name={["items", index, "secret_id"]} rules={[{required: true, message: "请选择云密钥"}]}>
-                                <Select size="small" variant="filled" aria-label={`${domain} 的关联密钥`} showSearch={false} loading={secretLoading} disabled={disabled || secretLoading}
-                                    placeholder={secretError ? "密钥加载失败" : !secretLoading && !secretOptions.length ? "暂无密钥" : "选择云密钥"} options={secretOptions}
-                                    notFoundContent={secretLoading ? <Spin size="small"/> : "暂无可用密钥"}/>
-                            </Form.Item>
-                            {secretError && <Tooltip title="重新加载密钥"><Button size="small" color="default" variant="filled" htmlType="button" aria-label={`${domain} 重新加载密钥`} disabled={disabled || secretLoading} icon={<Icon type="ReloadOutlined"/>} onClick={onReloadSecrets}/></Tooltip>}
-                            <Tooltip title={noSecrets ? "添加密钥" : "管理密钥"}>
-                                <Button size="small" color="default" variant="filled" htmlType="button" aria-label={`${domain} ${noSecrets ? "添加密钥" : "管理密钥"}`} disabled={disabled}
-                                    icon={<Icon type={noSecrets ? "PlusOutlined" : "KeyOutlined"}/>}
-                                    onClick={() => onManageSecrets(index, noSecrets)}/>
-                            </Tooltip>
-                        </div>
+                    {automaticDNS && <Form.Item name={["items", index, "secret_id"]} label="关联密钥" rules={[{required: true, message: "请选择云密钥"}]}>
+                        <SecretSelect size="small" variant="filled" aria-label={`${domain} 的关联密钥`}
+                            disabled={disabled} placeholder="请选择云密钥" refreshKey={secretVersion}
+                            records={values.secret_id && values.secret_name ? [{id: values.secret_id, name: values.secret_name}] : undefined}
+                            resolveRecord={async (id) => {
+                                const response = await getSecretInfo({body: {id}});
+                                if (response?.code !== 200) throw new Error(response?.message || "获取密钥失败");
+                                const secret = response?.data;
+                                if (!secret?.id) return undefined;
+                                if (String(form.getFieldValue(["items", index, "secret_id"])) === String(id)) {
+                                    form.setFieldValue(["items", index, "secret_name"], secret.name);
+                                }
+                                return {id: Number(secret.id), name: secret.name, provider: secret.provider};
+                            }}
+                            onChange={(_, records) => form.setFieldValue(["items", index, "secret_name"], records[0]?.name)}
+                            onSecretsChange={onSecretsChange}/>
                     </Form.Item>}
                 </div>,
             }]}/>

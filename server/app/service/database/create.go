@@ -6,10 +6,12 @@ import (
 	"server/app/enum/database_kind"
 	"server/app/enum/type_module"
 	"server/app/model"
-	"server/app/util/str"
+	repositoryDatabase "server/app/repository/database"
 	"strconv"
 	"strings"
 	"unicode/utf8"
+
+	"gorm.io/gorm"
 )
 
 // Create 保存实例连接信息，配置保持 JSON 对象以兼容不同数据库的连接参数。
@@ -36,20 +38,33 @@ func (s *service) Create(data *model.Database) error {
 			return errors.New("数据库分类不存在")
 		}
 	}
-	data.Id = str.GetSnowWorkIns().GetId()
 	// 创建时允许只登记实例；连接配置由随后打开的编辑表单补充。
-	if strings.TrimSpace(data.Config) != "" {
-		config, err := s.Config(data.Type, data.Config, data.Id, "", "decrypt")
-		if err != nil {
+	if strings.TrimSpace(data.Config) == "" {
+		data.Config = ""
+		return s.repository.Create(data)
+	}
+	config, err := s.Config(data.Type, data.Config, data.Id, "", "decrypt")
+	if err != nil {
+		return err
+	}
+	content, _ := json.Marshal(config)
+	candidate := *data
+	candidate.Config = ""
+	// 先取得数据库生成的 ID，再用该 ID 加密；整个过程不写入明文配置。
+	if err = s.database.Transaction(func(tx *gorm.DB) error {
+		if err := s.repository.Create(&candidate, tx); err != nil {
 			return err
 		}
-		content, _ := json.Marshal(config)
-		data.Config = s.encrypt(strconv.FormatInt(data.Id, 10), string(content))
-		if data.Config == "" {
+		candidate.Config = s.encrypt(strconv.FormatInt(candidate.Id, 10), string(content))
+		if candidate.Config == "" {
 			return errors.New("连接配置加密失败")
 		}
-	} else {
-		data.Config = ""
+		return s.repository.UpdateById(candidate.Id, &repositoryDatabase.UpdateDatabase{
+			Config: &candidate.Config,
+		}, tx)
+	}); err != nil {
+		return err
 	}
-	return s.repository.Create(data)
+	*data = candidate
+	return nil
 }

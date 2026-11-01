@@ -50,6 +50,7 @@ export type MonitorProcess = {
 };
 
 export type MonitorProcessGroup = {
+    io_scope?: "process";
     time: number;
     items: MonitorProcess[];
     partial?: boolean;

@@ -16,9 +16,9 @@ import AceEditor from "@/components/ace-editor";
 import FilePreviewPane from "@/pages/components/file-preview/media";
 import type {FilePreviewKind} from "@/pages/components/file-preview/media";
 import {deleteFile} from "@/service/api/file";
-import useFileEditorDocument from "../../hooks/editor-document";
-import useFileEditorPreferences from "../../hooks/editor-preferences";
-import useFileEditorTree from "../../hooks/editor-tree";
+import useFileEditorDocument from "./hooks/document";
+import useFileEditorPreferences from "./hooks/preferences";
+import useFileEditorTree from "./hooks/tree";
 import {readFileStorage, updateFileStorage} from "../../hooks/file-storage";
 import {
     isFilePathWithin,
@@ -26,9 +26,9 @@ import {
     normalizeFilePath,
     parentFilePath,
 } from "../../utils";
-import FileEditorSettings from "../editor-settings";
-import FileEditorTabs from "../editor-tabs";
-import FileEditorTree from "../editor-tree";
+import FileEditorSettings from "./settings";
+import FileEditorTabs from "./tabs";
+import FileEditorTree from "./tree";
 import {getEditorMode} from "./utils";
 import FileEditorResizeHandle from "./resize-handle";
 import FileForm from "../form";

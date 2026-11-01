@@ -170,10 +170,10 @@ const Form = forwardRef<any, {typeData?: any; typeItems?: any[]; execTypeData?: 
                 request: nextExecType === 1 ? parseRequest(data?.script) : undefined,
                 status: Number(data?.status),
             });
-        }).catch(() => {
+        }).catch((error: any) => {
             if (requestRef.current === requestId) {
                 modalRef.current?.hide();
-                message.error("获取任务详情失败");
+                message.error(error?.message || "获取任务详情失败");
             }
         }).finally(() => {
             if (requestRef.current === requestId) {
@@ -250,7 +250,7 @@ const Form = forwardRef<any, {typeData?: any; typeItems?: any[]; execTypeData?: 
                 mask: {closable: true},
                 afterClose: reset,
             } as any}>
-            <AntForm form={form} layout="vertical" variant="filled" onFinish={submit}>
+            <AntForm form={form} layout="vertical" variant="filled" onFinish={submit} disabled={submitting}>
                 {active && (infoLoading ? (
                     <div className={styles.loading}>
                         <Spin/>

@@ -33,7 +33,6 @@ import (
 	"github.com/caddyserver/certmagic"
 	acmeTypes "github.com/mholt/acmez/v3/acme"
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
 // CertificateRequestTimeout 为手动证书请求和验证会话预留时间。
@@ -52,8 +51,6 @@ func (s *service) CreateCert(data *model.Cert) (*Cert, error) {
 	if err := s.prepareCertificate(&candidate, true); err != nil {
 		return nil, err
 	}
-	candidate.Id = str.GetSnowWorkIns().GetId()
-
 	s.operationMu.Lock()
 	defer s.operationMu.Unlock()
 	if err := s.database.Transaction(func(tx *gorm.DB) error {
@@ -211,8 +208,17 @@ func (s *service) FindCert(id int64) (*Cert, error) {
 	if result == nil {
 		return nil, nil
 	}
+	var secretName string
+	if result.SecretId > 0 {
+		names, err := s.repositorySecret.SelectIdNameMapByIds([]int64{result.SecretId})
+		if err != nil {
+			return nil, fmt.Errorf("查询关联密钥失败: %w", err)
+		}
+		secretName = names[result.SecretId]
+	}
 	return &Cert{
 		Cert:       result,
+		SecretName: secretName,
 		StartTime:  time.Time(result.StartTime),
 		ExpireTime: time.Time(result.ExpireTime),
 	}, nil
@@ -258,10 +264,21 @@ func (s *service) SelectCert(where *repositoryCert.SelectCert, queryPage *page.Q
 	if err != nil {
 		return nil, fmt.Errorf("查询证书列表失败: %w", err)
 	}
+	secretIds := make([]int64, 0, len(result.List))
+	for _, item := range result.List {
+		if item.SecretId > 0 {
+			secretIds = append(secretIds, item.SecretId)
+		}
+	}
+	secretNames, err := s.repositorySecret.SelectIdNameMapByIds(secretIds)
+	if err != nil {
+		return nil, fmt.Errorf("查询关联密钥失败: %w", err)
+	}
 	list := make([]*CertListItem, len(result.List))
 	for i, item := range result.List {
 		list[i] = &CertListItem{
 			Cert:       item,
+			SecretName: secretNames[item.SecretId],
 			StartTime:  time.Time(item.StartTime),
 			ExpireTime: time.Time(item.ExpireTime),
 		}
@@ -477,7 +494,7 @@ func (s *service) RenewCert(ctx context.Context, id int64, request CertificateRe
 		return nil, err
 	}
 	if err = s.database.Transaction(func(tx *gorm.DB) error {
-		latest, findErr := s.repositoryCert.FindById(id, tx.Clauses(clause.Locking{Strength: "UPDATE"}))
+		latest, findErr := s.repositoryCert.FindByIdForUpdate(id, tx)
 		if findErr != nil {
 			return findErr
 		}
@@ -1290,6 +1307,7 @@ func (s *service) inspectCertificate(certificatePEM, privateKeyPEM string) (*x50
 	return leaf, domains, nil
 }
 
+// restoreCertificate 恢复证书业务字段，保留操作期间已修改的验证设置。
 func (s *service) restoreCertificate(data, expected *model.Cert) error {
 	if data == nil || expected == nil {
 		return errors.New("缺少待恢复的证书数据")
@@ -1308,11 +1326,9 @@ func (s *service) restoreCertificate(data, expected *model.Cert) error {
 			restored.Challenge = current.Challenge
 			restored.SecretId = current.SecretId
 			restored.AutoRenew = current.AutoRenew
-			restored.UpdateTime = current.UpdateTime
 		} else if current.SecretId != expected.SecretId || current.AutoRenew != expected.AutoRenew {
 			restored.SecretId = current.SecretId
 			restored.AutoRenew = current.AutoRenew
-			restored.UpdateTime = current.UpdateTime
 		} else if restored.SecretId != 0 && restored.SecretId != expected.SecretId {
 			secret, err := s.repositorySecret.FindById(restored.SecretId, tx)
 			if err != nil {
@@ -1323,7 +1339,18 @@ func (s *service) restoreCertificate(data, expected *model.Cert) error {
 				restored.AutoRenew = cert_auto_renew.Disabled
 			}
 		}
-		return s.repositoryCert.Restore(&restored, tx)
+		return s.repositoryCert.UpdateById(restored.Id, &repositoryCert.UpdateCert{
+			Name:        &restored.Name,
+			Type:        &restored.Type,
+			Challenge:   &restored.Challenge,
+			SecretId:    &restored.SecretId,
+			AutoRenew:   &restored.AutoRenew,
+			Domains:     &restored.Domains,
+			Certificate: &restored.Certificate,
+			PrivateKey:  &restored.PrivateKey,
+			StartTime:   &restored.StartTime,
+			ExpireTime:  &restored.ExpireTime,
+		}, tx)
 	})
 }
 

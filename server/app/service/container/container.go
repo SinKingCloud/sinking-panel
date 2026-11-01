@@ -2,10 +2,7 @@ package container
 
 import (
 	"context"
-	"sync"
 
-	"server/app/constant"
-	"server/app/util/cache"
 	"server/app/util/container"
 	"server/app/util/page"
 )
@@ -26,7 +23,6 @@ type Service interface {
 	ReadLog(id string, after, before int64, pageSize int) (map[string]interface{}, error) // 按游标读取容器日志
 	ClearLog(id string) error                                                             // 清空容器日志
 	Images(where *SelectImage, queryPage *page.Query) (*page.Result[*Image], error)       // 筛选并分页查询已导入镜像，支持 id、name、create_time 排序
-	GetImageNameMap() (map[string]string, error)                                          // 获取全部镜像的 ID 与名称、标签映射
 	Image(id string) (*ImageInfo, error)                                                  // 获取镜像详情
 	Import(source string) (*ImageInfo, error)                                             // 导入本机镜像归档
 	RemoveImage(ids []string) error                                                       // 批量删除镜像
@@ -35,15 +31,11 @@ type Service interface {
 // Manager 管理容器和镜像，运行时的初始化和关闭由 bootstrap 管理。
 type Manager struct {
 	manager *container.Manager
-	cache   cache.Interface
-	enumMu  sync.Mutex // 同步镜像枚举缓存的填充与失效
 }
 
-// NewManager 复用底层容器 Manager，并初始化镜像缓存。
-func NewManager(manager *container.Manager, cache cache.Interface) *Manager {
-	cache.Delete(constant.CacheNameWithContainerImageEnum)
+// NewManager 复用底层容器 Manager。
+func NewManager(manager *container.Manager) *Manager {
 	return &Manager{
 		manager: manager,
-		cache:   cache,
 	}
 }

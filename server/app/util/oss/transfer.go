@@ -15,23 +15,31 @@ const maxMemoryPartSize int64 = 64 << 20 // 内存分片上限，超出后使用
 // Upload 从流上传，size=-1 表示长度未知，可直接接收压缩或备份管道。
 // 自动上传不保留失败分片，取消或错误时会独立超时清理；需要断点续传请使用分片 API。
 // 对可能永久阻塞的 reader（例如 io.Pipe），调用方应在取消时关闭 reader 或停止生产者。
-func (m *Manager) Upload(ctx context.Context, key string, body io.Reader, size int64, options UploadOptions) (_ *Object, err error) {
-	if err = m.objectReady(ctx, key); err != nil {
+// Progress 统计 SDK 消费字节，重试不会重复累计；最终完成以方法返回 nil 错误为准。
+func (m *Manager) Upload(ctx context.Context, key string, body io.Reader, size int64, options UploadOptions) (_ *File, err error) {
+	if err = m.fileReady(ctx, key); err != nil {
 		return nil, err
 	}
-	if body == nil || size < -1 || size > MaxObjectSize {
-		return nil, invalid("上传需要 reader，长度必须为 -1 或 0..5 TiB")
+	if body == nil || size < -1 || size > MaxFileSize {
+		return nil, m.invalid("上传需要 reader，长度必须为 -1 或 0..5 TiB")
 	}
 	partSize := options.PartSize
 	if partSize == 0 {
 		partSize = DefaultPartSize
 	}
 	if partSize < MinPartSize || partSize > MaxPartSize {
-		return nil, invalid("PartSize 必须为 5 MiB..5 GiB")
+		return nil, m.invalid("PartSize 必须为 5 MiB..5 GiB")
 	}
 	if size > 0 && (size+partSize-1)/partSize > MaxParts {
 		partSize = (size + MaxParts - 1) / MaxParts
 	}
+	progress := m.newTransferProgress(ctx, size, options.Progress)
+	finished := int64(-1)
+	defer func() {
+		if err == nil && finished >= 0 {
+			progress.complete(finished)
+		}
+	}()
 	reader := &contextReader{ctx: ctx, reader: body}
 	buffer := uploadPartBuffer{tempDir: options.TempDir}
 	firstSize := partSize
@@ -51,11 +59,11 @@ func (m *Manager) Upload(ctx context.Context, key string, body io.Reader, size i
 		return nil, io.ErrUnexpectedEOF
 	}
 	if (size >= 0 && size <= partSize) || (size == -1 && errors.Is(readErr, io.EOF)) {
-		object, putErr := m.PutObject(ctx, key, first, n, options.PutOptions)
-		if putErr == nil && options.Progress != nil {
-			options.Progress(n, size)
+		file, putErr := m.PutFile(ctx, key, progress.reader(first, 0), n, options.PutOptions)
+		if putErr == nil {
+			finished = n
 		}
-		return object, putErr
+		return file, putErr
 	}
 	upload, err := m.InitiateMultipartUpload(ctx, key, options.PutOptions)
 	if err != nil {
@@ -76,19 +84,17 @@ func (m *Manager) Upload(ctx context.Context, key string, body io.Reader, size i
 	partBody := first
 	for {
 		if n > 0 {
-			if len(parts) >= MaxParts || uploaded+n > MaxObjectSize {
-				return nil, errors.Join(invalid("上传超过最大分片数或对象大小，请增大 PartSize"), partBody.Close())
+			if len(parts) >= MaxParts || uploaded+n > MaxFileSize {
+				return nil, errors.Join(m.invalid("上传超过最大分片数或文件大小，请增大 PartSize"), partBody.Close())
 			}
-			part, partErr := m.UploadPart(ctx, key, upload.UploadID, len(parts)+1, partBody, n)
+			part, partErr := m.UploadPart(ctx, key, upload.UploadID, len(parts)+1, progress.reader(partBody, uploaded), n)
 			closeErr := partBody.Close()
 			if partErr != nil || closeErr != nil {
 				return nil, errors.Join(partErr, closeErr)
 			}
 			parts = append(parts, *part)
 			uploaded += n
-			if options.Progress != nil {
-				options.Progress(uploaded, size)
-			}
+			progress.update(uploaded)
 		}
 		if (size >= 0 && uploaded == size) || errors.Is(readErr, io.EOF) {
 			break
@@ -110,17 +116,18 @@ func (m *Manager) Upload(ctx context.Context, key string, body io.Reader, size i
 			}
 		}
 	}
-	object, err := m.CompleteMultipartUpload(ctx, key, upload.UploadID, parts)
+	file, err := m.CompleteMultipartUpload(ctx, key, upload.UploadID, parts)
 	if err != nil {
 		return nil, err
 	}
 	completed = true
-	object.Size = uploaded
-	return object, nil
+	file.Size = uploaded
+	finished = uploaded
+	return file, nil
 }
 
 // UploadFile 上传本地普通文件。文件在上传期间应保持不变。
-func (m *Manager) UploadFile(ctx context.Context, key, filename string, options UploadOptions) (*Object, error) {
+func (m *Manager) UploadFile(ctx context.Context, key, filename string, options UploadOptions) (*File, error) {
 	file, err := os.Open(filename)
 	if err != nil {
 		return nil, fmt.Errorf("打开上传文件失败: %w", err)
@@ -131,18 +138,27 @@ func (m *Manager) UploadFile(ctx context.Context, key, filename string, options 
 		return nil, fmt.Errorf("读取上传文件信息失败: %w", err)
 	}
 	if !info.Mode().IsRegular() {
-		return nil, invalid("只支持上传普通文件")
+		return nil, m.invalid("只支持上传普通文件")
 	}
 	return m.Upload(ctx, key, file, info.Size(), options)
 }
 
-// DownloadFile 将完整对象下载到同目录的临时文件，成功后替换目标，失败保留原文件。
-func (m *Manager) DownloadFile(ctx context.Context, key, filename string) (err error) {
-	download, err := m.GetObject(ctx, key, GetOptions{})
+// DownloadFile 将完整文件下载到同目录的临时文件，成功后替换目标，失败保留原文件。
+// 可选 Progress 按实际写入字节通知，关闭、同步和替换均成功后才通知完成。
+func (m *Manager) DownloadFile(ctx context.Context, key, filename string, options ...DownloadOptions) (err error) {
+	if len(options) > 1 {
+		return m.invalid("下载配置最多只能提供一项")
+	}
+	download, err := m.GetFile(ctx, key, GetOptions{})
 	if err != nil {
 		return err
 	}
-	defer download.Body.Close()
+	bodyClosed := false
+	defer func() {
+		if !bodyClosed {
+			err = errors.Join(err, download.Body.Close())
+		}
+	}()
 	file, err := os.CreateTemp(filepath.Dir(filename), ".oss-download-*")
 	if err != nil {
 		return fmt.Errorf("创建下载临时文件失败: %w", err)
@@ -151,12 +167,26 @@ func (m *Manager) DownloadFile(ctx context.Context, key, filename string) (err e
 		_ = file.Close()
 		_ = os.Remove(file.Name())
 	}()
-	n, err := io.Copy(file, &contextReader{ctx: ctx, reader: download.Body})
-	if err != nil {
-		return fmt.Errorf("下载对象失败: %w", err)
+	var callback ProgressFunc
+	if len(options) == 1 {
+		callback = options[0].Progress
 	}
-	if download.Object.Size >= 0 && n != download.Object.Size {
+	progress := m.newTransferProgress(ctx, download.File.Size, callback)
+	var target io.Writer = file
+	if progress != nil {
+		target = &progressWriter{writer: file, progress: progress}
+	}
+	n, err := io.Copy(target, &contextReader{ctx: ctx, reader: download.Body})
+	if err != nil {
+		return fmt.Errorf("下载文件失败: %w", err)
+	}
+	if download.File.Size >= 0 && n != download.File.Size {
 		return io.ErrUnexpectedEOF
+	}
+	err = download.Body.Close()
+	bodyClosed = true
+	if err != nil {
+		return fmt.Errorf("关闭下载流失败: %w", err)
 	}
 	if err = ctx.Err(); err != nil {
 		return err
@@ -167,7 +197,14 @@ func (m *Manager) DownloadFile(ctx context.Context, key, filename string) (err e
 	if err = file.Close(); err != nil {
 		return err
 	}
-	return os.Rename(file.Name(), filename)
+	if err = ctx.Err(); err != nil {
+		return err
+	}
+	if err = os.Rename(file.Name(), filename); err != nil {
+		return err
+	}
+	progress.complete(n)
+	return nil
 }
 
 type contextReader struct {

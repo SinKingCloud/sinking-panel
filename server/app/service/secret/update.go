@@ -3,7 +3,6 @@ package secret
 import (
 	"encoding/json"
 	"errors"
-	"server/app/constant"
 	repositorySecret "server/app/repository/secret"
 	"strings"
 
@@ -35,9 +34,9 @@ func (s *service) Update(id int64, data *repositorySecret.UpdateSecret) error {
 			return errors.New("密钥内容必须是字符串字段组成的 JSON 对象")
 		}
 	}
-	s.enumMu.Lock()
-	defer s.enumMu.Unlock()
-	err := s.database.Transaction(func(tx *gorm.DB) error {
+	s.operationMu.Lock()
+	defer s.operationMu.Unlock()
+	return s.database.Transaction(func(tx *gorm.DB) error {
 		previous, err := s.repositorySecret.FindById(id, tx)
 		if err != nil {
 			return err
@@ -71,9 +70,4 @@ func (s *service) Update(id int64, data *repositorySecret.UpdateSecret) error {
 		}
 		return s.repositorySecret.UpdateById(id, data, tx)
 	})
-	if err != nil {
-		return err
-	}
-	s.cache.Delete(constant.CacheNameWithSecretNameEnum)
-	return nil
 }

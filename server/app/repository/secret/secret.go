@@ -11,11 +11,11 @@ import (
 
 // Interface 密钥凭据仓储接口。
 type Interface interface {
+	SelectIdNameMapByIds(ids []int64) (map[int64]string, error)
 	Create(data *model.Secret, tx ...*gorm.DB) error
 	DeleteById(id int64, tx ...*gorm.DB) error
 	FindById(id int64, tx ...*gorm.DB) (*model.Secret, error)
 	Select(where *SelectSecret, queryPage *page.Query) (*page.Result[*Secret], error)
-	SelectIdNameMap(where *SelectSecret) (map[int64]string, error)
 	UpdateById(id int64, data *UpdateSecret, tx ...*gorm.DB) error
 }
 

@@ -8,8 +8,10 @@ import {readFileStorage, updateFileStorage} from "@/pages/file/hooks/file-storag
 import {
     buildFileBreadcrumbs,
     comparableFilePath as comparablePath,
+    getFileDiskName,
+    getFileNavigation,
     isAbsoluteFilePath,
-    isFilePathWithin as isPathWithin,
+    isWindowsFilePath,
     normalizeFilePath,
     parentFilePath,
 } from "@/pages/file/utils";
@@ -47,6 +49,9 @@ const FilePicker = forwardRef<InputRef, any>(({
     const [loadedPath, setLoadedPath] = useState("");
     const [selectedFile, setSelectedFile] = useState<any>();
     const [disks, setDisks] = useState<string[]>([]);
+    const [disksLoading, setDisksLoading] = useState(false);
+    const [disksError, setDisksError] = useState("");
+    const [diskReload, setDiskReload] = useState(0);
     const [items, setItems] = useState<any[]>([]);
     const [page, setPage] = useState(1);
     const [total, setTotal] = useState(0);
@@ -62,40 +67,27 @@ const FilePicker = forwardRef<InputRef, any>(({
     }, []);
 
     const title = mode === "directory" ? "选择目录" : "选择文件";
-    const diskRoot = useMemo(() => {
-        if (!path) {
-            return disks[0] || "/";
-        }
-        const matched = disks
-            .filter((disk) => isPathWithin(path, disk))
-            .sort((left, right) => comparablePath(right).length - comparablePath(left).length);
-        return matched[0] || buildFileBreadcrumbs(path)[0]?.path || "/";
-    }, [disks, path]);
-    const selectedDisk = disks.find((disk) => comparablePath(disk) === comparablePath(diskRoot));
-    const pathBreadcrumbs = useMemo(() => {
-        if (!path) {
-            return [];
-        }
-        const all = buildFileBreadcrumbs(path);
-        const start = all.findIndex((item) => comparablePath(item.path) === comparablePath(diskRoot));
-        if (start <= 0) {
-            return all;
-        }
-        return [{label: diskRoot, path: diskRoot}, ...all.slice(start + 1)];
-    }, [diskRoot, path]);
-    const parentPath = path ? parentFilePath(path) : diskRoot;
-    const canGoUp = Boolean(path) && comparablePath(path) !== comparablePath(diskRoot);
+    const showingDisks = !path || (path === "/" && !disks.includes("/"))
+        || (disks.some(isWindowsFilePath) && !isWindowsFilePath(path));
+    const browserLoading = showingDisks ? disksLoading : loading;
+    const browserError = showingDisks ? disksError : error;
+    const diskItems = useMemo(() => disks.map((path) => ({path, name: getFileDiskName(path), is_dir: true})), [disks]);
+    const {breadcrumbs: pathBreadcrumbs, parentPath} = useMemo(
+        () => getFileNavigation(showingDisks ? "" : path, disks), [disks, path, showingDisks],
+    );
 
     const navigate = useCallback((nextPath: string) => {
-        const targetPath = normalizeFilePath(nextPath);
+        const targetPath = nextPath ? normalizeFilePath(nextPath) : "";
         requestRef.current += 1;
         selectionRequestRef.current += 1;
-        setLoading(true);
+        setLoading(Boolean(targetPath));
         setEditingPath(false);
         setPathDraft(targetPath);
         setPath(targetPath);
         setLoadedPath("");
         setSelectedFile(undefined);
+        setItems([]);
+        setTotal(0);
         setPage(1);
         setError("");
     }, []);
@@ -126,6 +118,8 @@ const FilePicker = forwardRef<InputRef, any>(({
         setLoadedPath("");
         setSelectedFile(undefined);
         setDisks([]);
+        setDisksLoading(true);
+        setDisksError("");
         setItems([]);
         setTotal(0);
         setPage(1);
@@ -154,6 +148,9 @@ const FilePicker = forwardRef<InputRef, any>(({
     }, [path]);
 
     const confirm = useCallback((file = selectedFile) => {
+        if (showingDisks || loading || error || !loadedPath || comparablePath(loadedPath) !== comparablePath(path)) {
+            return;
+        }
         const selectedPath = mode === "directory" ? loadedPath : file?.path;
         if (!selectedPath) {
             return;
@@ -167,7 +164,7 @@ const FilePicker = forwardRef<InputRef, any>(({
             onChange?.(normalized);
         }
         close();
-    }, [close, loadedPath, mode, onChange, onSelect, selectedFile]);
+    }, [close, error, loadedPath, loading, mode, onChange, onSelect, path, selectedFile, showingDisks]);
 
     const selectFile = useCallback((file: any) => {
         selectionRequestRef.current += 1;
@@ -183,12 +180,12 @@ const FilePicker = forwardRef<InputRef, any>(({
     }, []);
 
     const openPathEditor = useCallback(() => {
-        if (loading || !path) {
+        if (browserLoading) {
             return;
         }
         setPathDraft(path);
         setEditingPath(true);
-    }, [loading, path]);
+    }, [browserLoading, path]);
 
     const cancelPathEditor = useCallback((restoreFocus = false) => {
         setPathDraft(path);
@@ -209,47 +206,49 @@ const FilePicker = forwardRef<InputRef, any>(({
             return;
         }
         const nextPath = normalizeFilePath(value);
-        const allowedRoots = Array.from(new Set([...disks, diskRoot]));
-        if (!allowedRoots.some((root) => isPathWithin(nextPath, root))) {
-            message.warning("路径不在可用磁盘中");
-            return;
-        }
-        if (comparablePath(nextPath) === comparablePath(path)) {
+        if (path && comparablePath(nextPath) === comparablePath(path)) {
             cancelPathEditor(true);
             return;
         }
         navigate(nextPath);
-    }, [cancelPathEditor, diskRoot, disks, message, navigate, path, pathDraft]);
+    }, [cancelPathEditor, message, navigate, path, pathDraft]);
 
     const reloadList = useCallback(() => {
-        setReload((current) => current + 1);
-    }, []);
+        if (showingDisks) setDiskReload((current) => current + 1);
+        else setReload((current) => current + 1);
+    }, [showingDisks]);
 
     useEffect(() => {
         if (!open) {
             return;
         }
         let active = true;
+        setDisksLoading(true);
+        setDisksError("");
         void getFileDisks().then((response) => {
             if (!active) {
                 return;
             }
             if (response?.code !== 200 || !Array.isArray(response?.data)) {
-                setPath((current) => current || "/");
+                setDisks([]);
+                setDisksError(response?.message || "获取磁盘列表失败");
                 return;
             }
             const nextDisks = Array.from(new Set(response?.data?.filter((item) => typeof item === "string" && item).map(normalizeFilePath)));
             setDisks(nextDisks);
-            setPath((current) => current || nextDisks[0] || "/");
+            if (nextDisks.includes("/")) setPath((current) => current || "/");
         }).catch(() => {
             if (active) {
-                setPath((current) => current || "/");
+                setDisks([]);
+                setDisksError("获取磁盘列表失败");
             }
+        }).finally(() => {
+            if (active) setDisksLoading(false);
         });
         return () => {
             active = false;
         };
-    }, [open]);
+    }, [diskReload, open]);
 
     useLayoutEffect(() => {
         if (open && !editingPath && pathRef.current) {
@@ -271,14 +270,14 @@ const FilePicker = forwardRef<InputRef, any>(({
     }, [editingPath]);
 
     useEffect(() => {
-        if (loading && editingPath) {
+        if (browserLoading && editingPath) {
             setEditingPath(false);
             setPathDraft(path);
         }
-    }, [editingPath, loading, path]);
+    }, [browserLoading, editingPath, path]);
 
     useEffect(() => {
-        if (!open || !path) {
+        if (!open || showingDisks) {
             return;
         }
         const requestId = ++requestRef.current;
@@ -338,16 +337,19 @@ const FilePicker = forwardRef<InputRef, any>(({
                 setLoading(false);
             }
         });
-    }, [mode, open, page, path, reload]);
+        return () => {
+            if (requestRef.current === requestId) requestRef.current += 1;
+        };
+    }, [mode, open, page, path, reload, showingDisks]);
 
     useEffect(() => {
         if (!open || !error || !disks.length || restoredPathRef.current !== path) {
             return;
         }
-        // 记忆目录已失效时回到磁盘根目录，手动输入的错误路径仍按原方式提示。
+        // 记忆目录失效时回到浏览入口，手动输入的错误路径仍保留错误提示。
         restoredPathRef.current = "";
-        const fallback = disks[0];
-        if (comparablePath(fallback) !== comparablePath(path)) {
+        const fallback = disks.includes("/") ? "/" : "";
+        if (!fallback || comparablePath(fallback) !== comparablePath(path)) {
             navigate(fallback);
         }
     }, [disks, error, navigate, open, path]);
@@ -389,7 +391,7 @@ const FilePicker = forwardRef<InputRef, any>(({
                         style: {top: screens.md ? 100 : 24, paddingBottom: screens.md ? 100 : 24},
                         cancelText: "取消",
                         okButtonProps: {
-                            disabled: loading || Boolean(error) || (mode === "directory"
+                            disabled: showingDisks || loading || Boolean(error) || (mode === "directory"
                                 ? !loadedPath || comparablePath(loadedPath) !== comparablePath(path)
                                 : !selectedFile),
                         },
@@ -405,20 +407,17 @@ const FilePicker = forwardRef<InputRef, any>(({
                             path={path}
                             loadedPath={loadedPath}
                             selectedFile={selectedFile}
-                            disks={disks}
-                            selectedDisk={selectedDisk}
+                            showingDisks={showingDisks}
                             pathBreadcrumbs={pathBreadcrumbs}
                             parentPath={parentPath}
-                            diskRoot={diskRoot}
-                            canGoUp={canGoUp}
                             editingPath={editingPath}
                             pathDraft={pathDraft}
-                            loading={loading}
-                            error={error}
-                            items={items}
+                            loading={browserLoading}
+                            error={browserError}
+                            items={showingDisks ? diskItems : items}
                             page={page}
                             pageSize={50}
-                            total={total}
+                            total={showingDisks ? diskItems.length : total}
                             pathRef={pathRef}
                             pathInputRef={pathInputRef}
                             currentPathRef={currentPathRef}

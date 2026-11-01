@@ -2,15 +2,24 @@ import React, {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useStat
 import {Button, Input} from "antd";
 import type {InputRef} from "antd";
 import {Icon, useTheme} from "sinking-antd";
-import {buildFileBreadcrumbs, normalizeFilePath, parentFilePath} from "../../utils";
+import {getFileNavigation, normalizeFilePath} from "../../utils";
 import useStyles from "./styles";
 
 const FilePathBar = ({
     path,
     roots,
+    showingDisks,
     disabled,
     onNavigate,
-}: any) => {
+    onShowDisks,
+}: {
+    path: string;
+    roots: string[];
+    showingDisks: boolean;
+    disabled: boolean;
+    onNavigate: (path: string) => void;
+    onShowDisks: () => void;
+}) => {
     const theme = useTheme();
     const {styles} = useStyles({compact: Boolean(theme?.isCompactTheme?.())});
     const breadcrumbRef = useRef<HTMLOListElement>(null);
@@ -20,28 +29,15 @@ const FilePathBar = ({
     const [pathDraft, setPathDraft] = useState(path);
     const navigationDisabled = disabled || !onNavigate;
     const normalizedPath = normalizeFilePath(path);
-    const rootPath = useMemo(() => {
-        return [...(roots || [])]
-            .map((item) => normalizeFilePath(item))
-            .sort((left, right) => right.length - left.length)
-            .find((item) => normalizedPath === item || normalizedPath.startsWith(`${item.replace(/\/$/, "")}/`))
-            || buildFileBreadcrumbs(normalizedPath)[0]?.path || "/";
-    }, [roots, normalizedPath]);
-    const breadcrumbs = useMemo(() => {
-        const all = buildFileBreadcrumbs(path);
-        const start = all.findIndex((item) => normalizeFilePath(item.path) === rootPath);
-        if (start <= 0) {
-            return all;
-        }
-        return [{label: rootPath, path: rootPath}, ...all.slice(start + 1)];
-    }, [path, rootPath]);
-    const parentPath = normalizedPath === rootPath ? rootPath : parentFilePath(path);
-    const atRoot = normalizedPath === rootPath;
+    const {breadcrumbs, parentPath} = useMemo(
+        () => getFileNavigation(showingDisks ? "" : path, roots),
+        [path, roots, showingDisks],
+    );
 
     useEffect(() => {
         setEditingPath(false);
         setPathDraft(normalizedPath);
-    }, [normalizedPath]);
+    }, [normalizedPath, showingDisks]);
 
     useLayoutEffect(() => {
         if (!editingPath) {
@@ -104,14 +100,14 @@ const FilePathBar = ({
     }, [cancelPathEditor, navigationDisabled, editingPath]);
 
     return (
-        <nav className={styles.pathBar} aria-label={`当前路径：${normalizedPath}`}>
+        <nav className={styles.pathBar} aria-label={showingDisks ? "当前路径：/，磁盘列表" : `当前路径：${normalizedPath}`}>
             <Button
                 className="path-back"
                 type="text"
-                disabled={atRoot || navigationDisabled}
+                disabled={parentPath === undefined || navigationDisabled}
                 aria-label="返回上一级目录"
                 icon={<Icon type="LeftOutlined"/>}
-                onClick={() => onNavigate?.(parentPath)}/>
+                onClick={() => parentPath ? onNavigate(parentPath) : onShowDisks()}/>
             {editingPath ? (
                 <Input
                     ref={pathInputRef}
@@ -149,10 +145,10 @@ const FilePathBar = ({
                                         ref={currentPathRef}
                                         className="path-current"
                                         type="button"
-                                        disabled={navigationDisabled}
+                                        disabled={navigationDisabled || showingDisks}
                                         aria-current="page"
-                                        aria-label={`编辑路径 ${item.path}`}
-                                        title="点击编辑路径"
+                                        aria-label={showingDisks ? "磁盘列表" : `编辑路径 ${item.path}`}
+                                        title={showingDisks ? "磁盘列表" : "点击编辑路径"}
                                         onClick={openPathEditor}>
                                         <span>{item.label}</span>
                                     </button>
@@ -161,9 +157,9 @@ const FilePathBar = ({
                                         className="path-segment"
                                         type="button"
                                         disabled={navigationDisabled}
-                                        title={item.path}
-                                        aria-label={`前往 ${item.path}`}
-                                        onClick={() => onNavigate?.(item.path)}>
+                                        title={item.path || "磁盘列表"}
+                                        aria-label={item.path ? `前往 ${item.path}` : "返回磁盘列表"}
+                                        onClick={() => item.path ? onNavigate(item.path) : onShowDisks()}>
                                         <span>{item.label}</span>
                                     </button>
                                 )}

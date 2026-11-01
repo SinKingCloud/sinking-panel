@@ -1,10 +1,13 @@
 import {forwardRef, memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState} from "react";
 import {App, Button, Empty, Grid, Tooltip} from "antd";
+import type {InputRef} from "antd";
 import {createStyles} from "antd-style";
 import {ModalTable, Title, useTheme} from "sinking-antd";
 import type {ModalTableProps, ModalTableRef} from "sinking-antd";
 import ActionDropdown from "@/pages/components/ui/action-dropdown";
-import {deleteSecret, getSecretList} from "@/service/api/secret";
+import ResourceSelect from "@/pages/components/ui/resource-select";
+import type {ResourceSelectProps} from "@/pages/components/ui/resource-select";
+import {deleteSecret, getSecretInfo, getSecretList} from "@/service/api/secret";
 import {getEnum as getSystemEnum} from "@/service/api/system";
 import SecretForm from "./form";
 import type {SecretChange, SecretFormRef} from "./form";
@@ -21,6 +24,17 @@ export interface SecretManagerRef {
 interface SecretManagerProps {
     zIndex?: number;
     onChange?: (change: SecretChange) => void;
+    open?: boolean;
+    onCancel?: () => void;
+    selection?: {
+        value: (string | number)[];
+        onSelect: (records: any[]) => void;
+    };
+}
+
+interface SecretSelectProps extends Omit<ResourceSelectProps, "renderModal"> {
+    zIndex?: number;
+    onSecretsChange?: (change: SecretChange) => void;
 }
 
 const useStyles = createStyles(({css, token}: any) => ({
@@ -35,7 +49,7 @@ const useStyles = createStyles(({css, token}: any) => ({
             white-space: nowrap;
             line-height: 20px;
         }
-        .secret-name {
+        button.secret-name {
             padding: 0;
             border: 0;
             background: transparent;
@@ -44,13 +58,13 @@ const useStyles = createStyles(({css, token}: any) => ({
             text-align: left;
             cursor: pointer;
         }
-        .secret-name:hover,
-        .secret-name:focus-visible { color: ${token.colorPrimary}; }
+        button.secret-name:hover,
+        button.secret-name:focus-visible { color: ${token.colorPrimary}; }
         .secret-time { color: ${token.colorTextSecondary}; font-variant-numeric: tabular-nums; }
     `,
 }));
 
-const SecretManager = forwardRef<SecretManagerRef, SecretManagerProps>(({zIndex = 1050, onChange}, ref) => {
+const SecretManager = forwardRef<SecretManagerRef, SecretManagerProps>(({zIndex = 1050, onChange, open: controlledOpen, onCancel, selection}, ref) => {
     const {message, modal} = App.useApp();
     const theme = useTheme();
     const compact = Boolean(theme?.isCompactTheme?.());
@@ -65,6 +79,8 @@ const SecretManager = forwardRef<SecretManagerRef, SecretManagerProps>(({zIndex 
     const enumRequestRef = useRef(0);
     const onChangeRef = useRef(onChange);
     onChangeRef.current = onChange;
+    const onCancelRef = useRef(onCancel);
+    onCancelRef.current = onCancel;
     const [open, setOpen] = useState(false);
     const [session, setSession] = useState(0);
     const [providerFilter, setProviderFilter] = useState("");
@@ -106,6 +122,7 @@ const SecretManager = forwardRef<SecretManagerRef, SecretManagerProps>(({zIndex 
         setProviderFilter("");
         setProviderNames({});
         setListError("");
+        onCancelRef.current?.();
     }, []);
 
     const show = useCallback(() => {
@@ -134,6 +151,11 @@ const SecretManager = forwardRef<SecretManagerRef, SecretManagerProps>(({zIndex 
     }, []);
 
     useImperativeHandle(ref, () => ({open: show, close, refresh, openCreate}), [close, openCreate, refresh, show]);
+
+    useEffect(() => {
+        if (controlledOpen === true && !openRef.current) show();
+        if (controlledOpen === false && openRef.current) close();
+    }, [close, controlledOpen, show]);
 
     useEffect(() => {
         mountedRef.current = true;
@@ -187,7 +209,7 @@ const SecretManager = forwardRef<SecretManagerRef, SecretManagerProps>(({zIndex 
         confirmRef.current?.destroy();
         const confirmation = modal.confirm({
             title: "删除密钥",
-            content: `确定删除密钥“${record.name}”吗？将解除证书关联并关闭自动续签。`,
+            content: `确定删除密钥“${record.name}”吗？被 OSS 或证书引用的密钥不能删除，请先修改相关配置。`,
             zIndex: zIndex + 30,
             okText: "删除",
             cancelText: "取消",
@@ -231,7 +253,7 @@ const SecretManager = forwardRef<SecretManagerRef, SecretManagerProps>(({zIndex 
             dataIndex: "name",
             key: "name",
             width: 190,
-            render: (name: string, record: any) => <button
+            render: (name: string, record: any) => selection ? <span className="secret-name">{name}</span> : <button
                 type="button"
                 className="secret-name"
                 title={name}
@@ -262,7 +284,14 @@ const SecretManager = forwardRef<SecretManagerRef, SecretManagerProps>(({zIndex 
             width: 82,
             fixed: "right",
             className: "action-cell",
-            render: (_: unknown, record: any) => <ActionDropdown
+            render: (_: unknown, record: any) => selection ? <Button
+                size="small"
+                color={selection.value.some((id) => String(id) === String(record.id)) ? "primary" : "default"}
+                variant="filled"
+                autoInsertSpace={false}
+                onClick={() => selection.onSelect([record])}>
+                {selection.value.some((id) => String(id) === String(record.id)) ? "已选" : "选择"}
+            </Button> : <ActionDropdown
                 disabled={deletingIds.includes(record.id)}
                 menu={{
                     items: [{key: "edit", label: "编辑密钥"}, {key: "delete", label: "删除密钥", danger: true}],
@@ -271,7 +300,7 @@ const SecretManager = forwardRef<SecretManagerRef, SecretManagerProps>(({zIndex 
                 <Button size="small" autoInsertSpace={false} disabled={deletingIds.includes(record.id)} aria-label={`操作密钥 ${record.name}`}>操作</Button>
             </ActionDropdown>,
         },
-    ], [confirmDelete, deletingIds, providerNames]);
+    ], [confirmDelete, deletingIds, providerNames, selection]);
 
     return <>
         <ModalTable<any>
@@ -279,7 +308,7 @@ const SecretManager = forwardRef<SecretManagerRef, SecretManagerProps>(({zIndex 
             ref={tableRef}
             open={open}
             onCancel={close}
-            title={<Title>密钥管理</Title>}
+            title={<Title>{selection ? "选择密钥" : "密钥管理"}</Title>}
             width={compact ? 700 : 740}
             minHeight={compact ? 440 : 480}
             className={styles.table}
@@ -324,5 +353,34 @@ const SecretManager = forwardRef<SecretManagerRef, SecretManagerProps>(({zIndex 
 });
 
 SecretManager.displayName = "SecretManager";
+
+// 密钥选择与管理共用列表、分页和添加表单。
+export const SecretSelect = forwardRef<InputRef, SecretSelectProps>(({zIndex = 1160, onSecretsChange, refreshKey, ...props}, ref) => {
+    const [revision, setRevision] = useState(0);
+    const changed = useCallback((change: SecretChange) => {
+        setRevision((value) => value + 1);
+        onSecretsChange?.(change);
+    }, [onSecretsChange]);
+
+    return <ResourceSelect
+        ref={ref}
+        placeholder="请选择密钥"
+        resolveRecord={async (id) => {
+            const response = await getSecretInfo({body: {id}});
+            if (response?.code !== 200) throw new Error(response?.message || "获取密钥失败");
+            const secret = response?.data;
+            return secret?.id ? {id: Number(secret.id), name: secret.name, provider: secret.provider} : undefined;
+        }}
+        {...props}
+        refreshKey={`${refreshKey ?? ""}:${revision}`}
+        renderModal={({open, onCancel, value, onSelect}) => <SecretManager
+            open={open}
+            onCancel={onCancel}
+            zIndex={zIndex}
+            selection={{value, onSelect}}
+            onChange={changed}/>}/>;
+});
+
+SecretSelect.displayName = "SecretSelect";
 
 export default memo(SecretManager);

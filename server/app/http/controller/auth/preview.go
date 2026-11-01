@@ -3,13 +3,12 @@ package auth
 import (
 	"mime"
 	"net/http"
-	"os"
-	"path/filepath"
 	"server/app/service"
 	"server/app/util/context"
 	"time"
 )
 
+// Preview 按签名输出文件，支持浏览器预览和下载。
 func Preview(c *context.Context) {
 	var form struct {
 		Key string `json:"key" default:"" validate:"required,len=32" label:"密钥"`
@@ -22,60 +21,25 @@ func Preview(c *context.Context) {
 	c.Request.URL.RawQuery = ""
 	c.Request.RequestURI = c.Request.URL.RequestURI()
 
-	sign, err := service.File.CheckPreviewSign(form.Key)
+	data, err := service.File.OpenPreview(form.Key)
 	if err != nil {
-		c.Error("预览链接无效或已过期")
+		c.Error(err.Error())
 		return
 	}
-	info, err := os.Stat(sign.Path)
-	if err != nil {
-		c.Error("文件不存在")
-		return
-	}
-	if info.IsDir() {
-		c.Error("不允许访问目录")
-		return
-	}
-	if !info.Mode().IsRegular() {
-		c.Error("不支持访问该文件类型")
-		return
-	}
-	fileHandle, err := os.Open(sign.Path)
-	if err != nil {
-		c.Error("无法访问文件")
-		return
-	}
-	defer fileHandle.Close()
-	info, err = fileHandle.Stat()
-	if err != nil {
-		c.Error("无法访问文件")
-		return
-	}
-	if info.IsDir() {
-		c.Error("不允许访问目录")
-		return
-	}
-	if !info.Mode().IsRegular() {
-		c.Error("不支持访问该文件类型")
-		return
-	}
-	fileName := filepath.Base(sign.FileName)
-	if fileName == "." || fileName == string(filepath.Separator) {
-		fileName = filepath.Base(sign.Path)
-	}
+	defer data.File.Close()
 	c.SetHeader("Cache-Control", "private, no-store")
 	c.SetHeader("Pragma", "no-cache")
 	c.SetHeader("Referrer-Policy", "no-referrer")
 	c.SetHeader("X-Content-Type-Options", "nosniff")
 	c.SetHeader("Cross-Origin-Resource-Policy", "cross-origin")
 	c.SetHeader("Content-Security-Policy", "sandbox")
-	contentType := service.File.GetContentType(fileName)
+	contentType := service.File.GetContentType(data.Name)
 	c.SetHeader("Content-Type", contentType)
 	disposition := "inline"
-	if sign.Download || !service.File.IsViewableInBrowser(contentType) {
+	if data.Download || !service.File.IsViewableInBrowser(contentType) {
 		disposition = "attachment"
 	}
-	c.SetHeader("Content-Disposition", mime.FormatMediaType(disposition, map[string]string{"filename": fileName}))
+	c.SetHeader("Content-Disposition", mime.FormatMediaType(disposition, map[string]string{"filename": data.Name}))
 	_ = http.NewResponseController(c.Writer).SetWriteDeadline(time.Time{})
-	http.ServeContent(c.Writer, c.Request, fileName, info.ModTime(), fileHandle)
+	http.ServeContent(c.Writer, c.Request, data.Name, data.ModTime, data.File)
 }

@@ -12,6 +12,7 @@ import (
 // Cert 证书详情，有效期保留服务器时区，数据库与缓存仍使用原始模型。
 type Cert struct {
 	*model.Cert
+	SecretName string    `json:"secret_name"`
 	StartTime  time.Time `json:"start_time"`
 	ExpireTime time.Time `json:"expire_time"`
 }
@@ -19,8 +20,16 @@ type Cert struct {
 // CertListItem 证书列表数据，不包含证书和私钥正文。
 type CertListItem struct {
 	*repositoryCert.Cert
+	SecretName string    `json:"secret_name"`
 	StartTime  time.Time `json:"start_time"`
 	ExpireTime time.Time `json:"expire_time"`
+}
+
+// CertSettings 内部证书续签任务配置，重试次数不包含首次申请。
+type CertSettings struct {
+	Enabled bool   `json:"enabled"` // 是否启用自动续签任务
+	Spec    string `json:"spec"`    // 执行周期，使用服务器时区
+	Retries int    `json:"retries"` // 每张证书失败后的额外重试次数
 }
 
 // CertificateRequest 证书申请设置，HTTP 和 DNS 验证均支持手动操作。

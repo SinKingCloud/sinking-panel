@@ -4,7 +4,6 @@ import (
 	"errors"
 	"server/app/enum/script_module"
 	"server/app/model"
-	"server/app/util/str"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -45,6 +44,5 @@ func (s *service) Create(data *model.Script) error {
 			return errors.New("脚本分类不属于当前保存范围")
 		}
 	}
-	data.Id = str.GetSnowWorkIns().GetId()
 	return s.repositoryScript.Create(data)
 }

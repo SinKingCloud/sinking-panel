@@ -9,7 +9,7 @@ const useStyles = createStyles(({css, token}: any) => {
             border: 0;
             outline: none;
             background: transparent;
-            color: ${token.colorText};
+            color: inherit;
             cursor: pointer;
             font: inherit;
             text-align: left;
@@ -54,8 +54,9 @@ const useStyles = createStyles(({css, token}: any) => {
         fileName: css`
             min-width: 0;
             overflow: hidden;
-            color: ${token.colorText};
-            font-size: ${token.fontSizeSM + 1}px;
+            color: inherit;
+            font-size: inherit;
+            font-weight: 400;
             line-height: 20px;
             text-overflow: ellipsis;
             white-space: nowrap;

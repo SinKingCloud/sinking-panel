@@ -3,10 +3,8 @@ package secret
 import (
 	"encoding/json"
 	"errors"
-	"server/app/constant"
 	"server/app/enum/secret_provider"
 	"server/app/model"
-	"server/app/util/str"
 	"strings"
 )
 
@@ -45,12 +43,7 @@ func (s *service) Create(data *model.Secret) error {
 		content, _ := json.Marshal(fields)
 		data.Data = string(content)
 	}
-	data.Id = str.GetSnowWorkIns().GetId()
-	s.enumMu.Lock()
-	defer s.enumMu.Unlock()
-	if err := s.repositorySecret.Create(data); err != nil {
-		return err
-	}
-	s.cache.Delete(constant.CacheNameWithSecretNameEnum)
-	return nil
+	s.operationMu.Lock()
+	defer s.operationMu.Unlock()
+	return s.repositorySecret.Create(data)
 }

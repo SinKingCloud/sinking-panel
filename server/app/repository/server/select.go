@@ -3,8 +3,6 @@ package server
 import (
 	"server/app/model"
 	"server/app/util/page"
-
-	"gorm.io/gorm"
 )
 
 // SelectIdDataMapByIds 分批查询服务器IP、密码，按ID返回。
@@ -13,20 +11,18 @@ func (r *Repository) SelectIdDataMapByIds(ids []int64) (map[int64]*model.Server,
 	if len(ids) == 0 {
 		return result, nil
 	}
-	err := r.Database.Transaction(func(tx *gorm.DB) error {
-		return r.Database.BatchExecute(ids, 1000, func(batch interface{}) error {
-			var records []*model.Server
-			if err := tx.Model(&model.Server{}).
-				Select("id", "ip", "password").
-				Where("id IN ?", batch.([]int64)).
-				Find(&records).Error; err != nil {
-				return err
-			}
-			for _, record := range records {
-				result[record.Id] = record
-			}
-			return nil
-		})
+	err := r.Database.BatchExecute(ids, 1000, func(batch interface{}) error {
+		var records []*model.Server
+		if err := r.Database.Db.Model(&model.Server{}).
+			Select("id", "ip", "password").
+			Where("id IN ?", batch.([]int64)).
+			Find(&records).Error; err != nil {
+			return err
+		}
+		for _, record := range records {
+			result[record.Id] = record
+		}
+		return nil
 	})
 	return result, err
 }

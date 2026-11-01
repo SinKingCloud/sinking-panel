@@ -21,7 +21,9 @@ import defaultSettings from "@/../config/defaultSettings";
 import AceEditor from "@/components/ace-editor";
 import FilePicker from "@/pages/components/file-picker";
 import Log from "@/pages/components/task-log";
-import {getEnum as getSystemEnum, systemHTTP} from "@/service/api/system";
+import {systemHTTP} from "@/service/api/system";
+
+import SiteSelect from "@/pages/components/site-select";
 
 const acePath = `${defaultSettings?.basePath || "/"}ace`;
 
@@ -953,7 +955,6 @@ const HTTPService = forwardRef<any, any>((_, ref): any => {
     const [running, setRunning] = useState(false);
     const [action, setAction] = useState("");
     const [loadError, setLoadError] = useState("");
-    const [siteOptions, setSiteOptions] = useState<any[]>([]);
     const [section, setSection] = useState("service");
     const [pageSection, setPageSection] = useState("initial_page");
     const [networkPanels, setNetworkPanels] = useState<string[]>([]);
@@ -991,19 +992,14 @@ const HTTPService = forwardRef<any, any>((_, ref): any => {
         form.setFieldsValue(values);
     }, [form]);
 
-    const load = useCallback(async (showLoading = true, includeSiteOptions = false) => {
+    const load = useCallback(async (showLoading = true) => {
         const requestId = ++requestRef.current;
         if (showLoading) {
             setLoading(true);
         }
         setLoadError("");
         try {
-            const [response, enumResponse] = await Promise.all([
-                systemHTTP({body: {action: "get"}}),
-                includeSiteOptions
-                    ? getSystemEnum({body: {name: "site"}})
-                    : Promise.resolve(null),
-            ]);
+            const response = await systemHTTP({body: {action: "get"}});
             if (requestRef.current !== requestId) {
                 return;
             }
@@ -1015,17 +1011,6 @@ const HTTPService = forwardRef<any, any>((_, ref): any => {
             }
             const data: any = response?.data || {};
             setRunning(Boolean(data?.running));
-            if (includeSiteOptions) {
-                if (enumResponse?.code === 200) {
-                    setSiteOptions(Object.entries(enumResponse?.data?.name || {}).map(([value, label]) => ({
-                        label: String(label),
-                        value: String(value),
-                    })).sort((first, second) => first.label.localeCompare(second.label, "zh-CN")));
-                } else {
-                    setSiteOptions([]);
-                    message.error(enumResponse?.message || "获取默认站点选项失败");
-                }
-            }
             fillConfig(data?.config || {});
         } catch {
             if (requestRef.current === requestId) {
@@ -1056,7 +1041,7 @@ const HTTPService = forwardRef<any, any>((_, ref): any => {
     useEffect(() => {
         if (active) {
             form.resetFields();
-            void load(true, true);
+            void load(true);
         }
     }, [active, form, load]);
 
@@ -1094,7 +1079,7 @@ const HTTPService = forwardRef<any, any>((_, ref): any => {
 
     useImperativeHandle(ref, () => ({
         open,
-        refresh: () => active ? load(false, false) : Promise.resolve(),
+        refresh: () => active ? load(false) : Promise.resolve(),
     }), [active, load, open]);
 
     const runAction = useCallback(async (nextAction: string) => {
@@ -1270,10 +1255,7 @@ const HTTPService = forwardRef<any, any>((_, ref): any => {
                 name="default_site"
                 title="默认站点"
                 description="域名未绑定网站时转发到这里，留空显示“网站不存在”页面。">
-                <Select
-                    allowClear
-                    showSearch={false}
-                    options={siteOptions}
+                <SiteSelect allowClear stringValue refreshKey={active ? "open" : "closed"}
                     placeholder="请选择默认站点，留空表示关闭"/>
             </SettingField>
             <SettingField
@@ -1561,7 +1543,6 @@ const HTTPService = forwardRef<any, any>((_, ref): any => {
                         setSaving(false);
                         setAction("");
                         setLoadError("");
-                        setSiteOptions([]);
                         setSection("service");
                         setPageSection("initial_page");
                         setNetworkPanels([]);
@@ -1576,7 +1557,7 @@ const HTTPService = forwardRef<any, any>((_, ref): any => {
                                 <Empty
                                     image={Empty.PRESENTED_IMAGE_SIMPLE}
                                     description={loadError}>
-                                    <Button type="primary" onClick={() => void load(true, true)}>重新加载</Button>
+                                    <Button type="primary" onClick={() => void load(true)}>重新加载</Button>
                                 </Empty>
                             </div>
                         ) : (

@@ -18,7 +18,7 @@
 | `oss` | 五家云厂商的统一对象存储管理、流式备份上传及分片恢复 | [详细说明](oss/README.md) |
 | `log` | 按字节游标读取及清空日志文件，支持轮转文件；不是应用日志记录器 | [详细说明](log/README.md) |
 
-OSS 厂商和公共类型：[阿里](oss/aliyun/README.md)、[腾讯](oss/tencent/README.md)、[华为](oss/huawei/README.md)、[火山](oss/volcengine/README.md)、[百度](oss/baidu/README.md)、[types](oss/types/README.md)。业务统一使用根包 `oss`，厂商子包面向适配器实现和维护。
+OSS 厂商实现：[阿里](oss/aliyun/README.md)、[腾讯](oss/tencent/README.md)、[华为](oss/huawei/README.md)、[火山](oss/volcengine/README.md)、[百度](oss/baidu/README.md)。凭据使用各厂商的 `Secret`，存储连接使用独立的 `Config`，通过 `oss.NewManager(secret, config)` 创建统一客户端。公共类型、统一 API 和上传下载进度见 [OSS 根包说明](oss/README.md)，厂商子包负责具体实现并自动注册。
 
 ## 数据访问、参数与基础类型
 

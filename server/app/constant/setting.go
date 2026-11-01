@@ -22,6 +22,10 @@ var SensitiveGroups = map[string]struct {
 		Read:  false,
 		Write: true,
 	},
+	CertGroup: {
+		Read:  false,
+		Write: true,
+	},
 }
 
 const (
@@ -40,6 +44,11 @@ const (
 	MonitorGroup         = "monitor"                        //系统监控配置组
 	MonitorEnabled       = MonitorGroup + ".enabled"        //是否保存监控历史
 	MonitorRetentionDays = MonitorGroup + ".retention_days" //监控历史保留天数
+
+	CertGroup            = "cert"                       //证书配置组
+	CertAutoRenewEnabled = CertGroup + ".renew_enabled" //自动续签开关
+	CertAutoRenewSpec    = CertGroup + ".renew_spec"    //自动续签执行周期
+	CertAutoRenewRetries = CertGroup + ".renew_retries" //自动续签失败后重试次数
 
 	LoginGroup    = "login"                  //登录配置组
 	LoginAccount  = LoginGroup + ".account"  //登录账号

@@ -8,6 +8,8 @@ import type {MonitorHistory, MonitorProcessMetric, MonitorSeries} from "../../ty
 
 type MonitorTooltipModel = ChartTooltipModel & {
     process?: {
+        title: string;
+        valueLabel: string;
         rows: {name: string; pid: string; value: string}[];
         time: string;
         state: string;
@@ -34,6 +36,7 @@ const labels = {
     cpu: {title: "CPU 进程 Top 5", valueLabel: "整机占比"},
     memory: {title: "内存进程 Top 5", valueLabel: "RSS"},
     disk_io: {title: "磁盘 I/O 进程 Top 5", valueLabel: "读写总速率"},
+    process_io: {title: "进程总 I/O Top 5", valueLabel: "文件/网络/设备"},
 };
 const numberLabel = new Intl.NumberFormat("zh-CN", {maximumFractionDigits: 2}).format;
 
@@ -71,9 +74,9 @@ export default function useTooltip(metric: MonitorProcessMetric | undefined, his
                 widths.pid = Math.max(widths.pid, row.pid.length);
                 widths.value = Math.max(widths.value, row.value.length);
             });
-            const highPoint = metric === "cpu" ? "峰值" : "高点";
+            const highPoint = metric === "cpu" ? "峰值" : metric === "disk_io" && group?.io_scope === "process" ? "磁盘高点" : "高点";
             const peakLabel = rows.length && group ? metric === "cpu" ? "峰值时刻"
-                : `高点 ${metric === "memory" ? `${numberLabel(group.peak!)}%` : `${formatSize(group.peak!)}/s`}` : "";
+                : `${highPoint} ${metric === "memory" ? `${numberLabel(group.peak!)}%` : `${formatSize(group.peak!)}/s`}` : "";
             models.set(point.time, {
                 title: `${dayjs(point.time).format("YYYY-MM-DD HH:mm")}${point.samples === 0 ? "（无采样）" : ""}`,
                 values: series.map((item) => {
@@ -82,6 +85,7 @@ export default function useTooltip(metric: MonitorProcessMetric | undefined, his
                     return unit === "bytes" ? `${formatSize(value)}/s` : `${numberLabel(value)}${unit === "percent" ? "%" : ""}`;
                 }),
                 process: metric ? {
+                    ...labels[metric === "disk_io" && group?.io_scope === "process" ? "process_io" : metric],
                     rows,
                     widths,
                     time: rows.length ? `${peakLabel} · ${group && Number.isFinite(group.time) && group.time > 0 ? dayjs(group.time).format(metric === "cpu" ? "YYYY-MM-DD HH:mm:ss" : "HH:mm:ss") : "时间未知"}${group?.partial ? "（部分进程）" : ""}` : "",
@@ -102,7 +106,9 @@ export default function useTooltip(metric: MonitorProcessMetric | undefined, his
             renderContent: (container) => {
                 const section = element("div", "process-section");
                 const heading = element("div", "process-heading");
-                heading.append(element("span", "", label.title), element("span", "", label.valueLabel));
+                const title = element("span", "", label.title);
+                const valueLabel = element("span", "", label.valueLabel);
+                heading.append(title, valueLabel);
                 const time = element("div", "process-time");
                 const list = element("ol", "process-list");
                 const rows = Array.from({length: 5}, () => {
@@ -121,6 +127,8 @@ export default function useTooltip(metric: MonitorProcessMetric | undefined, his
                 return (model) => {
                     const info = model.process;
                     const hasRows = Boolean(info?.rows.length);
+                    text(title, info?.title || label.title);
+                    text(valueLabel, info?.valueLabel || label.valueLabel);
                     visible(time, hasRows);
                     visible(list, hasRows);
                     visible(state, !hasRows);

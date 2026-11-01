@@ -15,6 +15,7 @@ const ignoreShortcut = (target: EventTarget | null) => {
 };
 
 const useFileClipboard = ({
+    enabled = true,
     path,
     loaded,
     loading,
@@ -202,6 +203,7 @@ const useFileClipboard = ({
     }, [closeConfirm, confirmOverwrite, items, loaded, message, mode, navigating, path, trackTask]);
 
     useEffect(() => {
+        if (!enabled) return;
         const handleShortcut = (event: KeyboardEvent) => {
             if (event.repeat || event.altKey || event.shiftKey || (!event.ctrlKey && !event.metaKey) || ignoreShortcut(event.target)) {
                 return;
@@ -226,7 +228,7 @@ const useFileClipboard = ({
         };
         window.addEventListener("keydown", handleShortcut);
         return () => window.removeEventListener("keydown", handleShortcut);
-    }, [copySelected, hasBusySelection, items.length, loaded, loading, moveSelected, navigating, paste, pasting, selectedRecords.length]);
+    }, [copySelected, enabled, hasBusySelection, items.length, loaded, loading, moveSelected, navigating, paste, pasting, selectedRecords.length]);
 
     useEffect(() => () => cancelPending(), [cancelPending]);
 

@@ -7,7 +7,7 @@ import (
 	"strconv"
 )
 
-// Delete 解除证书关联后删除密钥凭据。
+// Delete 删除未被对象存储或证书引用的密钥。
 func Delete(c *context.Context) {
 	var form struct {
 		Id int64 `json:"id" default:"0" validate:"required,min=1" label:"密钥ID"`

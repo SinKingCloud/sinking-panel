@@ -1,12 +1,15 @@
 import dayjs from "dayjs";
 
+// parsePath 保留盘符或共享卷作为根，避免上级导航越过 UNC 共享边界。
 const parsePath = (value: string) => {
     const raw = String(value || "");
-    const driveMatch = raw.match(/^([a-zA-Z]):(?:[\\/]+|$)/);
-    const source = driveMatch ? raw.replace(/\\/g, "/") : raw;
-    const drive = driveMatch ? `${driveMatch[1].toUpperCase()}:` : "";
-    const normalizedDriveMatch = drive ? source.match(/^([a-zA-Z]):(?:\/+|$)/) : null;
-    const remainder = drive ? source.slice(normalizedDriveMatch?.[0].length || 0) : source.replace(/^\/+/, "");
+    const windows = /^[a-zA-Z]:(?:[\\/]|$)/.test(raw) || /^(?:\\\\|\/\/)[^\\/]/.test(raw);
+    const source = windows ? raw.replace(/\\/g, "/") : raw;
+    const drive = source.match(/^(\/\/\?\/)?([a-zA-Z]):(?:\/+|$)/);
+    const share = !drive && source.match(/^(\/\/(?:\?\/UNC\/)?[^/]+\/[^/]+)(?:\/+|$)/i);
+    const root = drive ? `${drive[1] || ""}${drive[2].toUpperCase()}:/` : share ? `${share[1]}/` : "/";
+    const remainder = drive ? source.slice(drive[0].length)
+        : share ? source.slice(share[0].length) : source.replace(/^\/+/, "");
     const parts: string[] = [];
     remainder.split(/\/+/).forEach((part) => {
         if (!part || part === ".") {
@@ -18,33 +21,45 @@ const parsePath = (value: string) => {
         }
         parts.push(part);
     });
-    return {drive, parts};
+    return {root, parts};
 };
 
+// normalizeFilePath 统一目录分隔符，保留 Windows 盘符和 UNC 共享根。
 export const normalizeFilePath = (value: string) => {
-    const {drive, parts} = parsePath(value);
-    const root = drive ? `${drive}/` : "/";
+    const {root, parts} = parsePath(value);
     return parts.length > 0 ? `${root}${parts.join("/")}` : root;
 };
 
 export const parentFilePath = (value: string) => {
-    const {drive, parts} = parsePath(value);
+    const {root, parts} = parsePath(value);
     parts.pop();
-    return normalizeFilePath(`${drive ? `${drive}/` : "/"}${parts.join("/")}`);
+    return `${root}${parts.join("/")}`;
 };
 
 export const buildFileBreadcrumbs = (value: string): any[] => {
-    const {drive, parts} = parsePath(value);
-    const root = drive ? `${drive}/` : "/";
-    const result: any[] = [{label: drive || "/", path: root}];
+    const {root, parts} = parsePath(value);
+    const result: any[] = [{label: root === "/" ? root : root.slice(0, -1), path: root}];
     parts.forEach((part, index) => {
         result.push({
             label: part,
-            path: normalizeFilePath(`${root}${parts.slice(0, index + 1).join("/")}`),
+            path: `${root}${parts.slice(0, index + 1).join("/")}`,
         });
     });
     return result;
 };
+
+// getFileDiskName 返回磁盘目录名称，实际文件操作仍使用原始路径。
+export const getFileDiskName = (value: string) => {
+    const path = normalizeFilePath(value);
+    const {root} = parsePath(path);
+    if (path === "/") return "/";
+    if (/^[A-Z]:\/$/.test(path)) return `磁盘(${path.slice(0, 2)})`;
+    if (path === root) return root.slice(0, -1);
+    return path.slice(path.lastIndexOf("/") + 1);
+};
+
+// isWindowsFilePath 识别盘符和网络共享，避免把 UNC 路径当作 Unix 根目录。
+export const isWindowsFilePath = (value: string) => parsePath(value).root !== "/";
 
 const categoryExtensions: Partial<Record<string, Set<string>>> = {
     archive: new Set(["7z", "bz", "bz2", "gz", "rar", "tar", "tgz", "xz", "zip"]),
@@ -85,17 +100,13 @@ const categoryIcons: Record<string, string> = {
 
 export const comparableFilePath = (value: string) => {
     const normalized = normalizeFilePath(value);
-    const withoutTrailingSlash = normalized === "/" || /^[a-z]:\/$/i.test(normalized)
-        ? normalized
-        : normalized.replace(/\/$/, "");
-    return /^[a-z]:(?:\/|$)/i.test(withoutTrailingSlash)
-        ? withoutTrailingSlash.toLowerCase()
-        : withoutTrailingSlash;
+    return isWindowsFilePath(normalized) ? normalized.toLowerCase() : normalized;
 };
 
 export const isFilePathWithin = (path: string, root: string) => {
     const current = comparableFilePath(path);
     const parent = comparableFilePath(root);
+    if (parsePath(current).root !== parsePath(parent).root) return false;
     return current === parent || current.startsWith(parent.endsWith("/") ? parent : `${parent}/`);
 };
 
@@ -103,6 +114,25 @@ export const joinFilePath = (base: string, name: string) => {
     const parent = normalizeFilePath(base);
     const child = String(name ?? "");
     return `${parent}${parent.endsWith("/") ? "" : "/"}${child}`;
+};
+
+// getFileNavigation 统一文件管理和选择器的目录层级，空路径表示 Windows 磁盘列表。
+export const getFileNavigation = (path: string, roots: readonly string[]) => {
+    const disks = {label: "/", path: ""};
+    if (!path) return {breadcrumbs: [disks], parentPath: undefined};
+    const current = normalizeFilePath(path);
+    const all = buildFileBreadcrumbs(current);
+    if (!isWindowsFilePath(current)) {
+        return {breadcrumbs: all, parentPath: current === "/" ? undefined : parentFilePath(current)};
+    }
+    const root = roots.map(normalizeFilePath)
+        .filter((item) => isFilePathWithin(current, item))
+        .sort((left, right) => right.length - left.length)[0] || all[0].path;
+    const start = all.findIndex((item) => comparableFilePath(item.path) === comparableFilePath(root));
+    return {
+        breadcrumbs: [disks, {label: getFileDiskName(root), path: root}, ...all.slice(start + 1)],
+        parentPath: comparableFilePath(current) === comparableFilePath(root) ? "" : parentFilePath(current),
+    };
 };
 
 export const formatFileSize = (size: unknown) => {
@@ -150,7 +180,8 @@ export const getFileExtension = (name: string) => {
 
 export const isAbsoluteFilePath = (value: string) => {
     const path = String(value || "");
-    return path.startsWith("/") || /^[a-zA-Z]:[\\/]/.test(path);
+    return path.startsWith("/") || /^[a-zA-Z]:[\\/]/.test(path)
+        || (path.startsWith("\\\\") && isWindowsFilePath(path));
 };
 
 export const getFileCategory = (name: string, isDir = false): string => {

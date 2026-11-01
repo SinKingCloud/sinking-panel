@@ -6,6 +6,7 @@ import (
 	repositoryConfig "server/app/repository/config"
 	repositoryDatabase "server/app/repository/database"
 	repositoryLog "server/app/repository/log"
+	repositoryOss "server/app/repository/oss"
 	repositoryScript "server/app/repository/script"
 	repositorySecret "server/app/repository/secret"
 	repositoryServer "server/app/repository/server"
@@ -20,6 +21,7 @@ import (
 	serviceDatabase "server/app/service/database"
 	serviceFile "server/app/service/file"
 	serviceLog "server/app/service/log"
+	serviceOss "server/app/service/oss"
 	serviceRecycle "server/app/service/recycle"
 	serviceScript "server/app/service/script"
 	serviceSecret "server/app/service/secret"
@@ -43,6 +45,7 @@ var (
 	Type      serviceTypes.Service
 	Log       serviceLog.Service
 	Task      serviceTask.Service
+	Oss       serviceOss.Service
 	File      serviceFile.Service
 	Recycle   serviceRecycle.Service
 	System    serviceSystem.Service
@@ -64,22 +67,28 @@ func Init() {
 	siteDomainRepository := repositorySiteDomain.NewRepository(global.App.Database)
 	certRepository := repositoryCert.NewRepository(global.App.Database)
 	secretRepository := repositorySecret.NewRepository(global.App.Database)
+	ossRepository := repositoryOss.NewRepository(global.App.Database)
 	databaseRepository := repositoryDatabase.NewRepository(global.App.Database)
 
 	Config = serviceConfig.NewService(configRepository, global.App.Cache)
 	Auth = serviceAuth.NewService(Config, global.App.Cache)
 	Server = serviceServer.NewService(serverRepository, scriptRepository, typesRepository, Config, global.App.Database, global.App.Cache)
-	Secret = serviceSecret.NewService(secretRepository, certRepository, global.App.Database, global.App.Cache)
+	Secret = serviceSecret.NewService(secretRepository, certRepository, ossRepository, global.App.Database)
 	Type = serviceTypes.NewService(typesRepository, scriptRepository, siteRepository, taskRepository, databaseRepository, global.App.Database, global.App.Cache)
 	Script = serviceScript.NewService(scriptRepository, typesRepository)
 	Log = serviceLog.NewService(logRepository)
 	Task = serviceTask.NewService(taskRepository, Type)
-	File = serviceFile.NewService(global.App.Cache)
-	Recycle = serviceRecycle.NewService()
 	System = serviceSystem.NewService(Config, global.App.Daemon, global.App.Container)
+	Oss = serviceOss.NewService(ossRepository, secretRepository, System, global.App.Database)
+	Recycle = serviceRecycle.NewService()
+	File = serviceFile.NewService(Recycle, System, global.App.Cache)
 	Database = serviceDatabase.NewService(databaseRepository, scriptRepository, typesRepository, Type, System, global.App.Database, global.App.Cache)
-	Container = serviceContainer.NewManager(global.App.Container, global.App.Cache)
-	Site, _ = serviceSite.NewService(siteRepository, siteDomainRepository, certRepository, secretRepository, Type, Config, Task, Recycle, global.App.Database, global.App.Cache)
+	Container = serviceContainer.NewManager(global.App.Container)
+	var err error
+	Site, err = serviceSite.NewService(siteRepository, siteDomainRepository, certRepository, secretRepository, Type, Config, Task, Recycle, global.App.Database, global.App.Cache)
+	if err != nil {
+		panic(err)
+	}
 	services := &sdk.Service{
 		Config:    Config,
 		Auth:      Auth,

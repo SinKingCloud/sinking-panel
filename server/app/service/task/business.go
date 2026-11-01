@@ -438,25 +438,28 @@ func (s *service) Add(data *model.Task, run ...func(context.Context)) error {
 		return err
 	}
 	data.Script = content
-	data.Id = str.GetSnowWorkIns().GetId()
+	data.EntryID = 0
 	if data.Status == task_status.Stop {
-		data.EntryID = 0
 		return s.repositoryTask.Create(data)
 	}
 	j := s.newJob(data)
 	if j == nil {
 		return errors.New("任务实例化失败")
 	}
-	id, err := s.instance.AddJob(data.Spec, j)
-	if err != nil {
+	// 先保存并取得任务 ID，避免调度器在 ID 回填前执行任务。
+	if err = s.repositoryTask.Create(data); err != nil {
 		return err
 	}
-	data.EntryID = int(id)
-	err = s.repositoryTask.Create(data)
-	if err != nil {
+	id, err := s.instance.AddJob(data.Spec, j)
+	if err == nil {
+		err = s.repositoryTask.UpdateEntryIDById(data.Id, int(id))
+		if err == nil {
+			data.EntryID = int(id)
+			return nil
+		}
 		s.instance.Remove(id)
 	}
-	return err
+	return errors.Join(err, s.repositoryTask.DeleteByIds([]int64{data.Id}))
 }
 
 // Start 启动任务
@@ -472,6 +475,10 @@ func (s *service) Start() {
 		if err == nil && tasks != nil {
 			for _, task := range tasks {
 				if task.Status != task_status.Running {
+					continue
+				}
+				// 业务初始化时可能已启用计划，启动时不重复注册同一调度任务。
+				if current, ok := s.instance.Entry(cron.EntryID(task.EntryID)).Job.(*job); ok && current.Id == task.Id {
 					continue
 				}
 				job2 := s.newJob(task)

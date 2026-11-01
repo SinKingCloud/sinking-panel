@@ -7,21 +7,21 @@ import (
 	"strings"
 )
 
-// GetData 返回各厂商的空配置，供前端生成表单。
-func (s *service) GetData() map[int]interface{} {
-	return map[int]interface{}{
-		secret_provider.TencentCloud: &TencentCloud{},
-		secret_provider.Aliyun:       &Aliyun{},
-		secret_provider.HuaweiCloud:  &HuaweiCloud{},
-		secret_provider.Volcengine:   &Volcengine{},
-		secret_provider.BaiduCloud:   &BaiduCloud{},
-	}
-}
-
 // formatData 按厂商结构体读取配置，不暴露未声明的字段。
 func (s *service) formatData(value string, provider int) (map[string]string, error) {
-	data, ok := s.GetData()[provider]
-	if !ok {
+	var data interface{}
+	switch provider {
+	case secret_provider.TencentCloud:
+		data = &TencentCloud{}
+	case secret_provider.Aliyun:
+		data = &Aliyun{}
+	case secret_provider.HuaweiCloud:
+		data = &HuaweiCloud{}
+	case secret_provider.Volcengine:
+		data = &Volcengine{}
+	case secret_provider.BaiduCloud:
+		data = &BaiduCloud{}
+	default:
 		return nil, errors.New("服务商不合法")
 	}
 	if err := json.Unmarshal([]byte(value), data); err != nil {

@@ -355,7 +355,7 @@ var systemMonitorFields = []recordstore.Field{
 // startMonitorHistory 读取采集设置并初始化指标与进程历史存储。
 func (s *service) startMonitorHistory() {
 	configuration, err := func() (recordstore.SeriesConfiguration, error) {
-		configuration := recordstore.SeriesConfiguration{Enabled: true, RetentionDays: 30}
+		configuration := recordstore.SeriesConfiguration{Enabled: false, RetentionDays: 30}
 		if s.configService == nil {
 			return configuration, errors.New("系统配置服务未初始化")
 		}

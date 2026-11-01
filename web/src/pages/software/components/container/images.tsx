@@ -23,7 +23,7 @@ import {containerImages} from "@/service/api/container";
 import {getParams} from "@/utils/page";
 import useStyles from "./styles";
 
-const ImagesManager = memo(forwardRef<any, any>(({onRun}, ref): any => {
+const ImagesManager = memo(forwardRef<any, any>(({onRun, open: controlledOpen, onCancel, selection, zIndex = 1050}, ref): any => {
     const {message, modal} = App.useApp();
     const theme = useTheme();
     const compact = Boolean(theme?.isCompactTheme?.());
@@ -36,7 +36,8 @@ const ImagesManager = memo(forwardRef<any, any>(({onRun}, ref): any => {
     const importingRef = useRef(false);
     const detailRef = useRef<any>(null);
     const [form] = Form.useForm<{ image_path: string }>();
-    const [open, setOpen] = useState(false);
+    const [visible, setVisible] = useState(false);
+    const open = controlledOpen ?? visible;
     const [busy, setBusy] = useState(new Set<string>());
     const [importOpen, setImportOpen] = useState(false);
     const [importing, setImporting] = useState(false);
@@ -55,7 +56,7 @@ const ImagesManager = memo(forwardRef<any, any>(({onRun}, ref): any => {
         open: () => {
             if (busyRef.current.size || importingRef.current) return;
             confirmRef.current?.destroy();
-            setOpen(true);
+            setVisible(true);
         },
         openDetail: showDetail,
     }), [showDetail]);
@@ -88,7 +89,7 @@ const ImagesManager = memo(forwardRef<any, any>(({onRun}, ref): any => {
             content: targets.length === 1
                 ? `确定删除镜像“${targets[0].name || targets[0].id}”吗？被容器使用的镜像无法删除。`
                 : "确定删除所选镜像吗？被容器使用的镜像会保留，并显示失败原因。",
-            zIndex: 1150,
+            zIndex: zIndex + 100,
             okText: "删除",
             cancelText: "取消",
             okButtonProps: {danger: true},
@@ -123,7 +124,7 @@ const ImagesManager = memo(forwardRef<any, any>(({onRun}, ref): any => {
                             whiteSpace: "pre-wrap",
                             overflowWrap: "anywhere"
                         }}>{reason}</div>,
-                        zIndex: 1150,
+                        zIndex: zIndex + 100,
                         okText: "知道了",
                     });
                 } finally {
@@ -140,7 +141,7 @@ const ImagesManager = memo(forwardRef<any, any>(({onRun}, ref): any => {
             },
         });
         confirmRef.current = confirmation;
-    }, [message, modal]);
+    }, [message, modal, zIndex]);
 
     const columns = useMemo<ModalTableProps<any>["columns"]>(() => [
         {
@@ -166,7 +167,11 @@ const ImagesManager = memo(forwardRef<any, any>(({onRun}, ref): any => {
         },
         {
             title: "操作", key: "action", width: 82, fixed: "right", className: "action-cell",
-            render: (_, image) => <ActionDropdown disabled={busy.has(image?.id)}
+            render: (_, image) => selection ? <Button size="small"
+                color={selection.value?.includes(image?.id) ? "primary" : "default"} variant="filled"
+                onClick={() => selection.onSelect([image])}>
+                {selection.value?.includes(image?.id) ? "已选" : "选择"}
+            </Button> : <ActionDropdown disabled={busy.has(image?.id)}
                                                   menu={{
                                                       items: [
                                                           {
@@ -180,8 +185,8 @@ const ImagesManager = memo(forwardRef<any, any>(({onRun}, ref): any => {
                                                               disabled: busy.size > 0 || importing,
                                                               onClick: () => {
                                                                   if (busyRef.current.size || importingRef.current) return;
-                                                                  setOpen(false);
-                                                                  onRun(image);
+                                                                  setVisible(false);
+                                                                  onRun?.(image);
                                                               }
                                                           },
                                                           {
@@ -196,17 +201,18 @@ const ImagesManager = memo(forwardRef<any, any>(({onRun}, ref): any => {
                         aria-label={`操作镜像 ${image?.name || image?.id}`}>操作</Button>
             </ActionDropdown>,
         },
-    ], [busy, confirmRemove, importing, onRun, showDetail]);
+    ], [busy, confirmRemove, importing, onRun, selection, showDetail]);
 
     return <>
         <ModalTable<any>
             ref={tableRef}
-            title={<Title>镜像管理</Title>}
+            title={<Title>{selection ? "选择镜像" : "镜像管理"}</Title>}
             open={open}
             onOpenChange={(visible) => {
                 if (!visible && (busyRef.current.size || importingRef.current)) return;
                 if (!visible) confirmRef.current?.destroy();
-                setOpen(visible);
+                if (!visible) onCancel?.();
+                setVisible(visible);
             }}
             width={compact ? 800 : 910}
             minHeight={compact ? 420 : 460}
@@ -245,7 +251,7 @@ const ImagesManager = memo(forwardRef<any, any>(({onRun}, ref): any => {
                     onClick: () => setImportOpen(true)
                 }],
             }}
-            rowSelection={{
+            rowSelection={selection ? false : {
                 columnWidth: 44,
                 clearDisabled: busy.size > 0,
                 getCheckboxProps: (image) => ({disabled: busy.has(image?.id)}),
@@ -255,7 +261,8 @@ const ImagesManager = memo(forwardRef<any, any>(({onRun}, ref): any => {
                 }],
             }}
             modalProps={{
-                zIndex: 1050,
+                zIndex,
+                destroyOnHidden: true,
                 closable: !importing && busy.size === 0,
                 keyboard: !importing && busy.size === 0,
                 mask: {closable: !importing && busy.size === 0},
@@ -271,7 +278,7 @@ const ImagesManager = memo(forwardRef<any, any>(({onRun}, ref): any => {
                       if (!importingRef.current) setImportOpen(false);
                   }}
                   modalProps={{
-                      open: importOpen, zIndex: 1100, okText: "导入", cancelText: "取消", confirmLoading: importing,
+                      open: importOpen, zIndex: zIndex + 50, okText: "导入", cancelText: "取消", confirmLoading: importing,
                       cancelButtonProps: {disabled: importing}, closable: !importing, keyboard: !importing,
                       mask: {closable: !importing}, destroyOnHidden: true, style: {maxWidth: "calc(100vw - 24px)"},
                   } as any}>
@@ -288,14 +295,14 @@ const ImagesManager = memo(forwardRef<any, any>(({onRun}, ref): any => {
                 </Form>
             </ConfigProvider>
         </ProModal>
-        <ImageDetail ref={detailRef}/>
+        <ImageDetail ref={detailRef} zIndex={zIndex + 50}/>
     </>;
 }));
 
 ImagesManager.displayName = "ImagesManager";
 
 // 详情的加载和分段切换独立更新，避免重新渲染后面的镜像列表。
-const ImageDetail = memo(forwardRef<any>((_, ref) => {
+const ImageDetail = memo(forwardRef<any, {zIndex?: number}>(({zIndex = 1100}, ref) => {
     const theme = useTheme();
     const compact = Boolean(theme?.isCompactTheme?.());
     const screens = Grid.useBreakpoint();
@@ -351,7 +358,7 @@ const ImageDetail = memo(forwardRef<any>((_, ref) => {
                   modalProps={{
                       open: Boolean(detailId),
                       afterClose: () => { if (!detailId) setDetail(null); },
-                      zIndex: 1100,
+                      zIndex,
                       destroyOnHidden: true,
                       footer: null,
                       mask: {closable: true},

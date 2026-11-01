@@ -141,7 +141,7 @@ const MonitorSettingsModal = forwardRef<MonitorSettingsRef, Props>(({onLoaded, o
                           setSaveError("");
                       },
                   } as any}>
-            <Form form={form} layout="vertical" variant="filled" requiredMark
+            <Form form={form} layout="vertical" variant="filled" requiredMark initialValues={{enabled: false}}
                   disabled={loading || saving} onFinish={submit}>
                 {loading ? <div className={styles.state} role="status" aria-label="正在读取监控设置"><Spin/></div>
                     : loadError ? <div className={styles.state}>

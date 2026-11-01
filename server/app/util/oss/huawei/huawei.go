@@ -5,7 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"server/app/util/oss/types"
+	"server/app/enum/secret_provider"
+	"server/app/util/oss"
 	"slices"
 	"strings"
 	"time"
@@ -15,20 +16,42 @@ import (
 
 // Client 提供华为云 OBS 的对象存储实现。
 type Client struct {
-	config types.Config
+	secret oss.Secret
+	config oss.Config
 }
 
-// New 使用已标准化的配置创建华为云 OBS 客户端。
-func New(c types.Config) (*Client, error) {
-	h := &Client{config: c}
-	_, err := h.client(context.Background())
-	return h, err
+var _ oss.Backend = (*Client)(nil)
+
+// init 注册华为云 OBS实现，供统一入口按厂商创建客户端。
+func init() {
+	oss.Register(secret_provider.HuaweiCloud, func(secret oss.SecretSource, config oss.ConfigSource) (oss.Backend, error) {
+		return New(secret, config)
+	})
+}
+
+// New 使用独立的密钥和连接配置创建客户端，不发起网络请求。
+func New(secret oss.SecretSource, source oss.ConfigSource) (*Client, error) {
+	key, c, err := oss.NormalizeConfig(secret, source, secret_provider.HuaweiCloud)
+	if err != nil {
+		return nil, err
+	}
+	if c.Region == "" && c.Endpoint == "" {
+		return nil, fmt.Errorf("%w: 华为云必须提供 Region 或 Endpoint", oss.ErrInvalidArgument)
+	}
+	if c.Endpoint == "" {
+		c.Endpoint = "https://obs." + c.Region + ".myhuaweicloud.com"
+	}
+	h := &Client{secret: key, config: c}
+	if _, err = h.client(context.Background()); err != nil {
+		return nil, err
+	}
+	return h, nil
 }
 
 // client 为每次调用绑定独立 context，并复用 HTTP 连接池，避免并发调用相互覆盖取消状态。
 func (h *Client) client(ctx context.Context) (*obs.ObsClient, error) {
-	return obs.New(h.config.AccessKeyID, h.config.AccessKeySecret, h.config.Endpoint,
-		obs.WithSecurityToken(h.config.SecurityToken), obs.WithRegion(h.config.Region), obs.WithSignature(obs.SignatureObs),
+	return obs.New(h.secret.AccessKeyID, h.secret.AccessKeySecret, h.config.Endpoint,
+		obs.WithSecurityToken(h.secret.SecurityToken), obs.WithRegion(h.config.Region), obs.WithSignature(obs.SignatureObs),
 		obs.WithHttpClient(h.config.HTTPClient), obs.WithSslVerify(true), obs.WithRequestContext(ctx), obs.WithMaxRetryCount(0), obs.WithMaxRedirectCount(0))
 }
 
@@ -43,18 +66,18 @@ func (h *Client) contextError(ctx context.Context, op, key string, err error) er
 	}
 	var serviceErr obs.ObsError
 	if errors.As(err, &serviceErr) {
-		return &types.Error{Provider: h.config.Provider, Op: op, Key: key, StatusCode: serviceErr.StatusCode, Code: serviceErr.Code, Message: serviceErr.Message, Err: err}
+		return &oss.Error{Provider: h.config.Provider, Op: op, Key: key, StatusCode: serviceErr.StatusCode, Code: serviceErr.Code, Message: serviceErr.Message, Err: err}
 	}
-	return types.WrapError(h.config.Provider, op, key, err)
+	return oss.WrapError(h.config.Provider, op, key, err)
 }
 
 // ListBuckets 读取账户下的存储桶列表。
-func (h *Client) ListBuckets(ctx context.Context) ([]types.Bucket, error) {
+func (h *Client) ListBuckets(ctx context.Context) ([]oss.Bucket, error) {
 	c, err := h.client(ctx)
 	if err != nil {
 		return nil, err
 	}
-	var buckets []types.Bucket
+	var buckets []oss.Bucket
 	marker := ""
 	for {
 		out, err := c.ListBuckets(&obs.ListBucketsInput{QueryLocation: true, MaxKeys: 1000, Marker: marker})
@@ -63,7 +86,7 @@ func (h *Client) ListBuckets(ctx context.Context) ([]types.Bucket, error) {
 		}
 		buckets = slices.Grow(buckets, len(out.Buckets))
 		for _, b := range out.Buckets {
-			buckets = append(buckets, types.Bucket{Name: b.Name, Region: b.Location, CreatedAt: b.CreationDate})
+			buckets = append(buckets, oss.Bucket{Name: b.Name, Region: b.Location, CreatedAt: b.CreationDate})
 		}
 		if !out.IsTruncated {
 			return buckets, nil
@@ -107,8 +130,8 @@ func (h *Client) DeleteBucket(ctx context.Context) error {
 	return h.contextError(ctx, "DeleteBucket", "", err)
 }
 
-// ListObjects 按前缀和游标分页列出对象。
-func (h *Client) ListObjects(ctx context.Context, o types.ListOptions) (*types.ObjectPage, error) {
+// ListFiles 按前缀和游标分页列出文件。
+func (h *Client) ListFiles(ctx context.Context, o oss.ListOptions) (*oss.FilePage, error) {
 	c, err := h.client(ctx)
 	if err != nil {
 		return nil, err
@@ -119,23 +142,23 @@ func (h *Client) ListObjects(ctx context.Context, o types.ListOptions) (*types.O
 	in.MaxKeys = o.Limit
 	out, err := c.ListObjects(in)
 	if err != nil {
-		return nil, h.contextError(ctx, "ListObjects", "", err)
+		return nil, h.contextError(ctx, "ListFiles", "", err)
 	}
-	page := &types.ObjectPage{
-		Objects:        slices.Grow([]types.Object(nil), len(out.Contents)),
+	page := &oss.FilePage{
+		Files:          slices.Grow([]oss.File(nil), len(out.Contents)),
 		CommonPrefixes: out.CommonPrefixes,
 		NextToken:      out.NextMarker,
 		HasMore:        out.IsTruncated,
 	}
 	for _, v := range out.Contents {
-		page.Objects = append(page.Objects, types.Object{Key: v.Key, Size: v.Size, ETag: v.ETag, LastModified: v.LastModified, StorageClass: string(v.StorageClass)})
+		page.Files = append(page.Files, oss.File{Key: v.Key, Size: v.Size, ETag: v.ETag, LastModified: v.LastModified, StorageClass: string(v.StorageClass)})
 	}
 	return page, nil
 }
 
-// huaweiObject 将 OBS 对象元数据转换为统一文件信息。
-func huaweiObject(key string, v obs.GetObjectMetadataOutput) types.Object {
-	return types.Object{
+// huaweiFile 将 OBS 文件元数据转换为统一文件信息。
+func (h *Client) huaweiFile(key string, v obs.GetObjectMetadataOutput) oss.File {
+	return oss.File{
 		Key:                key,
 		Size:               v.ContentLength,
 		ETag:               v.ETag,
@@ -149,22 +172,22 @@ func huaweiObject(key string, v obs.GetObjectMetadataOutput) types.Object {
 	}
 }
 
-// StatObject 读取对象元数据，不下载正文。
-func (h *Client) StatObject(ctx context.Context, key string) (*types.Object, error) {
+// StatFile 读取文件元数据，不下载正文。
+func (h *Client) StatFile(ctx context.Context, key string) (*oss.File, error) {
 	c, err := h.client(ctx)
 	if err != nil {
 		return nil, err
 	}
 	v, err := c.GetObjectMetadata(&obs.GetObjectMetadataInput{Bucket: h.config.Bucket, Key: key})
 	if err != nil {
-		return nil, h.contextError(ctx, "StatObject", key, err)
+		return nil, h.contextError(ctx, "StatFile", key, err)
 	}
-	o := huaweiObject(key, *v)
+	o := h.huaweiFile(key, *v)
 	return &o, nil
 }
 
-// GetObject 流式读取对象，支持范围和 ETag 条件。
-func (h *Client) GetObject(ctx context.Context, key string, o types.GetOptions) (*types.Download, error) {
+// GetFile 流式读取文件，支持范围和 ETag 条件。
+func (h *Client) GetFile(ctx context.Context, key string, o oss.GetOptions) (*oss.Download, error) {
 	c, err := h.client(ctx)
 	if err != nil {
 		return nil, err
@@ -172,20 +195,27 @@ func (h *Client) GetObject(ctx context.Context, key string, o types.GetOptions) 
 	in := &obs.GetObjectInput{GetObjectMetadataInput: obs.GetObjectMetadataInput{Bucket: h.config.Bucket, Key: key}, Range: o.Range, IfMatch: o.IfMatch}
 	v, err := c.GetObject(in)
 	if err != nil {
-		return nil, h.contextError(ctx, "GetObject", key, err)
+		return nil, h.contextError(ctx, "GetFile", key, err)
 	}
+	file := h.huaweiFile(key, v.GetObjectMetadataOutput)
+	file.Size = -1
 	contentRange := ""
-	for key, values := range v.ResponseHeaders {
-		if strings.EqualFold(key, "Content-Range") && len(values) > 0 {
+	for name, values := range v.ResponseHeaders {
+		if len(values) == 0 {
+			continue
+		}
+		if strings.EqualFold(name, "Content-Range") {
 			contentRange = values[0]
-			break
+		}
+		if strings.EqualFold(name, "Content-Length") && values[0] != "" {
+			file.Size = v.ContentLength
 		}
 	}
-	return &types.Download{Object: huaweiObject(key, v.GetObjectMetadataOutput), Body: v.Body, ContentRange: contentRange}, nil
+	return &oss.Download{File: file, Body: v.Body, ContentRange: contentRange}, nil
 }
 
 // huaweiHeaders 提取上传和复制共用的内容头。
-func huaweiHeaders(o types.PutOptions) obs.HttpHeader {
+func (h *Client) huaweiHeaders(o oss.PutOptions) obs.HttpHeader {
 	return obs.HttpHeader{
 		ContentType:        o.ContentType,
 		CacheControl:       o.CacheControl,
@@ -194,72 +224,68 @@ func huaweiHeaders(o types.PutOptions) obs.HttpHeader {
 	}
 }
 
-// operation 组装当前桶的对象标识、存储类型和用户元数据。
-func (h *Client) operation(key string, o types.PutOptions) obs.ObjectOperationInput {
+// operation 组装当前桶的文件标识、存储类型和用户元数据。
+func (h *Client) operation(key string, o oss.PutOptions) obs.ObjectOperationInput {
 	return obs.ObjectOperationInput{Bucket: h.config.Bucket, Key: key, StorageClass: obs.StorageClassType(o.StorageClass), Metadata: o.Metadata}
 }
 
-// PutObject 上传指定长度的数据流。
-func (h *Client) PutObject(ctx context.Context, key string, r io.Reader, size int64, o types.PutOptions) (*types.Object, error) {
+// PutFile 上传指定长度的数据流。
+func (h *Client) PutFile(ctx context.Context, key string, r io.Reader, size int64, o oss.PutOptions) (*oss.File, error) {
 	c, err := h.client(ctx)
 	if err != nil {
 		return nil, err
 	}
-	v, err := c.PutObject(&obs.PutObjectInput{PutObjectBasicInput: obs.PutObjectBasicInput{ObjectOperationInput: h.operation(key, o), HttpHeader: huaweiHeaders(o), ContentLength: size}, Body: r})
+	v, err := c.PutObject(&obs.PutObjectInput{PutObjectBasicInput: obs.PutObjectBasicInput{ObjectOperationInput: h.operation(key, o), HttpHeader: h.huaweiHeaders(o), ContentLength: size}, Body: r})
 	if err != nil {
-		return nil, h.contextError(ctx, "PutObject", key, err)
+		return nil, h.contextError(ctx, "PutFile", key, err)
 	}
-	return &types.Object{Key: key, Size: size, ETag: v.ETag, ContentType: o.ContentType, Metadata: o.Metadata}, nil
+	return &oss.File{Key: key, Size: size, ETag: v.ETag, ContentType: o.ContentType, Metadata: o.Metadata}, nil
 }
 
-// DeleteObject 删除指定对象。
-func (h *Client) DeleteObject(ctx context.Context, key string) error {
+// DeleteFile 删除指定文件。
+func (h *Client) DeleteFile(ctx context.Context, key string) error {
 	c, err := h.client(ctx)
 	if err != nil {
 		return err
 	}
 	_, err = c.DeleteObject(&obs.DeleteObjectInput{Bucket: h.config.Bucket, Key: key})
-	return h.contextError(ctx, "DeleteObject", key, err)
+	return h.contextError(ctx, "DeleteFile", key, err)
 }
 
-// CopyObject 在服务端复制对象，可同时替换元数据。
-func (h *Client) CopyObject(ctx context.Context, source, target string, o types.CopyOptions) (*types.Object, error) {
+// CopyFile 在服务端复制文件，可同时替换元数据。
+func (h *Client) CopyFile(ctx context.Context, source, target string, o oss.CopyOptions) (*oss.File, error) {
 	c, err := h.client(ctx)
 	if err != nil {
 		return nil, err
 	}
-	bucket := o.SourceBucket
-	if bucket == "" {
-		bucket = h.config.Bucket
-	}
-	in := &obs.CopyObjectInput{ObjectOperationInput: h.operation(target, types.PutOptions{}), CopySourceBucket: bucket, CopySourceKey: source, MetadataDirective: obs.CopyMetadata}
+	in := &obs.CopyObjectInput{ObjectOperationInput: h.operation(target, oss.PutOptions{}), CopySourceBucket: h.config.Bucket, CopySourceKey: source, MetadataDirective: obs.CopyMetadata}
 	if o.ReplaceMetadata {
 		in.ObjectOperationInput = h.operation(target, o.PutOptions)
 		in.MetadataDirective = obs.ReplaceMetadata
-		in.HttpHeader = huaweiHeaders(o.PutOptions)
+		in.HttpHeader = h.huaweiHeaders(o.PutOptions)
 	}
 	v, err := c.CopyObject(in)
 	if err != nil {
-		return nil, h.contextError(ctx, "CopyObject", target, err)
+		return nil, h.contextError(ctx, "CopyFile", target, err)
 	}
-	return &types.Object{Key: target, ETag: v.ETag, LastModified: v.LastModified}, nil
+	return &oss.File{Key: target, ETag: v.ETag, LastModified: v.LastModified}, nil
 }
 
 // InitiateMultipartUpload 初始化分片上传并返回可持久化的上传 ID。
-func (h *Client) InitiateMultipartUpload(ctx context.Context, key string, o types.PutOptions) (*types.MultipartUpload, error) {
+func (h *Client) InitiateMultipartUpload(ctx context.Context, key string, o oss.PutOptions) (*oss.MultipartUpload, error) {
 	c, err := h.client(ctx)
 	if err != nil {
 		return nil, err
 	}
-	v, err := c.InitiateMultipartUpload(&obs.InitiateMultipartUploadInput{ObjectOperationInput: h.operation(key, o), HttpHeader: huaweiHeaders(o)})
+	v, err := c.InitiateMultipartUpload(&obs.InitiateMultipartUploadInput{ObjectOperationInput: h.operation(key, o), HttpHeader: h.huaweiHeaders(o)})
 	if err != nil {
 		return nil, h.contextError(ctx, "InitiateMultipartUpload", key, err)
 	}
-	return &types.MultipartUpload{Key: key, UploadID: v.UploadId}, nil
+	return &oss.MultipartUpload{Key: key, UploadID: v.UploadId}, nil
 }
 
 // UploadPart 上传一个分片，同序号分片可重新上传。
-func (h *Client) UploadPart(ctx context.Context, key, id string, n int, r io.Reader, size int64) (*types.Part, error) {
+func (h *Client) UploadPart(ctx context.Context, key, id string, n int, r io.Reader, size int64) (*oss.Part, error) {
 	c, err := h.client(ctx)
 	if err != nil {
 		return nil, err
@@ -268,11 +294,11 @@ func (h *Client) UploadPart(ctx context.Context, key, id string, n int, r io.Rea
 	if err != nil {
 		return nil, h.contextError(ctx, "UploadPart", key, err)
 	}
-	return &types.Part{Number: n, ETag: v.ETag, Size: size}, nil
+	return &oss.Part{Number: n, ETag: v.ETag, Size: size}, nil
 }
 
 // CompleteMultipartUpload 合并已上传分片。
-func (h *Client) CompleteMultipartUpload(ctx context.Context, key, id string, parts []types.Part) (*types.Object, error) {
+func (h *Client) CompleteMultipartUpload(ctx context.Context, key, id string, parts []oss.Part) (*oss.File, error) {
 	c, err := h.client(ctx)
 	if err != nil {
 		return nil, err
@@ -293,9 +319,9 @@ func (h *Client) CompleteMultipartUpload(ctx context.Context, key, id string, pa
 		return nil, h.contextError(ctx, "CompleteMultipartUpload", key, err)
 	}
 	if v.ETag == "" {
-		return nil, &types.Error{Provider: h.config.Provider, Op: "CompleteMultipartUpload", Key: key, StatusCode: 200, Code: "InvalidResponse", Message: "合并响应缺少 ETag"}
+		return nil, &oss.Error{Provider: h.config.Provider, Op: "CompleteMultipartUpload", Key: key, StatusCode: 200, Code: "InvalidResponse", Message: "合并响应缺少 ETag"}
 	}
-	return &types.Object{Key: key, ETag: v.ETag, Size: size}, nil
+	return &oss.File{Key: key, ETag: v.ETag, Size: size}, nil
 }
 
 // AbortMultipartUpload 终止分片上传并清理服务端分片。
@@ -309,7 +335,7 @@ func (h *Client) AbortMultipartUpload(ctx context.Context, key, id string) error
 }
 
 // ListParts 分页查询已上传分片。
-func (h *Client) ListParts(ctx context.Context, key, id string, o types.PartsOptions) (*types.PartsPage, error) {
+func (h *Client) ListParts(ctx context.Context, key, id string, o oss.PartsOptions) (*oss.PartsPage, error) {
 	c, err := h.client(ctx)
 	if err != nil {
 		return nil, err
@@ -318,19 +344,19 @@ func (h *Client) ListParts(ctx context.Context, key, id string, o types.PartsOpt
 	if err != nil {
 		return nil, h.contextError(ctx, "ListParts", key, err)
 	}
-	page := &types.PartsPage{
-		Parts:      slices.Grow([]types.Part(nil), len(v.Parts)),
+	page := &oss.PartsPage{
+		Parts:      slices.Grow([]oss.Part(nil), len(v.Parts)),
 		NextMarker: v.NextPartNumberMarker,
 		HasMore:    v.IsTruncated,
 	}
 	for _, p := range v.Parts {
-		page.Parts = append(page.Parts, types.Part{Number: p.PartNumber, ETag: p.ETag, Size: p.Size, LastModified: p.LastModified})
+		page.Parts = append(page.Parts, oss.Part{Number: p.PartNumber, ETag: p.ETag, Size: p.Size, LastModified: p.LastModified})
 	}
 	return page, nil
 }
 
 // ListMultipartUploads 分页查询尚未完成的分片上传。
-func (h *Client) ListMultipartUploads(ctx context.Context, o types.UploadsOptions) (*types.UploadsPage, error) {
+func (h *Client) ListMultipartUploads(ctx context.Context, o oss.UploadsOptions) (*oss.UploadsPage, error) {
 	c, err := h.client(ctx)
 	if err != nil {
 		return nil, err
@@ -339,20 +365,20 @@ func (h *Client) ListMultipartUploads(ctx context.Context, o types.UploadsOption
 	if err != nil {
 		return nil, h.contextError(ctx, "ListMultipartUploads", "", err)
 	}
-	page := &types.UploadsPage{
-		Uploads:            slices.Grow([]types.MultipartUpload(nil), len(v.Uploads)),
+	page := &oss.UploadsPage{
+		Uploads:            slices.Grow([]oss.MultipartUpload(nil), len(v.Uploads)),
 		NextKeyMarker:      v.NextKeyMarker,
 		NextUploadIDMarker: v.NextUploadIdMarker,
 		HasMore:            v.IsTruncated,
 	}
 	for _, u := range v.Uploads {
-		page.Uploads = append(page.Uploads, types.MultipartUpload{Key: u.Key, UploadID: u.UploadId, Initiated: u.Initiated})
+		page.Uploads = append(page.Uploads, oss.MultipartUpload{Key: u.Key, UploadID: u.UploadId, Initiated: u.Initiated})
 	}
 	return page, nil
 }
 
 // Presign 生成有有效期的签名访问地址。
-func (h *Client) Presign(ctx context.Context, key, method string, ttl time.Duration) (*types.SignedURL, error) {
+func (h *Client) Presign(ctx context.Context, key, method string, ttl time.Duration, options ...oss.PresignOptions) (*oss.SignedURL, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -360,29 +386,34 @@ func (h *Client) Presign(ctx context.Context, key, method string, ttl time.Durat
 	if err != nil {
 		return nil, err
 	}
-	v, err := c.CreateSignedUrl(&obs.CreateSignedUrlInput{Bucket: h.config.Bucket, Key: key, Method: obs.HttpMethodType(method), Expires: int(ttl / time.Second)})
+	query := make(map[string]string)
+	if len(options) > 0 {
+		if options[0].ContentType != "" {
+			query["response-content-type"] = options[0].ContentType
+		}
+		if options[0].ContentDisposition != "" {
+			query["response-content-disposition"] = options[0].ContentDisposition
+		}
+	}
+	v, err := c.CreateSignedUrl(&obs.CreateSignedUrlInput{Bucket: h.config.Bucket, Key: key, Method: obs.HttpMethodType(method), Expires: int(ttl / time.Second), QueryParams: query})
 	if err != nil {
 		return nil, h.contextError(ctx, "Presign", key, err)
 	}
-	return &types.SignedURL{URL: v.SignedUrl, Headers: v.ActualSignedRequestHeaders, ExpiresAt: time.Now().Add(ttl)}, nil
+	return &oss.SignedURL{URL: v.SignedUrl, Headers: v.ActualSignedRequestHeaders, ExpiresAt: time.Now().Add(ttl)}, nil
 }
 
-// UploadPartCopy 在服务端按字节范围复制分片，源 ETag 条件防止复制期间对象改变。
-func (h *Client) UploadPartCopy(ctx context.Context, key, uploadID string, number int, source string, o types.CopyPartOptions) (*types.Part, error) {
+// UploadPartCopy 在服务端按字节范围复制分片，源 ETag 条件防止复制期间文件改变。
+func (h *Client) UploadPartCopy(ctx context.Context, key, uploadID string, number int, source string, o oss.CopyPartOptions) (*oss.Part, error) {
 	client, err := h.client(ctx)
 	if err != nil {
 		return nil, err
-	}
-	bucket := o.SourceBucket
-	if bucket == "" {
-		bucket = h.config.Bucket
 	}
 	input := &obs.CopyPartInput{
 		Bucket:           h.config.Bucket,
 		Key:              key,
 		UploadId:         uploadID,
 		PartNumber:       number,
-		CopySourceBucket: bucket,
+		CopySourceBucket: h.config.Bucket,
 		CopySourceKey:    source,
 		CopySourceRange:  fmt.Sprintf("bytes=%d-%d", o.Offset, o.Offset+o.Size-1),
 	}
@@ -395,5 +426,5 @@ func (h *Client) UploadPartCopy(ctx context.Context, key, uploadID string, numbe
 	if err != nil {
 		return nil, h.contextError(ctx, "UploadPartCopy", key, err)
 	}
-	return &types.Part{Number: number, ETag: result.ETag, Size: o.Size, LastModified: result.LastModified}, nil
+	return &oss.Part{Number: number, ETag: result.ETag, Size: o.Size, LastModified: result.LastModified}, nil
 }

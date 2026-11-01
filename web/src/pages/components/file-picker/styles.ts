@@ -41,16 +41,12 @@ const useStyles = createStyles<{compact: boolean}>(({css, token}, props) => ({
         .file-picker-toolbar {
             display: grid;
             min-width: 0;
-            grid-template-columns: auto minmax(0, 1fr) auto;
+            grid-template-columns: auto minmax(0, 1fr);
             align-items: center;
             gap: ${props.compact ? 6 : 8}px;
             padding: ${props.compact ? 7 : 9}px;
             border-bottom: 1px solid ${token.colorSplit};
             background: ${token.colorFillQuaternary};
-        }
-
-        .file-picker-toolbar:not(.file-picker-toolbar-with-disks) {
-            grid-template-columns: auto minmax(0, 1fr);
         }
 
         .file-picker-up {
@@ -183,10 +179,6 @@ const useStyles = createStyles<{compact: boolean}>(({css, token}, props) => ({
             font-size: ${props.compact ? 11 : 12}px;
         }
 
-        .file-picker-disks {
-            width: ${props.compact ? 116 : 132}px;
-        }
-
         .file-picker-table .ant-table,
         .file-picker-table .ant-table-container {
             background: transparent;
@@ -252,6 +244,7 @@ const useStyles = createStyles<{compact: boolean}>(({css, token}, props) => ({
         .file-picker-name {
             flex: none;
             color: ${token.colorText};
+            font-weight: 400;
             white-space: nowrap;
         }
 
@@ -400,10 +393,6 @@ const useStyles = createStyles<{compact: boolean}>(({css, token}, props) => ({
         }
 
         @media (max-width: 520px) {
-            .file-picker-disks {
-                width: 104px;
-            }
-
             .file-picker-status {
                 min-height: 0;
                 padding: 6px 9px 7px;
@@ -447,15 +436,6 @@ const useStyles = createStyles<{compact: boolean}>(({css, token}, props) => ({
 
             .file-picker-path-input.ant-input {
                 height: 40px;
-            }
-
-            .file-picker-disks,
-            .file-picker-disks .ant-select-selector {
-                height: 40px !important;
-            }
-
-            .file-picker-disks .ant-select-selector {
-                align-items: center;
             }
 
             .file-picker-table .ant-table-tbody > tr > td {

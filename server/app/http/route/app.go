@@ -11,6 +11,7 @@ import (
 	"server/app/http/controller/container"
 	"server/app/http/controller/database"
 	"server/app/http/controller/file"
+	"server/app/http/controller/oss"
 	"server/app/http/controller/recycle"
 	"server/app/http/controller/script"
 	"server/app/http/controller/secret"
@@ -42,6 +43,7 @@ func loadApp(s *sinking_web.Engine) {
 	loadCertRoute(s)
 	loadSecretRoute(s)
 	loadDatabaseRoute(s)
+	loadOssRoute(s)
 	loadSoftwareRoute(s)
 	loadContainerRoute(s)
 	loadStaticRoute(s)
@@ -103,14 +105,15 @@ func loadSiteRoute(s *sinking_web.Engine) {
 func loadCertRoute(s *sinking_web.Engine) {
 	g := s.Group("/cert")
 	g.Use(context.HandleFunc(middleware.CheckLogin))
-	g.ANY("/list", context.HandleFunc(cert.List))     // 证书列表
-	g.ANY("/info", context.HandleFunc(cert.Info))     // 证书详情
-	g.ANY("/create", context.HandleFunc(cert.Create)) // 导入证书
-	g.ANY("/update", context.HandleFunc(cert.Update)) // 修改证书
-	g.ANY("/delete", context.HandleFunc(cert.Delete)) // 删除证书
-	g.ANY("/obtain", context.HandleFunc(cert.Obtain)) // 申请证书
-	g.ANY("/renew", context.HandleFunc(cert.Renew))   // 续签证书
-	g.ANY("/log", context.HandleFunc(cert.Log))       // 自动续签任务日志
+	g.ANY("/list", context.HandleFunc(cert.List))         // 证书列表
+	g.ANY("/info", context.HandleFunc(cert.Info))         // 证书详情
+	g.ANY("/create", context.HandleFunc(cert.Create))     // 导入证书
+	g.ANY("/update", context.HandleFunc(cert.Update))     // 修改证书
+	g.ANY("/delete", context.HandleFunc(cert.Delete))     // 删除证书
+	g.ANY("/obtain", context.HandleFunc(cert.Obtain))     // 申请证书
+	g.ANY("/renew", context.HandleFunc(cert.Renew))       // 续签证书
+	g.ANY("/log", context.HandleFunc(cert.Log))           // 自动续签任务日志
+	g.ANY("/settings", context.HandleFunc(cert.Settings)) // 自动续签任务设置
 }
 
 // loadSecretRoute 密钥管理路由。
@@ -122,6 +125,23 @@ func loadSecretRoute(s *sinking_web.Engine) {
 	g.ANY("/create", context.HandleFunc(secret.Create)) // 添加密钥
 	g.ANY("/update", context.HandleFunc(secret.Update)) // 修改密钥
 	g.ANY("/delete", context.HandleFunc(secret.Delete)) // 删除密钥
+}
+
+// loadOssRoute 管理 OSS 存储配置及云端文件，所有操作均需登录。
+func loadOssRoute(s *sinking_web.Engine) {
+	g := s.Group("/oss")
+	g.Use(context.HandleFunc(middleware.CheckLogin))
+	g.ANY("/list", context.HandleFunc(oss.List))         // 存储列表
+	g.ANY("/info", context.HandleFunc(oss.Info))         // 存储详情
+	g.ANY("/create", context.HandleFunc(oss.Create))     // 创建配置
+	g.ANY("/update", context.HandleFunc(oss.Update))     // 修改配置
+	g.ANY("/delete", context.HandleFunc(oss.Delete))     // 删除配置
+	g.ANY("/test", context.HandleFunc(oss.Test))         // 测试连接
+	g.ANY("/files", context.HandleFunc(oss.Files))       // 文件列表
+	g.ANY("/file", context.HandleFunc(oss.File))         // 文件操作
+	g.ANY("/upload", context.HandleFunc(oss.Upload))     // 上传文件
+	g.ANY("/download", context.HandleFunc(oss.Download)) // 下载文件
+	g.ANY("/sign", context.HandleFunc(oss.Sign))         // 文件签名
 }
 
 // loadDatabaseRoute 数据库实例与远端数据库管理，不依赖容器运行环境。

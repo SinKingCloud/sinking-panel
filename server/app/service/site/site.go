@@ -80,7 +80,6 @@ type Service interface {
 	Enable(id int64) error
 	Disable(id int64) error
 	FindById(id int64) (*Site, error)
-	GetIdNameMap(refresh bool) (map[int64]string, error)
 	Select(where *repositorySite.SelectSite, queryPage *page.Query) (*page.Result[*repositorySite.Site], error)
 	ClearCache(id int64) error
 	CreateCert(data *model.Cert) (*Cert, error)
@@ -92,6 +91,8 @@ type Service interface {
 	RenewCert(ctx context.Context, id int64, request CertificateRequest) (*Cert, error)
 	ReadCertLog(after, before int64, pageSize int) (map[string]interface{}, error)
 	ClearCertLog() error
+	GetCertSettings() (*CertSettings, error)
+	SetCertSettings(settings CertSettings) error
 	ManualCert(ctx context.Context, id int64, name string, request CertificateRequest) (interface{}, error)
 }
 
@@ -218,12 +219,20 @@ func NewService(repositorySite repositorySite.Interface, repositorySiteDomain re
 		return nil, err
 	}
 	result.http = httpManager
-	// 使用服务器本地时间，每天凌晨三点执行内部续签任务。
+	// 按保存的周期及开关注册内部任务，不写入用户计划任务表。
+	renewSettings, err := result.GetCertSettings()
+	if err != nil {
+		return nil, err
+	}
+	renewStatus := task_status.Stop
+	if renewSettings.Enabled {
+		renewStatus = task_status.Running
+	}
 	if err = result.taskService.Add(&model.Task{
 		Id:     constant.TaskCertAutoRenew,
 		Name:   "证书自动续签",
-		Spec:   "0 0 3 * * *",
-		Status: task_status.Running,
+		Spec:   renewSettings.Spec,
+		Status: renewStatus,
 	}, result.autoRenewCerts); err != nil {
 		return nil, fmt.Errorf("注册证书自动续签任务失败: %w", err)
 	}

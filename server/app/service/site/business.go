@@ -231,7 +231,6 @@ func (s *service) Create(data *CreateSite) (*Site, error) {
 	if err != nil {
 		return nil, errors.Join(err, cleanupRoot())
 	}
-	s.cache.Delete(constant.CacheNameWithSiteNameEnum)
 	if syncErr := s.syncLocked(false); syncErr != nil {
 		compensateErr := s.database.Transaction(func(tx *gorm.DB) error {
 			if err := s.repositorySiteDomain.DeleteBySiteId(record.Id, tx); err != nil {
@@ -386,7 +385,6 @@ func (s *service) updateLocked(id int64, data *siteMutation) error {
 	if err != nil {
 		return err
 	}
-	s.cache.Delete(constant.CacheNameWithSiteNameEnum)
 	var syncErr error
 	if clearDefault {
 		value := ""
@@ -395,7 +393,7 @@ func (s *service) updateLocked(id int64, data *siteMutation) error {
 		syncErr = s.syncLocked(false)
 	}
 	if syncErr != nil {
-		compensateErr := s.restoreSiteRecords(previous, previousDomains)
+		compensateErr := s.repositorySite.RestoreRecords(previous, previousDomains)
 		restoreRuntimeErr := s.syncLocked(false)
 		if clearDefault && compensateErr == nil && restoreRuntimeErr == nil {
 			restoreRuntimeErr = s.updateHTTPLocked(&HTTPUpdate{DefaultSite: &previousDefault})
@@ -619,11 +617,10 @@ func (s *service) Delete(id int64, deleteRoot bool) error {
 		}
 		return err
 	}
-	s.cache.Delete(constant.CacheNameWithSiteNameEnum)
 
 	syncErr := s.syncLocked(false)
 	if syncErr != nil {
-		compensateErr := s.restoreSiteRecords(previous, previousDomains)
+		compensateErr := s.repositorySite.RestoreRecords(previous, previousDomains)
 		var restoreRuntimeErr error
 		if compensateErr == nil && clearDefault {
 			restoreRuntimeErr = restoreDefault()
@@ -781,31 +778,4 @@ func (s *service) ClearCache(id int64) error {
 		return fmt.Errorf("清理网站缓存失败: %w", err)
 	}
 	return nil
-}
-
-func (s *service) restoreSiteRecords(record *model.Site, domains []*model.SiteDomain) error {
-	return s.database.Transaction(func(tx *gorm.DB) error {
-		if err := s.repositorySiteDomain.DeleteBySiteId(record.Id, tx); err != nil {
-			return fmt.Errorf("补偿清理网站域名失败: %w", err)
-		}
-		if err := s.repositorySite.DeleteById(record.Id, tx); err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
-			return fmt.Errorf("补偿清理网站失败: %w", err)
-		}
-		withoutHooks := tx.Session(&gorm.Session{SkipHooks: true})
-		restoredSite := *record
-		if err := s.repositorySite.Create(&restoredSite, withoutHooks); err != nil {
-			return fmt.Errorf("补偿恢复网站失败: %w", err)
-		}
-		restoredDomains := make([]*model.SiteDomain, 0, len(domains))
-		for _, record := range domains {
-			if record != nil {
-				domain := *record
-				restoredDomains = append(restoredDomains, &domain)
-			}
-		}
-		if err := s.repositorySiteDomain.CreateBatch(restoredDomains, withoutHooks); err != nil {
-			return fmt.Errorf("补偿恢复网站域名失败: %w", err)
-		}
-		return nil
-	})
 }

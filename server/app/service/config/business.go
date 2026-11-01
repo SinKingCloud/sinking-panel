@@ -14,26 +14,16 @@ func (s *service) Group(group string) map[string]string {
 	if value := s.cache.Get(key); value != nil {
 		return value.(map[string]string)
 	}
-	configs, err := s.GroupWithError(group)
-	if err != nil {
-		return make(map[string]string)
-	}
-	return configs
-}
-
-// GroupWithError 直接读取配置表，区分“没有配置”和“查询失败”，供业务初始化使用。
-// 成功后刷新缓存，避免初始化依据陈旧的空缓存覆盖数据库中已有的设置。
-func (s *service) GroupWithError(group string) (map[string]string, error) {
 	configs, err := s.repositoryConfig.FindByGroup(group)
 	if err != nil {
-		return nil, err
+		return make(map[string]string)
 	}
 	result := make(map[string]string, len(configs))
 	for _, config := range configs {
 		result[config.Key] = config.Value
 	}
-	s.cache.SetWithExpire(constant.CacheNameWithSysConfig+group, result, constant.CacheTimeWithSysConfig)
-	return result, nil
+	s.cache.SetWithExpire(key, result, constant.CacheTimeWithSysConfig)
+	return result
 }
 
 // Set 设置数据

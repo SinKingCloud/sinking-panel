@@ -12,12 +12,12 @@ import (
 // Interface 网站仓储接口。
 type Interface interface {
 	Create(data *model.Site, tx ...*gorm.DB) error
+	RestoreRecords(data *model.Site, domains []*model.SiteDomain, tx ...*gorm.DB) error
 	ClearTypeId(typeIds []int64, tx ...*gorm.DB) error
 	DeleteById(id int64, tx ...*gorm.DB) error
 	FindById(id int64, tx ...*gorm.DB) (*model.Site, error)
 	Select(where *SelectSite, queryPage *page.Query) (*page.Result[*Site], error)
 	SelectAll(tx ...*gorm.DB) ([]*model.Site, error)
-	SelectIdNameMap() (map[int64]string, error)
 	UpdateById(id int64, data *UpdateSite, tx ...*gorm.DB) error
 }
 

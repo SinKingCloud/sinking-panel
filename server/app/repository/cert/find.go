@@ -5,7 +5,16 @@ import (
 	"server/app/model"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
+
+// FindByIdForUpdate 在事务内锁定证书，供续签校验与更新使用。
+func (r *Repository) FindByIdForUpdate(id int64, tx *gorm.DB) (*model.Cert, error) {
+	if tx == nil {
+		return nil, gorm.ErrInvalidTransaction
+	}
+	return r.FindById(id, tx.Clauses(clause.Locking{Strength: "UPDATE"}))
+}
 
 // FindById 通过 ID 查询证书详情。
 func (r *Repository) FindById(id int64, tx ...*gorm.DB) (*model.Cert, error) {

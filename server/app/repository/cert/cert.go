@@ -15,12 +15,12 @@ type Interface interface {
 	Create(data *model.Cert, tx ...*gorm.DB) error
 	DeleteById(id int64, tx ...*gorm.DB) error
 	FindById(id int64, tx ...*gorm.DB) (*model.Cert, error)
+	FindByIdForUpdate(id int64, tx *gorm.DB) (*model.Cert, error)
+	CountBySecretId(id int64, tx ...*gorm.DB) (int64, error)
 	Select(where *SelectCert, queryPage *page.Query) (*page.Result[*Cert], error)
 	SelectByIds(ids []int64, tx ...*gorm.DB) ([]*model.Cert, error)
 	SelectAutoRenewTask(expireTime time.Time) ([]*Cert, error)
-	ClearSecretId(secretId int64, tx ...*gorm.DB) error
 	UpdateById(id int64, data *UpdateCert, tx ...*gorm.DB) error
-	Restore(data *model.Cert, tx ...*gorm.DB) error
 }
 
 // Repository 证书仓储。

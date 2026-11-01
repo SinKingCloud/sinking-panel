@@ -3,9 +3,7 @@ import {App, Button, ConfigProvider, Empty, Form, Grid, Progress, Spin, Switch, 
 import {createStyles} from "antd-style";
 import {Icon, ProModal, Title, useTheme} from "sinking-antd";
 import {getCertList, obtainCert, renewCert} from "@/service/api/cert";
-import {getEnum as getSystemEnum} from "@/service/api/system";
-import SecretManager from "@/pages/components/secret";
-import type {SecretChange, SecretManagerRef} from "@/pages/components/secret";
+import type {SecretChange} from "@/pages/components/secret";
 import BatchVerification from "./batch-verification";
 import type {BatchVerificationRef} from "./batch-verification";
 import BatchForm from "./batch-form";
@@ -114,7 +112,6 @@ const BatchCert = forwardRef<BatchCertRef, {onChange?: () => void; secretVersion
     const listRef = useRef<HTMLDivElement>(null);
     const modalRef = useRef<any>(null);
     const verificationRef = useRef<BatchVerificationRef | null>(null);
-    const secretManagerRef = useRef<SecretManagerRef | null>(null);
     const openRef = useRef(false);
     const certificatesReadyRef = useRef(false);
     const versionRef = useRef(0);
@@ -130,9 +127,6 @@ const BatchCert = forwardRef<BatchCertRef, {onChange?: () => void; secretVersion
     const onObtainedRef = useRef<((cert: any) => void) | undefined>(undefined);
     const onChangeRef = useRef(onChange);
     onChangeRef.current = onChange;
-    const secretRequestRef = useRef(0);
-    const secretVisitRef = useRef<{version: number; index: number} | null>(null);
-    const createdSecretRef = useRef<number | null>(null);
     const [tasks, setTasks] = useState<any[]>([]);
     const [mergeDomains, setMergeDomains] = useState(true);
     const [checkingCertificates, setCheckingCertificates] = useState(false);
@@ -145,9 +139,7 @@ const BatchCert = forwardRef<BatchCertRef, {onChange?: () => void; secretVersion
     const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
     const [scrollRequest, setScrollRequest] = useState<{field: (string | number)[]; version: number} | null>(null);
     const [manual, setManual] = useState<any>(null);
-    const [secretOptions, setSecretOptions] = useState<{value: number; label: string}[]>([]);
-    const [secretLoading, setSecretLoading] = useState(false);
-    const [secretError, setSecretError] = useState(false);
+    const [secretRefresh, setSecretRefresh] = useState(0);
     const counts = useMemo(() => {
         const result: Record<string, number> = {pending: 0, running: 0, waiting: 0, failed: 0, success: 0, skipped: 0, renewal: 0};
         for (const task of tasks) {
@@ -193,30 +185,6 @@ const BatchCert = forwardRef<BatchCertRef, {onChange?: () => void; secretVersion
         if (session) void (session.method === "renew" ? renewCert : obtainCert)({body: {type: 1, action: "cancel", session_id: session?.data?.session_id, id: session.id}}).catch(() => undefined);
     }, []);
 
-    const loadSecrets = useCallback(async () => {
-        const version = versionRef.current;
-        const request = ++secretRequestRef.current;
-        setSecretLoading(true);
-        setSecretError(false);
-        try {
-            const response = await getSystemEnum({body: {name: "secret"}});
-            if (!openRef.current || version !== versionRef.current || request !== secretRequestRef.current) return;
-            if (response?.code !== 200 || !response?.data?.name) throw new Error("获取密钥失败");
-            const options = Object.entries(response?.data?.name || {}).map(([value, label]) => ({value: Number(value), label: String(label)}));
-            setSecretOptions(options);
-            const secretIds = new Set(options.map((option) => option.value));
-            const configurations = form.getFieldValue("items") || [];
-            configurations.forEach((values: any, index: number) => {
-                const selected = Number(values?.secret_id);
-                if (selected && !secretIds.has(selected)) form.setFieldValue(["items", index, "secret_id"], undefined);
-            });
-        } catch {
-            if (openRef.current && version === versionRef.current && request === secretRequestRef.current) setSecretError(true);
-        } finally {
-            if (openRef.current && version === versionRef.current && request === secretRequestRef.current) setSecretLoading(false);
-        }
-    }, [form]);
-
     const close = useCallback(() => {
         setScrollRequest(null);
         reopenRef.current = null;
@@ -228,26 +196,21 @@ const BatchCert = forwardRef<BatchCertRef, {onChange?: () => void; secretVersion
             return;
         }
         versionRef.current += 1;
-        secretRequestRef.current += 1;
         openRef.current = false;
         certificatesReadyRef.current = false;
         busyRef.current = false;
         pauseRef.current = false;
         closePendingRef.current = false;
-        secretVisitRef.current = null;
-        createdSecretRef.current = null;
         onObtainedRef.current = undefined;
         requestedDomainsRef.current = [];
         configurationsRef.current.clear();
         cancelManual();
-        secretManagerRef.current?.close();
         verificationRef.current?.hide();
         modalRef.current?.hide();
         setBusy(false);
         setPaused(false);
         setClosing(false);
         setManual(null);
-        setSecretLoading(false);
         setCheckingCertificates(false);
         setCertificateError("");
     }, [cancelManual]);
@@ -260,9 +223,6 @@ const BatchCert = forwardRef<BatchCertRef, {onChange?: () => void; secretVersion
             });
         }
         const version = ++versionRef.current;
-        secretRequestRef.current += 1;
-        secretVisitRef.current = null;
-        createdSecretRef.current = null;
         certificatesReadyRef.current = false;
         setMergeDomains(merge);
         setCertificateError("");
@@ -298,9 +258,7 @@ const BatchCert = forwardRef<BatchCertRef, {onChange?: () => void; secretVersion
         tasksRef.current = targets.map((domain) => ({domain, status: "pending"}));
         queueSelectionRef.current = null;
         setTasks(tasksRef.current);
-        setSecretError(false);
-        setSecretLoading(false);
-        setSecretOptions([]);
+        setSecretRefresh((value) => value + 1);
         setCheckingCertificates(true);
         form.resetFields();
         void (async () => {
@@ -346,6 +304,7 @@ const BatchCert = forwardRef<BatchCertRef, {onChange?: () => void; secretVersion
                     const values = {
                         challenge, type,
                         secret_id: type === 2 && challenge === "dns" ? Number(certificate?.secret_id || 0) || undefined : undefined,
+                        secret_name: certificate?.secret_name,
                         auto_renew: type === 1 ? 0 : Number(certificate?.auto_renew ?? 1),
                         ca: certificate ? undefined : "production",
                         ...saved?.values,
@@ -359,7 +318,6 @@ const BatchCert = forwardRef<BatchCertRef, {onChange?: () => void; secretVersion
                     return values;
                 })});
                 certificatesReadyRef.current = true;
-                void loadSecrets();
             } catch (error) {
                 failed = true;
                 if (openRef.current && version === versionRef.current) setCertificateError(error instanceof Error ? error.message : "获取已有证书失败");
@@ -367,7 +325,7 @@ const BatchCert = forwardRef<BatchCertRef, {onChange?: () => void; secretVersion
                 if (openRef.current && version === versionRef.current) setCheckingCertificates(false);
             }
         })();
-    }, [form, loadSecrets]);
+    }, [form]);
 
     const open = useCallback((domains: string[], onObtained?: (cert: any) => void) => {
         if (busyRef.current) {
@@ -388,15 +346,10 @@ const BatchCert = forwardRef<BatchCertRef, {onChange?: () => void; secretVersion
 
     useImperativeHandle(ref, () => ({open, close}), [open, close]);
 
-    useEffect(() => {
-        if (openRef.current) void loadSecrets();
-    }, [loadSecrets, secretVersion]);
-
     useEffect(() => () => {
         openRef.current = false;
         certificatesReadyRef.current = false;
         versionRef.current += 1;
-        secretRequestRef.current += 1;
         cancelManual();
     }, [cancelManual]);
 
@@ -471,6 +424,7 @@ const BatchCert = forwardRef<BatchCertRef, {onChange?: () => void; secretVersion
                     status: "running", error: undefined, challenge: verification,
                     type: isManual ? 1 : 2, ca: values.ca,
                     secret_id: body.secret_id,
+                    secret_name: values.secret_name,
                     auto_renew: body.auto_renew,
                 });
                 try {
@@ -545,14 +499,6 @@ const BatchCert = forwardRef<BatchCertRef, {onChange?: () => void; secretVersion
         }
     }, [cancelManual, close, completeTask, form, message, updateTask]);
 
-    const openSecrets = useCallback((index: number, create = false) => {
-        if (busyRef.current || manualRef.current) return;
-        secretVisitRef.current = {version: versionRef.current, index};
-        createdSecretRef.current = null;
-        if (create) secretManagerRef.current?.openCreate();
-        else secretManagerRef.current?.open();
-    }, []);
-
     const toggleSettings = useCallback((index: number) => {
         setScrollRequest(null);
         setExpandedIndex((current) => current === index ? null : index);
@@ -561,18 +507,10 @@ const BatchCert = forwardRef<BatchCertRef, {onChange?: () => void; secretVersion
     const onSecretChange = useCallback((change: SecretChange) => {
         try { void Promise.resolve(onChangeRef.current?.()).catch(() => undefined); } catch {}
         if (!openRef.current) return;
-        const visit = secretVisitRef.current;
-        if (visit?.version === versionRef.current && change.action === "create") createdSecretRef.current = change.id;
-        if (visit?.version === versionRef.current && change.action === "update" && createdSecretRef.current === change.id && !busyRef.current && !manualRef.current) {
-            const values = form.getFieldValue(["items", visit.index]);
-            if (Number(values?.type) === 2 && values?.challenge === "dns" && ["pending", "failed"].includes(tasksRef.current[visit.index]?.status)) {
-                form.setFieldValue(["items", visit.index, "secret_id"], change.id);
-            }
-            createdSecretRef.current = null;
-        }
-        if (change.action === "delete" && createdSecretRef.current === change.id) createdSecretRef.current = null;
-        void loadSecrets();
-    }, [form, loadSecrets]);
+        form.setFields((form.getFieldValue("items") || []).flatMap((values: any, index: number) =>
+            Number(values?.secret_id) === change.id ? [{name: ["items", index, "secret_name"], value: undefined}] : []));
+        setSecretRefresh((value) => value + 1);
+    }, [form]);
 
     const releaseManual = (skip = false) => {
         if (busyRef.current || !manualRef.current) return;
@@ -643,11 +581,8 @@ const BatchCert = forwardRef<BatchCertRef, {onChange?: () => void; secretVersion
                                 disabled={configLocked}
                                 expanded={expandedIndex === index}
                                 onToggle={toggleSettings}
-                                secretOptions={secretOptions}
-                                secretLoading={secretLoading}
-                                secretError={secretError}
-                                onReloadSecrets={loadSecrets}
-                                onManageSecrets={openSecrets}
+                                secretVersion={`${secretVersion}:${secretRefresh}`}
+                                onSecretsChange={onSecretChange}
                                 error={task.error}/>)}
                         </div>
                     </Form>
@@ -685,7 +620,7 @@ const BatchCert = forwardRef<BatchCertRef, {onChange?: () => void; secretVersion
                                             <span>{task.certificate_id ? "续签" : "申请"}</span>
                                             <span>{verification.toUpperCase()} · {Number(values.type) === 1 ? "手动" : "自动"}</span>
                                             <span>{task.certificate_id && !values.ca ? "沿用原环境" : values.ca === "staging" ? "测试环境" : "正式环境"}</span>
-                                            {Number(values.type) !== 1 && verification === "dns" && <span>{secretOptions.find((option) => option.value === Number(values.secret_id))?.label || (values.secret_id ? `密钥 #${values.secret_id}` : "未选择密钥")}</span>}
+                                            {Number(values.type) !== 1 && verification === "dns" && <span>{values.secret_name || (values.secret_id ? `密钥 #${values.secret_id}` : "未选择密钥")}</span>}
                                         </div>
                                     </div>
                                     <span className={`task-status ${task.status}`}>{task.status === "running" && <Icon type="LoadingOutlined" spin/>}{task.status === "running" && manual?.index === index ? "验证中" : task.certificate_id && task.status === "pending" ? "待续签" : task.certificate_id && task.status === "running" ? "续签中" : statusNames[task.status]}</span>
@@ -708,7 +643,6 @@ const BatchCert = forwardRef<BatchCertRef, {onChange?: () => void; secretVersion
             onVerify={() => void runQueue(false, true)}
             onRefresh={() => releaseManual()}
             onSkip={() => releaseManual(true)}/>
-        <SecretManager ref={secretManagerRef} onChange={onSecretChange}/>
     </>;
 });
 

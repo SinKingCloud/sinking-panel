@@ -5,19 +5,33 @@ import (
 	"net/http"
 	"strings"
 	"time"
+	"unicode"
 )
 
-// Presign 生成临时下载、读取信息或上传地址，调用方需同时携带返回的 Headers。
-func (m *Manager) Presign(ctx context.Context, key, method string, ttl time.Duration) (*SignedURL, error) {
-	if err := m.objectReady(ctx, key); err != nil {
+// Presign 生成临时访问地址，GET 可覆盖响应内容类型和展示方式，调用方需携带返回的 Headers。
+func (m *Manager) Presign(ctx context.Context, key, method string, ttl time.Duration, options ...PresignOptions) (*SignedURL, error) {
+	if err := m.fileReady(ctx, key); err != nil {
 		return nil, err
 	}
 	method = strings.ToUpper(method)
 	if method != http.MethodGet && method != http.MethodPut && method != http.MethodHead {
-		return nil, invalid("预签名仅支持 GET、PUT、HEAD")
+		return nil, m.invalid("预签名仅支持 GET、PUT、HEAD")
 	}
 	if ttl < time.Second || ttl > 7*24*time.Hour {
-		return nil, invalid("签名有效期必须为 1 秒..7 天")
+		return nil, m.invalid("签名有效期必须为 1 秒..7 天")
 	}
-	return m.driver.Presign(ctx, key, method, ttl)
+	if len(options) > 1 {
+		return nil, m.invalid("签名响应配置最多只能提供一项")
+	}
+	if len(options) == 1 {
+		if method != http.MethodGet {
+			return nil, m.invalid("只有 GET 签名支持响应配置")
+		}
+		option := options[0]
+		if len(option.ContentType) > 256 || len(option.ContentDisposition) > 4096 ||
+			strings.ContainsFunc(option.ContentType, unicode.IsControl) || strings.ContainsFunc(option.ContentDisposition, unicode.IsControl) {
+			return nil, m.invalid("签名响应配置过长或包含控制字符")
+		}
+	}
+	return m.driver.Presign(ctx, key, method, ttl, options...)
 }
