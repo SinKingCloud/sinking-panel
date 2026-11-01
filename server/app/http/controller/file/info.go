@@ -4,12 +4,9 @@ import (
 	"server/app/enum/log_type"
 	"server/app/service"
 	"server/app/util/context"
-	"server/app/util/file"
-	"time"
-
-	"github.com/SinKingCloud/sinking-go/sinking-web"
 )
 
+// Info 获取文件信息或分页读取文本内容。
 func Info(c *context.Context) {
 	var form struct {
 		Path     string `json:"path" default:"" validate:"required" label:"文件路径"`
@@ -22,34 +19,10 @@ func Info(c *context.Context) {
 		c.Error(msg)
 		return
 	}
-	f := file.NewDisk("")
-	if !f.Exists(form.Path) {
-		c.Error("该目录或文件不存在")
-		return
-	}
-	info, err := f.FileInfo(form.Path)
+	data, err := service.File.Info(form.Path, form.Read, form.Cursor, form.PageSize, form.Version)
 	if err != nil {
-		c.Error("获取失败")
+		c.Error(err.Error())
 		return
-	}
-	data := sinking_web.H{
-		"name":        info.Name,
-		"size":        info.Size,
-		"mode":        info.Mode,
-		"is_dir":      info.IsDir,
-		"update_time": time.Unix(info.UpdateTime, 0).Format("2006-01-02 15:04:05"),
-	}
-	if form.Read {
-		content, nextCursor, eof, version, err := f.GetFileContent(form.Path, form.Cursor, form.PageSize, form.Version)
-		if err != nil {
-			c.Error("读取文件内容失败: " + err.Error())
-			return
-		}
-		data["content"] = content
-		data["cursor"] = form.Cursor
-		data["next_cursor"] = nextCursor
-		data["eof"] = eof
-		data["version"] = version
 	}
 	if form.Cursor == 0 {
 		title := "查看文件信息"

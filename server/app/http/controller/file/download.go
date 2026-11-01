@@ -1,21 +1,12 @@
 package file
 
 import (
-	stdContext "context"
-	"fmt"
-	"path/filepath"
 	"server/app/enum/log_type"
-	"server/app/enum/system_task_status"
 	"server/app/service"
 	"server/app/util/context"
-	"server/app/util/file"
-	"server/app/util/str"
-	"strconv"
-	"strings"
-	"time"
 )
 
-// Download 下载远程文件到本地
+// Download 创建下载任务。
 func Download(c *context.Context) {
 	var form struct {
 		URL  string `json:"url" default:"" validate:"required,url" label:"远程文件URL"`
@@ -26,90 +17,11 @@ func Download(c *context.Context) {
 		c.Error(msg)
 		return
 	}
-
-	// 验证目标目录是否存在
-	f := file.NewDisk("")
-	if !f.IsDir(form.Path) {
-		if !f.Exists(form.Path) {
-			// 尝试创建目录
-			err := f.CreateDir(form.Path)
-			if err != nil {
-				c.Error("目标目录不存在且无法创建: " + err.Error())
-				return
-			}
-		} else {
-			c.Error("目标路径不是一个目录")
-			return
-		}
+	taskID, targetPath, err := service.File.DownloadTask(form.URL, form.Path, form.Name)
+	if err != nil {
+		c.Error(err.Error())
+		return
 	}
-
-	// 如果未指定文件名，从URL中提取
-	fileName := form.Name
-	if fileName == "" {
-		urlPath := strings.Split(form.URL, "?")[0] // 去除查询参数
-		fileName = filepath.Base(urlPath)
-		if fileName == "" || fileName == "." {
-			fileName = "download_" + strconv.FormatInt(time.Now().Unix(), 10)
-		}
-	}
-
-	// 完整的目标文件路径
-	targetFilePath := filepath.Join(form.Path, fileName)
-
-	// 创建下载任务
-	taskID := str.GetSnowWorkIns().GetUuid()
-	taskName := "下载文件: " + form.URL
-	taskData := map[string]interface{}{
-		"url":         form.URL,
-		"target_path": targetFilePath,
-	}
-	service.System.TaskCreate(taskID, taskName, taskData, func(ctx stdContext.Context, rawData interface{}, update func(int, float64, string)) {
-		data, ok := rawData.(map[string]interface{})
-		if !ok {
-			update(system_task_status.Failed, 0, "下载任务数据无效")
-			return
-		}
-		url, urlOK := data["url"].(string)
-		targetPath, targetPathOK := data["target_path"].(string)
-		if !urlOK || !targetPathOK || url == "" || targetPath == "" {
-			update(system_task_status.Failed, 0, "下载任务数据无效")
-			return
-		}
-		update(system_task_status.Running, 0, "开始下载")
-		err := service.File.DownloadWithProgress(ctx, url, targetPath, func(current, total int64, speed float64) bool {
-			if ctx.Err() != nil {
-				return false
-			}
-			progress := float64(0)
-			if total > 0 {
-				progress = float64(current) / float64(total) * 100
-			}
-			speedStr := "未知"
-			if speed > 0 {
-				speedStr = service.File.FormatSize(int64(speed))
-			}
-			message := fmt.Sprintf("正在下载: %s / %s - %s/s",
-				service.File.FormatSize(current),
-				service.File.FormatSize(total),
-				speedStr)
-
-			update(system_task_status.Running, progress, message)
-			return true
-		})
-		// 处理下载结果
-		select {
-		case <-ctx.Done():
-			update(system_task_status.Canceled, 0, "任务已取消")
-			return
-		default:
-			if err != nil {
-				update(system_task_status.Failed, 0, "下载失败: "+err.Error())
-				return
-			}
-			update(system_task_status.Completed, 100, "下载完成")
-		}
-	})
-
-	service.Log.Create(c.GetRequestIp(), log_type.EventCreate, "创建下载任务", "下载文件到["+targetFilePath+"]")
+	service.Log.Create(c.GetRequestIp(), log_type.EventCreate, "创建下载任务", "下载文件到["+targetPath+"]")
 	c.SuccessWithData("创建下载任务成功", taskID)
 }

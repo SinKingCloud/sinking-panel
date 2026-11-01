@@ -4,7 +4,6 @@ import (
 	"server/app/enum/log_type"
 	"server/app/service"
 	"server/app/util/context"
-	"server/app/util/file"
 	"strconv"
 )
 
@@ -18,28 +17,9 @@ func Delete(c *context.Context) {
 		c.Error(msg)
 		return
 	}
-	f := file.NewDisk("")
-	for _, path := range form.Paths {
-		if path == "" || !f.Exists(path) {
-			c.Error("该目录或文件不存在: " + path)
-			return
-		}
-	}
-	for _, path := range form.Paths {
-		var err error
-		if form.Recycle {
-			err = service.Recycle.Create(path)
-		} else {
-			err = f.Delete(path)
-		}
-		if err != nil {
-			if form.Recycle {
-				c.Error("移动至回收站失败")
-			} else {
-				c.Error("删除失败")
-			}
-			return
-		}
+	if err := service.File.Delete(form.Paths, form.Recycle); err != nil {
+		c.Error(err.Error())
+		return
 	}
 	detail := form.Paths[0]
 	if len(form.Paths) > 1 {

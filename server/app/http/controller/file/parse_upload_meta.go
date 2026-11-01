@@ -2,10 +2,8 @@ package file
 
 import (
 	"fmt"
-	"path/filepath"
 	serviceFile "server/app/service/file"
 	"strconv"
-	"strings"
 )
 
 func parseUploadMeta(uploadID, path, fileName, totalSizeValue, chunkSizeValue, totalChunksValue, fileHash string) (serviceFile.UploadMeta, error) {
@@ -23,11 +21,11 @@ func parseUploadMeta(uploadID, path, fileName, totalSizeValue, chunkSizeValue, t
 	}
 	return serviceFile.UploadMeta{
 		UploadID:    uploadID,
-		Path:        filepath.Clean(path),
+		Path:        path,
 		FileName:    fileName,
 		TotalSize:   totalSize,
 		ChunkSize:   chunkSize,
 		TotalChunks: totalChunks,
-		FileHash:    strings.ToLower(fileHash),
+		FileHash:    fileHash,
 	}, nil
 }

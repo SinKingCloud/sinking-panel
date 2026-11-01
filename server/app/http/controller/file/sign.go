@@ -1,14 +1,12 @@
 package file
 
 import (
-	"os"
-	"path/filepath"
 	"server/app/enum/log_type"
 	"server/app/service"
 	"server/app/util/context"
-	"server/app/util/file"
 )
 
+// Sign 获取文件预览或下载签名。
 func Sign(c *context.Context) {
 	var form struct {
 		Path     string `json:"path" default:"" validate:"required" label:"文件路径"`
@@ -18,32 +16,7 @@ func Sign(c *context.Context) {
 		c.Error(msg)
 		return
 	}
-	f := file.NewDisk("")
-	if !f.Exists(form.Path) {
-		c.Error("文件不存在")
-		return
-	}
-	if f.IsDir(form.Path) {
-		c.Error("不能预览目录")
-		return
-	}
-	filePath := f.Path(form.Path, true, true)
-	fileName := filepath.Base(filePath)
-	filePath, err := filepath.EvalSymlinks(filePath)
-	if err != nil {
-		c.Error("文件不存在")
-		return
-	}
-	info, err := os.Stat(filePath)
-	if err != nil {
-		c.Error("文件不存在")
-		return
-	}
-	if !info.Mode().IsRegular() {
-		c.Error("不支持访问该文件类型")
-		return
-	}
-	key, err := service.File.CreatePreviewSign(filePath, fileName, form.Download)
+	key, err := service.File.CreatePreviewSign(form.Path, form.Download)
 	if err != nil {
 		c.Error(err.Error())
 	} else {

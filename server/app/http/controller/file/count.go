@@ -4,9 +4,6 @@ import (
 	"server/app/enum/log_type"
 	"server/app/service"
 	"server/app/util/context"
-	"server/app/util/file"
-
-	"github.com/SinKingCloud/sinking-go/sinking-web"
 )
 
 // Count 统计信息
@@ -18,20 +15,11 @@ func Count(c *context.Context) {
 		c.Error(msg)
 		return
 	}
-	f := file.NewDisk("")
-	if !f.Exists(form.Path) {
-		c.Error("该目录或文件不存在")
-		return
-	}
-	totalSize, fileCount, dirCount, err := f.Count(form.Path)
+	data, err := service.File.Count(form.Path)
 	if err != nil {
-		c.Error("获取失败:" + err.Error())
+		c.Error(err.Error())
 	} else {
 		service.Log.Create(c.GetRequestIp(), log_type.EventShow, "统计文件数据", "统计文件或目录["+form.Path+"]数据")
-		c.SuccessWithData("获取成功", sinking_web.H{
-			"size": totalSize,
-			"file": fileCount,
-			"dir":  dirCount,
-		})
+		c.SuccessWithData("获取成功", data)
 	}
 }

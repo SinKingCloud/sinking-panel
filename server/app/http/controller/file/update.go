@@ -1,14 +1,10 @@
 package file
 
 import (
-	"path/filepath"
 	"server/app/enum/log_type"
 	"server/app/service"
+	serviceFile "server/app/service/file"
 	"server/app/util/context"
-	"server/app/util/file"
-	"strconv"
-
-	"github.com/SinKingCloud/sinking-go/sinking-web"
 )
 
 // Update 更新文件
@@ -26,79 +22,18 @@ func Update(c *context.Context) {
 		c.Error(msg)
 		return
 	}
-	f := file.NewDisk("")
-	if !f.Exists(form.Path) {
-		c.Error("文件或目录不存在")
+	data, err := service.File.Update(form.Path, &serviceFile.UpdateFile{
+		Name:        form.Name,
+		Permissions: form.Permissions,
+		Content:     form.Content,
+		Cursor:      form.Cursor,
+		NextCursor:  form.NextCursor,
+		Version:     form.Version,
+	})
+	if err != nil {
+		c.Error(err.Error())
 		return
 	}
-	var operations []string
-	var nextCursor int64
-	var eof bool
-	var version string
-	var err error
-	currentPath := form.Path
-	if form.Name != "" {
-		dir := filepath.Dir(currentPath)
-		newPath := filepath.Join(dir, form.Name)
-		if f.Exists(newPath) {
-			c.Error("目标文件或目录已存在")
-			return
-		}
-		err := f.Rename(currentPath, newPath)
-		if err != nil {
-			c.Error("重命名失败: " + err.Error())
-			return
-		}
-		operations = append(operations, "重命名")
-		currentPath = newPath
-	}
-	if form.Permissions != "" {
-		permissions, err := strconv.ParseUint(form.Permissions, 8, 32)
-		if err != nil {
-			c.Error("无效的权限值，请提供有效的八进制数字")
-			return
-		}
-		if permissions > 0777 {
-			c.Error("权限值超出范围，有效范围为 0-777")
-			return
-		}
-		err = f.SetFileMode(currentPath, uint32(permissions))
-		if err != nil {
-			c.Error("修改权限失败: " + err.Error())
-			return
-		}
-		operations = append(operations, "修改权限")
-	}
-
-	if form.Content != nil {
-		if !f.IsFile(currentPath) {
-			c.Error("只能更新文件内容，不能更新目录")
-			return
-		}
-		nextCursor, eof, version, err = f.UpdateFileContent(currentPath, *form.Content, form.Cursor, form.NextCursor, form.Version)
-		if err != nil {
-			c.Error("更新文件内容失败: " + err.Error())
-			return
-		}
-		operations = append(operations, "更新内容")
-	}
-	if len(operations) == 0 {
-		c.Error("请指定要执行的操作：重命名、修改权限或更新内容")
-		return
-	}
-	data := sinking_web.H{
-		"operations": operations,
-		"path":       currentPath,
-	}
-	if form.Content != nil {
-		data["cursor"] = int64(0)
-		if form.Cursor != nil {
-			data["cursor"] = *form.Cursor
-		}
-		data["next_cursor"] = nextCursor
-		data["eof"] = eof
-		data["version"] = version
-	}
-	service.Log.Create(c.GetRequestIp(), log_type.EventUpdate, "修改文件", "修改文件["+currentPath+"]")
+	service.Log.Create(c.GetRequestIp(), log_type.EventUpdate, "修改文件", "修改文件["+data.Path+"]")
 	c.SuccessWithData("修改成功", data)
 }
