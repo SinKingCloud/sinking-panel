@@ -112,7 +112,7 @@ type DiskSpaceInfo struct {
 type DiskInfo struct {
 	Filesystem string        `json:"filesystem"` // 设备或文件系统名称
 	Type       string        `json:"type"`       // 文件系统类型
-	Path       string        `json:"path"`       // 挂载路径，Windows 使用 C:// 格式
+	Path       string        `json:"path"`       // 挂载路径，Windows 使用正斜杠并保留挂载目录和共享根
 	Size       DiskSpaceInfo `json:"size"`       // 存储容量
 	Inodes     DiskSpaceInfo `json:"inodes"`     // inode 用量，不支持时为零
 }

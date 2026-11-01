@@ -24,7 +24,7 @@ const (
 // 只在包初始化时设置，运行中的采样不修改 gopsutil 的全局开关。
 func init() { process.EnableBootTimeCache(true) }
 
-// ProcessTopItem 仅返回名称和用量；CPU 为整机归一化 0–100%，内存为字节，磁盘速率为字节/秒。
+// ProcessTopItem 仅返回名称和用量；CPU 为整机归一化 0–100%，内存为字节，I/O 速率为字节/秒。
 type ProcessTopItem struct {
 	PID          int32   `json:"pid"`
 	CreateTime   int64   `json:"create_time"`
@@ -43,6 +43,7 @@ type ProcessTopSnapshot struct {
 	CPU             []ProcessTopItem `json:"cpu"`
 	Memory          []ProcessTopItem `json:"memory"`
 	IO              []ProcessTopItem `json:"disk_io"`
+	IOScope         string           `json:"io_scope,omitempty"` // process 为进程总 I/O，空值为磁盘 I/O
 	CPUAvailable    bool             `json:"cpu_available"`
 	CPUPartial      bool             `json:"cpu_partial"`
 	MemoryAvailable bool             `json:"memory_available"`
@@ -93,6 +94,9 @@ func (s *ProcessSampler) Sample(ctx context.Context, options ...ProcessSampleOpt
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	result := ProcessTopSnapshot{Time: time.Now().UnixMilli(), CPU: make([]ProcessTopItem, 0, processTopLimit), Memory: make([]ProcessTopItem, 0, processTopLimit), IO: make([]ProcessTopItem, 0, processTopLimit)}
+	if runtime.GOOS == "windows" {
+		result.IOScope = "process"
+	}
 	s.round++
 	if len(options) > 1 {
 		result.Partial, result.CPUPartial, result.MemoryPartial, result.IOPartial, result.Error = true, true, true, true, "进程采样只接受一组选项"
@@ -140,7 +144,7 @@ func (s *ProcessSampler) Sample(ctx context.Context, options ...ProcessSampleOpt
 	// 整机磁盘读取失败后的恢复轮仍覆盖多个周期，进程单轮速率不能与其配对。
 	ioReady := previousTime > 0 && elapsed > 0 && s.diskReady && diskReady
 	s.diskReady = diskReady
-	result.IOPartial = !ioReady || runtime.GOOS == "windows"
+	result.IOPartial = !ioReady
 	pids, err := process.PidsWithContext(ctx) // 库已按 PID 排序，不重复排序所有进程。
 	if err != nil || ctx.Err() != nil {
 		if err == nil {
@@ -200,10 +204,13 @@ func (s *ProcessSampler) Sample(ctx context.Context, options ...ProcessSampleOpt
 			current.cpuOK = current.cpuOK && current.cpu > 0
 			memoryOK = memoryOK && current.item.MemoryRSS > 0
 		}
-		if runtime.GOOS != "windows" && ctx.Err() == nil {
+		if ctx.Err() == nil {
 			if counters, err := p.IOCountersWithContext(ctx); err == nil && counters != nil {
-				// Linux 的 ReadBytes/WriteBytes 是逻辑 I/O；物理磁盘与 Darwin 均使用 Disk 字段。
+				// Linux/macOS 使用磁盘计数；Windows 仅提供包含文件、网络和设备的进程总 I/O。
 				current.read, current.write, current.ioOK = counters.DiskReadBytes, counters.DiskWriteBytes, true
+				if runtime.GOOS == "windows" {
+					current.read, current.write = counters.ReadBytes, counters.WriteBytes
+				}
 			}
 		}
 		if ctx.Err() != nil {
@@ -327,9 +334,6 @@ func (s *ProcessSampler) Sample(ctx context.Context, options ...ProcessSampleOpt
 	result.Partial = result.Partial || result.CPUPartial || result.MemoryPartial || result.IOPartial
 	if result.Partial && result.Error == "" {
 		result.Error = "部分进程指标正在建立基线，或因权限、退出及扫描预算限制不可读取"
-		if runtime.GOOS == "windows" {
-			result.Error = "Windows 暂不支持进程磁盘 I/O 排行，CPU 与内存仅统计可读取的进程"
-		}
 	}
 	return result
 }

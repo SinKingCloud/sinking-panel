@@ -52,8 +52,14 @@ func Disks(ctx context.Context) ([]DiskInfo, error) {
 			continue
 		}
 		path := partition.Mountpoint
-		if runtime.GOOS == "windows" && len(path) >= 2 && path[1] == ':' {
-			path = strings.ToUpper(path[:1]) + "://"
+		if runtime.GOOS == "windows" {
+			path = filepath.ToSlash(filepath.Clean(path))
+			if len(path) >= 2 && path[1] == ':' {
+				path = strings.ToUpper(path[:1]) + path[1:]
+				if len(path) == 2 {
+					path += "/"
+				}
+			}
 		}
 		result = append(result, DiskInfo{
 			Filesystem: partition.Device,

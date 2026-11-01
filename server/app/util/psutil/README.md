@@ -7,7 +7,7 @@
 - 工具层负责同步读取、固定格式转换、差分速率、设备筛选和进程操作。
 - 工具层没有定时器、后台协程、数据库、配置服务或日志文件；不会自行开始监控。
 - `system service` 保留每秒采样、每 5 秒刷新磁盘容量、实时缓存、120 条 I/O 窗口，以及 `recordstore` 历史记录与保留策略。
-- 文件管理的磁盘列表也复用 `Disks`，原接口的路径、容量和 inode 字段保持不变。
+- 文件管理的 Windows 磁盘列表复用 `Disks`；Unix 类系统从 `/` 浏览目录和挂载点，不依赖容量监控的卷筛选。
 - 本次提供 Go API；没有增加进程/网络管理 HTTP 路由。后续控制器负责鉴权、参数校验、分页和操作日志。
 
 所有读取和控制方法都接收 `context.Context`。使用请求上下文或业务生命周期上下文，不要传 `nil`。支持超时的底层调用会跟随上下文取消；部分系统调用本身不能中断，不承诺超时瞬间中断内核调用。
@@ -143,7 +143,7 @@ if err != nil {
 // usage.Size.Total / Used / UnUsed；usage.Inodes
 ```
 
-`Disks` 用于文件管理可浏览卷，过滤系统虚拟文件系统；它不是所有物理硬盘的硬件清单。单个卷读取失败会跳过，所有候选卷均失败则返回错误。macOS 隐藏系统卷不重复显示；APFS 根目录按共享空间计算使用量。Windows 列表路径延续面板的 `C://` 格式。对被过滤挂载点仍可直接调用 `DiskUsage`。
+`Disks` 用于读取可浏览卷，过滤系统虚拟文件系统；它不是所有物理硬盘的硬件清单。单个卷读取失败会跳过，所有候选卷均失败则返回错误。macOS 隐藏系统卷不重复显示；APFS 根目录按共享空间计算使用量。Windows 路径统一使用正斜杠，例如 `C:/`、`C:/mount/data`、`//server/share/`，保留实际挂载位置和网络共享根。对被过滤挂载点仍可直接调用 `DiskUsage`。
 
 磁盘容量与磁盘 I/O 是两种信息，卷不一定与物理 I/O 设备一一对应。`AggregateDevices` 用于整机流量/吞吐汇总：过滤回环、常见虚拟网卡、分区、叠加块设备等，Linux 优先使用有硬件设备的网卡。这是设备拓扑的启发式判断，不适合替代详细设备列表。输入不修改，结果按名称排序。
 
@@ -190,9 +190,9 @@ if err != nil {
 
 扫描采用协作式预算：Linux 为 200ms，macOS/Windows 为 500ms，每轮最多读取 10000 个进程。超限后保留轮转位置，下一轮继续后续 PID，不能把未扫描进程算成零。基线按 PID 和库返回的毫秒创建时间绑定；采样前后使用不同的 gopsutil 进程对象复核身份，避免对象的创建时间缓存掩盖 PID 复用。进程退出、身份变化或计数器回退时重新建立对应基线。未扫描基线最多保留 2 分钟，最多跟踪 100000 个进程。CPU 和磁盘 I/O 只比较相邻两轮成功读取的进程计数；轮转或失败跳过的进程先重建基线，不把跨多轮平均值当成当前窗口占用。创建时间明确处于当前窗口的新进程可直接使用其累计 CPU/I/O，避免漏掉第一轮；已在两轮间退出的进程无法恢复，会标记速率排行不完整。磁盘 I/O 使用同轮主机快照之间的时间间隔。主机 CPU 读取错误时丢弃可能陈旧的总计数，恢复首轮仅建立基线；主机磁盘读取错误及恢复首轮暂停进程 I/O 速率，避免把单轮进程速率配给跨周期整机速率。其他可用指标继续返回。单个不可中断的系统调用仍可能超过预算，不承诺硬实时取消。包初始化时启用 gopsutil 的启动时间缓存，减少 Linux 进程查询中的重复文件读取，运行中不切换该全局开关。
 
-`ProcessTopSnapshot` 的 `cpu / memory / disk_io` 均为 `ProcessTopItem` 切片。对应 `CPUAvailable / MemoryAvailable / IOAvailable` 表示本轮是否有有效排行；`CPUPartial / MemoryPartial / IOPartial` 分别表示对应排行存在基线、退出、权限或预算缺项，Windows 缺少磁盘排行不影响 CPU 完整性；`Partial` 表示任一采集指标不完整，`Error` 给出摘要，不能把部分扫描称为全机精确 Top 5。身份不可读取或改变的进程计入 `Skipped` 并清除基线；CPU 或 I/O 读取失败会重新建立对应基线，不影响同一进程的其他有效指标。每项的 CPU、RSS、读取速率、写入速率 JSON 字段分别为 `cpu / memory / disk_read / disk_write`；单位分别为百分比、字节、字节/秒、字节/秒，`CreateTime` 为 Unix 毫秒。单项 `CPUAvailable / IOAvailable` 可区分内存榜单里的速率尚未就绪与真实零值。
+`ProcessTopSnapshot` 的 `cpu / memory / disk_io` 均为 `ProcessTopItem` 切片。对应 `CPUAvailable / MemoryAvailable / IOAvailable` 表示本轮是否有有效排行；`CPUPartial / MemoryPartial / IOPartial` 分别表示对应排行存在基线、退出、权限或预算缺项，I/O 读取失败不影响 CPU 完整性；`Partial` 表示任一采集指标不完整，`Error` 给出摘要，不能把部分扫描称为全机精确 Top 5。身份不可读取或改变的进程计入 `Skipped` 并清除基线；CPU 或 I/O 读取失败会重新建立对应基线，不影响同一进程的其他有效指标。每项的 CPU、RSS、读取速率、写入速率 JSON 字段分别为 `cpu / memory / disk_read / disk_write`；单位分别为百分比、字节、字节/秒、字节/秒，`CreateTime` 为 Unix 毫秒。单项 `CPUAvailable / IOAvailable` 可区分内存榜单里的速率尚未就绪与真实零值。
 
-排行榜只包装现成 gopsutil API，不再维护独立的 procfs、sysctl、libproc 或 Windows 原生实现。当前依赖版本在 Linux/macOS 的 `DiskReadBytes / DiskWriteBytes` 提供实际磁盘计数，Linux 的 `ReadBytes / WriteBytes` 是逻辑 I/O，不能替代使用。macOS 库的 CPU/RSS 查询在部分权限失败时可能返回零结构而不报错，因此累计 CPU 为零、RSS 为零时保守标记相应指标不可用；真实刚创建进程可能延后一轮进入 CPU 榜单。Windows 通用进程 I/O 混合文件、网络和设备传输，因此进程磁盘 Top 5 暂不可用（`IOAvailable=false`、空列表，并返回说明）；CPU、内存排行和整机磁盘趋势不受影响。已有 `Process.Sample` 接口保持不变。其他平台的排行榜返回不可用信息，不影响已有进程详情 API。
+排行榜只包装现成 gopsutil API，不再维护独立的 procfs、sysctl、libproc 或 Windows 原生实现。当前依赖版本在 Linux/macOS 的 `DiskReadBytes / DiskWriteBytes` 提供实际磁盘计数，Linux 的 `ReadBytes / WriteBytes` 是逻辑 I/O，不能替代使用。macOS 库的 CPU/RSS 查询在部分权限失败时可能返回零结构而不报错，因此累计 CPU 为零、RSS 为零时保守标记相应指标不可用；真实刚创建进程可能延后一轮进入 CPU 榜单。Windows 使用 `ReadBytes / WriteBytes` 计算进程总 I/O 排行，包含文件、网络和设备传输，不等同于实际磁盘占用；快照通过 `IOScope="process"` 标识口径，随分钟/小时历史及接口返回保留，前端显示“进程总 I/O”。其他平台的 `IOScope` 为空，保持磁盘口径。Windows 同样在首次采样建立基线，权限不足或进程退出只影响对应项，继续返回可读取的进程；沿用 500ms 扫描预算，不增加后台任务。整机磁盘趋势和高点选择仍使用物理磁盘计数。已有 `Process.Sample` 接口保持不变。其他平台的排行榜返回不可用信息，不影响已有进程详情 API。
 
 ### 进程控制
 
