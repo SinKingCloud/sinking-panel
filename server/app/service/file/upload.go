@@ -16,6 +16,7 @@ import (
 	"time"
 )
 
+// Upload 将普通上传文件暂存后写入目标目录。
 func (s *service) Upload(ctx context.Context, fileHeader *multipart.FileHeader, path string, overwrite bool) (*UploadedFile, error) {
 	s.cleanupExpiredUploadSessions()
 	fileName := fileHeader.Filename
@@ -52,9 +53,10 @@ func (s *service) Upload(ctx context.Context, fileHeader *multipart.FileHeader, 
 	}, nil
 }
 
+// UploadChunk 校验上传会话并保存单个分片。
 func (s *service) UploadChunk(fileHeader *multipart.FileHeader, meta UploadMeta, chunkIndex int) (*UploadedFile, bool, error) {
 	s.cleanupExpiredUploadSessions()
-	if err := s.validateUploadMeta(meta); err != nil {
+	if err := s.validateUploadMeta(&meta); err != nil {
 		return nil, false, err
 	}
 	if chunkIndex < 0 || chunkIndex >= meta.TotalChunks {
@@ -82,9 +84,10 @@ func (s *service) UploadChunk(fileHeader *multipart.FileHeader, meta UploadMeta,
 	return nil, exists, nil
 }
 
+// CheckUpload 返回已上传分片及已完成文件，支持断点续传。
 func (s *service) CheckUpload(meta UploadMeta) ([]int, *UploadedFile, error) {
 	s.cleanupExpiredUploadSessions()
-	if err := s.validateUploadMeta(meta); err != nil {
+	if err := s.validateUploadMeta(&meta); err != nil {
 		return nil, nil, err
 	}
 	unlock := s.lockUploadSession(meta.UploadID)
@@ -113,9 +116,10 @@ func (s *service) CheckUpload(meta UploadMeta) ([]int, *UploadedFile, error) {
 	return uploadedChunks, nil, nil
 }
 
+// MergeUpload 校验完整分片后合并文件并保存上传结果。
 func (s *service) MergeUpload(ctx context.Context, meta UploadMeta) (*UploadedFile, bool, error) {
 	s.cleanupExpiredUploadSessions()
-	if err := s.validateUploadMeta(meta); err != nil {
+	if err := s.validateUploadMeta(&meta); err != nil {
 		return nil, false, err
 	}
 	unlock := s.lockUploadSession(meta.UploadID)
@@ -155,6 +159,7 @@ func (s *service) MergeUpload(ctx context.Context, meta UploadMeta) (*UploadedFi
 	return completed, false, nil
 }
 
+// ClearUpload 删除指定上传会话的临时文件。
 func (s *service) ClearUpload(uploadID string) error {
 	s.cleanupExpiredUploadSessions()
 	if uploadID == "" || len(uploadID) > 128 || uploadID == "." || uploadID == ".." || strings.ContainsAny(uploadID, `/\`) {
@@ -259,7 +264,10 @@ func (s *service) touchUploadSession(uploadID string) {
 	_ = os.Chtimes(filepath.Join(constant.UploadPath, uploadID), now, now)
 }
 
-func (s *service) validateUploadMeta(meta UploadMeta) error {
+// validateUploadMeta 统一规范化路径和校验值，并检查上传会话参数。
+func (s *service) validateUploadMeta(meta *UploadMeta) error {
+	meta.Path = filepath.Clean(meta.Path)
+	meta.FileHash = strings.ToLower(meta.FileHash)
 	if meta.UploadID == "" || len(meta.UploadID) > 128 || meta.UploadID == "." || meta.UploadID == ".." || strings.ContainsAny(meta.UploadID, `/\`) {
 		return fmt.Errorf("upload_id参数不合法")
 	}
@@ -350,7 +358,7 @@ func (s *service) readUploadMeta(uploadID string) (UploadMeta, error) {
 	if err = json.Unmarshal(data, &meta); err != nil {
 		return UploadMeta{}, err
 	}
-	if err = s.validateUploadMeta(meta); err != nil {
+	if err = s.validateUploadMeta(&meta); err != nil {
 		return UploadMeta{}, err
 	}
 	return meta, nil

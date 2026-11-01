@@ -2,6 +2,7 @@ package file
 
 import (
 	"context"
+	"runtime"
 	"server/app/util/file"
 	"server/app/util/psutil"
 )
@@ -25,8 +26,11 @@ func (s *service) GetDisks() ([]Disk, error) {
 	return result, nil
 }
 
-// GetDiskPaths 获取磁盘路径
+// GetDiskPaths 返回文件浏览入口，非 Windows 系统从根目录访问挂载点，不依赖容量监控的卷筛选。
 func (s *service) GetDiskPaths() ([]string, error) {
+	if runtime.GOOS != "windows" {
+		return []string{"/"}, nil
+	}
 	partitions, err := s.GetDisks()
 	if err != nil {
 		return nil, err

@@ -6,21 +6,35 @@ import (
 	"encoding/hex"
 	"errors"
 	"mime"
+	"os"
 	"path/filepath"
 	"server/app/constant"
+	"server/app/util/file"
 	"strings"
 	"time"
 )
 
-// CreatePreviewSign 创建文件预览签名
-func (s *service) CreatePreviewSign(path, fileName string, download bool) (string, error) {
-	path = filepath.Clean(path)
-	if path == "." {
-		return "", errors.New("文件路径不合法")
+// CreatePreviewSign 检查文件并生成预览签名，符号链接解析为实际文件路径。
+func (s *service) CreatePreviewSign(path string, download bool) (string, error) {
+	f := file.NewDisk("")
+	if !f.Exists(path) {
+		return "", errors.New("文件不存在")
 	}
-	fileName = filepath.Base(fileName)
-	if fileName == "." || fileName == string(filepath.Separator) {
-		return "", errors.New("文件名称不合法")
+	if f.IsDir(path) {
+		return "", errors.New("不能预览目录")
+	}
+	path = f.Path(path, true, true)
+	fileName := filepath.Base(path)
+	path, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return "", errors.New("文件不存在")
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		return "", errors.New("文件不存在")
+	}
+	if !info.Mode().IsRegular() {
+		return "", errors.New("不支持访问该文件类型")
 	}
 	random := make([]byte, 32)
 	if _, err := rand.Read(random); err != nil {
@@ -59,6 +73,46 @@ func (s *service) CheckPreviewSign(key string) (PreviewSign, error) {
 		s.cache.SetWithExpire(cacheKey, sign, constant.CacheTimeWithFilePreviewRenew)
 	}
 	return sign, nil
+}
+
+// OpenPreview 校验预览签名并打开普通文件，调用方在响应结束后关闭文件。
+func (s *service) OpenPreview(key string) (*PreviewFile, error) {
+	sign, err := s.CheckPreviewSign(key)
+	if err != nil {
+		return nil, errors.New("预览链接无效或已过期")
+	}
+	info, err := os.Stat(sign.Path)
+	if err != nil {
+		return nil, errors.New("文件不存在")
+	}
+	if info.IsDir() {
+		return nil, errors.New("不允许访问目录")
+	}
+	if !info.Mode().IsRegular() {
+		return nil, errors.New("不支持访问该文件类型")
+	}
+	handle, err := os.Open(sign.Path)
+	if err != nil {
+		return nil, errors.New("无法访问文件")
+	}
+	info, err = handle.Stat()
+	if err != nil {
+		handle.Close()
+		return nil, errors.New("无法访问文件")
+	}
+	if info.IsDir() {
+		handle.Close()
+		return nil, errors.New("不允许访问目录")
+	}
+	if !info.Mode().IsRegular() {
+		handle.Close()
+		return nil, errors.New("不支持访问该文件类型")
+	}
+	name := filepath.Base(sign.FileName)
+	if name == "." || name == string(filepath.Separator) {
+		name = filepath.Base(sign.Path)
+	}
+	return &PreviewFile{File: handle, Name: name, ModTime: info.ModTime(), Download: sign.Download}, nil
 }
 
 // IsViewableInBrowser 判断是否能在浏览器预览

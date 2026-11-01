@@ -8,10 +8,53 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"server/app/util/file"
 	"strconv"
 	"strings"
 	"time"
 )
+
+// DownloadTask 准备目标目录并创建下载任务，同时返回实际保存路径。
+func (s *service) DownloadTask(url, path, name string) (string, string, error) {
+	if url == "" || path == "" {
+		return "", "", errors.New("下载地址和目标路径不能为空")
+	}
+	f := file.NewDisk("")
+	if !f.IsDir(path) {
+		if f.Exists(path) {
+			return "", "", errors.New("目标路径不是一个目录")
+		}
+		if err := f.CreateDir(path); err != nil {
+			return "", "", fmt.Errorf("目标目录不存在且无法创建: %w", err)
+		}
+	}
+	if name == "" {
+		name = filepath.Base(strings.Split(url, "?")[0])
+		if name == "" || name == "." {
+			name = "download_" + strconv.FormatInt(time.Now().Unix(), 10)
+		}
+	}
+	targetPath := filepath.Join(path, name)
+	data := map[string]interface{}{"url": url, "target_path": targetPath}
+	id, err := s.createTask("下载", "下载文件: "+url, data, func(ctx context.Context, update func(float64, string)) error {
+		return s.DownloadWithProgress(ctx, url, targetPath, func(current, total int64, speed float64) bool {
+			if ctx.Err() != nil {
+				return false
+			}
+			progress := float64(0)
+			if total > 0 {
+				progress = float64(current) / float64(total) * 100
+			}
+			speedText := "未知"
+			if speed > 0 {
+				speedText = s.FormatSize(int64(speed))
+			}
+			update(progress, fmt.Sprintf("正在下载: %s / %s - %s/s", s.FormatSize(current), s.FormatSize(total), speedText))
+			return true
+		})
+	})
+	return id, targetPath, err
+}
 
 // DownloadWithProgress 带进度的文件下载，支持断点续传
 func (s *service) DownloadWithProgress(ctx context.Context, url string, destPath string, progressCallback func(current, total int64, speed float64) bool) error {
