@@ -352,16 +352,15 @@ var systemMonitorFields = []recordstore.Field{
 	{Name: "load15", Aggregate: recordstore.Mean},
 }
 
+// startMonitorHistory 读取采集设置并初始化指标与进程历史存储。
 func (s *service) startMonitorHistory() {
 	configuration, err := func() (recordstore.SeriesConfiguration, error) {
 		configuration := recordstore.SeriesConfiguration{Enabled: true, RetentionDays: 30}
 		if s.configService == nil {
 			return configuration, errors.New("系统配置服务未初始化")
 		}
-		configs, err := s.configService.GroupWithError(constant.MonitorGroup)
-		if err != nil {
-			return configuration, fmt.Errorf("读取监控配置表失败: %w", err)
-		}
+		configs := s.configService.Group(constant.MonitorGroup)
+		var err error
 		enabled, hasEnabled := configs[constant.MonitorEnabled]
 		days, hasDays := configs[constant.MonitorRetentionDays]
 		if hasEnabled {
@@ -421,12 +420,13 @@ func (s *service) startMonitorHistory() {
 		return
 	}
 	// 退出时先排空指标记录器的回调，再显式关闭进程库，避免尾部快照先被关闭丢弃。
-	s.monitorProcessStore, s.monitorProcessError = openMonitorProcessStore(context.WithoutCancel(s.ctx), filepath.Join(constant.MonitorPath, "processes"), configuration)
+	s.monitorProcessStore, s.monitorProcessError = s.openMonitorProcessStore(context.WithoutCancel(s.ctx), filepath.Join(constant.MonitorPath, "processes"), configuration)
 	if s.monitorProcessError != nil {
 		log.Printf("打开监控进程历史失败: %v", s.monitorProcessError)
 	}
 }
 
+// monitorStorage 返回已启动的指标记录器，并报告初始化或关闭状态。
 func (s *service) monitorStorage() (*recordstore.Recorder, error) {
 	s.lifecycleMu.Lock()
 	defer s.lifecycleMu.Unlock()
@@ -593,7 +593,7 @@ func (s *service) GetMonitorHistory(ctx context.Context, start, end int64, maxPo
 				if group.Peak == nil || (index == 0 && *group.Peak != point["cpu_max"].(float64)) {
 					continue
 				}
-				ranking := &monitorProcessRanking{Time: group.Time, Peak: group.Peak, Partial: group.Partial, Items: make([]monitorProcessItem, 0, len(group.Items))}
+				ranking := &monitorProcessRanking{Time: group.Time, Peak: group.Peak, Partial: group.Partial, IOScope: group.IOScope, Items: make([]monitorProcessItem, 0, len(group.Items))}
 				for _, item := range group.Items {
 					ranking.Items = append(ranking.Items, monitorProcessItem{PID: item.PID, Name: item.Name, Value: processMetricValue(item, index)})
 				}
@@ -614,7 +614,8 @@ var processGzipReaders = sync.Pool{New: func() interface{} { return new(gzip.Rea
 
 var processGzipBuffers = sync.Pool{New: func() interface{} { return new(bytes.Buffer) }}
 
-func openMonitorProcessStore(ctx context.Context, dir string, configuration recordstore.SeriesConfiguration) (*monitorProcessStore, error) {
+// openMonitorProcessStore 打开进程历史文件，初始化有界缓冲并启动后台写入。
+func (s *service) openMonitorProcessStore(ctx context.Context, dir string, configuration recordstore.SeriesConfiguration) (*monitorProcessStore, error) {
 	store, err := recordstore.Open(dir, recordstore.Options{MaxValueBytes: 64 << 10})
 	if err != nil {
 		return nil, err
@@ -666,7 +667,10 @@ func (h *monitorProcessStore) Record(snapshot psutil.ProcessTopSnapshot, peaks [
 	for index, items := range lists {
 		// 即使扫描超时或榜单为空，也保留真正高点，不能用低点的完整榜单替代。
 		group := MonitorProcessGroup{Time: snapshot.Time, Peak: &peaks[index], Items: items, Available: available[index], Partial: partial[index] || !available[index]}
-		if betterProcessPeak(group, pending.peaks[index], index) {
+		if index == 2 {
+			group.IOScope = snapshot.IOScope
+		}
+		if h.betterPeak(group, pending.peaks[index], index) {
 			group.Items = append([]psutil.ProcessTopItem{}, items[:min(len(items), 5)]...)
 			pending.peaks[index] = group
 		}
@@ -675,15 +679,8 @@ func (h *monitorProcessStore) Record(snapshot psutil.ProcessTopSnapshot, peaks [
 	h.pending[minute] = pending
 }
 
-func processPeakScore(group MonitorProcessGroup, metric int) float64 {
-	var score float64
-	for _, item := range group.Items {
-		score += processMetricValue(item, metric)
-	}
-	return score
-}
-
-func betterProcessPeak(next, previous MonitorProcessGroup, metric int) bool {
+// betterPeak 优先比较同轮整机峰值，旧版记录回退到进程占用总和。
+func (h *monitorProcessStore) betterPeak(next, previous MonitorProcessGroup, metric int) bool {
 	if next.Peak != nil || previous.Peak != nil {
 		if next.Peak == nil {
 			return false
@@ -705,7 +702,14 @@ func betterProcessPeak(next, previous MonitorProcessGroup, metric int) bool {
 	if !previous.Available {
 		return true
 	}
-	a, b := processPeakScore(next, metric), processPeakScore(previous, metric)
+	score := func(group MonitorProcessGroup) float64 {
+		var value float64
+		for _, item := range group.Items {
+			value += processMetricValue(item, metric)
+		}
+		return value
+	}
+	a, b := score(next), score(previous)
 	return a > b || a == b && next.Time > previous.Time
 }
 
@@ -784,14 +788,14 @@ func (h *monitorProcessStore) flush(all bool) error {
 			if !exists {
 				record, err := h.collection.Get(key)
 				if err == nil {
-					peaks, err = decodeProcessPeaks(record)
+					peaks, err = h.decodePeaks(record)
 				}
 				if err != nil && !errors.Is(err, recordstore.ErrNotFound) {
 					return err
 				}
 			}
 			for index, group := range value.peaks {
-				if betterProcessPeak(group, peaks[index], index) {
+				if h.betterPeak(group, peaks[index], index) {
 					peaks[index] = group
 				}
 			}
@@ -832,7 +836,8 @@ func (h *monitorProcessStore) flush(all bool) error {
 	return nil
 }
 
-func decodeProcessPeaks(record recordstore.Record) (processPeaks, error) {
+// decodePeaks 解压进程峰值并限制展开大小，复用缓冲减少历史查询分配。
+func (h *monitorProcessStore) decodePeaks(record recordstore.Record) (processPeaks, error) {
 	var peaks processPeaks
 	if record.Encoding != recordstore.EncodingJSON {
 		return peaks, errors.New("原始字节记录不能作为 JSON 解码")
@@ -863,6 +868,7 @@ func decodeProcessPeaks(record recordstore.Record) (processPeaks, error) {
 	return peaks, err
 }
 
+// Settings 合并存储占用、后台读写错误与丢弃采样统计。
 func (h *monitorProcessStore) Settings() (int64, string) {
 	h.mu.Lock()
 	err, dropped := h.lastError, h.dropped
@@ -926,7 +932,7 @@ func (h *monitorProcessStore) history(ctx context.Context, start, end, step int6
 			}
 			bucket := group.Time / step * step
 			previous := result[bucket]
-			if betterProcessPeak(group, previous[metric], metric) {
+			if h.betterPeak(group, previous[metric], metric) {
 				previous[metric] = group
 				result[bucket] = previous
 			}
@@ -937,7 +943,7 @@ func (h *monitorProcessStore) history(ctx context.Context, start, end, step int6
 			return nil
 		}
 		return h.collection.Scan(ctx, recordstore.Query{Prefix: "m", Start: from / processMinuteMillis * processMinuteMillis, End: to, Limit: 128}, func(record recordstore.Record) error {
-			peaks, err := decodeProcessPeaks(record)
+			peaks, err := h.decodePeaks(record)
 			if err == nil {
 				accept(peaks)
 			}
@@ -963,7 +969,7 @@ func (h *monitorProcessStore) history(ctx context.Context, start, end, step int6
 			if err != nil {
 				return nil, err
 			}
-			peaks, err := decodeProcessPeaks(record)
+			peaks, err := h.decodePeaks(record)
 			if err != nil {
 				return nil, err
 			}

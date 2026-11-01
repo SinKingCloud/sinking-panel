@@ -61,6 +61,7 @@ type monitorProcessRanking struct {
 	Items   []monitorProcessItem `json:"items"`
 	Partial bool                 `json:"partial,omitempty"`
 	Peak    *float64             `json:"peak,omitempty"`
+	IOScope string               `json:"io_scope,omitempty"`
 }
 
 type monitorProcessData struct {
@@ -77,6 +78,7 @@ type MonitorProcessGroup struct {
 	Available bool                    `json:"available"`
 	Partial   bool                    `json:"partial"`
 	Peak      *float64                `json:"peak,omitempty"`
+	IOScope   string                  `json:"io_scope,omitempty"` // process 表示进程总 I/O，空值为磁盘 I/O
 }
 
 type processPeaks [3]MonitorProcessGroup
