@@ -42,7 +42,18 @@ func Disks(ctx context.Context) ([]DiskInfo, error) {
 			(partition.Mountpoint == "/System/Volumes" || strings.HasPrefix(partition.Mountpoint, "/System/Volumes/") || slices.Contains(partition.Opts, "nobrowse")) {
 			continue
 		}
-		usage, err := DiskUsage(ctx, partition.Mountpoint)
+		path := partition.Mountpoint
+		if runtime.GOOS == "windows" {
+			// 磁盘枚举可能返回 C:，必须先补根分隔符，避免 Clean 将其变成 C:.
+			if len(path) == 2 && path[1] == ':' {
+				path += "/"
+			}
+			path = filepath.ToSlash(filepath.Clean(path))
+			if len(path) >= 2 && path[1] == ':' {
+				path = strings.ToUpper(path[:1]) + path[1:]
+			}
+		}
+		usage, err := DiskUsage(ctx, path)
 		if err != nil {
 			failures = append(failures, fmt.Errorf("读取磁盘 %s 失败: %w", partition.Mountpoint, err))
 			continue
@@ -50,16 +61,6 @@ func Disks(ctx context.Context) ([]DiskInfo, error) {
 		if usage.Size.Total <= 0 {
 			failures = append(failures, fmt.Errorf("磁盘 %s 未返回有效容量", partition.Mountpoint))
 			continue
-		}
-		path := partition.Mountpoint
-		if runtime.GOOS == "windows" {
-			path = filepath.ToSlash(filepath.Clean(path))
-			if len(path) >= 2 && path[1] == ':' {
-				path = strings.ToUpper(path[:1]) + path[1:]
-				if len(path) == 2 {
-					path += "/"
-				}
-			}
 		}
 		result = append(result, DiskInfo{
 			Filesystem: partition.Device,
