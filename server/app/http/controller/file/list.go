@@ -4,7 +4,6 @@ import (
 	"server/app/enum/log_type"
 	"server/app/service"
 	"server/app/util/context"
-	"server/app/util/file"
 	"server/app/util/page"
 )
 
@@ -21,17 +20,16 @@ func List(c *context.Context) {
 		c.Error(msg)
 		return
 	}
-	f := file.NewDisk("")
-	list, total, err := f.FileListWithPage(form.Path, form.Page, form.PageSize, form.OrderByField, form.OrderByType, form.Keyword)
+	data, err := service.File.List(form.Path, form.Keyword, &page.Query{
+		Page:         form.Page,
+		PageSize:     form.PageSize,
+		OrderByField: form.OrderByField,
+		OrderByType:  form.OrderByType,
+	})
 	if err != nil {
 		c.Error("获取失败")
 	} else {
 		service.Log.Create(c.GetRequestIp(), log_type.EventShow, "查看文件列表", "查看目录["+form.Path+"]文件列表")
-		c.SuccessWithData("获取成功", page.New(&page.Query{
-			Page:         form.Page,
-			PageSize:     form.PageSize,
-			OrderByField: form.OrderByField,
-			OrderByType:  form.OrderByType,
-		}, total, list))
+		c.SuccessWithData("获取成功", data)
 	}
 }
