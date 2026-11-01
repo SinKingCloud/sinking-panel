@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"server/app/enum/log_type"
 	"server/app/service"
+	serviceOss "server/app/service/oss"
 	"server/app/util/context"
 	utilOss "server/app/util/oss"
 	"strconv"
@@ -25,17 +26,19 @@ func Upload(c *context.Context) {
 	switch action {
 	case "server":
 		var form struct {
-			Id        int64       `json:"id" validate:"required,min=1" label:"存储ID"`
-			Key       string      `json:"key" validate:"required,max=1024" label:"文件名称"`
-			Path      string      `json:"path" validate:"required,max=4096" label:"服务器文件路径"`
-			Overwrite bool        `json:"overwrite" default:"false" label:"覆盖同名文件"`
-			Options   fileOptions `json:"options"`
+			Id      int64       `json:"id" validate:"required,min=1" label:"存储ID"`
+			Key     string      `json:"key" validate:"required,max=1024" label:"文件名称"`
+			Path    string      `json:"path" validate:"required,max=4096" label:"服务器文件路径"`
+			Options fileOptions `json:"options"`
 		}
 		if ok, msg := c.ValidatorAll(&form); !ok {
 			c.Error(msg)
 			return
 		}
-		taskID, err := service.Oss.Upload(form.Id, form.Key, form.Path, form.Overwrite, form.Options.putOptions())
+		taskID, err := service.Oss.Upload(c.Request.Context(), form.Id, form.Key, serviceOss.UploadOptions{
+			Action: "server", Path: form.Path,
+			UploadOptions: utilOss.UploadOptions{PutOptions: form.Options.putOptions()},
+		})
 		if err != nil {
 			c.Error(err.Error())
 			return
@@ -74,20 +77,12 @@ func Upload(c *context.Context) {
 		c.Error("上传文件必须提供 Content-Length，大小不能超过 5 TiB")
 		return
 	}
-	client, err := service.Oss.Client(id)
-	if err != nil {
-		c.Error(err.Error())
-		return
-	}
 	defer c.Request.Body.Close()
-	var data interface{}
-	if action == "part" {
-		data, err = client.UploadPart(c.Request.Context(), key, query.Get("upload_id"), number, c.Request.Body, c.Request.ContentLength)
-	} else {
-		data, err = client.Upload(c.Request.Context(), key, c.Request.Body, c.Request.ContentLength, utilOss.UploadOptions{
-			PutOptions: utilOss.PutOptions{ContentType: c.Request.Header.Get("Content-Type")},
-		})
-	}
+	data, err := service.Oss.Upload(c.Request.Context(), id, key, serviceOss.UploadOptions{
+		Action: action, Body: c.Request.Body, Size: c.Request.ContentLength,
+		UploadId: query.Get("upload_id"), Number: number,
+		UploadOptions: utilOss.UploadOptions{PutOptions: utilOss.PutOptions{ContentType: c.Request.Header.Get("Content-Type")}},
+	})
 	if err != nil {
 		c.Error(err.Error())
 		return

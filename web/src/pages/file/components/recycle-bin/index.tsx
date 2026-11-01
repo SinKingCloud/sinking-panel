@@ -60,12 +60,14 @@ const FileRecycleBin = memo(forwardRef<any, any>(({onMutation}, ref) => {
     const styleProps = useMemo(() => ({compact}), [compact]);
     const {styles} = useStyles(styleProps);
     const tableRef = useRef<ModalTableRef | null>(null);
+    const confirmRef = useRef<{destroy: () => void}>();
     const countRequestRef = useRef(0);
     const [loading, setLoading] = useState(false);
     const [count, setCount] = useState<any>();
 
     useEffect(() => () => {
         countRequestRef.current += 1;
+        confirmRef.current?.destroy();
     }, []);
 
     const loadCount = useCallback(async () => {
@@ -92,10 +94,6 @@ const FileRecycleBin = memo(forwardRef<any, any>(({onMutation}, ref) => {
         tableRef.current?.open();
         void loadCount();
     }, [loadCount]);
-
-    useImperativeHandle(ref, () => ({
-        open,
-    }), [open]);
 
     const refreshAfterMutation = useCallback(() => {
         tableRef.current?.clearSelectedRows?.();
@@ -130,7 +128,7 @@ const FileRecycleBin = memo(forwardRef<any, any>(({onMutation}, ref) => {
             message.warning("请选择回收站文件");
             return;
         }
-        modal.confirm({
+        confirmRef.current = modal.confirm({
             title: "恢复文件",
             content: nextNames.length === 1 && name
                 ? `确定恢复“${name}”吗？`
@@ -148,7 +146,7 @@ const FileRecycleBin = memo(forwardRef<any, any>(({onMutation}, ref) => {
             message.warning("请选择回收站文件");
             return;
         }
-        modal.confirm({
+        confirmRef.current = modal.confirm({
             title: "彻底删除",
             content: nextNames.length === 1 && name
                 ? `确定彻底删除“${name}”吗？此操作无法恢复。`
@@ -161,7 +159,7 @@ const FileRecycleBin = memo(forwardRef<any, any>(({onMutation}, ref) => {
         });
     }, [message, modal, mutate]);
 
-    const confirmClear = useCallback(() => modal.confirm({
+    const confirmClear = useCallback(() => confirmRef.current = modal.confirm({
         title: "清空回收站",
         content: "回收站中的全部文件将被彻底删除，此操作无法恢复。",
         okText: "清空",
@@ -248,10 +246,15 @@ const FileRecycleBin = memo(forwardRef<any, any>(({onMutation}, ref) => {
 
     const close = useCallback(() => {
         countRequestRef.current++;
+        confirmRef.current?.destroy();
+        confirmRef.current = undefined;
         setLoading(false);
         setCount(undefined);
         tableRef.current?.clearSelectedRows?.();
+        tableRef.current?.close();
     }, []);
+
+    useImperativeHandle(ref, () => ({open, close}), [close, open]);
 
     return (
         <ModalTable

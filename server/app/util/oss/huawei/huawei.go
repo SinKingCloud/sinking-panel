@@ -377,8 +377,8 @@ func (h *Client) ListMultipartUploads(ctx context.Context, o oss.UploadsOptions)
 	return page, nil
 }
 
-// Presign 生成有有效期的签名访问地址。
-func (h *Client) Presign(ctx context.Context, key, method string, ttl time.Duration, options ...oss.PresignOptions) (*oss.SignedURL, error) {
+// Sign 生成有有效期的签名访问地址。
+func (h *Client) Sign(ctx context.Context, key, method string, ttl time.Duration, options ...oss.SignOptions) (*oss.SignedURL, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -397,7 +397,7 @@ func (h *Client) Presign(ctx context.Context, key, method string, ttl time.Durat
 	}
 	v, err := c.CreateSignedUrl(&obs.CreateSignedUrlInput{Bucket: h.config.Bucket, Key: key, Method: obs.HttpMethodType(method), Expires: int(ttl / time.Second), QueryParams: query})
 	if err != nil {
-		return nil, h.contextError(ctx, "Presign", key, err)
+		return nil, h.contextError(ctx, "Sign", key, err)
 	}
 	return &oss.SignedURL{URL: v.SignedUrl, Headers: v.ActualSignedRequestHeaders, ExpiresAt: time.Now().Add(ttl)}, nil
 }

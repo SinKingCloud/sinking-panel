@@ -46,6 +46,12 @@ const FileTerminal = ({path, open, onClose}: any) => {
     pathRef.current = path;
 
     useEffect(() => {
+        if (!open) {
+            formRef.current?.close();
+        }
+    }, [open]);
+
+    useEffect(() => {
         if (!path) {
             return;
         }

@@ -17,6 +17,7 @@ type Interface interface {
 	Backend
 	Exists(context.Context, string) (bool, error)
 	MoveFile(context.Context, string, string) (*File, error)
+	RenameFile(context.Context, string, string) (*File, error)
 	SetMetadata(context.Context, string, PutOptions) (*File, error)
 	CreateDirectory(context.Context, string) (*File, error)
 	DeleteFiles(context.Context, []string) ([]DeleteResult, error)
@@ -45,7 +46,7 @@ type Backend interface {
 	AbortMultipartUpload(context.Context, string, string) error
 	ListParts(context.Context, string, string, PartsOptions) (*PartsPage, error)
 	ListMultipartUploads(context.Context, UploadsOptions) (*UploadsPage, error)
-	Presign(context.Context, string, string, time.Duration, ...PresignOptions) (*SignedURL, error)
+	Sign(context.Context, string, string, time.Duration, ...SignOptions) (*SignedURL, error)
 }
 
 var _ Interface = (*Manager)(nil)

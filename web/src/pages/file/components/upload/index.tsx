@@ -5,13 +5,13 @@ import {formatFileSize, getFileIconType} from "../../utils";
 import {uploadFile} from "./transfer";
 import useStyles from "./styles";
 
-const getUploadStatusText = (item: any) => {
+const getUploadStatusText = (item: any, resumable: boolean) => {
     if (item.status === "waiting") return "等待中";
     if (item.status === "checking") return typeof item.hashPercent === "number" ? `检查中 ${item.hashPercent}%` : "检查中";
     if (item.status === "uploading") return `上传中 ${Math.floor(item.percent)}%`;
     if (item.status === "merging") return "合并中";
     if (item.status === "done") return "已完成";
-    if (item.status === "canceled") return "已暂停";
+    if (item.status === "canceled") return resumable ? "已暂停" : "已取消";
     return "失败";
 };
 
@@ -19,6 +19,10 @@ const activeUploadStatuses = new Set<string>(["waiting", "checking", "uploading"
 
 const FileUpload = forwardRef<any, any>(({
     path,
+    active = true,
+    zIndex,
+    request = uploadFile,
+    resumable = true,
     selectionDisabled = false,
     onUploaded,
     onUploadingChange,
@@ -42,11 +46,18 @@ const FileUpload = forwardRef<any, any>(({
         [items],
     );
 
-    useImperativeHandle(ref, () => ({open: () => setOpen(true)}), []);
+    useImperativeHandle(ref, () => ({
+        open: () => setOpen(true),
+        close: () => setOpen(false),
+    }), []);
 
     useEffect(() => {
         onUploadingChangeRef.current = onUploadingChange;
     }, [onUploadingChange]);
+
+    useEffect(() => {
+        if (!active) setOpen(false);
+    }, [active]);
 
     useEffect(() => {
         mountedRef.current = true;
@@ -87,22 +98,23 @@ const FileUpload = forwardRef<any, any>(({
     ) => {
         const id = reuseId || `${file.name}-${file.size}-${file.lastModified}-${Date.now()}-${Math.random()}`;
         setItems((current) => reuseId
-                ? current.map((item) => item.id === id ? {...item, percent: 0, status: "waiting" as const, error: undefined} : item)
+                ? current.map((item) => item.id === id ? {...item, percent: 0, status: "waiting" as const, cancelable: true, error: undefined} : item)
                 : [
                     ...current.filter((item) => item.path !== targetPath || item.name !== file.name || activeUploadStatuses.has(item.status)),
                     {id, file, path: targetPath, name: file.name, percent: 0, status: "waiting" as const},
                 ]);
-        const transfer = uploadFile({
+        const transfer = request({
             path: targetPath,
             file,
             fileName: file.name,
-            onProgress: ({percent, phase, hashPercent}: any) => {
+            onProgress: ({percent, phase, hashPercent, cancelable}: any) => {
                 if (phase === "complete") {
                     return;
                 }
                 update(id, {
                     percent: phase === "uploading" ? Math.min(99, Math.floor(percent)) : Math.floor(percent),
                     hashPercent,
+                    cancelable,
                     status: phase === "checking" ? "checking" : phase === "merging" ? "merging" : "uploading",
                 });
             },
@@ -162,7 +174,7 @@ const FileUpload = forwardRef<any, any>(({
 
     const customRequest = (options: any) => {
         const file = options.file as File;
-        const targetPath = fileTargetsRef.current.get(file) || path;
+        const targetPath = fileTargetsRef.current.get(file) ?? path;
         fileTargetsRef.current.delete(file);
         const transfer = start(file, targetPath, undefined, {
             onSuccess: options.onSuccess,
@@ -191,7 +203,8 @@ const FileUpload = forwardRef<any, any>(({
             width={compact ? "560px" : "640px"}
             onCancel={() => setOpen(false)}
             modalProps={{
-                open,
+                open: active && open,
+                zIndex,
                 rootClassName: styles.fileUploadModal,
                 footer: items.length > 0 ? (
                     <div className="file-upload-footer">
@@ -258,10 +271,11 @@ const FileUpload = forwardRef<any, any>(({
                                                     color="default"
                                                     variant="text"
                                                     size="small"
-                                                    aria-label={`暂停上传 ${item.name}`}
-                                                    icon={<Icon type="PauseOutlined"/>}
+                                                    aria-label={`${resumable ? "暂停" : "取消"}上传 ${item.name}`}
+                                                    disabled={item.cancelable === false}
+                                                    icon={<Icon type={resumable ? "PauseOutlined" : "StopOutlined"}/>}
                                                     onClick={() => cancel(item.id)}>
-                                                    暂停
+                                                    {resumable ? "暂停" : "取消"}
                                                 </Button>
                                             ) : item.status === "error" || item.status === "canceled" ? (
                                                 <>
@@ -269,12 +283,12 @@ const FileUpload = forwardRef<any, any>(({
                                                         color="default"
                                                         variant="text"
                                                         size="small"
-                                                        aria-label={`${item.status === "canceled" ? "继续" : "重试"}上传 ${item.name}`}
+                                                        aria-label={`${resumable && item.status === "canceled" ? "继续" : "重试"}上传 ${item.name}`}
                                                         icon={(
-                                                            <Icon type={item.status === "canceled" ? "PlayCircleOutlined" : "ReloadOutlined"}/>
+                                                            <Icon type={resumable && item.status === "canceled" ? "PlayCircleOutlined" : "ReloadOutlined"}/>
                                                         )}
                                                         onClick={() => retry(item)}>
-                                                        {item.status === "canceled" ? "继续" : "重试"}
+                                                        {resumable && item.status === "canceled" ? "继续" : "重试"}
                                                     </Button>
                                                     <Button
                                                         color="default"
@@ -298,7 +312,7 @@ const FileUpload = forwardRef<any, any>(({
                                         </div>
                                     </div>
                                     <div className="upload-file-meta">
-                                        <span className={`upload-file-state ${item.status}`}>{getUploadStatusText(item)}</span>
+                                        <span className={`upload-file-state ${item.status}`}>{getUploadStatusText(item, resumable)}</span>
                                         <span>{formatFileSize(item.file.size)}</span>
                                         {item.error && <span className="upload-file-error" title={item.error}>{item.error}</span>}
                                     </div>

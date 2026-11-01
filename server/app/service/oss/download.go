@@ -10,8 +10,27 @@ import (
 	"unicode/utf8"
 )
 
-// Download 将 OSS 文件下载加入后台任务，写完临时文件后才发布到目标路径。
-func (s *service) Download(id int64, key, path string, overwrite bool) (string, error) {
+// Download 默认返回下载流；server 创建后台任务，写完临时文件后才发布到目标路径。
+func (s *service) Download(ctx context.Context, id int64, key string, options DownloadOptions) (*DownloadResult, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	switch options.Action {
+	case "", "file":
+		client, err := s.client(id)
+		if err != nil {
+			return nil, err
+		}
+		data, err := client.GetFile(ctx, key, options.GetOptions)
+		if err != nil {
+			return nil, err
+		}
+		return &DownloadResult{Download: data}, nil
+	case "server":
+	default:
+		return nil, errors.New("下载操作类型不合法")
+	}
+	path, overwrite := options.Path, options.Overwrite
 	check := func() error {
 		if key == "" || len(key) > 1024 || !utf8.ValidString(key) || strings.ContainsAny(key, "\x00\r\n") || strings.HasSuffix(key, "/") {
 			return errors.New("请选择有效的 OSS 文件名称")
@@ -42,16 +61,16 @@ func (s *service) Download(id int64, key, path string, overwrite bool) (string, 
 		return nil
 	}
 	if err := check(); err != nil {
-		return "", err
+		return nil, err
 	}
-	return s.transferTask(id, "download", "下载", key, path, overwrite, func(ctx context.Context, progress utilOss.ProgressFunc) (int64, error) {
+	taskID, err := s.transferTask(id, "download", "下载", key, path, func(ctx context.Context, progress utilOss.ProgressFunc) (int64, error) {
 		if err := ctx.Err(); err != nil {
 			return 0, err
 		}
 		if err := check(); err != nil {
 			return 0, err
 		}
-		client, err := s.Client(id)
+		client, err := s.client(id)
 		if err != nil {
 			return 0, err
 		}
@@ -88,4 +107,8 @@ func (s *service) Download(id int64, key, path string, overwrite bool) (string, 
 		}
 		return info.Size(), nil
 	})
+	if err != nil {
+		return nil, err
+	}
+	return &DownloadResult{TaskId: taskID}, nil
 }

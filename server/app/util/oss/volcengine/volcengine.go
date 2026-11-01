@@ -309,10 +309,10 @@ func (b *Client) ListMultipartUploads(ctx context.Context, opt oss.UploadsOption
 	return page, nil
 }
 
-// Presign 生成有有效期的签名地址及调用方必须携带的请求头。
-func (b *Client) Presign(ctx context.Context, key, method string, expiry time.Duration, options ...oss.PresignOptions) (*oss.SignedURL, error) {
+// Sign 生成有有效期的签名地址及调用方必须携带的请求头。
+func (b *Client) Sign(ctx context.Context, key, method string, expiry time.Duration, options ...oss.SignOptions) (*oss.SignedURL, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, b.wrap("Presign", key, err)
+		return nil, b.wrap("Sign", key, err)
 	}
 	query := make(map[string]string)
 	if len(options) > 0 {
@@ -325,11 +325,11 @@ func (b *Client) Presign(ctx context.Context, key, method string, expiry time.Du
 	}
 	out, err := b.client.PreSignedURL(&tos.PreSignedURLInput{Bucket: b.config.Bucket, Key: key, HTTPMethod: enum.HttpMethodType(method), Expires: int64(expiry / time.Second), Query: query})
 	if err != nil {
-		return nil, b.wrap("Presign", key, err)
+		return nil, b.wrap("Sign", key, err)
 	}
 	signedURL, err := url.Parse(out.SignedUrl)
 	if err != nil {
-		return nil, b.wrap("Presign", key, err)
+		return nil, b.wrap("Sign", key, err)
 	}
 	required := make(map[string]bool)
 	for _, name := range strings.Split(signedURL.Query().Get("X-Tos-SignedHeaders"), ";") {

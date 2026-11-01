@@ -131,7 +131,7 @@ func OpenClient(accessKeyID, accessKeySecret string) (*aliyun.Client, error) {
 }
 ```
 
-子包入口也接受根包的 Secret、Config；使用统一 Config 时，Provider 必须与子包一致。底层 Client 提供文件、桶和显式分片 API，自动 Upload、UploadFile、DownloadFile、MoveFile 等组合能力由 Manager 提供。
+子包入口也接受根包的 Secret、Config；使用统一 Config 时，Provider 必须与子包一致。底层 Client 提供文件、桶和显式分片 API，自动 Upload、UploadFile、DownloadFile、MoveFile、RenameFile 等组合能力由 Manager 提供。
 
 ### 实例化方式对照
 
@@ -213,10 +213,10 @@ func OpenFromSecret(provider int, rawSecret string, config oss.ConfigSource) (os
 | 分页与信息 | `ListFiles`、`StatFile`、`Exists` |
 | 上传 | `PutFile`、`Upload`、`UploadFile` |
 | 下载 | `GetFile`、`DownloadFile` |
-| 文件操作 | `CopyFile`、`MoveFile`、`SetMetadata`、`DeleteFile`、`DeleteFiles` |
+| 文件操作 | `CopyFile`、`MoveFile`、`RenameFile`、`SetMetadata`、`DeleteFile`、`DeleteFiles` |
 | 虚拟目录 | `CreateDirectory`，配合 `ListFiles` 的 `Prefix`、`Delimiter` |
 | 分片会话 | `InitiateMultipartUpload`、`UploadPart`、`UploadPartCopy`、`ListParts`、`CompleteMultipartUpload`、`AbortMultipartUpload`、`ListMultipartUploads` |
-| 临时访问 | `Presign`，支持 `GET`、`HEAD`、`PUT` |
+| 临时访问 | `Sign`，支持 `GET`、`HEAD`、`PUT` |
 
 工具包提供 Go API；面板的配置持久化和 HTTP 接口由上层 [OSS 服务](../../service/oss/oss.go) 和 [HTTP controller](../../http/controller/oss) 提供。桶策略、生命周期、版本管理、跨区域复制配置等云平台治理功能不属于当前文件管理接口。
 
@@ -232,7 +232,7 @@ func OpenFromSecret(provider int, rawSecret string, config oss.ConfigSource) (os
 | --- | --- | --- |
 | `/oss/upload` | `file`，省略时默认使用 | 原始文件二进制；`id`、`key` 放在 URL 查询参数，后端自动选择普通或分片上传 |
 | `/oss/upload` | `part` | 原始分片二进制；URL 还需 `id`、`key`、`upload_id`、`number`，返回分片编号、ETag 和长度 |
-| `/oss/upload` | `server` | JSON：`id`、`key`、`path`、`overwrite`、可选 `options`，将服务器文件上传加入后台任务 |
+| `/oss/upload` | `server` | JSON：`id`、`key`、`path`、可选 `options`，将服务器文件上传加入后台任务 |
 | `/oss/upload` | `init` / `complete` / `abort` / `parts` / `uploads` | JSON：初始化、合并、取消、列出已上传分片或未完成会话 |
 | `/oss/download` | `file`，省略时默认使用 | 无文件正文；`id`、`key` 放在 URL，返回下载流，支持 `Range` 请求头 |
 | `/oss/download` | `server` | JSON：`id`、`key`、`path`、`overwrite`，将 OSS 文件下载到服务器的任务加入后台队列 |
@@ -240,13 +240,15 @@ func OpenFromSecret(provider int, rawSecret string, config oss.ConfigSource) (os
 
 上传、下载的 `action` 只从 URL 查询参数读取，不能仅放在 JSON 正文中。这样上传 JSON 文件时，正文仍按文件二进制处理。`file`、`part` 上传必须提供准确的 `Content-Length`。`server` 操作立即返回系统任务 ID，进度和取消通过系统任务接口处理。
 
+所有上传都直接覆盖同名文件，无需传入覆盖参数；分片上传在成功合并后替换同名文件。从服务器上传时，页面使用当前云端目录和服务器文件名作为目标 `key`。下载到服务器仍通过 `overwrite` 指定是否覆盖，默认不覆盖。
+
 例如，从服务器上传备份文件：
 
 ```http
 POST /oss/upload?action=server
 Content-Type: application/json
 
-{"id":1,"key":"backup/site.tar.gz","path":"/data/backup/site.tar.gz","overwrite":false}
+{"id":1,"key":"backup/site.tar.gz","path":"/data/backup/site.tar.gz"}
 ```
 
 获取浏览器附件下载链接：
@@ -541,18 +543,38 @@ func ReadBackup(ctx context.Context, store oss.Interface, key string, destinatio
 
 `CopyFile` 在 Manager 绑定的当前桶内复制，source 和 destination 均为该桶内的文件 key。复制前会读取源元数据，超过 1 GiB 自动使用云端分片复制，每一片携带源 ETag 条件，避免复制过程中源变化产生混合文件。分片复制失败会中止会话。`UploadPartCopy` 同样在当前桶内读取源文件，可直接用于调用方管理的分片复制任务。
 
-`MoveFile` 用复制加删除完成重命名；复制成功后才删除源。它不是原子操作，删除失败时返回目标信息和错误，两份对象都会保留。执行期间调用方应保证源不被并发修改。所有写入遵循云存储覆盖语义；目标已存在时可能被覆盖。`SetMetadata` 整体替换元数据和内容头，应传入需要保留的字段；复制不会保留源对象 ACL 等独立访问策略。
+`MoveFile` 接收完整目标 key，通过复制加删除移动文件；复制成功后才删除源。它不是原子操作，删除失败时返回目标信息和错误，两份对象都会保留。执行期间调用方应保证源不被并发修改。所有写入遵循云存储覆盖语义；目标已存在时可能被覆盖。`SetMetadata` 整体替换元数据和内容头，应传入需要保留的字段；复制不会保留源对象 ACL 等独立访问策略。
+
+`RenameFile(ctx, key, name)` 只接收单个新文件名，保留源 key 中的原始目录前缀（包括连续斜杠、空格等），不使用本地路径规范化。它会拒绝空名称、`.`、`..`、目录分隔符、目录标记和原名称，并校验最终 key 的 UTF-8 及 1024 字节限制。目标文件已存在时返回 `ErrConflict`；读取目标失败时直接返回错误，不继续复制。底层复用 `MoveFile`，超过 1 GiB 的文件自动分片复制。检查与复制不是原子操作，执行期间需保证源和目标不被并发修改；删除源失败时会返回目标信息和错误，两份文件都保留。
+
+```go
+// 将 backup/site.tar.gz 改名为 backup/site-20261102.tar.gz。
+file, err := manager.RenameFile(ctx, "backup/site.tar.gz", "site-20261102.tar.gz")
+// 面板业务可使用注入的 OSS service，storageID 是已保存的存储配置 ID。
+file, err = ossService.Rename(ctx, storageID, "backup/site.tar.gz", "site-20261102.tar.gz")
+```
+
+面板文件操作接口通过 JSON 正文中的 `action=rename` 调用重命名，`name` 不包含目录；移动仍使用 `action=move` 和完整的 `destination`：
+
+```http
+POST /oss/file
+Content-Type: application/json
+
+{"id":1,"action":"rename","key":"backup/site.tar.gz","name":"site-20261102.tar.gz"}
+```
+
+成功时 `data` 返回重命名后的文件信息，例如 `key` 为 `backup/site-20261102.tar.gz`。文件列表的操作菜单和右键菜单都提供独立的“重命名”入口。
 
 `DeleteFiles` 返回每个 key 的结果和聚合错误，方便区分部分成功。`DeleteBucket` 只删除空桶。归档对象下载/复制、存储类型和访问权限等仍受厂商规则约束；`StorageClass` 使用相应厂商的原生值。
 
 ```go
-signed, err := manager.Presign(ctx, "database/latest.sql.gz", "GET", 15*time.Minute)
+signed, err := manager.Sign(ctx, "database/latest.sql.gz", "GET", 15*time.Minute)
 // 客户端访问 signed.URL，并携带 signed.Headers 中的头。
 ```
 
 预签名有效期为 1 秒到 7 天，同时受临时凭据剩余有效期限制。签名地址具备临时访问权限，不应写入公开日志。
 
-浏览器下载文件时，可以传入一份 `PresignOptions`，通过附件响应头和文件名触发下载，避免图片、文本等直接在页面内预览：
+浏览器下载文件时，可以传入一份 `SignOptions`，通过附件响应头和文件名触发下载，避免图片、文本等直接在页面内预览：
 
 ```go
 package example
@@ -566,7 +588,7 @@ import (
 )
 
 func CreateDownloadURL(ctx context.Context, store oss.Interface, key string) (*oss.SignedURL, error) {
-    return store.Presign(ctx, key, "GET", 10*time.Minute, oss.PresignOptions{
+    return store.Sign(ctx, key, "GET", 10*time.Minute, oss.SignOptions{
         ContentDisposition: mime.FormatMediaType("attachment", map[string]string{
             "filename": path.Base(key),
         }),

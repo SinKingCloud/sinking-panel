@@ -294,7 +294,7 @@ const SecretManager = forwardRef<SecretManagerRef, SecretManagerProps>(({zIndex 
             </Button> : <ActionDropdown
                 disabled={deletingIds.includes(record.id)}
                 menu={{
-                    items: [{key: "edit", label: "编辑密钥"}, {key: "delete", label: "删除密钥", danger: true}],
+                    items: [{key: "edit", label: "编辑"}, {key: "delete", label: "删除", danger: true}],
                     onClick: ({key}) => key === "edit" ? formRef.current?.open(record) : confirmDelete(record),
                 }}>
                 <Button size="small" autoInsertSpace={false} disabled={deletingIds.includes(record.id)} aria-label={`操作密钥 ${record.name}`}>操作</Button>

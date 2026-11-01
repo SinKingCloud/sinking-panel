@@ -7,6 +7,7 @@ import (
 	"path"
 	"server/app/enum/log_type"
 	"server/app/service"
+	serviceOss "server/app/service/oss"
 	"server/app/util/context"
 	utilOss "server/app/util/oss"
 	"strconv"
@@ -27,13 +28,15 @@ func Download(c *context.Context) {
 			c.Error(msg)
 			return
 		}
-		taskID, err := service.Oss.Download(form.Id, form.Key, form.Path, form.Overwrite)
+		data, err := service.Oss.Download(c.Request.Context(), form.Id, form.Key, serviceOss.DownloadOptions{
+			Action: "server", Path: form.Path, Overwrite: form.Overwrite,
+		})
 		if err != nil {
 			c.Error(err.Error())
 			return
 		}
 		service.Log.Create(c.GetRequestIp(), log_type.EventCreate, "创建 OSS 传输任务", "OSS["+strconv.FormatInt(form.Id, 10)+"] download "+form.Key+"，文件["+form.Path+"]")
-		c.SuccessWithData("已加入后台任务", taskID)
+		c.SuccessWithData("已加入后台任务", data.TaskId)
 		return
 	case "", "file":
 	default:
@@ -48,12 +51,9 @@ func Download(c *context.Context) {
 		c.Error("存储 ID 或文件名称不合法")
 		return
 	}
-	client, err := service.Oss.Client(id)
-	if err != nil {
-		c.Error(err.Error())
-		return
-	}
-	data, err := client.GetFile(c.Request.Context(), key, utilOss.GetOptions{Range: c.Request.Header.Get("Range")})
+	data, err := service.Oss.Download(c.Request.Context(), id, key, serviceOss.DownloadOptions{
+		GetOptions: utilOss.GetOptions{Range: c.Request.Header.Get("Range")},
+	})
 	if err != nil {
 		c.Error(err.Error())
 		return

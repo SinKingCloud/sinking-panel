@@ -71,7 +71,8 @@ const runPendingFileUploads = () => {
     }
 };
 
-const scheduleFileUpload = <T, >(run: () => Promise<T>, signal: AbortSignal) => new Promise<T>((resolve, reject) => {
+/** 本地和云端上传共用队列，限制同时上传的文件数，等待中的任务可直接取消。 */
+export const scheduleFileUpload = <T, >(run: () => Promise<T>, signal: AbortSignal) => new Promise<T>((resolve, reject) => {
     const item: any = {
         run: async () => resolve(await run()),
         signal,

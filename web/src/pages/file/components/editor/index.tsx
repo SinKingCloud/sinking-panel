@@ -49,7 +49,7 @@ const isMobileViewport = () => (
 );
 
 const FileEditor = forwardRef(function FileEditor(
-    {roots, onMutation, onMinimizedChange}: any,
+    {active = true, roots, onMutation, onMinimizedChange}: any,
     ref: React.ForwardedRef<any>,
 ) {
     const {modal} = App.useApp();
@@ -67,6 +67,7 @@ const FileEditor = forwardRef(function FileEditor(
     const sessionGenerationRef = useRef(0);
     const formContextRef = useRef<any>(undefined);
     const discardConfirmRef = useRef<any>(undefined);
+    const deleteConfirmRef = useRef<any>(undefined);
     const deletingPathsRef = useRef(new Set<string>());
     const treeTransitionTimerRef = useRef<number | undefined>(undefined);
     const saveCommandRef = useRef<() => void>(() => undefined);
@@ -146,6 +147,7 @@ const FileEditor = forwardRef(function FileEditor(
     const closeNow = useCallback(() => {
         sessionGenerationRef.current += 1;
         destroyDiscardConfirm();
+        deleteConfirmRef.current?.destroy();
         formContextRef.current = undefined;
         formRef.current?.close();
         permissionsRef.current?.close();
@@ -288,14 +290,9 @@ const FileEditor = forwardRef(function FileEditor(
         }
     }, []);
 
-    useImperativeHandle(ref, () => ({
-        open: requestOpen,
-        restore,
-        close: requestClose,
-    }), [requestClose, requestOpen, restore]);
-
     useEffect(() => () => {
         discardConfirmRef.current?.destroy();
+        deleteConfirmRef.current?.destroy();
         if (document.fullscreenElement === workspaceRef.current && typeof document.exitFullscreen === "function") {
             void document.exitFullscreen().catch(() => undefined);
         }
@@ -447,7 +444,7 @@ const FileEditor = forwardRef(function FileEditor(
                 : "请先保存并关闭该文件的标签");
             return;
         }
-        modal.confirm({
+        deleteConfirmRef.current = modal.confirm({
             title: "删除",
             content: `确定将“${node.name}”移至回收站吗？`,
             okText: "删除",
@@ -656,6 +653,14 @@ const FileEditor = forwardRef(function FileEditor(
     }, [fullscreen, message]);
 
     const minimizeEditor = useCallback(async () => {
+        if (!sessionRef.current) {
+            return;
+        }
+        destroyDiscardConfirm();
+        deleteConfirmRef.current?.destroy();
+        formRef.current?.close();
+        permissionsRef.current?.close();
+        aceRef.current?.blur?.();
         try {
             if (await exitWorkspaceFullscreen()) {
                 setMinimized(true);
@@ -663,10 +668,17 @@ const FileEditor = forwardRef(function FileEditor(
         } catch {
             message.error("最小化编辑器失败");
         }
-    }, [exitWorkspaceFullscreen, message]);
+    }, [destroyDiscardConfirm, exitWorkspaceFullscreen, message]);
     const handleMinimize = useCallback(() => {
         void minimizeEditor();
     }, [minimizeEditor]);
+
+    useImperativeHandle(ref, () => ({
+        open: requestOpen,
+        restore,
+        close: requestClose,
+        minimize: handleMinimize,
+    }), [handleMinimize, requestClose, requestOpen, restore]);
 
     const afterOpenChange = useCallback((open: boolean) => {
         if (open) {
@@ -795,11 +807,11 @@ const FileEditor = forwardRef(function FileEditor(
                                     icon={<Icon type="SaveOutlined"/>}
                                     onClick={saveCurrent}/>
                             </Tooltip>
-                            <FileEditorSettings
+                            {active && !minimized && <FileEditorSettings
                                 key={fullscreen ? "fullscreen" : "windowed"}
                                 value={preferences}
                                 popupClassName={styles.settingsPopup}
-                                onChange={setPreferences}/>
+                                onChange={setPreferences}/>}
                             <Tooltip
                                 title="最小化编辑器"
                                 open={fullscreen ? false : undefined}
@@ -931,7 +943,7 @@ const FileEditor = forwardRef(function FileEditor(
                 onCancel={() => requestClose()}
                 modalProps={{
                     rootClassName: styles.modal,
-                    open: Boolean(session && !minimized),
+                    open: Boolean(active && session && !minimized),
                     footer: null,
                     closable: false,
                     destroyOnHidden: false,

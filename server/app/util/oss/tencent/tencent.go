@@ -401,10 +401,10 @@ func (c *Client) ListMultipartUploads(ctx context.Context, options oss.UploadsOp
 	return out, nil
 }
 
-// Presign 生成包含认证参数的临时访问地址。
-func (c *Client) Presign(ctx context.Context, key, method string, expiry time.Duration, options ...oss.PresignOptions) (*oss.SignedURL, error) {
+// Sign 生成包含认证参数的临时访问地址。
+func (c *Client) Sign(ctx context.Context, key, method string, expiry time.Duration, options ...oss.SignOptions) (*oss.SignedURL, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, c.wrapError("Presign", key, err)
+		return nil, c.wrapError("Sign", key, err)
 	}
 	query := make(url.Values)
 	if len(options) > 0 {
@@ -417,7 +417,7 @@ func (c *Client) Presign(ctx context.Context, key, method string, expiry time.Du
 	}
 	result, err := c.client.Object.GetPresignedURL2(ctx, method, key, expiry, &cos.PresignedURLOptions{Query: &query})
 	if err != nil {
-		return nil, c.wrapError("Presign", key, err)
+		return nil, c.wrapError("Sign", key, err)
 	}
 	return &oss.SignedURL{URL: result.String(), ExpiresAt: time.Now().Add(expiry)}, nil
 }

@@ -3,6 +3,7 @@ package oss
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"regexp"
 	"strings"
@@ -125,6 +126,32 @@ func (m *Manager) MoveFile(ctx context.Context, source, destination string) (*Fi
 		return file, err
 	}
 	return file, nil
+}
+
+// RenameFile 在原目录内重命名文件，name 只包含新文件名，不改变目录前缀。
+// 先检查同名目标，再复用云端复制和删除；支持大文件，但不是原子操作。
+func (m *Manager) RenameFile(ctx context.Context, key, name string) (*File, error) {
+	if err := m.fileReady(ctx, key); err != nil {
+		return nil, err
+	}
+	if strings.HasSuffix(key, "/") {
+		return nil, m.invalid("重命名只支持文件，不支持目录")
+	}
+	if name == "" || name == "." || name == ".." || strings.ContainsAny(name, "/\\") {
+		return nil, m.invalid("请输入新文件名，不能包含目录分隔符")
+	}
+	destination := key[:strings.LastIndex(key, "/")+1] + name
+	if destination == key {
+		return nil, m.invalid("新名称不能与原名称相同")
+	}
+	exists, err := m.Exists(ctx, destination)
+	if err != nil {
+		return nil, err
+	}
+	if exists {
+		return nil, fmt.Errorf("%w: 目标文件已存在", ErrConflict)
+	}
+	return m.MoveFile(ctx, key, destination)
 }
 
 // SetMetadata 整体替换用户元数据及可写内容头，未传入的字段不会保留。

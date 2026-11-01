@@ -28,18 +28,13 @@ func Sign(c *context.Context) {
 		c.Error("只有 GET 签名支持下载文件")
 		return
 	}
-	client, err := service.Oss.Client(form.Id)
-	if err != nil {
-		c.Error(err.Error())
-		return
-	}
-	var options []utilOss.PresignOptions
+	var options []utilOss.SignOptions
 	if form.Download {
-		options = append(options, utilOss.PresignOptions{
+		options = append(options, utilOss.SignOptions{
 			ContentDisposition: mime.FormatMediaType("attachment", map[string]string{"filename": path.Base(form.Key)}),
 		})
 	}
-	data, err := client.Presign(c.Request.Context(), form.Key, form.Method, time.Duration(form.Expires)*time.Second, options...)
+	data, err := service.Oss.Sign(c.Request.Context(), form.Id, form.Key, form.Method, time.Duration(form.Expires)*time.Second, options...)
 	if err != nil {
 		c.Error(err.Error())
 		return

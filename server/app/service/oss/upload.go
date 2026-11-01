@@ -11,8 +11,41 @@ import (
 	"unicode/utf8"
 )
 
-// Upload 将服务器文件上传加入后台任务，排队后重新检查文件并保留上传进度。
-func (s *service) Upload(id int64, key, path string, overwrite bool, options utilOss.PutOptions) (string, error) {
+// Upload 统一处理文件流、分片会话和服务器后台上传，直接覆盖同名文件，返回对应操作结果或任务 ID。
+// 默认同步上传并自动分片；server 排队后重新检查文件，使用后台任务的上下文和进度。
+func (s *service) Upload(ctx context.Context, id int64, key string, options UploadOptions) (interface{}, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	switch options.Action {
+	case "", "file", "init", "part", "complete", "abort", "parts", "uploads":
+		client, err := s.client(id)
+		if err != nil {
+			return nil, err
+		}
+		switch options.Action {
+		case "init":
+			return client.InitiateMultipartUpload(ctx, key, options.PutOptions)
+		case "part":
+			return client.UploadPart(ctx, key, options.UploadId, options.Number, options.Body, options.Size)
+		case "complete":
+			return client.CompleteMultipartUpload(ctx, key, options.UploadId, options.Parts)
+		case "abort":
+			return nil, client.AbortMultipartUpload(ctx, key, options.UploadId)
+		case "parts":
+			return client.ListParts(ctx, key, options.UploadId, utilOss.PartsOptions{Marker: options.Marker, Limit: options.Limit})
+		case "uploads":
+			return client.ListMultipartUploads(ctx, utilOss.UploadsOptions{
+				Prefix: options.Prefix, KeyMarker: options.KeyMarker, UploadIDMarker: options.UploadIdMarker, Limit: options.Limit,
+			})
+		default:
+			return client.Upload(ctx, key, options.Body, options.Size, options.UploadOptions)
+		}
+	case "server":
+	default:
+		return nil, errors.New("上传操作类型不合法")
+	}
+	path := options.Path
 	check := func() error {
 		if key == "" || len(key) > 1024 || !utf8.ValidString(key) || strings.ContainsAny(key, "\x00\r\n") || strings.HasSuffix(key, "/") {
 			return errors.New("请选择有效的 OSS 文件名称")
@@ -33,31 +66,23 @@ func (s *service) Upload(id int64, key, path string, overwrite bool, options uti
 		return nil
 	}
 	if err := check(); err != nil {
-		return "", err
+		return nil, err
 	}
 	options.Metadata = maps.Clone(options.Metadata)
-	return s.transferTask(id, "upload", "上传", key, path, overwrite, func(ctx context.Context, progress utilOss.ProgressFunc) (int64, error) {
+	return s.transferTask(id, "upload", "上传", key, path, func(ctx context.Context, progress utilOss.ProgressFunc) (int64, error) {
 		if err := ctx.Err(); err != nil {
 			return 0, err
 		}
 		if err := check(); err != nil {
 			return 0, err
 		}
-		client, err := s.Client(id)
+		client, err := s.client(id)
 		if err != nil {
 			return 0, err
 		}
-		if !overwrite {
-			if _, err = client.StatFile(ctx, key); err == nil {
-				return 0, errors.New("OSS 文件已存在，请确认是否覆盖")
-			} else if !errors.Is(err, utilOss.ErrNotFound) {
-				return 0, err
-			}
-		}
-		file, err := client.UploadFile(ctx, key, path, utilOss.UploadOptions{
-			PutOptions: options,
-			Progress:   progress,
-		})
+		upload := options.UploadOptions
+		upload.Progress = progress
+		file, err := client.UploadFile(ctx, key, path, upload)
 		if err != nil {
 			return 0, err
 		}

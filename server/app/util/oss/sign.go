@@ -8,8 +8,8 @@ import (
 	"unicode"
 )
 
-// Presign 生成临时访问地址，GET 可覆盖响应内容类型和展示方式，调用方需携带返回的 Headers。
-func (m *Manager) Presign(ctx context.Context, key, method string, ttl time.Duration, options ...PresignOptions) (*SignedURL, error) {
+// Sign 生成临时访问地址，GET 可覆盖响应内容类型和展示方式，调用方需携带返回的 Headers。
+func (m *Manager) Sign(ctx context.Context, key, method string, ttl time.Duration, options ...SignOptions) (*SignedURL, error) {
 	if err := m.fileReady(ctx, key); err != nil {
 		return nil, err
 	}
@@ -33,5 +33,5 @@ func (m *Manager) Presign(ctx context.Context, key, method string, ttl time.Dura
 			return nil, m.invalid("签名响应配置过长或包含控制字符")
 		}
 	}
-	return m.driver.Presign(ctx, key, method, ttl, options...)
+	return m.driver.Sign(ctx, key, method, ttl, options...)
 }

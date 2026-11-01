@@ -20,6 +20,7 @@ import FileUpload from "../upload";
 import FileTerminal from "../file-terminal";
 
 const FileDialogHost = forwardRef<any, any>(({
+    active = true,
     path,
     roots,
     loaded,
@@ -58,6 +59,17 @@ const FileDialogHost = forwardRef<any, any>(({
         propertiesRef.current?.close();
         previewRef.current?.close();
     }, []);
+
+    useEffect(() => {
+        if (active) {
+            return;
+        }
+        closePathBound();
+        editorRef.current?.minimize();
+        uploadRef.current?.close();
+        recycleBinRef.current?.close();
+        setTerminalOpen(false);
+    }, [active, closePathBound]);
 
     useEffect(() => {
         if (previousPathRef.current !== path) {
@@ -264,6 +276,7 @@ const FileDialogHost = forwardRef<any, any>(({
             <FileForm ref={formRef} onSuccess={handleFormSuccess}/>
             <FileEditor
                 ref={editorRef}
+                active={active}
                 roots={roots}
                 onMutation={scheduleReload}
                 onMinimizedChange={onEditorMinimizedChange}/>
@@ -287,7 +300,7 @@ const FileDialogHost = forwardRef<any, any>(({
                 onUploadingChange={handleUploadingChange}/>
             <FileTerminal
                 path={terminalPath}
-                open={terminalOpen}
+                open={active && terminalOpen}
                 onClose={() => setTerminalOpen(false)}/>
         </>
     );

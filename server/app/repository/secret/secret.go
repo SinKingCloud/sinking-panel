@@ -11,6 +11,7 @@ import (
 
 // Interface 密钥凭据仓储接口。
 type Interface interface {
+	SelectByIds(ids []int64) ([]*Secret, error)
 	SelectIdNameMapByIds(ids []int64) (map[int64]string, error)
 	Create(data *model.Secret, tx ...*gorm.DB) error
 	DeleteById(id int64, tx ...*gorm.DB) error

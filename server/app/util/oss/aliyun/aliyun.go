@@ -356,8 +356,8 @@ func (c *Client) ListMultipartUploads(ctx context.Context, options oss.UploadsOp
 	return out, nil
 }
 
-// Presign 生成带有效期的访问地址，并返回请求时需要携带的签名头。
-func (c *Client) Presign(ctx context.Context, key, method string, expiry time.Duration, options ...oss.PresignOptions) (*oss.SignedURL, error) {
+// Sign 生成带有效期的访问地址，并返回请求时需要携带的签名头。
+func (c *Client) Sign(ctx context.Context, key, method string, expiry time.Duration, options ...oss.SignOptions) (*oss.SignedURL, error) {
 	var request any
 	switch method {
 	case http.MethodGet:
@@ -376,11 +376,11 @@ func (c *Client) Presign(ctx context.Context, key, method string, expiry time.Du
 	case http.MethodHead:
 		request = &ali.HeadObjectRequest{Bucket: &c.bucket, Key: &key}
 	default:
-		return nil, c.wrapError("Presign", key, fmt.Errorf("不支持的签名方法: %s", method))
+		return nil, c.wrapError("Sign", key, fmt.Errorf("不支持的签名方法: %s", method))
 	}
 	result, err := c.client.Presign(ctx, request, ali.PresignExpires(expiry))
 	if err != nil {
-		return nil, c.wrapError("Presign", key, err)
+		return nil, c.wrapError("Sign", key, err)
 	}
 	headers := make(http.Header, len(result.SignedHeaders))
 	for k, v := range result.SignedHeaders {

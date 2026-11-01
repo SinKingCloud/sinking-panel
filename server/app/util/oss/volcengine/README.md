@@ -153,9 +153,9 @@ Client 提供以下底层操作，所有方法的首个参数均为非 nil 的 `
 | 上传会话 | `InitiateMultipartUpload`、`UploadPart`、`ListParts`、`CompleteMultipartUpload`、`AbortMultipartUpload` |
 | 分片复制 | `UploadPartCopy`；读取当前桶内的源对象，Offset 从 0 开始，范围终点为 Offset + Size - 1，IfMatch 固定源对象 |
 | 会话浏览 | `ListMultipartUploads`，返回未完成上传及两个后续游标 |
-| 临时访问 | `Presign(ctx, key, method, ttl)`，使用返回的 URL 与 Headers |
+| 临时访问 | `Sign(ctx, key, method, ttl)`，使用返回的 URL 与 Headers |
 
-直接 Client 实现根包的 `oss.Backend`，没有 `Upload`、`UploadFile`、`DownloadFile`、`MoveFile`、`Exists` 等组合方法；这些由根包 Manager 提供。上传与下载进度也由 Manager 统一处理，需要业务进度显示时请使用 `oss.NewManager`，不要依赖底层 Client 处理 `GetOptions.Progress`。具体见[进度回调示例](../README.md#传输进度回调)。直接上传要求准确声明长度，调用方负责失败会话清理和分片大小校验。对外业务不应依赖官方 SDK 的结果类型。
+直接 Client 实现根包的 `oss.Backend`，没有 `Upload`、`UploadFile`、`DownloadFile`、`MoveFile`、`RenameFile`、`Exists` 等组合方法；这些由根包 Manager 提供。上传与下载进度也由 Manager 统一处理，需要业务进度显示时请使用 `oss.NewManager`，不要依赖底层 Client 处理 `GetOptions.Progress`。具体见[进度回调示例](../README.md#传输进度回调)。直接上传要求准确声明长度，调用方负责失败会话清理和分片大小校验。对外业务不应依赖官方 SDK 的结果类型。
 
 ## 本适配器的行为与维护要点
 

@@ -1,344 +1,149 @@
-import React, {useCallback, useLayoutEffect, useRef, useState} from "react";
-import {App, Button, Empty} from "antd";
-import {Body, Icon, PageTable} from "sinking-antd";
-import FileDialogHost from "./components/dialog-host";
-import useDiskTable from "./components/disk-table";
-import FilePathBar from "./components/path-bar";
-import useFileTable from "./components/table";
-import useFileClipboard from "./hooks/clipboard";
-import useFileDeletion from "./hooks/deletion";
-import useDirectoryCounts from "./hooks/directory-counts";
-import useFileDownload from "./hooks/download";
-import useFileNavigation from "./hooks/navigation";
-import useFileOperationLock from "./hooks/operation-lock";
-import useFileSelection from "./hooks/selection";
-import {joinFilePath, normalizeFilePath} from "./utils";
+import {useCallback, useEffect, useMemo, useRef, useState} from "react";
+import {App} from "antd";
+import {Body, Icon} from "sinking-antd";
+import type {PageTableProps} from "sinking-antd";
+import {history, useLocation} from "umi";
+import {deleteOss} from "@/service/api/oss";
+import Local from "./components/local";
+import Oss from "./components/oss";
+import OssForm from "./components/oss/form";
+import Storage from "./components/storage";
+import {readFileStorage, updateFileStorage} from "./hooks/file-storage";
 
-export default (): React.ReactNode => {
-    const {message} = App.useApp();
-    const dialogHostRef = useRef<any>(null);
-    const cancelPendingNavigationRef = useRef<() => void>(() => undefined);
-    const [uploading, setUploading] = useState(false);
-    const [editorMinimized, setEditorMinimized] = useState(false);
+export default () => {
+    const {message, modal} = App.useApp();
+    const location = useLocation();
+    const locationRef = useRef(location);
+    locationRef.current = location;
+    const content = useRef<HTMLDivElement>(null);
+    const live = useRef(true);
+    const busy = useRef(new Set<number>());
+    const confirmation = useRef<{destroy: () => void}>();
+    const created = useRef<number>();
+    const search = useMemo(() => new URLSearchParams(location.search), [location.search]);
+    const cloud = useMemo(() => {
+        if (search.has("storage")) return search.get("storage") === "cloud";
+        if (search.has("path") || search.get("view") === "disks") return false;
+        try { return readFileStorage().storage === "cloud"; }
+        catch { return false; }
+    }, [search]);
+    const previous = useRef(cloud);
+    const [selected, setSelected] = useState(0);
+    const [visited, setVisited] = useState<number[]>([]);
+    const [localVisited, setLocalVisited] = useState(!cloud);
+    const [storageVisited, setStorageVisited] = useState(cloud);
+    const [storageRevision, setStorageRevision] = useState(0);
+    const [removing, setRemoving] = useState<number>();
+    const [revisions, setRevisions] = useState<Record<number, number>>({});
+    const [record, setRecord] = useState<{id: number}>();
+    const [formOpen, setFormOpen] = useState(false);
+    const panes = useMemo(() => !selected || visited.includes(selected) ? visited : [...visited, selected], [visited, selected]);
 
-    const cancelPendingNavigation = useCallback(() => {
-        cancelPendingNavigationRef.current();
+    useEffect(() => {
+        live.current = true;
+        return () => { live.current = false; confirmation.current?.destroy(); };
     }, []);
-    const closePathBoundDialogs = useCallback(() => {
-        dialogHostRef.current?.closePathBound();
-    }, []);
-    const {
-        list,
-        disks,
-        showingDisks,
-        showDisks,
-        disksLoading,
-        disksError,
-        reloadDisks,
-        keyword,
-        setKeyword,
-        navigate,
-        navigationVersionRef,
-    } = useFileNavigation({
-        onBeforeNavigate: cancelPendingNavigation,
-        onExternalPathChange: closePathBoundDialogs,
-    });
-    const operationLock = useFileOperationLock();
-    const selection = useFileSelection({
-        path: list.path,
-        items: showingDisks ? [] : list.items,
-        operatingPaths: operationLock.paths,
-    });
-    const {counts: directoryCounts, countDirectory} = useDirectoryCounts({
-        path: list.path,
-        items: list.items,
-        enabled: !showingDisks && list.loaded,
-    });
-    const download = useFileDownload(list.path);
-    const trackTask = useCallback((taskId: string, title: string) => {
-        dialogHostRef.current?.trackTask(taskId, title);
-    }, []);
-    const clipboard = useFileClipboard({
-        enabled: !showingDisks,
-        path: list.path,
-        loaded: list.loaded,
-        loading: list.loading,
-        navigating: list.navigating,
-        selectedRecords: selection.selectedRecords,
-        hasBusySelection: selection.hasBusySelection,
-        trackTask,
-    });
-    const deletion = useFileDeletion({
-        path: list.path,
-        selectedRecords: selection.selectedRecords,
-        navigationVersionRef,
-        operationLock,
-        reload: list.reload,
-        removeSelection: selection.remove,
-    });
-
-    useLayoutEffect(() => {
-        cancelPendingNavigationRef.current = () => {
-            clipboard.cancelPending();
-            deletion.closeConfirm();
-        };
-        return () => {
-            cancelPendingNavigationRef.current = () => undefined;
-        };
-    }, [clipboard.cancelPending, deletion.closeConfirm]);
-
-    const openDirectory = useCallback((record: any) => {
-        navigate(joinFilePath(list.path, record.name));
-    }, [list.path, navigate]);
-    const openCreate = useCallback((mode: any) => {
-        dialogHostRef.current?.openCreate(mode);
-    }, []);
-    const openEditor = useCallback((path?: string, name?: string) => {
-        dialogHostRef.current?.openEditor(path, name);
-    }, []);
-    const restoreEditor = useCallback(() => {
-        dialogHostRef.current?.restoreEditor();
-    }, []);
-    const openRename = useCallback((record: any) => {
-        dialogHostRef.current?.openRename(record);
-    }, []);
-    const openPermissions = useCallback((record: any) => {
-        dialogHostRef.current?.openPermissions(record);
-    }, []);
-    const openProperties = useCallback((record: any) => {
-        dialogHostRef.current?.openProperties(record);
-    }, []);
-    const openPreview = useCallback((files: readonly any[], active: string) => {
-        dialogHostRef.current?.openPreview(files, active);
-    }, []);
-    const openOperation = useCallback((mode: any, record?: any) => {
-        dialogHostRef.current?.openOperation(mode, record);
-    }, []);
-    const openRemoteDownload = useCallback(() => {
-        dialogHostRef.current?.openOperation("remote-download");
-    }, []);
-    const openTerminal = useCallback(() => {
-        dialogHostRef.current?.openTerminal(list.path);
-    }, [list.path]);
-    const openRecycle = useCallback(() => {
-        dialogHostRef.current?.openRecycle();
-    }, []);
-    const openUpload = useCallback(() => {
-        dialogHostRef.current?.openUpload();
-    }, []);
-    const copyRecord = useCallback((record: any) => {
-        clipboard.copyRecords([record]);
-    }, [clipboard.copyRecords]);
-    const moveRecord = useCallback((record: any) => {
-        clipboard.moveRecords([record]);
-    }, [clipboard.moveRecords]);
-    const paste = useCallback(() => {
-        void clipboard.paste();
-    }, [clipboard.paste]);
-    const openSelectedCompress = useCallback(() => {
-        if (selection.selectedRecords.length === 0) {
-            return;
+    useEffect(() => {
+        try { updateFileStorage((current) => ({...current, storage: cloud ? "cloud" : "local"})); }
+        catch { /* 浏览器禁用本地存储时仍可正常切换。 */ }
+    }, [cloud]);
+    useEffect(() => {
+        if (search.has("storage") || search.has("path") || search.get("view") === "disks") return;
+        // 菜单入口恢复上次视图，并写入当前历史记录，保证前进、后退时视图确定。
+        const next = new URLSearchParams(search);
+        next.set("storage", cloud ? "cloud" : "local");
+        history.replace({pathname: location.pathname, search: `?${next}`});
+    }, [cloud, location.pathname, search]);
+    useEffect(() => {
+        if (cloud) setStorageVisited(true);
+        else { setLocalVisited(true); setSelected(0); }
+        if (selected) setVisited((items) => items.includes(selected) ? items : [...items, selected]);
+        if (previous.current !== cloud) {
+            content.current?.querySelector<HTMLButtonElement>(`[data-storage="${cloud ? "cloud" : "local"}"] button[aria-label="切换存储"]`)?.focus({preventScroll: true});
+            previous.current = cloud;
         }
-        if (selection.hasBusySelection) {
-            message.warning("选中的文件正在执行其他操作");
-            return;
-        }
-        dialogHostRef.current?.openOperationMany(
-            "compress",
-            [...selection.selectedRecords],
-            true,
-        );
-    }, [message, selection.hasBusySelection, selection.selectedRecords]);
-    const removeCompletedSelection = useCallback((paths: string[]) => {
-        selection.remove(paths);
-    }, [selection.remove]);
+    }, [cloud, selected]);
 
-    const fileTable = useFileTable({
-        path: list.path,
-        items: list.items,
-        loading: list.loading,
-        actionsDisabled: list.loading || list.navigating,
-        sort: list.sort,
-        order: list.order,
-        directoryCounts,
-        onCountDirectory: countDirectory,
-        operatingPaths: operationLock.paths,
-        selectedPaths: selection.selectedPaths,
-        selectionDisabled: list.loading || list.navigating,
-        onSelectionChange: selection.change,
-        onSortChange: list.changeSort,
-        onOpen: openDirectory,
-        onEdit: openEditor,
-        onPreview: openPreview,
-        onDownload: download,
-        onRename: openRename,
-        onPermissions: openPermissions,
-        onCopy: copyRecord,
-        onMove: moveRecord,
-        onProperties: openProperties,
-        onOperation: openOperation,
-        onDelete: deletion.confirmRecord,
-    });
-    const selectionOperationDisabled = list.loading || list.navigating || selection.hasBusySelection;
-    const selectionClipboardDisabled = selectionOperationDisabled || clipboard.pasting;
-    const diskTable = useDiskTable({disks, keyword, active: showingDisks, loading: disksLoading, onOpen: navigate});
+    // 只更新存储参数，本地目录及前进、后退记录继续由文件组件管理。
+    const changeStorage = useCallback((cloud: boolean) => {
+        setSelected(0);
+        const current = locationRef.current;
+        const search = new URLSearchParams(current.search);
+        search.set("storage", cloud ? "cloud" : "local");
+        const next = `?${search}`;
+        if (next !== current.search) history.push({pathname: current.pathname, search: next});
+    }, []);
+    const changeBusy = useCallback((id: number, value: boolean) => {
+        if (value) busy.current.add(id);
+        else busy.current.delete(id);
+    }, []);
+    const configure = (id?: number) => {
+        if (id && busy.current.has(id)) { message.warning("请等待当前存储的文件操作完成"); return; }
+        created.current = undefined;
+        setRecord(id ? {id} : undefined);
+        setFormOpen(true);
+    };
+    const remove = ({id, name}: {id: number; name: string}) => {
+        if (busy.current.has(id)) { message.warning("请等待当前存储的文件操作完成"); return; }
+        confirmation.current?.destroy();
+        confirmation.current = modal.confirm({
+            title: `删除 ${name || "OSS 存储"}？`, content: "只删除面板中的连接配置，存储桶及云端文件不会删除。",
+            okText: "删除", cancelText: "取消", okButtonProps: {danger: true},
+            onOk: async () => {
+                if (busy.current.has(id)) { message.warning("请等待当前存储的文件操作完成"); throw new Error("存储正在使用中"); }
+                setRemoving(id);
+                try {
+                    const response = await deleteOss({body: {ids: [id]}});
+                    if (!live.current) return;
+                    if (response?.code !== 200) throw new Error(response?.message || "删除失败");
+                    setSelected((current) => current === id ? 0 : current);
+                    setVisited((items) => items.filter((item) => item !== id));
+                    busy.current.delete(id);
+                    setStorageRevision((value) => value + 1);
+                    message.success("已删除 OSS 配置");
+                } catch (reason: any) {
+                    if (live.current) message.error(reason?.message || "删除失败");
+                    throw reason;
+                } finally { if (live.current) setRemoving(undefined); }
+            },
+        });
+    };
+    const saved = (id: number, editing: boolean) => {
+        setStorageRevision((value) => value + 1);
+        if (!editing) return;
+        setRevisions((items) => ({...items, [id]: (items[id] || 0) + 1}));
+        if (created.current === id) setSelected(id);
+        created.current = undefined;
+    };
+    const hero: NonNullable<PageTableProps["hero"]> = {
+        eyebrow: "FILE MANAGER", title: "文件管理",
+        action: {
+            label: "切换存储", ariaLabel: "切换存储", icon: cloud ? "CloudOutlined" : "FolderOutlined",
+            menu: {
+                selectedKeys: [cloud ? "cloud" : "local"],
+                items: [
+                    {key: "local", label: "本地存储", icon: <Icon type="FolderOutlined"/>},
+                    {key: "cloud", label: "云端存储", icon: <Icon type="CloudOutlined"/>},
+                ],
+                onClick: ({key}) => changeStorage(key === "cloud"),
+            },
+        },
+    };
 
-    return (
-        <Body>
-            <PageTable
-                {...(showingDisks ? diskTable : fileTable)}
-                ariaLabel="文件管理"
-                paginationAffix={{offsetBottom: 15}}
-                hero={{
-                    title: "文件管理",
-                    eyebrow: "FILE MANAGER",
-                    action: disks.length > 1 ? {
-                        label: "切换磁盘",
-                        ariaLabel: "切换磁盘",
-                        icon: "DatabaseOutlined",
-                        suffixIcon: "SwapOutlined",
-                        menu: {
-                            items: disks.map((disk, index) => ({key: String(index), label: disk})),
-                            onClick: ({key}) => {
-                                const target = disks[Number(key)];
-                                if (target) navigate(normalizeFilePath(target));
-                            },
-                        },
-                    } : undefined,
-                }}
-                toolbar={{
-                    search: {
-                        value: keyword,
-                        ariaLabel: showingDisks ? "搜索磁盘" : "搜索当前目录",
-                        placeholder: showingDisks ? "搜索磁盘" : "搜索当前目录",
-                        onChange: setKeyword,
-                    },
-                    refresh: {
-                        loading: showingDisks ? disksLoading : list.loading,
-                        ariaLabel: showingDisks ? "刷新磁盘列表" : "刷新文件列表",
-                        onClick: showingDisks ? reloadDisks : list.reload,
-                    },
-                    actions: showingDisks ? [] : [
-                        {
-                            key: "create",
-                            type: "button",
-                            label: "新建",
-                            icon: "PlusOutlined",
-                            suffixIcon: "DownOutlined",
-                            "aria-label": "新建文件或文件夹",
-                            menu: {
-                                items: [
-                                    {key: "directory", label: "新建文件夹", icon: <Icon type="FolderAddOutlined"/>},
-                                    {key: "file", label: "新建空文件", icon: <Icon type="FileAddOutlined"/>},
-                                ],
-                                onClick: ({key}) => openCreate(key),
-                            },
-                        },
-                        {
-                            key: "upload",
-                            type: "button",
-                            label: uploading ? "查看上传" : "上传文件",
-                            icon: uploading ? "LoadingOutlined" : "UploadOutlined",
-                            "aria-label": uploading ? "查看上传" : "上传文件",
-                            onClick: openUpload,
-                        },
-                        {
-                            key: "download", type: "button", label: "远程下载", icon: "CloudDownloadOutlined",
-                            "aria-label": "远程下载", onClick: openRemoteDownload,
-                        },
-                        {
-                            key: "terminal", type: "button", label: "终端", icon: "CodeOutlined",
-                            "aria-label": "打开终端", onClick: openTerminal,
-                        },
-                        {
-                            key: "recycle", type: "button", label: "回收站", icon: "DeleteOutlined",
-                            "aria-label": "回收站", onClick: openRecycle,
-                        },
-                    ],
-                }}
-                contentBar={{
-                    content: <FilePathBar
-                        path={list.path}
-                        roots={disks}
-                        showingDisks={showingDisks}
-                        disabled={!showingDisks && list.navigating}
-                        onShowDisks={showDisks}
-                        onNavigate={navigate}/>,
-                    ariaLabel: "当前目录操作",
-                    actions: [
-                        ...(editorMinimized ? [{
-                            key: "editor", type: "button" as const, label: "编辑器", icon: "EditOutlined",
-                            "aria-label": "恢复文件编辑器", onClick: restoreEditor,
-                        }] : []),
-                        ...(!showingDisks && clipboard.count > 0 ? [{
-                            key: "paste",
-                            type: "button" as const,
-                            label: `${clipboard.mode === "move" ? "移动" : "粘贴"} ${clipboard.count} 项`,
-                            "aria-label": clipboard.mode === "move"
-                                ? `将 ${clipboard.count} 项移动到当前目录`
-                                : `粘贴 ${clipboard.count} 项`,
-                            disabled: !list.loaded || list.navigating,
-                            loading: clipboard.pasting,
-                            icon: clipboard.mode === "move" ? "ScissorOutlined" : "SnippetsOutlined",
-                            onClick: paste,
-                        }] : []),
-                    ],
-                }}
-                rowSelection={showingDisks ? diskTable.rowSelection : {
-                    ...fileTable.rowSelection,
-                    onClear: selection.clear,
-                    clearDisabled: list.loading || list.navigating,
-                    actions: [
-                        {
-                            key: "copy", type: "button", label: "复制", icon: "CopyOutlined",
-                            disabled: selectionClipboardDisabled, onClick: clipboard.copySelected,
-                        },
-                        {
-                            key: "move", type: "button", label: "移动", icon: "ScissorOutlined",
-                            disabled: selectionClipboardDisabled, onClick: clipboard.moveSelected,
-                        },
-                        {
-                            key: "compress", type: "button", label: "压缩", icon: "FileZipOutlined",
-                            disabled: selectionOperationDisabled, onClick: openSelectedCompress,
-                        },
-                        {
-                            key: "delete", type: "button", label: "删除", icon: "DeleteOutlined",
-                            danger: true, disabled: selectionOperationDisabled, onClick: deletion.confirmSelection,
-                        },
-                    ],
-                }}
-                empty={showingDisks ? !disksLoading && diskTable.dataSource.length === 0 : list.initialized && list.items.length === 0}
-                emptyContent={(showingDisks ? disksError : list.initialError) ? (
-                    <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={showingDisks ? "无法读取磁盘列表" : "无法读取当前目录"}>
-                        <Button
-                            size="small"
-                            aria-label={showingDisks ? "重新加载磁盘列表" : "重新加载文件列表"}
-                            icon={<Icon type="ReloadOutlined"/>}
-                            onClick={showingDisks ? reloadDisks : list.reload}>
-                            重新加载
-                        </Button>
-                    </Empty>
-                ) : undefined}
-                pagination={showingDisks ? false : {
-                    page: list.page,
-                    pageSize: list.pageSize,
-                    total: list.total,
-                    disabled: list.navigating,
-                    onChange: list.changePage,
-                }}/>
-
-            <FileDialogHost
-                ref={dialogHostRef}
-                path={list.path}
-                roots={disks}
-                loaded={!showingDisks && list.loaded}
-                loading={list.loading}
-                navigating={list.navigating}
-                uploading={uploading}
-                onReload={list.reload}
-                onUploadingChange={setUploading}
-                onEditorMinimizedChange={setEditorMinimized}
-                onOperationCompleted={removeCompletedSelection}/>
-        </Body>
-    );
+    // 已访问的存储保留挂载，上传不中断；隐藏列表由各文件组件暂停查询。
+    return <Body>
+        <div ref={content}>
+            {(storageVisited || cloud) && <div data-storage="cloud" hidden={!cloud}>
+                <Storage active={cloud} revision={storageRevision} hero={hero} removing={removing}
+                    onOpen={(item) => setSelected(item.id)} onCreate={() => configure()} onEdit={configure} onDelete={remove}/>
+            </div>}
+            {(localVisited || !cloud) && <div data-storage="local" hidden={cloud}>
+                <Local active={!cloud} hero={hero}/>
+            </div>}
+        </div>
+        {panes.map((id) => <Oss key={id} id={id} active={cloud && selected === id} revision={revisions[id] || 0}
+            onCancel={() => setSelected(0)} onEdit={configure} onBusyChange={changeBusy}/>)}
+        <OssForm open={formOpen} record={record} onCancel={() => setFormOpen(false)}
+            onCreated={(id: number) => { created.current = id; setRecord({id}); }} onSuccess={saved}/>
+    </Body>;
 };

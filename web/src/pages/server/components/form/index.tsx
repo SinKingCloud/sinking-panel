@@ -1,6 +1,7 @@
 import {forwardRef, memo, useCallback, useImperativeHandle, useMemo, useRef, useState} from "react";
 import {App, Col, Form as AntForm, Input, InputNumber, Row, Select} from "antd";
-import {ProModal, ProModalRef, Title} from "sinking-antd";
+import {ProModal, Title} from "sinking-antd";
+import type {ProModalRef} from "sinking-antd";
 import {createServer, updateServer} from "@/service/api/server";
 
 const fallbackAuthTypes = {
@@ -78,7 +79,7 @@ const Form = forwardRef<any, any>(({authTypeData, layered = false, onSuccess}, r
         modalRef.current?.hide();
     }, []);
 
-    useImperativeHandle(ref, () => ({open}), [open]);
+    useImperativeHandle(ref, () => ({open, close}), [close, open]);
 
     const submit = useCallback(async (values: any) => {
         if (submittingRef.current) {

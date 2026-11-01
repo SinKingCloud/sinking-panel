@@ -19,7 +19,7 @@ func (s *service) Files(ctx context.Context, id int64, prefix, delimiter string,
 	if query.PageSize < 1 || query.PageSize > 1000 {
 		return nil, errors.New("分页容量必须为 1–1000")
 	}
-	client, err := s.Client(id)
+	client, err := s.client(id)
 	if err != nil {
 		return nil, err
 	}

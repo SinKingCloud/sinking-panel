@@ -3,6 +3,7 @@ package oss
 import (
 	"server/app/enum/log_type"
 	"server/app/service"
+	serviceOss "server/app/service/oss"
 	"server/app/util/context"
 	utilOss "server/app/util/oss"
 	"strconv"
@@ -34,28 +35,14 @@ func uploadMultipart(c *context.Context, action string) {
 		c.Error("请选择上传会话")
 		return
 	}
-	client, err := service.Oss.Client(form.Id)
-	if err != nil {
-		c.Error(err.Error())
-		return
-	}
-	ctx := c.Request.Context()
-	var data interface{}
-	switch action {
-	case "init":
-		data, err = client.InitiateMultipartUpload(ctx, form.Key, form.Options.putOptions())
-	case "complete":
+	if action == "complete" {
 		transferDeadline(c)
-		data, err = client.CompleteMultipartUpload(ctx, form.Key, form.UploadId, form.Parts)
-	case "abort":
-		err = client.AbortMultipartUpload(ctx, form.Key, form.UploadId)
-	case "parts":
-		data, err = client.ListParts(ctx, form.Key, form.UploadId, utilOss.PartsOptions{Marker: form.Marker, Limit: form.Limit})
-	case "uploads":
-		data, err = client.ListMultipartUploads(ctx, utilOss.UploadsOptions{
-			Prefix: form.Prefix, KeyMarker: form.KeyMarker, UploadIDMarker: form.UploadIdMarker, Limit: form.Limit,
-		})
 	}
+	data, err := service.Oss.Upload(c.Request.Context(), form.Id, form.Key, serviceOss.UploadOptions{
+		Action: action, UploadId: form.UploadId, Parts: form.Parts, Marker: form.Marker, Limit: form.Limit,
+		Prefix: form.Prefix, KeyMarker: form.KeyMarker, UploadIdMarker: form.UploadIdMarker,
+		UploadOptions: utilOss.UploadOptions{PutOptions: form.Options.putOptions()},
+	})
 	if err != nil {
 		c.Error(err.Error())
 		return

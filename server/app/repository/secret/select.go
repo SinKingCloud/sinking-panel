@@ -19,6 +19,27 @@ func (r *Repository) Select(where *SelectSecret, queryPage *page.Query) (*page.R
 	return r.Repository.SelectPage(query, queryPage)
 }
 
+// SelectByIds 分批读取指定密钥的名称和厂商，不加载凭据内容。
+func (r *Repository) SelectByIds(ids []int64) ([]*Secret, error) {
+	result := make([]*Secret, 0, len(ids))
+	if len(ids) == 0 {
+		return result, nil
+	}
+
+	err := r.Database.BatchExecute(ids, 1000, func(batch interface{}) error {
+		var records []*Secret
+		if err := r.Database.Db.Model(&model.Secret{}).
+			Select("id", "name", "provider").
+			Where("id IN ?", batch.([]int64)).
+			Find(&records).Error; err != nil {
+			return err
+		}
+		result = append(result, records...)
+		return nil
+	})
+	return result, err
+}
+
 // SelectIdNameMapByIds 分批读取指定密钥的名称，不加载凭据内容。
 func (r *Repository) SelectIdNameMapByIds(ids []int64) (map[int64]string, error) {
 	result := make(map[int64]string, len(ids))

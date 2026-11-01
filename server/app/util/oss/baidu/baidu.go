@@ -383,8 +383,8 @@ func (b *Client) ListMultipartUploads(ctx context.Context, o oss.UploadsOptions)
 	return page, nil
 }
 
-// Presign 生成有有效期的签名访问地址。
-func (b *Client) Presign(ctx context.Context, key, method string, ttl time.Duration, options ...oss.PresignOptions) (*oss.SignedURL, error) {
+// Sign 生成有有效期的签名访问地址。
+func (b *Client) Sign(ctx context.Context, key, method string, ttl time.Duration, options ...oss.SignOptions) (*oss.SignedURL, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}

@@ -125,8 +125,8 @@ type UploadsPage struct {
 	HasMore            bool              `json:"has_more"`
 }
 
-// PresignOptions 覆盖 GET 签名地址的响应头，不修改文件元数据。
-type PresignOptions struct {
+// SignOptions 覆盖 GET 签名地址的响应头，不修改文件元数据。
+type SignOptions struct {
 	ContentType        string // 响应内容类型，阿里云不支持覆盖此响应头。
 	ContentDisposition string // 响应展示方式；下载可设为 attachment 并携带文件名。
 }

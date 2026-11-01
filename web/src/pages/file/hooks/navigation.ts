@@ -42,7 +42,7 @@ const getPathFromSearch = (search: string) => (
     normalizeFilePath(new URLSearchParams(search).get("path") || "/")
 );
 
-const useFileNavigation = ({onBeforeNavigate, onExternalPathChange}: any) => {
+const useFileNavigation = ({active = true, onBeforeNavigate, onExternalPathChange}: any) => {
     const {message} = App.useApp();
     const location = useLocation();
     const search = new URLSearchParams(location.search);
@@ -57,7 +57,7 @@ const useFileNavigation = ({onBeforeNavigate, onExternalPathChange}: any) => {
     const showingDisks = search.get("view") === "disks" || !currentPath
         || (currentPath === "/" && !disks.includes("/"))
         || (disks.some(isWindowsFilePath) && !isWindowsFilePath(currentPath));
-    const list = useFileList(initialPathRef.current || "/", !showingDisks
+    const list = useFileList(initialPathRef.current || "/", active && !showingDisks
         && (!locationPath || locationPath === requestedPathRef.current));
     const navigationVersionRef = useRef(0);
     const diskRequestRef = useRef(0);
@@ -105,10 +105,10 @@ const useFileNavigation = ({onBeforeNavigate, onExternalPathChange}: any) => {
 
     useEffect(() => {
         // Unix 类系统的挂载点属于同一目录树，直接从真实根目录进入。
-        if (showingDisks && disks.includes("/")) {
+        if (active && showingDisks && disks.includes("/")) {
             navigate("/", true);
         }
-    }, [disks, navigate, showingDisks]);
+    }, [active, disks, navigate, showingDisks]);
 
     const showDisks = useCallback(() => {
         if (showingDisks) {
@@ -125,27 +125,27 @@ const useFileNavigation = ({onBeforeNavigate, onExternalPathChange}: any) => {
     }, [list.path, location.pathname, location.search, onBeforeNavigate, onExternalPathChange, showingDisks]);
 
     useEffect(() => {
-        if (!showingDisks) {
+        if (!active || !showingDisks) {
             return;
         }
         navigationVersionRef.current += 1;
         onBeforeNavigate();
         onExternalPathChange();
         setKeyword("");
-    }, [onBeforeNavigate, onExternalPathChange, showingDisks]);
+    }, [active, onBeforeNavigate, onExternalPathChange, showingDisks]);
 
     useEffect(() => {
         const search = new URLSearchParams(location.search);
-        if (!showingDisks || search.get("view") === "disks") {
+        if (!active || !showingDisks || search.get("view") === "disks") {
             return;
         }
         search.set("view", "disks");
         history.replace({pathname: location.pathname, search: `?${search.toString()}`});
-    }, [location.pathname, location.search, showingDisks]);
+    }, [active, location.pathname, location.search, showingDisks]);
 
     useEffect(() => {
         const search = new URLSearchParams(location.search);
-        if (showingDisks || !search.has("path")) {
+        if (!active || showingDisks || !search.has("path")) {
             return;
         }
         const nextPath = getPathFromSearch(location.search);
@@ -157,21 +157,21 @@ const useFileNavigation = ({onBeforeNavigate, onExternalPathChange}: any) => {
             requestedPathRef.current = nextPath;
             list.navigate(nextPath);
         }
-    }, [list.navigate, list.requestedPath, location.search, onBeforeNavigate, onExternalPathChange, showingDisks]);
+    }, [active, list.navigate, list.requestedPath, location.search, onBeforeNavigate, onExternalPathChange, showingDisks]);
 
     useEffect(() => {
-        if (!showingDisks) {
+        if (active && !showingDisks) {
             setKeyword(list.keyword);
         }
-    }, [list.keyword, showingDisks]);
+    }, [active, list.keyword, showingDisks]);
 
     useEffect(() => {
-        if (showingDisks) {
+        if (!active || showingDisks) {
             return;
         }
         const timer = window.setTimeout(() => list.search(keyword), 300);
         return () => window.clearTimeout(timer);
-    }, [keyword, list.search, locationPath, showingDisks]);
+    }, [active, keyword, list.search, locationPath, showingDisks]);
 
     const reloadDisks = useCallback(() => {
         diskRequestRef.current += 1;
@@ -217,7 +217,7 @@ const useFileNavigation = ({onBeforeNavigate, onExternalPathChange}: any) => {
     }, [diskGeneration]);
 
     useEffect(() => {
-        if (showingDisks || disks.length === 0 || new URLSearchParams(location.search).has("path")) {
+        if (!active || showingDisks || disks.length === 0 || new URLSearchParams(location.search).has("path")) {
             return;
         }
         const lastPath = readLastPath();
@@ -226,10 +226,10 @@ const useFileNavigation = ({onBeforeNavigate, onExternalPathChange}: any) => {
             : disks[0];
         restoredPathRef.current = nextPath === lastPath ? comparableFilePath(lastPath) : "";
         navigate(nextPath, true);
-    }, [disks, location.search, navigate, showingDisks]);
+    }, [active, disks, location.search, navigate, showingDisks]);
 
     useEffect(() => {
-        if (showingDisks) {
+        if (!active || showingDisks) {
             return;
         }
         const search = new URLSearchParams(location.search);
@@ -247,6 +247,7 @@ const useFileNavigation = ({onBeforeNavigate, onExternalPathChange}: any) => {
             navigate(disks[0], true);
         }
     }, [
+        active,
         disks,
         list.error,
         list.initialError,
@@ -261,10 +262,10 @@ const useFileNavigation = ({onBeforeNavigate, onExternalPathChange}: any) => {
     ]);
 
     useEffect(() => {
-        if (!showingDisks && list.error && list.loaded) {
+        if (active && !showingDisks && list.error && list.loaded) {
             message.error("文件列表更新失败");
         }
-    }, [list.error, list.loaded, message, showingDisks]);
+    }, [active, list.error, list.loaded, message, showingDisks]);
 
     return {
         list, disks, disksLoading, disksError, showingDisks, showDisks, reloadDisks,

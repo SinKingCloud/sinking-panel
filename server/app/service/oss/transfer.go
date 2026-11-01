@@ -10,7 +10,7 @@ import (
 )
 
 // transferTask 仅负责传输任务的入队、进度和结果，文件读写由各操作独立实现。
-func (s *service) transferTask(id int64, action, label, key, path string, overwrite bool, run func(context.Context, utilOss.ProgressFunc) (int64, error)) (string, error) {
+func (s *service) transferTask(id int64, action, label, key, path string, run func(context.Context, utilOss.ProgressFunc) (int64, error)) (string, error) {
 	if s.systemService == nil {
 		return "", errors.New("后台任务服务不可用")
 	}
@@ -20,12 +20,11 @@ func (s *service) transferTask(id int64, action, label, key, path string, overwr
 	}
 	taskID := str.GetSnowWorkIns().GetUuid()
 	params := map[string]interface{}{
-		"type":      "oss",
-		"id":        id,
-		"action":    action,
-		"key":       key,
-		"path":      path,
-		"overwrite": overwrite,
+		"type":   "oss",
+		"id":     id,
+		"action": action,
+		"key":    key,
+		"path":   path,
 	}
 	s.systemService.TaskCreate(taskID, label+" OSS: "+data.Name+"/"+key, params, func(ctx context.Context, _ interface{}, update func(int, float64, string)) {
 		percent := float64(0)
