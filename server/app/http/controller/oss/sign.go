@@ -18,7 +18,7 @@ func Sign(c *context.Context) {
 		Key      string `json:"key" validate:"required,max=1024" label:"文件名称"`
 		Method   string `json:"method" default:"GET" validate:"oneof=GET PUT HEAD" label:"访问方法"`
 		Download bool   `json:"download" default:"false" label:"下载文件"`
-		Expires  int    `json:"expires" default:"600" validate:"min=1,max=604800" label:"签名有效期"`
+		Expires  int    `json:"expires" default:"86400" validate:"min=1,max=604800" label:"签名有效期"`
 	}
 	if ok, msg := c.ValidatorAll(&form); !ok {
 		c.Error(msg)

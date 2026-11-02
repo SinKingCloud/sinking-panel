@@ -196,10 +196,14 @@ func (c *Client) DeleteBucket(ctx context.Context) error {
 
 // ListFiles 按前缀、分隔符和游标查询一页文件。
 func (c *Client) ListFiles(ctx context.Context, options oss.ListOptions) (*oss.FilePage, error) {
+	marker := options.Token
+	if marker == "" {
+		marker = options.StartAfter
+	}
 	result, _, err := c.client.Bucket.Get(ctx, &cos.BucketGetOptions{
 		Prefix:       options.Prefix,
 		Delimiter:    options.Delimiter,
-		Marker:       options.Token,
+		Marker:       marker,
 		MaxKeys:      options.Limit,
 		EncodingType: "url",
 	})

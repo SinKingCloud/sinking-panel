@@ -6,8 +6,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"path/filepath"
+	"strings"
+	"time"
+
+	"golang.org/x/net/http2"
 )
 
 const maxMemoryPartSize int64 = 64 << 20 // 内存分片上限，超出后使用临时文件
@@ -144,21 +149,15 @@ func (m *Manager) UploadFile(ctx context.Context, key, filename string, options 
 }
 
 // DownloadFile 将完整文件下载到同目录的临时文件，成功后替换目标，失败保留原文件。
+// 传输失败最多重试三次，使用 Range 和 ETag 从已写入位置续传，不设置下载总时限。
 // 可选 Progress 按实际写入字节通知，关闭、同步和替换均成功后才通知完成。
-func (m *Manager) DownloadFile(ctx context.Context, key, filename string, options ...DownloadOptions) (err error) {
+func (m *Manager) DownloadFile(ctx context.Context, key, filename string, options ...DownloadOptions) error {
 	if len(options) > 1 {
 		return m.invalid("下载配置最多只能提供一项")
 	}
-	download, err := m.GetFile(ctx, key, GetOptions{})
-	if err != nil {
+	if err := m.fileReady(ctx, key); err != nil {
 		return err
 	}
-	bodyClosed := false
-	defer func() {
-		if !bodyClosed {
-			err = errors.Join(err, download.Body.Close())
-		}
-	}()
 	file, err := os.CreateTemp(filepath.Dir(filename), ".oss-download-*")
 	if err != nil {
 		return fmt.Errorf("创建下载临时文件失败: %w", err)
@@ -171,22 +170,67 @@ func (m *Manager) DownloadFile(ctx context.Context, key, filename string, option
 	if len(options) == 1 {
 		callback = options[0].Progress
 	}
-	progress := m.newTransferProgress(ctx, download.File.Size, callback)
-	var target io.Writer = file
-	if progress != nil {
-		target = &progressWriter{writer: file, progress: progress}
-	}
-	n, err := io.Copy(target, &contextReader{ctx: ctx, reader: download.Body})
-	if err != nil {
-		return fmt.Errorf("下载文件失败: %w", err)
-	}
-	if download.File.Size >= 0 && n != download.File.Size {
-		return io.ErrUnexpectedEOF
-	}
-	err = download.Body.Close()
-	bodyClosed = true
-	if err != nil {
-		return fmt.Errorf("关闭下载流失败: %w", err)
+	target := &progressWriter{writer: file}
+	buffer := make([]byte, 32<<10)
+	total, etag := int64(-1), ""
+	for attempt := 0; ; attempt++ {
+		if err = m.waitDownloadRetry(ctx, err, attempt); err != nil {
+			return fmt.Errorf("下载文件失败: %w", err)
+		}
+		get := GetOptions{}
+		if target.written > 0 {
+			get.Range = fmt.Sprintf("bytes=%d-", target.written)
+			get.IfMatch = etag
+		}
+		var download *Download
+		download, err = m.GetFile(ctx, key, get)
+		if err != nil {
+			continue
+		}
+		if target.written == 0 {
+			if download.ContentRange != "" {
+				return errors.Join(errors.New("完整下载返回了局部内容"), download.Body.Close())
+			}
+			total, etag = download.File.Size, download.File.ETag
+			target.progress = m.newTransferProgress(ctx, total, callback)
+		} else {
+			// 范围、总长度和 ETag 必须保持一致，不能把不同版本或完整响应拼到已有内容后。
+			expected := fmt.Sprintf("bytes %d-%d/%d", target.written, total-1, total)
+			if download.File.ETag != etag {
+				return errors.Join(fmt.Errorf("%w: 下载期间远端文件已变化", ErrPreconditionFailed), download.Body.Close())
+			}
+			if download.ContentRange != expected || (download.File.Size >= 0 && download.File.Size != total-target.written) {
+				return errors.Join(errors.New("续传响应的文件范围或长度不匹配"), download.Body.Close())
+			}
+		}
+		var reader io.Reader = &contextReader{ctx: ctx, reader: download.Body}
+		if total >= 0 {
+			reader = io.LimitReader(reader, total-target.written+1)
+		}
+		_, err = io.CopyBuffer(target, reader, buffer)
+		closeErr := download.Body.Close()
+		if target.err != nil {
+			return fmt.Errorf("写入下载文件失败: %w", errors.Join(target.err, closeErr))
+		}
+		if cause := ctx.Err(); cause != nil {
+			return cause
+		}
+		if total >= 0 && target.written > total {
+			return errors.New("下载内容超出文件声明长度")
+		}
+		if err == nil && total >= 0 && target.written != total {
+			err = io.ErrUnexpectedEOF
+		}
+		if err == nil {
+			if closeErr != nil {
+				return fmt.Errorf("关闭下载流失败: %w", closeErr)
+			}
+			break
+		}
+		err = errors.Join(err, closeErr)
+		if target.written > 0 && (total < 0 || target.written >= total || etag == "" || strings.HasPrefix(etag, "W/")) {
+			return fmt.Errorf("下载中断且无法安全续传: %w", err)
+		}
 	}
 	if err = ctx.Err(); err != nil {
 		return err
@@ -203,8 +247,40 @@ func (m *Manager) DownloadFile(ctx context.Context, key, filename string, option
 	if err = os.Rename(file.Name(), filename); err != nil {
 		return err
 	}
-	progress.complete(n)
+	target.progress.complete(target.written)
 	return nil
+}
+
+// waitDownloadRetry 对网络中断和临时服务错误最多退避重试三次，等待期间支持取消。
+func (m *Manager) waitDownloadRetry(ctx context.Context, err error, attempt int) error {
+	if cause := ctx.Err(); cause != nil {
+		return cause
+	}
+	if err == nil {
+		return nil
+	}
+	var serviceErr *Error
+	var networkErr net.Error
+	var streamErr http2.StreamError
+	retry := errors.Is(err, io.ErrUnexpectedEOF) || errors.Is(err, io.EOF) || errors.As(err, &networkErr)
+	if errors.As(err, &streamErr) {
+		retry = streamErr.Code == http2.ErrCodeInternal || streamErr.Code == http2.ErrCodeRefusedStream || streamErr.Code == http2.ErrCodeCancel
+	}
+	if errors.As(err, &serviceErr) {
+		// 部分 SDK 丢失网络错误类型；无 HTTP 状态的请求失败也允许有限重试。
+		retry = serviceErr.StatusCode == 0 || serviceErr.StatusCode == 408 || serviceErr.StatusCode == 429 || serviceErr.StatusCode >= 500
+	}
+	if !retry || attempt > 3 {
+		return err
+	}
+	timer := time.NewTimer(time.Second << (attempt - 1))
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
 }
 
 type contextReader struct {

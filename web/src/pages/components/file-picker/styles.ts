@@ -23,9 +23,12 @@ const useStyles = createStyles<{compact: boolean}>(({css, token}, props) => ({
     field: css`
         width: 100%;
 
-        .ant-input {
+        .ant-input, .ant-select {
             min-width: 0;
+            flex: 1;
         }
+
+        > .ant-btn { flex: none; }
 
         .ant-btn-color-default:not(:disabled) .ant-btn-icon {
             color: ${token.colorTextSecondary};

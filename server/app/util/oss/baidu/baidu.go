@@ -113,7 +113,11 @@ func (b *Client) DeleteBucket(ctx context.Context) error {
 
 // ListFiles 按前缀和游标分页列出文件。
 func (b *Client) ListFiles(ctx context.Context, o oss.ListOptions) (*oss.FilePage, error) {
-	v, err := b.client.ListObjectsWithContext(ctx, b.config.Bucket, &api.ListObjectsArgs{Prefix: o.Prefix, Delimiter: o.Delimiter, Marker: o.Token, MaxKeys: o.Limit})
+	marker := o.Token
+	if marker == "" {
+		marker = o.StartAfter
+	}
+	v, err := b.client.ListObjectsWithContext(ctx, b.config.Bucket, &api.ListObjectsArgs{Prefix: o.Prefix, Delimiter: o.Delimiter, Marker: marker, MaxKeys: o.Limit})
 	if err != nil {
 		return nil, b.contextError(ctx, "ListFiles", "", err)
 	}

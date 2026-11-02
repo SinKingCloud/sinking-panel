@@ -29,11 +29,13 @@ type File struct {
 
 // ListOptions 配置前缀、目录分隔符和分页大小。
 // Token 是不透明游标，下一页须保持 Prefix/Delimiter 不变；Limit 范围 1..1000，0 使用 1000。
+// StartAfter 从指定文件键之后开始列举，仅在 Token 为空时生效。
 type ListOptions struct {
-	Prefix    string
-	Delimiter string
-	Token     string
-	Limit     int
+	Prefix     string
+	Delimiter  string
+	StartAfter string
+	Token      string
+	Limit      int
 }
 
 // FilePage 返回一页文件、子目录及下一页游标。

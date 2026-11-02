@@ -158,17 +158,22 @@ func (r *progressReadCloser) Close() error {
 	return r.body.Close()
 }
 
-// progressWriter 仅累计实际写入目标文件的字节，不将读取成功但写入失败的数据计入进度。
+// progressWriter 累计实际落盘字节并保留写入错误，避免把磁盘错误作为网络中断重试。
 type progressWriter struct {
 	writer   io.Writer
 	progress *transferProgress
 	written  int64
+	err      error
 }
 
 // Write 将写入结果交给累计进度，文件发布成功后的完成通知由 DownloadFile 负责。
 func (w *progressWriter) Write(data []byte) (int, error) {
 	n, err := w.writer.Write(data)
+	if err == nil && n != len(data) {
+		err = io.ErrShortWrite
+	}
 	w.written += int64(n)
+	w.err = err
 	w.progress.update(w.written)
 	return n, err
 }

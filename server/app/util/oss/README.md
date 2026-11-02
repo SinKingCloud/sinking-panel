@@ -240,7 +240,7 @@ func OpenFromSecret(provider int, rawSecret string, config oss.ConfigSource) (os
 
 上传、下载的 `action` 只从 URL 查询参数读取，不能仅放在 JSON 正文中。这样上传 JSON 文件时，正文仍按文件二进制处理。`file`、`part` 上传必须提供准确的 `Content-Length`。`server` 操作立即返回系统任务 ID，进度和取消通过系统任务接口处理。
 
-所有上传都直接覆盖同名文件，无需传入覆盖参数；分片上传在成功合并后替换同名文件。从服务器上传时，页面使用当前云端目录和服务器文件名作为目标 `key`。下载到服务器仍通过 `overwrite` 指定是否覆盖，默认不覆盖。
+所有上传都直接覆盖同名文件，无需传入覆盖参数；分片上传在成功合并后替换同名文件。从服务器上传时，支持跨目录、跨页多选文件，每个文件独立创建后台任务，页面使用当前云端目录和服务器文件名作为目标 `key`；同一批选择中的同名文件需分批上传。若任务提交失败，会停止后续提交并显示已提交数量，已创建的任务继续执行。下载到服务器页面仅填写保存目录和文件名，使用选中文件的原始 `key`，固定提交 `overwrite: true` 覆盖服务器同名文件。直接调用下载接口时仍可通过 `overwrite` 控制覆盖，省略时默认不覆盖。
 
 例如，从服务器上传备份文件：
 
@@ -257,10 +257,12 @@ Content-Type: application/json
 POST /oss/sign
 Content-Type: application/json
 
-{"id":1,"key":"backup/site.tar.gz","method":"GET","expires":600,"download":true}
+{"id":1,"key":"backup/site.tar.gz","method":"GET","expires":86400,"download":true}
 ```
 
 以上示例省略面板鉴权头。浏览器可直接访问返回的签名 URL；需要面板代理下载时使用 `/oss/download?id=1&key=backup/site.tar.gz`。显式分片上传依次调用 `action=init` 获取 `upload_id`、`action=part` 上传各片，最后用 `action=complete` 提交 `parts` 数组；失败或取消时用 `action=abort` 清理会话。`parts`、`uploads` 两个 action 支持按各自游标查询，适合恢复未完成上传。
+
+页面下载和复制下载链接的有效期均为 24 小时，`/oss/sign` 省略 `expires` 时也默认 86400 秒。下载到服务器通过云密钥调用 SDK，不使用这条临时链接，也不额外设置下载总时限；调用方的 context 和自定义 HTTPClient 超时仍然生效。
 
 ## 公共数据结构
 
@@ -274,7 +276,7 @@ Content-Type: application/json
 | `ConfigSource` | `Config()` 提供公共连接信息，`WithHTTPClient` 返回保留厂商字段的配置副本 |
 | `Bucket` | `Name`、`Region`、`CreatedAt`；不同云服务可能不返回全部信息 |
 | `File` | `Key`、`Size`、`ETag`、`LastModified`、内容属性、`StorageClass` 和 `Metadata` |
-| `ListOptions` | `Prefix`、`Delimiter`、`Token`、`Limit`；Manager 中 Limit 为 0 时使用 1000 |
+| `ListOptions` | `Prefix`、`Delimiter`、`StartAfter`、`Token`、`Limit`；Manager 中 Limit 为 0 时使用 1000 |
 | `FilePage` | `Files`、`CommonPrefixes`、`HasMore`、`NextToken`，没有可靠的总条数或任意跳页 |
 | `PutOptions` | `ContentType`、`CacheControl`、`ContentDisposition`、`ContentEncoding`、`StorageClass`、`Metadata` |
 | `GetOptions` | `Range`、`IfMatch`、`Progress`；Progress 由 Manager 处理，按实际读取流统计 |
@@ -435,6 +437,10 @@ func DownloadBackup(ctx context.Context, store oss.Interface, key, filename stri
 
 不需要进度时仍可直接调用 `store.DownloadFile(ctx, key, filename)`。下载先写入同目录临时文件，失败时保留旧目标并清理临时文件；最终进度不会早于目标文件替换完成。
 
+网络中断或临时服务错误会自动重试，单次调用最多额外重试 3 次，分别等待 1、2、4 秒，等待时也可取消。已写入的数据通过 `Range` 从断点继续下载，并携带首次响应的 `ETag` 作为 `IfMatch` 条件；续传响应必须满足原文件范围、总长度和 ETag 校验。进度按累计落盘字节计算，重试不会重复计数。权限错误、文件不存在、源文件变化及本地写入失败不会重试。
+
+续传只覆盖当前调用中的临时网络故障，不保留跨进程或跨任务的下载断点。远端未提供完整长度、未提供 ETag 或只提供弱 ETag 时，仍可正常连续下载；若已经写入部分内容后中断，会报错并清理临时文件，避免拼接无法确认版本的数据。
+
 ### 流式读取并报告进度
 
 ```go
@@ -482,10 +488,16 @@ func ProgressText(transferred, total int64) string {
 
 ## 分页浏览
 
-云对象列表采用游标分页，没有可靠的总条数或随机页码。将 `NextToken` 原样传入下一次请求，并保持相同的前缀和分隔符：
+云对象列表采用游标分页，没有可靠的总条数或随机页码。将 `NextToken` 原样传入下一次请求，并保持相同的前缀和分隔符。
+
+列举目录内容时，可同时设置 `Prefix: "database/"`、`StartAfter: "database/"` 和 `Delimiter: "/"`，由云端跳过目录自身的占位对象，不占用本页条数。阿里云、火山引擎使用原生 `StartAfter`，腾讯云、华为云、百度云使用原生 `Marker`；`Token` 非空时优先按续页游标查询，忽略 `StartAfter`。留空 `StartAfter` 会保留原始列举行为，递归删除等需要处理目录占位对象的操作无需设置。
+
+每次 `ListFiles` 只读取云端一页，不为凑满条数额外请求；云端实际返回数量可以小于 `Limit`，是否继续翻页以 `HasMore` 为准。
+
+下面的示例按游标读取目录内容：
 
 ```go
-options := oss.ListOptions{Prefix: "database/", Delimiter: "/", Limit: 100}
+options := oss.ListOptions{Prefix: "database/", Delimiter: "/", StartAfter: "database/", Limit: 100}
 for {
     page, err := manager.ListFiles(ctx, options)
     if err != nil {
@@ -539,7 +551,7 @@ func ReadBackup(ctx context.Context, store oss.Interface, key string, destinatio
 }
 ```
 
-`DownloadFile` 先写入目标同目录的临时文件，校验读取长度并同步成功后替换目标；失败时保留原目标文件。该方法下载完整对象，分段下载请用 `GetFile`。
+`DownloadFile` 先写入目标同目录的临时文件，中断时自动重试续传，校验读取长度并同步成功后替换目标；失败时保留原目标文件。该方法下载完整对象，只获取指定范围请用 `GetFile`。
 
 `CopyFile` 在 Manager 绑定的当前桶内复制，source 和 destination 均为该桶内的文件 key。复制前会读取源元数据，超过 1 GiB 自动使用云端分片复制，每一片携带源 ETag 条件，避免复制过程中源变化产生混合文件。分片复制失败会中止会话。`UploadPartCopy` 同样在当前桶内读取源文件，可直接用于调用方管理的分片复制任务。
 

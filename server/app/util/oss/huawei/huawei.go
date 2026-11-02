@@ -136,7 +136,11 @@ func (h *Client) ListFiles(ctx context.Context, o oss.ListOptions) (*oss.FilePag
 	if err != nil {
 		return nil, err
 	}
-	in := &obs.ListObjectsInput{Bucket: h.config.Bucket, Marker: o.Token}
+	marker := o.Token
+	if marker == "" {
+		marker = o.StartAfter
+	}
+	in := &obs.ListObjectsInput{Bucket: h.config.Bucket, Marker: marker}
 	in.Prefix = o.Prefix
 	in.Delimiter = o.Delimiter
 	in.MaxKeys = o.Limit

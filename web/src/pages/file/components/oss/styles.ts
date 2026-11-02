@@ -1,6 +1,58 @@
 import {createStyles} from "antd-style";
 
 const useStyles = createStyles(({css, token}, {compact}: {compact: boolean}) => ({
+    info: css`
+        && .file-properties-value {
+            font-weight: 400;
+            font-variant-numeric: tabular-nums;
+        }
+
+        && .file-properties-path {
+            max-height: 96px;
+            white-space: pre-wrap;
+        }
+
+        .file-info-metadata {
+            margin: ${compact ? 4 : 6}px 0 0;
+            padding: ${compact ? "8px 10px" : "10px 12px"};
+            border-radius: ${token.borderRadius}px;
+            background: ${token.colorFillQuaternary};
+            font-size: ${compact ? 12 : 13}px;
+            line-height: 20px;
+
+            > div {
+                display: grid;
+                grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+                gap: 12px;
+            }
+
+            > div + div {
+                margin-top: 6px;
+            }
+
+            dt, dd {
+                min-width: 0;
+                margin: 0;
+                overflow-wrap: anywhere;
+                white-space: pre-wrap;
+            }
+
+            dt {
+                color: ${token.colorTextSecondary};
+            }
+
+            dd {
+                color: ${token.colorText};
+            }
+        }
+
+        .file-info-empty {
+            margin-top: ${compact ? 2 : 4}px;
+            color: ${token.colorTextTertiary};
+            font-size: ${compact ? 12 : 13}px;
+            line-height: 20px;
+        }
+    `,
     pagination: css`
         container-name: oss-pagination;
         container-type: inline-size;
@@ -106,6 +158,14 @@ const useStyles = createStyles(({css, token}, {compact}: {compact: boolean}) => 
             background: ${token.colorFillTertiary};
             color: ${token.colorTextSecondary};
             font-weight: 400;
+        }
+    `,
+    transferTasks: css`
+        max-height: 260px;
+        overflow-y: auto;
+
+        > div + div {
+            margin-top: 8px;
         }
     `,
     hint: css`

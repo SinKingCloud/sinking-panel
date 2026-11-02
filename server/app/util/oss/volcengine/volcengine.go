@@ -109,8 +109,12 @@ func (b *Client) DeleteBucket(ctx context.Context) error {
 
 // ListFiles 读取单页文件和目录前缀，保留原始续页游标。
 func (b *Client) ListFiles(ctx context.Context, opt oss.ListOptions) (*oss.FilePage, error) {
+	if opt.Token != "" {
+		opt.StartAfter = ""
+	}
 	out, err := b.client.ListObjectsType2(ctx, &tos.ListObjectsType2Input{
 		Bucket: b.config.Bucket, Prefix: opt.Prefix, Delimiter: opt.Delimiter,
+		StartAfter:        opt.StartAfter,
 		ContinuationToken: opt.Token, MaxKeys: opt.Limit, ListOnlyOnce: true,
 	})
 	if err != nil {

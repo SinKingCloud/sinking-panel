@@ -113,10 +113,14 @@ func (c *Client) DeleteBucket(ctx context.Context) error {
 
 // ListFiles 按前缀、分隔符和游标查询一页文件。
 func (c *Client) ListFiles(ctx context.Context, options oss.ListOptions) (*oss.FilePage, error) {
+	if options.Token != "" {
+		options.StartAfter = ""
+	}
 	result, err := c.client.ListObjectsV2(ctx, &ali.ListObjectsV2Request{
 		Bucket:            &c.bucket,
 		Prefix:            c.optionalString(options.Prefix),
 		Delimiter:         c.optionalString(options.Delimiter),
+		StartAfter:        c.optionalString(options.StartAfter),
 		ContinuationToken: c.optionalString(options.Token),
 		MaxKeys:           int32(options.Limit),
 		EncodingType:      ali.Ptr("url"),

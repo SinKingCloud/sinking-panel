@@ -23,12 +23,17 @@ func (s *service) Files(ctx context.Context, id int64, prefix, delimiter string,
 	if err != nil {
 		return nil, err
 	}
-	data, err := client.ListFiles(ctx, utilOss.ListOptions{
+	options := utilOss.ListOptions{
 		Prefix:    prefix,
 		Delimiter: delimiter,
 		Token:     query.CursorId,
 		Limit:     query.PageSize,
-	})
+	}
+	// 从目录名之后开始列举，由云端跳过当前目录占位对象，避免占用分页名额。
+	if options.Token == "" && strings.HasSuffix(prefix, "/") {
+		options.StartAfter = prefix
+	}
+	data, err := client.ListFiles(ctx, options)
 	if err != nil {
 		return nil, err
 	}

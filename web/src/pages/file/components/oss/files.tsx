@@ -1,6 +1,6 @@
 import {createContext, forwardRef, memo, useCallback, useContext, useEffect, useMemo, useRef, useState} from "react";
 import type {Key} from "react";
-import {App, Button, Descriptions, Empty, Form, Grid, Input, Select, Space, Tooltip, Typography} from "antd";
+import {App, Button, Empty, Form, Grid, Input, Select, Space, Tooltip} from "antd";
 import type {MenuProps, TableColumnsType} from "antd";
 import {Icon, ModalTable, ProModal, Title, useTheme} from "sinking-antd";
 import dayjs from "dayjs";
@@ -10,9 +10,11 @@ import ActionDropdown from "@/pages/components/ui/action-dropdown";
 import {getFileIconType} from "../../utils";
 import useTableStyles from "../table/styles";
 import FileUpload from "../upload";
+import {copyTextToClipboard} from "../properties/utils";
 import {scheduleFileUpload} from "../upload/transfer";
 import OssPathBar from "./path-bar";
 import ServerTransfer from "./server-transfer";
+import FileInfo from "./info";
 import useOssClipboard from "./clipboard";
 import useStyles from "./styles";
 
@@ -57,6 +59,7 @@ const Files = ({id, active, revision, onCancel, onEdit, onBusyChange}: FilesProp
     const alive = useRef(true);
     const visible = useRef(active);
     const request = useRef(0);
+    const infoRequest = useRef(0);
     const loaded = useRef("");
     const listPrefix = useRef("");
     const configuration = useRef<number>();
@@ -75,6 +78,7 @@ const Files = ({id, active, revision, onCancel, onEdit, onBusyChange}: FilesProp
     const [rows, setRows] = useState<any[]>([]);
     const [selected, setSelected] = useState<Key[]>([]);
     const [loading, setLoading] = useState(true);
+    const [opened, setOpened] = useState(false);
     const [error, setError] = useState("");
     const [configError, setConfigError] = useState(false);
     const [busy, setBusy] = useState(false);
@@ -84,10 +88,13 @@ const Files = ({id, active, revision, onCancel, onEdit, onBusyChange}: FilesProp
     const [editor, setEditor] = useState<{action: "mkdir" | "rename"; key?: string; prefix: string; title: string}>();
     const [editorOpen, setEditorOpen] = useState(false);
     const [info, setInfo] = useState<any>();
+    const [infoLoading, setInfoLoading] = useState(false);
     const creatingDirectory = editor?.action === "mkdir";
     const renaming = editor?.action === "rename";
     const namePlaceholder = renaming ? "请输入新名称" : "请输入文件夹名称";
     const {prefix, keyword, cursor, tokens, pageSize} = query;
+    // 打开动画及首次取数期间只显示加载状态，后续刷新保留列表和操作栏。
+    const initialLoading = !opened || (loading && !loaded.current);
     const blocked = busy || uploadingFiles;
     const uploadDisabled = busy || loading || configuration.current !== revision;
     const disabled = blocked || loading || configuration.current !== revision;
@@ -103,6 +110,10 @@ const Files = ({id, active, revision, onCancel, onEdit, onBusyChange}: FilesProp
     const closeEditor = useCallback(() => {
         editorVisible.current = false;
         setEditorOpen(false);
+    }, []);
+    const closeInfo = useCallback(() => {
+        infoRequest.current++;
+        setInfo(undefined); setInfoLoading(false);
     }, []);
 
     useEffect(() => {
@@ -150,18 +161,20 @@ const Files = ({id, active, revision, onCancel, onEdit, onBusyChange}: FilesProp
     useEffect(() => {
         if (active) return;
         request.current++;
+        loaded.current = "";
         dirty.current = true;
         setQuery((current) => ({...current, prefix: "", keyword: "", tokens: [""], cursor: 0}));
         setSearchValue(""); setSelected([]); setNextToken(""); setError(""); setConfigError(false);
-        setLoading(true); setOpenMenu(undefined); closeEditor(); setInfo(undefined);
+        setLoading(true); setOpened(false); setOpenMenu(undefined); closeEditor(); closeInfo();
         confirmation.current?.destroy();
-    }, [active, closeEditor]);
+    }, [active, closeEditor, closeInfo]);
     useEffect(() => { onBusyChange(id, blocked || serverBusy); }, [id, blocked, serverBusy, onBusyChange]);
     useEffect(() => {
         alive.current = true;
         return () => {
             alive.current = false;
             request.current++;
+            infoRequest.current++;
             confirmation.current?.destroy();
             busyChanged.current(id, false);
         };
@@ -202,29 +215,43 @@ const Files = ({id, active, revision, onCancel, onEdit, onBusyChange}: FilesProp
         }
         return response.data;
     }, [record.id]);
+    // 先打开详情弹窗再读取内容，独立校验请求，关闭后忽略旧响应。
     const details = useCallback(async (item: any) => {
         if (pending.current || uploading.current) return;
-        pending.current = true; setBusy(true);
+        const current = ++infoRequest.current;
+        setInfo({key: item.key}); setInfoLoading(true);
         try {
             const data = await invoke({action: "info", key: item.key});
-            if (alive.current && visible.current) setInfo(data);
-        } catch (reason: any) { if (alive.current) message.error(reason.message); }
-        finally { pending.current = false; if (alive.current) setBusy(false); }
-    }, [invoke, message]);
-    const download = useCallback(async (item: any) => {
+            if (!alive.current || !visible.current || current !== infoRequest.current) return;
+            if (!data || data.key !== item.key) throw new Error("获取文件信息失败");
+            setInfo(data);
+        } catch (reason: any) {
+            if (alive.current && visible.current && current === infoRequest.current) {
+                closeInfo(); message.error(reason?.message || "获取文件信息失败");
+            }
+        } finally {
+            if (alive.current && current === infoRequest.current) setInfoLoading(false);
+        }
+    }, [closeInfo, invoke, message]);
+    // 下载和复制链接共用附件签名，复制时不打开浏览器窗口。
+    const download = useCallback(async (item: any, action: "download" | "copy" = "download") => {
         if (pending.current || uploading.current) return;
-        const tab = window.open("about:blank", "_blank");
+        const tab = action === "download" ? window.open("about:blank", "_blank") : null;
         if (tab) tab.opener = null;
         pending.current = true; setBusy(true);
         try {
-            const response = await ossSign({body: {id: record.id, key: item.key, method: "GET", expires: 600, download: true}});
+            const response = await ossSign({body: {id: record.id, key: item.key, method: "GET", expires: 86400, download: true}});
             if (response?.code !== 200) throw new Error(response?.message || "操作失败");
             const data = response.data;
             if (!data?.url) throw new Error("服务器未返回下载地址");
             if (Object.keys(data.headers || {}).some((key) => key.toLowerCase() !== "host")) throw new Error("下载链接需要额外请求头，请通过云厂商控制台下载");
             const url = new URL(data.url);
             if (!["http:", "https:"].includes(url.protocol)) throw new Error("下载地址不合法");
-            if (tab) tab.location.href = url.href;
+            if (action === "copy") {
+                if (!await copyTextToClipboard(data.url)) throw new Error("复制下载链接失败，请重试");
+                if (alive.current) message.success("下载链接已复制，有效期 24 小时");
+            }
+            else if (tab) tab.location.href = url.href;
             else { const link = document.createElement("a"); link.href = url.href; link.target = "_blank"; link.rel = "noopener noreferrer"; link.click(); }
         } catch (reason: any) { tab?.close(); if (alive.current) message.error(reason.message); }
         finally { pending.current = false; if (alive.current) setBusy(false); }
@@ -310,6 +337,7 @@ const Files = ({id, active, revision, onCancel, onEdit, onBusyChange}: FilesProp
         {key: "info", label: "文件信息", onClick: () => void details(item)},
         {key: "download", label: "下载到本机", onClick: () => void download(item)},
         {key: "server", label: "下载到服务器", onClick: () => serverTransfer.current?.open("download", item.key)},
+        {key: "link", label: "复制下载链接", onClick: () => void download(item, "copy")},
         {type: "divider"},
         {key: "copy", label: "复制", onClick: () => clipboard.copyRecords([item])},
         {key: "move", label: "移动", onClick: () => clipboard.moveRecords([item])},
@@ -352,8 +380,9 @@ const Files = ({id, active, revision, onCancel, onEdit, onBusyChange}: FilesProp
             width={compact ? 980 : 1080} minHeight={compact ? 440 : 480} scrollMode="modal"
             manualRequest ariaLabel={`对象存储文件：${record.name}`} rowKey="key" columns={columns}
             modalProps={{className: "oss-files-modal", zIndex: 1010, style: {top: screens.md ? 100 : 24, paddingBottom: screens.md ? 100 : 24, maxWidth: "calc(100vw - 24px)"},
+                afterOpenChange: setOpened,
                 afterClose: () => { if (!visible.current) setRows([]); },
-                footer: <nav className={styles.pagination} aria-label="云端文件分页">
+                footer: initialLoading ? null : <nav className={styles.pagination} aria-label="云端文件分页">
                     <div className="pagination-content">
                         <span className="pagination-count">本页 {rows.length} 项</span>
                         <div className="pagination-pages">
@@ -370,11 +399,11 @@ const Files = ({id, active, revision, onCancel, onEdit, onBusyChange}: FilesProp
                     </div>
                 </nav>,
             }}
-            dataSource={rows} loading={loading} pagination={false} scroll={{x: 830}} onReload={reload} requestEnabled={active}
+            dataSource={initialLoading ? [] : rows} loading={initialLoading || loading} pagination={false} scroll={{x: 830}} onReload={reload} requestEnabled={active}
             components={tableComponents}
             tableRender={(table) => <FileContextMenu.Provider value={contextMenuValue}>{table}</FileContextMenu.Provider>}
             rowClassName={(item) => openMenu?.key === item.key ? "action-menu-open" : ""}
-            toolbar={{
+            toolbar={initialLoading ? false : {
                 search: {value: searchValue, ariaLabel: "按文件名前缀搜索", placeholder: "按文件名前缀搜索", onChange: setSearchValue, onSearch: search, debounce: 300},
                 refresh: {loading, disabled: blocked, ariaLabel: "刷新文件列表", onClick: reload},
                 actions: active ? [
@@ -385,7 +414,7 @@ const Files = ({id, active, revision, onCancel, onEdit, onBusyChange}: FilesProp
                     ]}},
                 ] : [],
             }}
-            contentBar={{content: <OssPathBar path={prefix} disabled={disabled} onNavigate={navigate}/>, ariaLabel: "当前目录操作",
+            contentBar={initialLoading ? false : {content: <OssPathBar path={prefix} disabled={disabled} onNavigate={navigate}/>, ariaLabel: "当前目录操作",
                 actions: clipboard.count > 0 ? [{key: "paste", type: "button",
                     label: `${clipboard.mode === "move" ? "移动" : "粘贴"} ${clipboard.count} 项`,
                     "aria-label": clipboard.mode === "move" ? `将 ${clipboard.count} 项移动到当前目录` : `粘贴 ${clipboard.count} 项`,
@@ -431,16 +460,7 @@ const Files = ({id, active, revision, onCancel, onEdit, onBusyChange}: FilesProp
                         }}]}><Input maxLength={255} aria-label={namePlaceholder} placeholder={namePlaceholder}/></Form.Item>
             </Form>
         </ProModal>
-        <ProModal title={<Title>文件信息</Title>} onCancel={() => setInfo(undefined)}
-            modalProps={{open: active && Boolean(info), width: 600, zIndex: 1030, footer: <Button onClick={() => setInfo(undefined)}>关闭</Button>}}>
-            {info && <Descriptions column={1} size="small" bordered items={[
-                {key: "key", label: "文件路径", children: <Typography.Text copyable style={{wordBreak: "break-all"}}>{info.key}</Typography.Text>},
-                {key: "size", label: "大小", children: formatSize(info.size)}, {key: "type", label: "内容类型", children: info.content_type || "—"},
-                {key: "time", label: "修改时间", children: info.last_modified && !info.last_modified.startsWith("0001-") ? dayjs(info.last_modified).format("YYYY-MM-DD HH:mm:ss") : "—"},
-                {key: "etag", label: "ETag", children: info.etag || "—"}, {key: "storage", label: "存储类型", children: info.storage_class || "—"},
-                {key: "metadata", label: "元数据", children: <pre style={{whiteSpace: "pre-wrap", overflowWrap: "anywhere", margin: 0}}>{JSON.stringify(info.metadata || {}, null, 2)}</pre>},
-            ]}/>}
-        </ProModal>
+        <FileInfo info={info} loading={infoLoading} active={active} onCancel={closeInfo}/>
     </>;
 };
 
