@@ -4,7 +4,7 @@
 
 使用 `baidu.Secret` 提供凭据，使用 `baidu.Config` 提供存储连接参数，再调用 `oss.NewManager(secret, config)` 获得统一文件管理、自动分片和进度回调。仅需要底层厂商操作时调用 `baidu.New(secret, config)`。两个入口都校验配置、补齐默认服务地址并准备 HTTP 客户端，构造时不发送网络请求。
 
-导入本子包时会通过 `init` 调用 `oss.Register` 注册实现，无需手工注册。仅使用根包统一类型的独立业务，可以使用 `_ "server/app/util/oss/baidu"` 加载本实现。面板的 `service/oss` 已统一加载全部厂商。
+导入本子包时会通过 `init` 调用 `oss.Register` 注册实现，无需手工注册。仅使用根包统一类型的独立业务，可以使用 `_ "server/app/util/oss/baidu"` 加载本实现。
 
 ## 密钥与连接配置
 
@@ -117,7 +117,7 @@ func OpenClientFromCommon(keyID, keySecret, token string) (*baidu.Client, error)
 
 直接调用子包也会浅拷贝 HTTPClient 并禁止自动重定向。标准 `*http.Transport` 尚未禁用透明 gzip 解压时，会先克隆再关闭自动解压；已经关闭时直接复用连接池。自定义 Transport 应自行保证不自动解压响应。无需为子包入口手工准备标准化配置。
 
-## 对接密钥管理
+## 从 JSON 加载密钥
 
 密钥 JSON 使用 `access_key_id`、`secret_access_key`，临时凭据额外包含 `security_token`。`NewFromSecret` 从原始密钥 JSON 中读取这些字段，第三个参数仅传连接配置：
 
@@ -138,7 +138,7 @@ func OpenFromSecret(rawSecret string) (*oss.Manager, error) {
 }
 ```
 
-从面板仓储读取时，将原始记录的 `Provider`、`Data` 作为前两个参数；Provider 必须与本厂商匹配。不要传入详情接口返回的脱敏数据。可以用 `json.Marshal(baidu.Secret{...})` 生成符合字段名称的密钥 JSON，构造器不会从 Config 中读取或保留凭据。
+provider 参数必须与本厂商匹配，密钥 JSON 必须包含原始凭据，不能使用脱敏值。可以用 `json.Marshal(baidu.Secret{...})` 生成符合字段名称的密钥 JSON，构造器不会从 Config 中读取或保留凭据。
 
 ## 底层 API
 

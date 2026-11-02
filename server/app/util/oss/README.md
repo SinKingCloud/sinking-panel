@@ -1,6 +1,6 @@
 # 对象存储工具
 
-`oss` 位于 `server/app/util/oss`，按系统工具包习惯使用 `Manager`、`NewManager`、`Interface`、中文注释和按职责拆分的 Go 文件。包不依赖数据库、service 或 HTTP controller，备份服务和文件管理服务可以直接依赖 `oss.Interface`。
+`oss` 提供统一的对象存储 Go API，通过 `NewManager` 创建实例，使用 `oss.Interface` 操作存储桶、文件、分片上传和临时访问链接。
 
 ## 包结构
 
@@ -147,7 +147,7 @@ func OpenClient(accessKeyID, accessKeySecret string) (*aliyun.Client, error) {
 
 SecretSource 提供 `Secret() oss.Secret`；ConfigSource 提供 `Config() oss.Config` 和 `WithHTTPClient(*http.Client) oss.ConfigSource`。WithHTTPClient 返回使用指定 HTTP 客户端的配置副本，保留其他厂商参数。根入口把完整的厂商配置传给构造器，并复用已经准备好的 HTTP 连接池。业务通常只需传入结构体，无需直接调用这些方法。
 
-### 对接密钥管理
+### 从 JSON 加载密钥
 
 `NewFromSecret` 接收厂商枚举、原始密钥 JSON、连接配置。密钥 JSON 的字段与对应厂商 Secret 的 JSON 标签一致：
 
@@ -159,7 +159,7 @@ SecretSource 提供 `Secret() oss.Secret`；ConfigSource 提供 `Config() oss.Co
 | `secret_provider.Volcengine` | `access_key_id`、`access_key_secret` | `security_token` |
 | `secret_provider.BaiduCloud` | `access_key_id`、`secret_access_key` | `security_token` |
 
-从仓储读取时，前两个参数使用原始记录的 Provider、Data。不能使用 `service.Secret.FindById` 返回的脱敏字段。长期密钥可以省略令牌字段；临时令牌从密钥 JSON 读取，不放在 Config 中。工具包不自动刷新临时凭据，过期后使用新凭据创建 Manager。
+密钥 JSON 必须包含原始凭据，不能使用脱敏值。长期密钥可以省略令牌字段；临时令牌从密钥 JSON 读取，不放在 Config 中。工具包不自动刷新临时凭据，过期后使用新凭据创建 Manager。
 
 下面的完整函数展示如何用厂商 Secret 生成密钥 JSON，并使用同一份连接配置初始化：
 
@@ -182,9 +182,9 @@ func OpenEncodedSecret(secret aliyun.Secret, config aliyun.Config) (*oss.Manager
 }
 ```
 
-传入厂商 Config 时，记录的 Provider 必须与其一致；传入统一 Config 时，Provider 由记录指定。配置与密钥分开解析，详情接口只返回当前厂商的连接字段，不返回 Secret。
+传入厂商 Config 时，provider 参数必须与其一致；传入统一 Config 时，由 provider 参数指定厂商。配置与密钥分开解析，Config 不包含凭据。
 
-动态业务可以保留调用方提供的厂商 ConfigSource，不必逐个取出 Region、Endpoint、Bucket 再拼成另一份配置。下面的独立业务加载所有已支持厂商；只接入一家时可仅保留对应导入。面板的 `service/oss` 已集中加载这些实现。
+调用方可以直接传入厂商 ConfigSource，保留完整配置。下面的示例加载所有已支持厂商；只接入一家时可仅保留对应导入。
 
 ```go
 package example
@@ -203,7 +203,7 @@ func OpenFromSecret(provider int, rawSecret string, config oss.ConfigSource) (os
 }
 ```
 
-未加载厂商实现时，构造返回“厂商实现未注册”的参数错误。扩展适配器时实现 `oss.Backend`，并在子包的 `init` 中调用 `oss.Register(provider, factory)`，工厂接收 `SecretSource` 和 `ConfigSource`，返回 Backend。注册不创建客户端、不发送网络请求；空工厂或重复注册会立即 panic。新增厂商字段时，在该厂商 Config 中声明并在其构造器内处理，不要在 service 中固定挑选字段。
+未加载厂商实现时，构造返回“厂商实现未注册”的参数错误。扩展适配器时实现 `oss.Backend`，并在子包的 `init` 中调用 `oss.Register(provider, factory)`，工厂接收 `SecretSource` 和 `ConfigSource`，返回 Backend。注册不创建客户端、不发送网络请求；空工厂或重复注册会立即 panic。新增厂商字段时，在该厂商 Config 中声明并在其构造器内处理。
 
 ## 统一 API
 
@@ -217,54 +217,6 @@ func OpenFromSecret(provider int, rawSecret string, config oss.ConfigSource) (os
 | 虚拟目录 | `CreateDirectory`，配合 `ListFiles` 的 `Prefix`、`Delimiter` |
 | 分片会话 | `InitiateMultipartUpload`、`UploadPart`、`UploadPartCopy`、`ListParts`、`CompleteMultipartUpload`、`AbortMultipartUpload`、`ListMultipartUploads` |
 | 临时访问 | `Sign`，支持 `GET`、`HEAD`、`PUT` |
-
-工具包提供 Go API；面板的配置持久化和 HTTP 接口由上层 [OSS 服务](../../service/oss/oss.go) 和 [HTTP controller](../../http/controller/oss) 提供。桶策略、生命周期、版本管理、跨区域复制配置等云平台治理功能不属于当前文件管理接口。
-
-面板添加 OSS 时，`/oss/create` 只提交 `name` 和 `secret_id`，返回新记录的 `id`。创建成功后调用 `/oss/info`，根据返回的 `name` 和当前厂商的 `config` 字段生成编辑表单，再通过 `/oss/update` 保存连接配置。`config` 在详情中是字段对象，更新时提交 JSON 字符串；关联密钥创建后不能修改。初始配置字段为空，填写完整后才能保存连接配置、测试连接和操作云端文件。
-
-备份等业务选择存储时，通过 `/system/enum?name=oss` 获取 `data.name` 中的存储 ID 与名称映射，例如 `{"name":{"1":"网站备份"}}`。名称映射缓存 10 分钟，新增、修改或删除 OSS 配置成功后立即清理缓存；只返回名称，不包含存储配置或密钥内容。
-
-### 面板上传、下载与签名
-
-面板将上传操作统一到 `/oss/upload`，下载操作统一到 `/oss/download`，临时访问签名单独使用 `/oss/sign`。这三个接口均需面板登录凭据，`id` 表示面板中保存的 OSS 配置 ID，`key` 表示存储桶内的文件名。
-
-| 接口 | URL 查询参数 action | 请求正文与用途 |
-| --- | --- | --- |
-| `/oss/upload` | `file`，省略时默认使用 | 原始文件二进制；`id`、`key` 放在 URL 查询参数，后端自动选择普通或分片上传 |
-| `/oss/upload` | `part` | 原始分片二进制；URL 还需 `id`、`key`、`upload_id`、`number`，返回分片编号、ETag 和长度 |
-| `/oss/upload` | `server` | JSON：`id`、`key`、`path`、可选 `options`，将服务器文件上传加入后台任务 |
-| `/oss/upload` | `init` / `complete` / `abort` / `parts` / `uploads` | JSON：初始化、合并、取消、列出已上传分片或未完成会话 |
-| `/oss/download` | `file`，省略时默认使用 | 无文件正文；`id`、`key` 放在 URL，返回下载流，支持 `Range` 请求头 |
-| `/oss/download` | `server` | JSON：`id`、`key`、`path`、`overwrite`，将 OSS 文件下载到服务器的任务加入后台队列 |
-| `/oss/sign` | 不使用 action | JSON：`id`、`key`、`method`、`expires`、`download`，返回临时 URL、必要请求头和过期时间 |
-
-上传、下载的 `action` 只从 URL 查询参数读取，不能仅放在 JSON 正文中。这样上传 JSON 文件时，正文仍按文件二进制处理。`file`、`part` 上传必须提供准确的 `Content-Length`。`server` 操作立即返回系统任务 ID，进度和取消通过系统任务接口处理。
-
-所有上传都直接覆盖同名文件，无需传入覆盖参数；分片上传在成功合并后替换同名文件。从服务器上传时，支持跨目录、跨页多选文件，每个文件独立创建后台任务，页面使用当前云端目录和服务器文件名作为目标 `key`；同一批选择中的同名文件需分批上传。若任务提交失败，会停止后续提交并显示已提交数量，已创建的任务继续执行。下载到服务器页面仅填写保存目录和文件名，使用选中文件的原始 `key`，固定提交 `overwrite: true` 覆盖服务器同名文件。直接调用下载接口时仍可通过 `overwrite` 控制覆盖，省略时默认不覆盖。
-
-服务器上传、下载全部提交成功后，页面关闭填写路径的表单并打开系统任务弹窗，统一查看进度、日志和取消任务。上传完成后，点击文件列表的刷新按钮查看新文件；文件页面不再跟踪后台任务状态。批量上传部分提交成功时仍保留失败说明，并禁止再次提交整批文件，避免重复上传。
-
-例如，从服务器上传备份文件：
-
-```http
-POST /oss/upload?action=server
-Content-Type: application/json
-
-{"id":1,"key":"backup/site.tar.gz","path":"/data/backup/site.tar.gz"}
-```
-
-获取浏览器附件下载链接：
-
-```http
-POST /oss/sign
-Content-Type: application/json
-
-{"id":1,"key":"backup/site.tar.gz","method":"GET","expires":86400,"download":true}
-```
-
-以上示例省略面板鉴权头。浏览器可直接访问返回的签名 URL；需要面板代理下载时使用 `/oss/download?id=1&key=backup/site.tar.gz`。显式分片上传依次调用 `action=init` 获取 `upload_id`、`action=part` 上传各片，最后用 `action=complete` 提交 `parts` 数组；失败或取消时用 `action=abort` 清理会话。`parts`、`uploads` 两个 action 支持按各自游标查询，适合恢复未完成上传。
-
-页面下载和复制下载链接的有效期均为 24 小时，`/oss/sign` 省略 `expires` 时也默认 86400 秒。下载到服务器通过云密钥调用 SDK，不使用这条临时链接，也不额外设置下载总时限；调用方的 context 和自定义 HTTPClient 超时仍然生效。
 
 ## 公共数据结构
 
@@ -564,20 +516,7 @@ func ReadBackup(ctx context.Context, store oss.Interface, key string, destinatio
 ```go
 // 将 backup/site.tar.gz 改名为 backup/site-20261102.tar.gz。
 file, err := manager.RenameFile(ctx, "backup/site.tar.gz", "site-20261102.tar.gz")
-// 面板业务可使用注入的 OSS service，storageID 是已保存的存储配置 ID。
-file, err = ossService.Rename(ctx, storageID, "backup/site.tar.gz", "site-20261102.tar.gz")
 ```
-
-面板文件操作接口通过 JSON 正文中的 `action=rename` 调用重命名，`name` 不包含目录；移动仍使用 `action=move` 和完整的 `destination`：
-
-```http
-POST /oss/file
-Content-Type: application/json
-
-{"id":1,"action":"rename","key":"backup/site.tar.gz","name":"site-20261102.tar.gz"}
-```
-
-成功时 `data` 返回重命名后的文件信息，例如 `key` 为 `backup/site-20261102.tar.gz`。文件列表的操作菜单和右键菜单都提供独立的“重命名”入口。
 
 `DeleteFiles` 返回每个 key 的结果和聚合错误，方便区分部分成功。`DeleteBucket` 只删除空桶。归档对象下载/复制、存储类型和访问权限等仍受厂商规则约束；`StorageClass` 使用相应厂商的原生值。
 

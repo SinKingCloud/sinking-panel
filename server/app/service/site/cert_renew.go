@@ -10,7 +10,6 @@ import (
 	"server/app/enum/cert_type"
 	"server/app/enum/task_status"
 	repositoryTask "server/app/repository/task"
-	"server/app/util/caddy"
 	"strconv"
 	"strings"
 	"time"
@@ -163,7 +162,7 @@ certificatesLoop:
 			}
 			writeLog("开始续签证书 #%d [%s]，第 %d/%d 次，原到期时间：%s", certificate.Id, strings.Join(domains, ", "), attempt+1, settings.Retries+1, time.Time(certificate.ExpireTime).Format("2006-01-02 15:04:05"))
 			// 复用续签业务，继承验证方式、关联密钥和原 CA，保存后更新已部署的网站。
-			renewContext, cancel := context.WithTimeout(ctx, caddy.CertificateRequestTimeout)
+			renewContext, cancel := context.WithTimeout(ctx, CertificateOperationTimeout)
 			result, renewErr := s.RenewCert(renewContext, certificate.Id, CertificateRequest{Domain: domains[0]})
 			cancel()
 			if renewErr != nil {

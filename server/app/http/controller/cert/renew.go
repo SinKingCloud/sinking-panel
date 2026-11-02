@@ -53,7 +53,7 @@ func Renew(c *context.Context) {
 		SecretId:  form.SecretId,
 		AutoRenew: form.AutoRenew,
 	}
-	timeout := caddy.CertificateRequestTimeout
+	timeout := serviceSite.CertificateOperationTimeout
 	writeTimeout := timeout + 5*time.Second
 	if manual {
 		timeout = serviceSite.CertificateRequestTimeout

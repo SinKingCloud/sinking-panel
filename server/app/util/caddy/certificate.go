@@ -7,6 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/http"
+	"net/http/httptrace"
 	"net/mail"
 	baiduDNS "server/app/util/caddy/dns/baidu"
 	"strings"
@@ -18,6 +20,8 @@ import (
 	libdnsHuaweiCloud "github.com/libdns/huaweicloud"
 	libdnsTencentCloud "github.com/libdns/tencentcloud"
 	libdnsVolcengine "github.com/libdns/volcengine"
+	"github.com/mholt/acmez/v3/acme"
+	"go.uber.org/zap"
 )
 
 const (
@@ -25,6 +29,24 @@ const (
 	CertificateRequestTimeout    = 30 * time.Second
 	certificateValidationTimeout = 3 * time.Second
 )
+
+// 目录 GET 可安全重试；缩短建连等待，避免一条坏连接耗尽整个签发时限。
+// 复用连接和 acmez 的目录缓存，不改变后续签发请求的超时配置。
+var certificateDirectoryClient = &http.Client{
+	Timeout: 12 * time.Second,
+	Transport: &http.Transport{
+		Proxy: http.ProxyFromEnvironment,
+		DialContext: (&net.Dialer{
+			Timeout:   5 * time.Second,
+			KeepAlive: 30 * time.Second,
+		}).DialContext,
+		ForceAttemptHTTP2:     true,
+		TLSHandshakeTimeout:   8 * time.Second,
+		ResponseHeaderTimeout: 8 * time.Second,
+		IdleConnTimeout:       90 * time.Second,
+		MaxIdleConns:          10,
+	},
+}
 
 func (m *Manager) obtainCertificate(ctx context.Context, request CertificateRequest, renew bool) (certificate *Certificate, err error) {
 	operation := "申请"
@@ -60,7 +82,7 @@ func (m *Manager) obtainCertificate(ctx context.Context, request CertificateRequ
 	if err = ctx.Err(); err != nil {
 		return nil, err
 	}
-	ctx, cancel := context.WithTimeout(ctx, CertificateRequestTimeout)
+	issueCtx, cancel := context.WithTimeout(ctx, CertificateRequestTimeout)
 	defer cancel()
 	domain, err := normalizeDomain(request.Domain)
 	if err != nil {
@@ -109,6 +131,24 @@ func (m *Manager) obtainCertificate(ctx context.Context, request CertificateRequ
 		}
 	}
 	logger := caddy.Log().Named("acme")
+	// 保留网络失败的具体阶段，避免上层重试最终只返回 context deadline exceeded。
+	issueCtx = httptrace.WithClientTrace(issueCtx, &httptrace.ClientTrace{
+		DNSDone: func(info httptrace.DNSDoneInfo) {
+			if info.Err != nil {
+				logger.Warn("ACME DNS lookup failed", zap.Error(info.Err))
+			}
+		},
+		ConnectDone: func(network, address string, err error) {
+			if err != nil {
+				logger.Warn("ACME connection failed", zap.String("network", network), zap.String("address", address), zap.Error(err))
+			}
+		},
+		TLSHandshakeDone: func(_ tls.ConnectionState, err error) {
+			if err != nil {
+				logger.Warn("ACME TLS handshake failed", zap.Error(err))
+			}
+		},
+	})
 	var magic *certmagic.Config
 	cache := certmagic.NewCache(certmagic.CacheOptions{
 		Logger: logger,
@@ -121,6 +161,21 @@ func (m *Manager) obtainCertificate(ctx context.Context, request CertificateRequ
 	magic = certmagic.New(cache, certmagic.Config{
 		Storage: storage,
 		Logger:  logger,
+		OnEvent: func(ctx context.Context, event string, _ map[string]any) error {
+			if event != "cert_obtaining" {
+				return nil
+			}
+			// 决定实际签发后才预取目录，共用签发时限，不重试创建订单。
+			client := &acme.Client{
+				Directory:  caURL,
+				HTTPClient: certificateDirectoryClient,
+				UserAgent:  "sinking-panel",
+			}
+			if _, err := client.GetDirectory(ctx); err != nil {
+				return fmt.Errorf("获取 ACME 服务目录失败（%s）: %w", caURL, err)
+			}
+			return nil
+		},
 	})
 	issuerOptions := certmagic.ACMEIssuer{
 		CA:                      caURL,
@@ -205,29 +260,24 @@ func (m *Manager) obtainCertificate(ctx context.Context, request CertificateRequ
 	issuerKey := issuer.IssuerKey()
 	// 同域名的签发和结果读取串行，避免不同 CA 的 HTTP 挑战覆盖同一个内存令牌。
 	lockKey := "certificate_" + domain
-	if err = storage.Lock(ctx, lockKey); err != nil {
-		if ctx.Err() != nil {
-			err = ctx.Err()
-		}
+	if err = storage.Lock(issueCtx, lockKey); err != nil {
 		return nil, fmt.Errorf("锁定证书失败: %w", err)
 	}
 	defer storage.Unlock(context.WithoutCancel(ctx), lockKey)
 	certificateKey := certmagic.StorageKeys.SiteCert(issuerKey, domain)
 	privateKey := certmagic.StorageKeys.SitePrivateKey(issuerKey, domain)
 	metadataKey := certmagic.StorageKeys.SiteMeta(issuerKey, domain)
-	if storage.Exists(ctx, certificateKey) && storage.Exists(ctx, privateKey) && storage.Exists(ctx, metadataKey) {
+	if storage.Exists(issueCtx, certificateKey) && storage.Exists(issueCtx, privateKey) && storage.Exists(issueCtx, metadataKey) {
 		// 已有证书由 CertMagic 根据 ARI 和有效期判断续签，显式续签则强制执行。
-		err = magic.RenewCertSync(ctx, domain, renew)
+		err = magic.RenewCertSync(issueCtx, domain, renew)
 	} else {
-		err = magic.ObtainCertSync(ctx, domain)
+		err = magic.ObtainCertSync(issueCtx, domain)
 	}
 	if err != nil {
-		if ctx.Err() != nil {
-			err = ctx.Err()
-		}
 		return nil, fmt.Errorf("%s证书失败: %w", operation, err)
 	}
 
+	// 可用证书已签发时，备用链超时不会使结果失效；读取结果继续使用调用方的上下文。
 	certificatePEM, err := storage.Load(ctx, certificateKey)
 	if err != nil {
 		return nil, fmt.Errorf("读取证书失败: %w", err)

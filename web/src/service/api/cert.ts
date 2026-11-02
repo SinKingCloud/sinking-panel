@@ -37,10 +37,10 @@ export async function deleteCert(params: API.RequestParams = {}) {
 
 /** 申请证书 POST /cert/obtain */
 export async function obtainCert(params: API.RequestParams = {}) {
-    return post("/cert/obtain", params?.body, params?.onSuccess, params?.onFail, params?.onFinally, undefined, {timeout: Number(params?.body?.type) === 1 ? 21 * 60 * 1000 : 35 * 1000});
+    return post("/cert/obtain", params?.body, params?.onSuccess, params?.onFail, params?.onFinally, undefined, {timeout: Number(params?.body?.type) === 1 ? 21 * 60 * 1000 : 50 * 1000});
 }
 
 /** 续签证书 POST /cert/renew */
 export async function renewCert(params: API.RequestParams = {}) {
-    return post("/cert/renew", params?.body, params?.onSuccess, params?.onFail, params?.onFinally, undefined, {timeout: Number(params?.body?.type) === 1 ? 21 * 60 * 1000 : 35 * 1000});
+    return post("/cert/renew", params?.body, params?.onSuccess, params?.onFail, params?.onFinally, undefined, {timeout: Number(params?.body?.type) === 1 ? 21 * 60 * 1000 : 50 * 1000});
 }

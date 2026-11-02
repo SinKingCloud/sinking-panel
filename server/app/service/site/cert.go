@@ -35,8 +35,12 @@ import (
 	"gorm.io/gorm"
 )
 
-// CertificateRequestTimeout 为手动证书请求和验证会话预留时间。
-const CertificateRequestTimeout = constant.CacheTimeWithCertOrder
+const (
+	// CertificateRequestTimeout 为手动证书请求和验证会话预留时间。
+	CertificateRequestTimeout = constant.CacheTimeWithCertOrder
+	// CertificateOperationTimeout 在单次签发时限之外，为证书保存和部署预留时间。
+	CertificateOperationTimeout = caddy.CertificateRequestTimeout + 10*time.Second
+)
 
 // CreateCert 导入并保存一组证书和私钥，允许导入已过期的证书。
 func (s *service) CreateCert(data *model.Cert) (*Cert, error) {

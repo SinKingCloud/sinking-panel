@@ -1168,7 +1168,7 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
 
     const verificationField = (
         <Form.Item
-            extra={mode === "edit" ? "用于下次续签验证，不改变当前证书。" : manualVerification ? challenge === "http" ? "自行将验证文件放到目标网站，公网需能通过 80 端口访问。" : "自行添加 TXT 解析记录，无需提供云密钥。" : ipAddress ? "公网 IP 的 80 端口需能访问本机验证服务。" : challenge === "dns" ? "自动添加 DNS 验证记录，网站无需上线。" : "域名需解析到本机，公网可访问验证端口（默认 80）。"}>
+            extra={mode === "edit" ? "用于下次续签验证，不改变当前证书。" : manualVerification ? challenge === "http" ? "自行将验证文件放到目标网站，公网需能通过 80 端口访问。" : "自行添加 TXT 解析记录，无需提供云密钥。" : ipAddress ? undefined : challenge === "dns" ? "自动添加 DNS 验证记录，网站无需上线。" : "域名需解析到本机，公网可访问验证端口（默认 80）。"}>
             <Flex gap={compact ? 12 : 16}>
                 <Form.Item name="challenge" label="验证类型" style={{flex: 1, minWidth: 0, marginBottom: 0}}
                            rules={[{required: true, message: "请选择验证类型"}]}>
@@ -1527,7 +1527,7 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
                                 <Form.Item
                                     name="domain"
                                     label="域名或 IP"
-                                    extra={ipAddress ? "公网 IP 使用 HTTP 验证，请留意证书有效期。" : wildcard ? "泛域名已自动切换为 DNS 验证。" : undefined}
+                                    extra={wildcard ? "泛域名已自动切换为 DNS 验证。" : undefined}
                                     rules={[{required: true, whitespace: true, message: "请选择或输入域名或 IP"}, {
                                         validator: async (_, value) => {
                                             const target = String(value || "").trim();
@@ -1563,7 +1563,6 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
                                 {automaticDNS && secretField}
                                 {certificateType === 2 && renewalField}
                                 <Form.Item name="ca" label="签发环境"
-                                           extra={mode === "renew" ? "留空沿用原签发环境；测试证书不受浏览器信任。" : undefined}
                                            rules={[{required: mode === "obtain"}]}>
                                     <Select allowClear={mode === "renew"}
                                             placeholder={mode === "renew" ? "沿用原签发环境" : "请选择签发环境"}
@@ -1572,11 +1571,6 @@ const CertManager = forwardRef<CertManagerRef, CertManagerProps>(({onChange, sec
                                                 {label: "测试环境", value: "staging"},
                                             ]}/>
                                 </Form.Item>
-                                {!manualVerification && ipAddress && (
-                                    <Typography.Paragraph type="secondary">
-                                        私有 IP 请导入包含对应 IP 地址的证书。
-                                    </Typography.Paragraph>
-                                )}
                             </>
                         )}
                     </div>
