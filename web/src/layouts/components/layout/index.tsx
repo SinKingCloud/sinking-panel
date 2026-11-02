@@ -1,4 +1,4 @@
-import React, {useCallback, useEffect, useMemo, useRef, useState} from "react";
+import React, {forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState} from "react";
 import {Layout, Icon, ProModal, Title as ModalTitle, useTheme} from "sinking-antd";
 import {useModel, useSelectedRoutes, useLocation, history, Outlet} from "umi";
 import {deleteHeader} from "@/utils/auth";
@@ -8,6 +8,7 @@ import {createStyles} from "antd-style";
 import Settings from "@/../config/defaultSettings";
 import {logout} from "@/service/auth/login";
 import {systemTask} from "@/service/api/system";
+import type {LayoutContext, SystemTaskRef} from "@/layouts/context";
 import TaskLog, {LogRef as TaskLogRef} from "@/pages/components/task-log";
 import defaultSettings from "@/../config/defaultSettings";
 import Title from "../title";
@@ -303,32 +304,13 @@ const useRightTopStyles = createStyles(({css, token, isDarkMode}: any): any => {
     };
 });
 
-const taskStatusValues = {
-    pending: 0,
-    running: 1,
-    completed: 2,
-    failed: 3,
-    canceled: 4,
-} as const;
 
-const taskTerminalStatuses = new Set([
-    taskStatusValues.completed,
-    taskStatusValues.failed,
-    taskStatusValues.canceled,
-]);
-const taskStatusMeta: Record<number, {label: string; className: string}> = {
-    [taskStatusValues.pending]: {label: "排队中", className: "running"},
-    [taskStatusValues.running]: {label: "处理中", className: "running"},
-    [taskStatusValues.completed]: {label: "已完成", className: "completed"},
-    [taskStatusValues.failed]: {label: "失败", className: "failed"},
-    [taskStatusValues.canceled]: {label: "已取消", className: "canceled"},
-};
 
 /**
  * 右侧部分组件
  * @constructor
  */
-const RightTop: React.FC = () => {
+const RightTop = forwardRef<SystemTaskRef>((_, ref) => {
     /**
      * 全局数据
      */
@@ -343,6 +325,28 @@ const RightTop: React.FC = () => {
     const taskLoadedRef = useRef(false);
     const mountedRef = useRef(true);
     const taskLogRef = useRef<TaskLogRef>({} as TaskLogRef);
+
+    const taskStatusValues = {
+        pending: 0,
+        running: 1,
+        completed: 2,
+        failed: 3,
+        canceled: 4,
+    } as const;
+
+    const taskTerminalStatuses = new Set([
+        taskStatusValues.completed,
+        taskStatusValues.failed,
+        taskStatusValues.canceled,
+    ]);
+
+    const taskStatusMeta: Record<number, {label: string; className: string}> = {
+        [taskStatusValues.pending]: {label: "排队中", className: "running"},
+        [taskStatusValues.running]: {label: "处理中", className: "running"},
+        [taskStatusValues.completed]: {label: "已完成", className: "completed"},
+        [taskStatusValues.failed]: {label: "失败", className: "failed"},
+        [taskStatusValues.canceled]: {label: "已取消", className: "canceled"},
+    };
 
     const refreshTasks = useCallback(async () => {
         const requestId = ++taskRequestRef.current;
@@ -404,6 +408,14 @@ const RightTop: React.FC = () => {
             window.clearTimeout(timer);
         };
     }, [refreshTasks]);
+
+    // 每次打开都立即刷新，任务进度仍由布局统一轮询。
+    const openTasks = useCallback(() => {
+        setTaskOpen(true);
+        void refreshTasks().catch(() => undefined);
+    }, [refreshTasks]);
+
+    useImperativeHandle(ref, () => ({open: openTasks}), [openTasks]);
 
     const cancelTask = useCallback(async (id: string) => {
         const response = await systemTask({body: {id, action: "cancel"}});
@@ -615,10 +627,7 @@ const RightTop: React.FC = () => {
                     type="CloudServerOutlined"
                     className={icon}
                     aria-label="系统任务"
-                    onClick={() => {
-                        setTaskOpen(true);
-                        void refreshTasks();
-                    }}/>
+                    onClick={openTasks}/>
                 {pendingTaskCount > 0 && (
                     <span
                         className={taskBadgeCount}
@@ -690,6 +699,7 @@ const RightTop: React.FC = () => {
             onCancel={() => setTaskOpen(false)}
             modalProps={{
                 open: taskOpen,
+                zIndex: 1150,
                 footer: null,
                 destroyOnHidden: false,
                 mask: {closable: true},
@@ -700,7 +710,7 @@ const RightTop: React.FC = () => {
         </ProModal>
         <TaskLog ref={taskLogRef} request={requestSystemTaskLog} showClear={false}/>
     </>
-}
+});
 
 /**
  * 样式信息
@@ -748,6 +758,8 @@ const SKLayout: React.FC = () => {
      */
     const user = useModel("user");
     const web = useModel("web");
+    const [task, setTask] = useState<SystemTaskRef | null>(null);
+    const context = useMemo<LayoutContext>(() => ({task}), [task]);
     const location = useLocation();
     const match = useSelectedRoutes();
     const currentRoute = match?.at(-1)?.route as any;
@@ -804,7 +816,7 @@ const SKLayout: React.FC = () => {
                 footer={<>©{new Date().getFullYear()} {web?.info?.name || Settings?.title}</>}
                 headerHidden={false}
                 headerFixed={false}
-                headerRight={<RightTop/>}
+                headerRight={<RightTop ref={setTask}/>}
                 menuCollapsedWidth={60}
                 menuUnCollapsedWidth={210}
                 collapsedLogo={() => {
@@ -822,7 +834,7 @@ const SKLayout: React.FC = () => {
                         </div>)
                 }}>
                 <div className={content}>
-                    <Outlet/>
+                    <Outlet context={context}/>
                 </div>
             </Layout>
         </>

@@ -160,14 +160,6 @@ const useStyles = createStyles(({css, token}, {compact}: {compact: boolean}) => 
             font-weight: 400;
         }
     `,
-    transferTasks: css`
-        max-height: 260px;
-        overflow-y: auto;
-
-        > div + div {
-            margin-top: 8px;
-        }
-    `,
     hint: css`
         display: block;
         margin-top: 8px;

@@ -102,6 +102,7 @@ export default function Storage({active, revision, hero, removing, onOpen, onCre
     ], [changeMenuOpen, enumData, getMenuItems, isDisabled, onOpen, openMenu, removing]);
 
     return <PageTable ref={table} hero={hero} ariaLabel="云端存储" className={styles.table}
+        paginationAffix={{offsetBottom: 15}}
         rowKey="id" columns={columns} rowSelection={false} scroll={{x: 820}}
         components={tableComponents} tableRender={(children) => <StorageContextMenu.Provider value={contextMenu}>{children}</StorageContextMenu.Provider>}
         rowClassName={(record) => openMenu?.id === String(record.id) ? "action-menu-open" : ""}

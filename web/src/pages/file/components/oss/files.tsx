@@ -437,7 +437,7 @@ const Files = ({id, active, revision, onCancel, onEdit, onBusyChange}: FilesProp
             </Empty> : undefined}/>
         <FileUpload key={revision} ref={upload} path={prefix} active={active} zIndex={1140} request={uploadFile} resumable={false}
             selectionDisabled={uploadDisabled} onUploaded={reload} onUploadingChange={changeUploading}/>
-        <ServerTransfer ref={serverTransfer} record={record} active={active} onChange={reload} onBusyChange={setServerBusy}/>
+        <ServerTransfer ref={serverTransfer} record={record} active={active} onBusyChange={setServerBusy}/>
         <ProModal title={<Title>{editor?.title}</Title>} width="340px" okText={creatingDirectory ? "创建" : "保存"}
             onCancel={() => { if (!busy) closeEditor(); }} onOk={form.submit}
             modalProps={{open: active && editorOpen, zIndex: 1030, confirmLoading: busy, cancelText: "取消",
