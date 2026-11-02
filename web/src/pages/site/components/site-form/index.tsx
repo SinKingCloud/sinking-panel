@@ -124,7 +124,7 @@ const SiteForm = forwardRef(({onSuccess, typeItems}: any, ref): any => {
     const [advanced, setAdvanced] = useState<string[]>([]);
     const [submitting, setSubmitting] = useState(false);
     const categoryOptions = useMemo(() => [
-        {label: "未分类", value: 0},
+        {label: "全部分类", value: 0},
         ...(typeItems || []).map((item: any) => ({label: String(item.name), value: Number(item.id)})),
     ], [typeItems]);
 
