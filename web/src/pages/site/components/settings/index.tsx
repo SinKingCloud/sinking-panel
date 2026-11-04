@@ -21,7 +21,7 @@ import dayjs from "dayjs";
 import {Icon, ProModal, ProModalRef, Title, useTheme} from "sinking-antd";
 import defaultSettings from "@/../config/defaultSettings";
 import AceEditor from "@/components/ace-editor";
-import FilePicker from "@/pages/components/file-picker";
+import FileSelect from "@/pages/components/file-select";
 import Log from "@/pages/components/task-log";
 import ProcessControls from "../process-controls";
 import ActionDropdown from "@/pages/components/ui/action-dropdown";
@@ -2096,12 +2096,12 @@ const RunPathPicker = ({root, value = "", onChange, ...props}: any) => {
         const websiteRoot = String(root || "").trim();
         return isAbsoluteFilePath(websiteRoot) ? normalizeFilePath(websiteRoot) : "";
     }, [root]);
-    const select = useCallback((selected: string) => {
+    const select = useCallback((paths: string[]) => {
         if (!initialPath) {
             message.warning("请先选择网站目录");
             return false;
         }
-        const selectedPath = normalizeFilePath(selected);
+        const selectedPath = normalizeFilePath(paths[0] || "");
         if (!isFilePathWithin(selectedPath, initialPath)) {
             message.warning("运行目录必须位于网站目录内");
             return false;
@@ -2113,20 +2113,20 @@ const RunPathPicker = ({root, value = "", onChange, ...props}: any) => {
         onChange?.(relative);
         return true;
     }, [initialPath, message, onChange]);
-    const change = useCallback((next: string) => {
-        const input = String(next || "");
+    const change = useCallback((paths: string[]) => {
+        const input = paths[0] || "";
         if (isAbsoluteFilePath(input)) {
-            select(input);
+            select(paths);
             return;
         }
         onChange?.(input);
     }, [onChange, select]);
     return (
-        <FilePicker
+        <FileSelect
             buttonProps={{color: "default", variant: "filled", style: {borderColor: "transparent"}}}
             {...props}
             mode="directory"
-            value={value}
+            value={value ? [value] : []}
             initialPath={initialPath}
             onChange={change}
             onSelect={select}/>
@@ -2186,9 +2186,12 @@ const BasicPane = ({site, styles, typeItems, onChange, hideHeader = false}: any)
                 </SettingField>
                 {Number(site.type) !== 1 && (
                     <>
-                        <SettingField className="site-file-picker" name="root" label="网站目录" extra="网站文件保存位置" rules={[{required: true, message: "请选择网站目录"}]}><FilePicker buttonProps={{color: "default", variant: "filled", style: {borderColor: "transparent"}}} mode="directory" placeholder="请输入或选择网站目录"/></SettingField>
+                        <SettingField className="site-file-select" name="root" label="网站目录" extra="网站文件保存位置"
+                            getValueProps={(value: string) => ({value: value ? [value] : []})}
+                            getValueFromEvent={(paths: string[]) => paths[0] || ""}
+                            rules={[{required: true, message: "请选择网站目录"}]}><FileSelect buttonProps={{color: "default", variant: "filled", style: {borderColor: "transparent"}}} mode="directory" placeholder="请输入或选择网站目录"/></SettingField>
                         <SettingField
-                            className="site-file-picker"
+                            className="site-file-select"
                             name="run_path"
                             label="运行目录"
                             dependencies={["root"]}
@@ -3832,8 +3835,11 @@ const RouteRule = ({field, index, count, move, remove, copy, errors, styles}: an
                     <InputNumber placeholder="默认 200，可填写 100 至 599" min={100} max={599} precision={0} style={{width: "100%"}}/>
                 </Form.Item>
             </> : <>
-                <Form.Item className="site-file-picker" name={[field.name, "root"]} label="文件所在目录" rules={[{required: true, whitespace: true, message: "请选择文件所在目录"}]}>
-                    <FilePicker buttonProps={{color: "default", variant: "filled", style: {borderColor: "transparent"}}} mode="directory" placeholder="请输入或选择文件目录"/>
+                <Form.Item className="site-file-select" name={[field.name, "root"]} label="文件所在目录"
+                    getValueProps={(value) => ({value: value ? [value] : []})}
+                    getValueFromEvent={(paths: string[]) => paths[0] || ""}
+                    rules={[{required: true, whitespace: true, message: "请选择文件所在目录"}]}>
+                    <FileSelect buttonProps={{color: "default", variant: "filled", style: {borderColor: "transparent"}}} mode="directory" placeholder="请输入或选择文件目录"/>
                 </Form.Item>
                 <SettingSwitch name={[field.name, "browse"]} title="允许浏览目录" description="直接显示文件列表，不再自动打开首页文件" styles={styles}/>
             </>}

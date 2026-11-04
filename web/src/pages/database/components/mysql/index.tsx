@@ -2,11 +2,13 @@ import {useMemo, useRef, useState} from "react";
 import {App, ConfigProvider, Dropdown, Grid, Input} from "antd";
 import {MysqlContext} from "./context";
 import Workspace from "./workspace";
-import type {DatabasePanelRecord, DatabaseVersion, MysqlApi, MysqlManagerProps, MysqlRequest} from "./entities";
+import type {DatabasePanelRecord, DatabaseVersion, FileSelectProps, MysqlApi, MysqlManagerProps, MysqlRequest} from "./entities";
 
 export type {MysqlManagerProps, MysqlRequests, MysqlComponents, DatabasePanelRecord, DatabaseVersion} from "./entities";
 
-const FilePicker = ({mode, buttonProps, onChange, ...props}: any) => <Input {...props} onChange={(event) => onChange?.(event.target.value)}/>;
+const FileSelect = ({mode, multiple, buttonProps, onSelect, initialPath, defaultValue, value, onChange, ...props}: FileSelectProps) => <Input {...props}
+    defaultValue={defaultValue?.[0]} value={value === undefined ? undefined : value[0] ?? ""}
+    onChange={(event) => onChange?.(event.target.value ? [event.target.value] : [])}/>;
 const ActionDropdown = (props: any) => <Dropdown trigger={["click"]} {...props}/>;
 
 // 独立使用时只需实例、接口方法及关闭回调，不依赖数据管理页面或 shared 组件。
@@ -31,10 +33,10 @@ export default ({requests, components, ...props}: MysqlManagerProps) => {
         task: (body: Record<string, any>) => requestMethods.current["system/task"]({body}),
     }) as MysqlApi, [operations]);
     const context = useMemo(() => ({api, version, features: version?.features || {},
-        FilePicker: components?.FilePicker || FilePicker,
+        FileSelect: components?.FileSelect || FileSelect,
         ActionDropdown: components?.ActionDropdown || ActionDropdown,
         Editor: components?.Editor, ScriptTools: components?.ScriptTools,
-    }), [api, version, components?.FilePicker, components?.ActionDropdown, components?.Editor, components?.ScriptTools]);
+    }), [api, version, components?.FileSelect, components?.ActionDropdown, components?.Editor, components?.ScriptTools]);
 
     return <MysqlContext.Provider value={context}><ConfigProvider modal={{style: {top: screens.md ? 100 : 24, paddingBottom: screens.md ? 100 : 24}}}><App>
         <Workspace {...props} version={version} setVersion={setVersion}/>

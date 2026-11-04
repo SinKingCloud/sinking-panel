@@ -1,4 +1,5 @@
 import type {ComponentType, CSSProperties} from "react";
+import type {ButtonProps, InputProps} from "antd";
 
 export interface DatabasePanelRecord {
     id: number | string;
@@ -23,9 +24,21 @@ export type MysqlOperation = "version" | "databases" | "database_info" | "charse
 export type MysqlRequest = (params: {body: Record<string, any>}) => Promise<{code: number; data?: any; message?: string} | undefined>;
 export type MysqlRequests = Record<MysqlOperation, MysqlRequest> & {"system/task": MysqlRequest};
 
+// 宿主文件选择器在单选、多选时均接收并返回路径数组。
+export interface FileSelectProps extends Omit<InputProps, "value" | "defaultValue" | "onChange" | "onSelect" | "multiple"> {
+    value?: string[];
+    defaultValue?: string[];
+    onChange?: (paths: string[]) => void;
+    onSelect?: (paths: string[]) => boolean | void;
+    mode?: "file" | "directory";
+    multiple?: boolean;
+    initialPath?: string;
+    buttonProps?: ButtonProps;
+}
+
 export interface MysqlComponents {
     ScriptTools?: ComponentType<any>;
-    FilePicker?: ComponentType<any>;
+    FileSelect?: ComponentType<FileSelectProps>;
     ActionDropdown?: ComponentType<any>;
     Editor?: ComponentType<any>;
 }
@@ -55,7 +68,7 @@ export interface MysqlClientContext {
     api: MysqlApi;
     version?: DatabaseVersion;
     features: Record<string, boolean>;
-    FilePicker: ComponentType<any>;
+    FileSelect: ComponentType<FileSelectProps>;
     ActionDropdown: ComponentType<any>;
     Editor?: ComponentType<any>;
 }

@@ -1,6 +1,6 @@
 import React, {memo, useRef} from "react";
 import {Col, Form as AntForm, Input, Row, Select} from "antd";
-import FilePicker from "@/pages/components/file-picker";
+import FileSelect from "@/pages/components/file-select";
 import {
     getRemoteFileName,
     validateFileName,
@@ -20,11 +20,13 @@ export const CompressOperationFields = memo(() => (
         <AntForm.Item
             name="dir"
             label="保存目录"
+            getValueProps={(value) => ({value: value ? [value] : []})}
+            getValueFromEvent={(paths: string[]) => paths[0] || ""}
             rules={[
                 {required: true, whitespace: true, message: "请输入保存目录"},
                 {validator: validatePath},
             ]}>
-            <FilePicker buttonProps={{color: "default", variant: "filled", style: {borderColor: "transparent"}}} mode="directory" placeholder="请输入或选择压缩文件的保存目录"/>
+            <FileSelect buttonProps={{color: "default", variant: "filled", style: {borderColor: "transparent"}}} mode="directory" placeholder="请输入或选择压缩文件的保存目录"/>
         </AntForm.Item>
         <Row gutter={12}>
             <Col span={15}>
@@ -55,11 +57,13 @@ CompressOperationFields.displayName = "CompressOperationFields";
 export const ExtractOperationFields = memo(() => (
     <AntForm.Item
         name="dir"
+        getValueProps={(value) => ({value: value ? [value] : []})}
+        getValueFromEvent={(paths: string[]) => paths[0] || ""}
         rules={[
             {required: true, whitespace: true, message: "请输入解压目标目录"},
             {validator: validatePath},
         ]}>
-        <FilePicker buttonProps={{color: "default", variant: "filled", style: {borderColor: "transparent"}}} mode="directory" autoFocus aria-label="解压目标目录" placeholder="请输入或选择解压目标目录"/>
+        <FileSelect buttonProps={{color: "default", variant: "filled", style: {borderColor: "transparent"}}} mode="directory" autoFocus aria-label="解压目标目录" placeholder="请输入或选择解压目标目录"/>
     </AntForm.Item>
 ));
 
@@ -90,11 +94,13 @@ export const RemoteDownloadOperationFields = memo(() => {
             <AntForm.Item
                 name="path"
                 label="保存目录"
+                getValueProps={(value) => ({value: value ? [value] : []})}
+                getValueFromEvent={(paths: string[]) => paths[0] || ""}
                 rules={[
                     {required: true, whitespace: true, message: "请输入保存目录"},
                     {validator: validatePath},
                 ]}>
-                <FilePicker buttonProps={{color: "default", variant: "filled", style: {borderColor: "transparent"}}} mode="directory" placeholder="请输入或选择文件保存目录"/>
+                <FileSelect buttonProps={{color: "default", variant: "filled", style: {borderColor: "transparent"}}} mode="directory" placeholder="请输入或选择文件保存目录"/>
             </AntForm.Item>
             <AntForm.Item
                 name="name"

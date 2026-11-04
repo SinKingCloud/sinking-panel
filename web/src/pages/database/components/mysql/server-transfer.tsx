@@ -6,7 +6,7 @@ import useStyles from "./component-styles/client";
 
 // SQL 文件由服务器流式处理，浏览器只提交路径并跟踪后台任务。
 export default ({record, schema, table, disabled, onChange}: any) => {
-    const {api, FilePicker, ActionDropdown} = useMysqlClient();
+    const {api, FileSelect, ActionDropdown} = useMysqlClient();
     const {message, modal} = App.useApp();
     const {styles} = useStyles();
     const {token} = antdTheme.useToken();
@@ -144,10 +144,16 @@ export default ({record, schema, table, disabled, onChange}: any) => {
             }}>
             <ConfigProvider theme={{components: {Input: {controlHeight: token.controlHeight}}}}>
             <Form form={form} layout="vertical" variant="filled" onFinish={submit} disabled={busy || Boolean(taskId)}>
-                {displayDialog && (displayDialog.mode === "import" ? <Form.Item name="path" label="SQL 文件" rules={[{required: true, whitespace: true, message: "请选择服务器上的文件"}]}>
-                    <FilePicker mode="file" placeholder="请选择 SQL 文件" buttonProps={{color: "default", variant: "filled"}}/>
+                {displayDialog && (displayDialog.mode === "import" ? <Form.Item name="path" label="SQL 文件"
+                    getValueProps={(value) => ({value: value ? [value] : []})}
+                    getValueFromEvent={(paths: string[]) => paths[0] || ""}
+                    rules={[{required: true, whitespace: true, message: "请选择服务器上的文件"}]}>
+                    <FileSelect mode="file" placeholder="请选择 SQL 文件" buttonProps={{color: "default", variant: "filled"}}/>
                 </Form.Item> : <>
-                    <Form.Item name="directory" label="服务器目录" rules={[{required: true, whitespace: true, message: "请选择保存目录"}]}><FilePicker mode="directory" placeholder="请选择保存目录" buttonProps={{color: "default", variant: "filled"}}/></Form.Item>
+                    <Form.Item name="directory" label="服务器目录"
+                        getValueProps={(value) => ({value: value ? [value] : []})}
+                        getValueFromEvent={(paths: string[]) => paths[0] || ""}
+                        rules={[{required: true, whitespace: true, message: "请选择保存目录"}]}><FileSelect mode="directory" placeholder="请选择保存目录" buttonProps={{color: "default", variant: "filled"}}/></Form.Item>
                     <Form.Item name="name" label="文件名称" rules={[{required: true, whitespace: true, max: 255, message: "请输入文件名称"},
                         {pattern: /^(?!\.{1,2}$)[^/\\\x00]+$/, message: "文件名称不能包含路径"}]}><Input placeholder="例如 backup.sql"/></Form.Item>
                 </>)}

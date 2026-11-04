@@ -19,7 +19,7 @@ import {createStyles} from "antd-style";
 import {Icon, ProModal, Title, useTheme} from "sinking-antd";
 import defaultSettings from "@/../config/defaultSettings";
 import AceEditor from "@/components/ace-editor";
-import FilePicker from "@/pages/components/file-picker";
+import FileSelect from "@/pages/components/file-select";
 import Log from "@/pages/components/task-log";
 import {systemHTTP} from "@/service/api/system";
 
@@ -1395,8 +1395,10 @@ const HTTPService = forwardRef<any, any>((_, ref): any => {
                                     wide
                                     name={name}
                                     title={label}
+                                    getValueProps={(value: string) => ({value: value ? [value] : []})}
+                                    getValueFromEvent={(paths: string[]) => paths[0] || ""}
                                     description={description}>
-                                    <FilePicker
+                                    <FileSelect
                                         mode={mode}
                                         size="small"
                                         buttonProps={{color: "default", variant: "filled", style: {borderColor: "transparent"}}}

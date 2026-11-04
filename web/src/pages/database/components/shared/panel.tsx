@@ -3,10 +3,12 @@ import type {ComponentType} from "react";
 import {App, Button, ConfigProvider, Dropdown, Input, Spin, theme, Tooltip, Typography} from "antd";
 import {useTheme} from "sinking-antd";
 import {DatabaseContext} from "./context";
-import type {DatabasePanelProps, DatabaseVersion} from "./entities";
+import type {DatabasePanelProps, DatabaseVersion, FileSelectProps} from "./entities";
 import useStyles from "./styles/client";
 
-const FilePicker = ({mode, buttonProps, onChange, ...props}: any) => <Input {...props} onChange={(event) => onChange?.(event.target.value)}/>;
+const FileSelect = ({mode, multiple, buttonProps, onSelect, initialPath, defaultValue, value, onChange, ...props}: FileSelectProps) => <Input {...props}
+    defaultValue={defaultValue?.[0]} value={value === undefined ? undefined : value[0] ?? ""}
+    onChange={(event) => onChange?.(event.target.value ? [event.target.value] : [])}/>;
 const ActionDropdown = (props: any) => <Dropdown trigger={["click"]} {...props}/>;
 
 // 为每个独立入口提供请求和完整样式，不依赖页面工作区或外部弹窗。
@@ -68,10 +70,10 @@ export default ({record: target, initialTab, onTabChange, request, version: supp
     }, [request]);
     const context = useMemo(() => ({
         ...actions, request, version, features: version?.features || {},
-        FilePicker: components?.FilePicker || FilePicker,
+        FileSelect: components?.FileSelect || FileSelect,
         ActionDropdown: components?.ActionDropdown || ActionDropdown,
         Editor: components?.Editor, ScriptTools: components?.ScriptTools,
-    }), [actions, request, version, components?.FilePicker, components?.ActionDropdown, components?.Editor, components?.ScriptTools]);
+    }), [actions, request, version, components?.FileSelect, components?.ActionDropdown, components?.Editor, components?.ScriptTools]);
     return <DatabaseContext.Provider value={context}><ConfigProvider theme={{
         token: {fontSize, fontSizeSM: fontSize},
         components: {

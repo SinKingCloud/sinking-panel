@@ -1,7 +1,7 @@
 import {useEffect, useRef, useState} from "react";
 import {App, Button, Collapse, Form, Grid, Input, InputNumber, Select, Spin, Typography} from "antd";
 import {Icon, ProModal, Title, useTheme} from "sinking-antd";
-import FilePicker from "@/pages/components/file-picker";
+import FileSelect from "@/pages/components/file-select";
 import {getDatabaseInfo, testDatabase, updateDatabase} from "@/service/api/database";
 import useStyles from "./components/shared/styles/client";
 import useFormStyles from "./forms-styles";
@@ -145,14 +145,14 @@ export default ({open, record, categories = [], onCancel, onSuccess}: any) => {
             case "number": input = <InputNumber min={field.min} max={field.max} precision={0} placeholder={placeholder} style={{width: "100%"}}/>; break;
             case "select": input = <Select options={field.options} placeholder={placeholder}/>; break;
             case "boolean": input = <Select placeholder={placeholder} options={[{value: 0, label: "关闭"}, {value: 1, label: "开启"}]}/>; break;
-            case "path": input = <FilePicker mode="file" placeholder={placeholder}/>; break;
+            case "path": input = <FileSelect mode="file" placeholder={placeholder}/>; break;
             default: input = <Input autoComplete="off" placeholder={placeholder}/>;
         }
         return <Form.Item key={field.name} name={["config", field.name]} label={field.label}
             hidden={field.visible ? !field.visible(config) : false}
             className={field.wide || field.type === "path" ? "db-field-wide" : undefined}
-            getValueProps={(value) => ({value: field.type === "boolean" ? (value ? 1 : 0) : field.valueAliases?.[value] ?? value})}
-            getValueFromEvent={field.type === "boolean" ? (value) => value === 1 : undefined}
+            getValueProps={(value) => ({value: field.type === "boolean" ? (value ? 1 : 0) : field.type === "path" ? (value ? [value] : []) : field.valueAliases?.[value] ?? value})}
+            getValueFromEvent={field.type === "boolean" ? (value) => value === 1 : field.type === "path" ? (paths: string[]) => paths[0] || "" : undefined}
             extra={typeof field.description === "function" ? field.description(config) : field.description}
             rules={[{required: Boolean(field.required), message: `请填写${field.label}`}]}>
             {input}

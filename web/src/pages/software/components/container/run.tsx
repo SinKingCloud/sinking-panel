@@ -2,7 +2,7 @@ import {forwardRef, memo, useCallback, useEffect, useImperativeHandle, useRef, u
 import {App, Button, Collapse, Dropdown, Form, Grid, Input, InputNumber, Switch} from "antd";
 import {createStyles} from "antd-style";
 import {Icon, ProModal, Title, useTheme} from "sinking-antd";
-import FilePicker from "@/pages/components/file-picker";
+import FileSelect from "@/pages/components/file-select";
 import {containerImages, runContainer} from "@/service/api/container";
 import ImageSelect from "@/pages/components/image-select";
 
@@ -552,13 +552,15 @@ const RunContainer = forwardRef<any, { onChange?: () => void }>(({onChange}, ref
                             </div>
                             <div className="run-fields">
                                 <Form.Item name={[name, "source"]} label="服务器路径"
+                                           getValueProps={(value) => ({value: value ? [value] : []})}
+                                           getValueFromEvent={(paths: string[]) => paths[0] || ""}
                                            tooltip="选择服务器上已创建的数据目录或文件。"
                                            rules={[{
                                                required: true,
                                                whitespace: true,
                                                message: "请选择已创建的服务器路径"
                                            }]}>
-                                    <FilePicker placeholder="选择目录或输入文件路径" disabled={submitting}
+                                    <FileSelect placeholder="选择目录或输入文件路径" disabled={submitting}
                                                 buttonProps={{color: "default", variant: "filled"}}/>
                                 </Form.Item>
                                 <Form.Item name={[name, "destination"]} label="容器路径"

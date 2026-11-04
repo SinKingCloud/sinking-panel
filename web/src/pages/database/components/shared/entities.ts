@@ -1,4 +1,5 @@
 import type {ComponentType, CSSProperties} from "react";
+import type {ButtonProps, InputProps} from "antd";
 
 // 每种数据库组件固定自己的类型，调用方只需要提供目标数据库信息。
 export interface DatabasePanelRecord {
@@ -53,10 +54,22 @@ export interface DatabaseManagerProps {
     style?: CSSProperties;
 }
 
+// 宿主文件选择器在单选、多选时均接收并返回路径数组。
+export interface FileSelectProps extends Omit<InputProps, "value" | "defaultValue" | "onChange" | "onSelect" | "multiple"> {
+    value?: string[];
+    defaultValue?: string[];
+    onChange?: (paths: string[]) => void;
+    onSelect?: (paths: string[]) => boolean | void;
+    mode?: "file" | "directory";
+    multiple?: boolean;
+    initialPath?: string;
+    buttonProps?: ButtonProps;
+}
+
 // 使用方可接入自己的服务器文件选择器、操作菜单和代码编辑器。
 export interface DatabasePanelComponents {
     ScriptTools?: ComponentType<any>;
-    FilePicker?: ComponentType<any>;
+    FileSelect?: ComponentType<FileSelectProps>;
     ActionDropdown?: ComponentType<any>;
     Editor?: ComponentType<any>;
 }
@@ -70,7 +83,7 @@ export interface DatabaseClientContext {
     api: Record<string, (record: DatabasePanelRecord, body?: Record<string, any>) => Promise<any>> & {
         task: (body: Record<string, any>) => Promise<any>;
     };
-    FilePicker: ComponentType<any>;
+    FileSelect: ComponentType<FileSelectProps>;
     ActionDropdown: ComponentType<any>;
     Editor?: ComponentType<any>;
 }

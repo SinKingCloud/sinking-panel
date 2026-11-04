@@ -1,10 +1,10 @@
 import React, {forwardRef, memo, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState} from "react";
 import {App, Button, ConfigProvider, Form, Grid, Input, Select, Space, Tooltip} from "antd";
-import type {InputRef, TableRef} from "antd";
+import type {ButtonProps, InputProps, InputRef, TableRef} from "antd";
 import DisabledContext from "antd/es/config-provider/DisabledContext";
 import useVariant from "antd/es/form/hooks/useVariants";
 import {Icon, ProModal, Title, useTheme} from "sinking-antd";
-import {getFileDisks, getFileInfo, getFileList} from "@/service/api/file";
+import {createFile, getFileDisks, getFileInfo, getFileList} from "@/service/api/file";
 import {readFileStorage, updateFileStorage} from "@/pages/file/hooks/file-storage";
 import {
     buildFileBreadcrumbs,
@@ -16,23 +16,36 @@ import {
     normalizeFilePath,
     parentFilePath,
 } from "@/pages/file/utils";
-import FilePickerBrowser from "./browser";
-import useStyles from "./styles";
+import FileSelectBrowser from "./browser";
+import useStyles from "@/pages/components/ui/path-select/styles";
 
-// FilePicker 默认返回单个路径；文件多选时使用 string[]，浏览目录和分页不会丢失选择。
-const FilePicker = forwardRef<InputRef, any>(({
-    buttonProps,
-    disabled,
-    initialPath,
-    mode = "directory",
-    multiple = false,
-    onChange,
-    onSelect,
-    placeholder,
-    size,
-    value = "",
-    ...inputProps
-}, ref) => {
+export interface FileSelectProps extends Omit<InputProps, "value" | "defaultValue" | "onChange" | "onSelect" | "multiple"> {
+    buttonProps?: ButtonProps;
+    initialPath?: string;
+    mode?: "directory" | "file";
+    multiple?: boolean;
+    value?: string[];
+    defaultValue?: string[];
+    onChange?: (paths: string[]) => void;
+    onSelect?: (paths: string[]) => boolean | void;
+}
+
+// 单选、多选均使用路径数组，单选输入框仅显示第一个路径。
+const FileSelect = forwardRef<InputRef, FileSelectProps>((props, ref) => {
+    const {
+        buttonProps,
+        defaultValue = [],
+        disabled,
+        initialPath,
+        mode = "directory",
+        multiple = false,
+        onChange,
+        onSelect,
+        placeholder,
+        size,
+        value,
+        ...inputProps
+    } = props;
     const theme = useTheme();
     const {message} = App.useApp();
     const compact = Boolean(theme?.isCompactTheme?.());
@@ -41,11 +54,17 @@ const FilePicker = forwardRef<InputRef, any>(({
     const contextDisabled = useContext(DisabledContext);
     const isDisabled = disabled ?? contextDisabled;
     const multi = mode === "file" && multiple;
-    const values: string[] = multi && Array.isArray(value) ? value : [];
+    const controlled = Object.prototype.hasOwnProperty.call(props, "value");
+    const [localValue, setLocalValue] = useState<string[]>(defaultValue);
+    const values = controlled ? value || [] : localValue;
     // 与 Input 一样继承 Form 和 ConfigProvider 的外观，按钮可通过 buttonProps 单独覆盖。
     const [variant] = useVariant("input", inputProps.variant, inputProps.bordered);
     const requestRef = useRef(0);
     const selectionRequestRef = useRef(0);
+    const directoryRequestRef = useRef(0);
+    const directoryOpenRef = useRef(false);
+    const directorySubmittingRef = useRef(false);
+    const [directoryForm] = Form.useForm();
     const restoredPathRef = useRef("");
     const pathRef = useRef<HTMLOListElement>(null);
     const pathInputRef = useRef<InputRef>(null);
@@ -69,10 +88,15 @@ const FilePicker = forwardRef<InputRef, any>(({
     const [reload, setReload] = useState(0);
     const [editingPath, setEditingPath] = useState(false);
     const [pathDraft, setPathDraft] = useState("");
+    const [directoryOpen, setDirectoryOpen] = useState(false);
+    const [directoryPath, setDirectoryPath] = useState("");
+    const [directorySubmitting, setDirectorySubmitting] = useState(false);
 
     useEffect(() => () => {
         requestRef.current += 1;
         selectionRequestRef.current += 1;
+        directoryRequestRef.current += 1;
+        directoryOpenRef.current = false;
     }, []);
 
     const title = mode === "directory" ? "选择目录" : "选择文件";
@@ -103,7 +127,7 @@ const FilePicker = forwardRef<InputRef, any>(({
 
     const show = useCallback(() => {
         if (isDisabled) return;
-        const input = multi ? String(value?.[0] || "") : String(value || "").trim();
+        const input = values[0] || "";
         const absolute = isAbsoluteFilePath(input) ? normalizeFilePath(input) : "";
         const preferred = String(initialPath || "").trim();
         const preferredPath = isAbsoluteFilePath(preferred) ? normalizeFilePath(preferred) : "";
@@ -127,7 +151,7 @@ const FilePicker = forwardRef<InputRef, any>(({
         setPath(initialDirectory);
         setLoadedPath("");
         setSelectedFile(undefined);
-        setSelectedPaths(multi && Array.isArray(value) ? value.slice() : []);
+        setSelectedPaths(multi ? values.slice() : []);
         setDisks([]);
         setDisksLoading(true);
         setDisksError("");
@@ -147,11 +171,16 @@ const FilePicker = forwardRef<InputRef, any>(({
                 }
             }).catch(() => undefined);
         }
-    }, [initialPath, isDisabled, mode, multi, value]);
+    }, [initialPath, isDisabled, mode, multi, values]);
 
     const close = useCallback(() => {
         requestRef.current += 1;
         selectionRequestRef.current += 1;
+        directoryRequestRef.current += 1;
+        directoryOpenRef.current = false;
+        directorySubmittingRef.current = false;
+        setDirectoryOpen(false);
+        setDirectorySubmitting(false);
         setLoading(false);
         setEditingPath(false);
         setPathDraft(path);
@@ -171,7 +200,7 @@ const FilePicker = forwardRef<InputRef, any>(({
             message.warning("请输入文件的绝对路径");
             return;
         }
-        const normalized = multi ? selectedPaths.map(normalizeFilePath) : normalizeFilePath(selectedPath);
+        const normalized = (multi ? selectedPaths : [selectedPath]).map(normalizeFilePath);
         if (onSelect) {
             if (onSelect(normalized) === false) {
                 return;
@@ -179,8 +208,9 @@ const FilePicker = forwardRef<InputRef, any>(({
         } else {
             onChange?.(normalized);
         }
+        if (!controlled) setLocalValue(normalized);
         close();
-    }, [close, error, isDisabled, loadedPath, loading, message, mode, multi, onChange, onSelect, path, selectedFile, selectedPaths, showingDisks]);
+    }, [close, controlled, error, isDisabled, loadedPath, loading, message, mode, multi, onChange, onSelect, path, selectedFile, selectedPaths, showingDisks]);
 
     const selectFile = useCallback((file: any) => {
         selectionRequestRef.current += 1;
@@ -194,7 +224,9 @@ const FilePicker = forwardRef<InputRef, any>(({
     // 手输路径按原样加入，避免 tags 模式自动删去文件名末尾的空格。
     const changePaths = (paths: string[]) => {
         const unique = new Map(paths.map((item) => [isAbsoluteFilePath(item) ? comparablePath(item) : item, item]));
-        onChange?.([...unique.values()]);
+        const nextValue = [...unique.values()];
+        if (!controlled) setLocalValue(nextValue);
+        onChange?.(nextValue);
     };
     const addPath = () => {
         if (searchValue) changePaths([...values, searchValue]);
@@ -247,6 +279,49 @@ const FilePicker = forwardRef<InputRef, any>(({
         if (showingDisks) setDiskReload((current) => current + 1);
         else setReload((current) => current + 1);
     }, [showingDisks]);
+
+    const openDirectoryForm = useCallback(() => {
+        if (isDisabled || showingDisks || browserLoading || browserError || !loadedPath
+            || comparablePath(loadedPath) !== comparablePath(path)) return;
+        directoryRequestRef.current += 1;
+        directoryOpenRef.current = true;
+        setDirectoryPath(loadedPath);
+        setDirectoryOpen(true);
+    }, [browserError, browserLoading, isDisabled, loadedPath, path, showingDisks]);
+
+    const closeDirectoryForm = useCallback(() => {
+        directoryRequestRef.current += 1;
+        directoryOpenRef.current = false;
+        directorySubmittingRef.current = false;
+        setDirectoryOpen(false);
+        setDirectorySubmitting(false);
+    }, []);
+
+    const createDirectory = async ({name}: {name: string}) => {
+        if (isDisabled || !directoryOpenRef.current || directorySubmittingRef.current || !directoryPath) return;
+        const request = directoryRequestRef.current;
+        directorySubmittingRef.current = true;
+        setDirectorySubmitting(true);
+        try {
+            const response = await createFile({body: {path: directoryPath, name: `${name.trim()}/`}});
+            if (directoryRequestRef.current !== request) return;
+            if (response?.code !== 200) {
+                message.error(response?.message || "新建文件夹失败");
+                return;
+            }
+            message.success(response?.message || "创建成功");
+            closeDirectoryForm();
+            setLoading(true);
+            setReload((current) => current + 1);
+        } catch (error: any) {
+            if (directoryRequestRef.current === request) message.error(error?.message || "新建文件夹失败");
+        } finally {
+            if (directoryRequestRef.current === request) {
+                directorySubmittingRef.current = false;
+                setDirectorySubmitting(false);
+            }
+        }
+    };
 
     useEffect(() => {
         if (!open) {
@@ -388,7 +463,7 @@ const FilePicker = forwardRef<InputRef, any>(({
         <>
             <Space.Compact className={styles.field} block>
                 {multi ? <Select
-                    {...inputProps}
+                    {...inputProps as any}
                     ref={ref as any}
                     size={size}
                     mode="multiple"
@@ -413,10 +488,10 @@ const FilePicker = forwardRef<InputRef, any>(({
                     ref={ref}
                     {...inputProps}
                     size={size}
-                    value={value}
+                    value={values[0] || ""}
                     disabled={isDisabled}
                     placeholder={placeholder || (mode === "directory" ? "请输入或选择目录" : "请输入或选择文件")}
-                    onChange={(event) => onChange?.(event.target.value)}/>}
+                    onChange={(event) => changePaths(event.target.value ? [event.target.value] : [])}/>}
                 <Tooltip title={title}>
                     <Button
                         color={buttonProps?.type || buttonProps?.danger ? undefined : "default"}
@@ -452,7 +527,7 @@ const FilePicker = forwardRef<InputRef, any>(({
                         styles: {body: {paddingTop: compact ? 10 : 15}},
                     }}>
                     <Form component={false} size={compact ? "small" : "middle"} variant="outlined">
-                        <FilePickerBrowser
+                        <FileSelectBrowser
                             className={styles.browser}
                             compact={compact}
                             mode={mode}
@@ -485,14 +560,51 @@ const FilePicker = forwardRef<InputRef, any>(({
                             onSelectionChange={setSelectedPaths}
                             onConfirm={confirm}
                             onPageChange={changePage}
+                            onCreateDirectory={openDirectoryForm}
                             onReload={reloadList}/>
                     </Form>
                 </ProModal>
             </ConfigProvider>
+            <ProModal
+                title={<Title>新建文件夹</Title>}
+                width="340px"
+                okText="创建"
+                onOk={directoryForm.submit}
+                onCancel={closeDirectoryForm}
+                modalProps={{
+                    open: directoryOpen && open && !isDisabled,
+                    zIndex: 2000,
+                    style: {top: screens.md ? 100 : 24, paddingBottom: screens.md ? 100 : 24},
+                    cancelText: "取消",
+                    confirmLoading: directorySubmitting,
+                    focusable: {focusTriggerAfterClose: true},
+                    mask: {closable: true},
+                    styles: {body: {paddingTop: compact ? 10 : 15}},
+                    afterClose: () => {
+                        if (directoryOpenRef.current) return;
+                        directoryForm.resetFields();
+                        setDirectoryPath("");
+                    },
+                }}>
+                <Form form={directoryForm} layout="vertical" variant="filled" preserve={false} requiredMark={false} onFinish={createDirectory}>
+                    <Form.Item name="name" rules={[
+                        {required: true, whitespace: true, message: "请输入文件夹名称"},
+                        {max: 255, message: "名称不能超过255个字符"},
+                        {validator: async (_, value) => {
+                            const name = String(value || "").trim();
+                            if (name === "." || name === ".." || /[\\/\0]/.test(name)) {
+                                throw new Error("名称不能包含路径分隔符");
+                            }
+                        }},
+                    ]}>
+                        <Input aria-label="请输入文件夹名称" placeholder="请输入文件夹名称" maxLength={255} disabled={directorySubmitting}/>
+                    </Form.Item>
+                </Form>
+            </ProModal>
         </>
     );
 });
 
-FilePicker.displayName = "FilePicker";
+FileSelect.displayName = "FileSelect";
 
-export default memo(FilePicker);
+export default memo(FileSelect);

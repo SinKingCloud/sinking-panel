@@ -22,8 +22,9 @@ const useStyles = createStyles<{compact: boolean}>(({css, token}, props) => ({
     `,
     field: css`
         width: 100%;
+        min-width: 0;
 
-        .ant-input, .ant-select {
+        .ant-input, .ant-input-affix-wrapper, .ant-select {
             min-width: 0;
             flex: 1;
         }
@@ -41,10 +42,10 @@ const useStyles = createStyles<{compact: boolean}>(({css, token}, props) => ({
         border-radius: ${token.borderRadius}px;
         background: ${token.colorBgContainer};
 
-        .file-picker-toolbar {
+        .path-select-toolbar {
             display: grid;
             min-width: 0;
-            grid-template-columns: auto minmax(0, 1fr);
+            grid-template-columns: auto minmax(0, 1fr) auto;
             align-items: center;
             gap: ${props.compact ? 6 : 8}px;
             padding: ${props.compact ? 7 : 9}px;
@@ -52,7 +53,14 @@ const useStyles = createStyles<{compact: boolean}>(({css, token}, props) => ({
             background: ${token.colorFillQuaternary};
         }
 
-        .file-picker-up {
+        .path-select-actions {
+            display: flex;
+            flex: none;
+            align-items: center;
+            gap: ${props.compact ? 6 : 8}px;
+        }
+
+        .path-select-up {
             width: ${props.compact ? 28 : 30}px;
             min-width: ${props.compact ? 28 : 30}px;
             height: ${props.compact ? 28 : 30}px;
@@ -63,13 +71,20 @@ const useStyles = createStyles<{compact: boolean}>(({css, token}, props) => ({
             color: ${token.colorTextSecondary};
         }
 
-        .file-picker-up:not(:disabled):hover {
+        .path-select-up:not(:disabled):hover {
             border-color: ${token.colorBorderSecondary};
             background: ${token.colorFillTertiary};
             color: ${token.colorText};
         }
 
-        .file-picker-path {
+        .path-select-up.ant-btn:disabled {
+            border: 0;
+            background: ${token.colorBgContainer};
+            color: ${token.colorTextDisabled};
+            box-shadow: none;
+        }
+
+        .path-select-path {
             box-sizing: border-box;
             height: ${props.compact ? 30 : 32}px;
             min-width: 0;
@@ -90,21 +105,21 @@ const useStyles = createStyles<{compact: boolean}>(({css, token}, props) => ({
             }
         }
 
-        .file-picker-path li {
+        .path-select-path li {
             min-width: 0;
             display: inline-flex;
             flex: none;
             align-items: center;
         }
 
-        .file-picker-path-separator {
+        .path-select-path-separator {
             margin-inline: ${props.compact ? 2 : 3}px;
             color: ${token.colorTextQuaternary};
             font-size: ${props.compact ? 8 : 9}px;
         }
 
-        .file-picker-path-button,
-        .file-picker-path-current {
+        .path-select-path-button,
+        .path-select-path-current {
             max-width: ${props.compact ? 150 : 190}px;
             min-width: 0;
             padding: 0 ${props.compact ? 2 : 3}px;
@@ -124,50 +139,50 @@ const useStyles = createStyles<{compact: boolean}>(({css, token}, props) => ({
             transition: background-color ${token.motionDurationFast}, color ${token.motionDurationFast};
         }
 
-        .file-picker-path-button > span,
-        .file-picker-path-current > span {
+        .path-select-path-button > span,
+        .path-select-path-current > span {
             min-width: 0;
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
         }
 
-        .file-picker-path-button:hover {
+        .path-select-path-button:hover {
             background: ${token.colorFillTertiary};
             color: ${token.colorText};
         }
 
-        .file-picker-path-button:disabled {
+        .path-select-path-button:disabled {
             color: ${token.colorTextDisabled};
             cursor: not-allowed;
         }
 
-        .file-picker-path-button:focus-visible {
+        .path-select-path-button:focus-visible {
             box-shadow: 0 0 0 2px ${token.colorPrimaryBg};
         }
 
-        .file-picker-path-current {
+        .path-select-path-current {
             color: ${token.colorText};
             cursor: text;
             font-weight: 500;
         }
 
-        .file-picker-path-current:not(:disabled):hover {
+        .path-select-path-current:not(:disabled):hover {
             background: ${token.colorFillTertiary};
             color: ${token.colorPrimary};
         }
 
-        .file-picker-path-current:focus-visible {
+        .path-select-path-current:focus-visible {
             color: ${token.colorPrimary};
             box-shadow: 0 0 0 2px ${token.colorPrimaryBg};
         }
 
-        .file-picker-path-current:disabled {
+        .path-select-path-current:disabled {
             color: ${token.colorText};
             cursor: default;
         }
 
-        .file-picker-path-input.ant-input {
+        .path-select-path-input.ant-input {
             width: min(100%, ${props.compact ? 420 : 480}px);
             min-width: 40px;
             max-width: 100%;
@@ -182,12 +197,12 @@ const useStyles = createStyles<{compact: boolean}>(({css, token}, props) => ({
             font-size: ${props.compact ? 11 : 12}px;
         }
 
-        .file-picker-table .ant-table,
-        .file-picker-table .ant-table-container {
+        .path-select-table .ant-table,
+        .path-select-table .ant-table-container {
             background: transparent;
         }
 
-        .file-picker-table .ant-table-thead > tr > th {
+        .path-select-table .ant-table-thead > tr > th {
             padding: ${props.compact ? "7px 10px" : "9px 12px"} !important;
             border-bottom: 1px solid ${token.colorSplit};
             background: ${token.colorBgContainer};
@@ -196,7 +211,7 @@ const useStyles = createStyles<{compact: boolean}>(({css, token}, props) => ({
             font-weight: 500;
         }
 
-        .file-picker-table .ant-table-tbody > tr > td {
+        .path-select-table .ant-table-tbody > tr > td {
             padding: ${props.compact ? "7px 10px" : "9px 12px"} !important;
             border-bottom: 1px solid ${token.colorSplit};
             background: ${token.colorBgContainer};
@@ -204,54 +219,54 @@ const useStyles = createStyles<{compact: boolean}>(({css, token}, props) => ({
             transition: background-color ${token.motionDurationFast};
         }
 
-        .file-picker-table .ant-table-tbody > tr.ant-table-measure-row > td {
+        .path-select-table .ant-table-tbody > tr.ant-table-measure-row > td {
             padding-block: 0 !important;
             border-block: 0 !important;
         }
 
-        .file-picker-table .ant-table-tbody > tr:last-child > td {
+        .path-select-table .ant-table-tbody > tr:last-child > td {
             border-bottom: 0;
         }
 
-        .file-picker-table .ant-table-body {
+        .path-select-table .ant-table-body {
             min-height: ${props.compact
                 ? "clamp(180px, 34dvh, 238px)"
                 : "clamp(200px, 38dvh, 278px)"};
             scrollbar-width: thin;
         }
 
-        .file-picker-table .ant-table-placeholder td {
+        .path-select-table .ant-table-placeholder td {
             height: ${props.compact
                 ? "clamp(180px, 34dvh, 238px)"
                 : "clamp(200px, 38dvh, 278px)"};
             border-bottom: 0;
         }
 
-        .file-picker-name-cell {
+        .path-select-name-cell {
             display: flex;
             width: max-content;
             align-items: center;
             gap: ${props.compact ? 7 : 9}px;
         }
 
-        .file-picker-icon {
+        .path-select-icon {
             flex: none;
             color: ${token.colorTextSecondary};
             font-size: ${props.compact ? 14 : 16}px;
         }
 
-        .file-picker-directory .file-picker-icon {
+        .path-select-directory .path-select-icon {
             color: ${token.colorPrimary};
         }
 
-        .file-picker-name {
+        .path-select-name {
             flex: none;
             color: ${token.colorText};
             font-weight: 400;
             white-space: nowrap;
         }
 
-        .file-picker-row-action {
+        .path-select-row-action {
             width: ${props.compact ? 12 : 14}px;
             flex: none;
             display: inline-flex;
@@ -261,47 +276,47 @@ const useStyles = createStyles<{compact: boolean}>(({css, token}, props) => ({
             font-size: ${props.compact ? 11 : 12}px;
         }
 
-        .file-picker-directory,
-        .file-picker-selectable {
+        .path-select-directory,
+        .path-select-selectable {
             cursor: pointer;
         }
 
-        .file-picker-directory:hover > td,
-        .file-picker-selectable:hover > td {
+        .path-select-directory:hover > td,
+        .path-select-selectable:hover > td {
             background: ${token.colorFillQuaternary} !important;
         }
 
-        .file-picker-directory:focus-visible > td,
-        .file-picker-selectable:focus-visible > td {
+        .path-select-directory:focus-visible > td,
+        .path-select-selectable:focus-visible > td {
             background: ${token.colorFillQuaternary} !important;
         }
 
-        .file-picker-directory:focus-visible > td:first-child,
-        .file-picker-selectable:focus-visible > td:first-child {
+        .path-select-directory:focus-visible > td:first-child,
+        .path-select-selectable:focus-visible > td:first-child {
             box-shadow: inset 3px 0 ${token.colorPrimary};
         }
 
-        .file-picker-selected > td {
+        .path-select-selected > td {
             background: ${token.colorPrimaryBg} !important;
         }
 
-        .file-picker-selected:hover > td,
-        .file-picker-selected:focus-visible > td {
+        .path-select-selected:hover > td,
+        .path-select-selected:focus-visible > td {
             background: ${token.colorPrimaryBgHover} !important;
         }
 
-        .file-picker-selected .file-picker-row-action {
+        .path-select-selected .path-select-row-action {
             color: ${token.colorPrimary};
         }
 
-        .file-picker-error {
+        .path-select-error {
             display: flex;
             flex-direction: column;
             align-items: center;
             gap: 8px;
         }
 
-        .file-picker-status {
+        .path-select-status {
             box-sizing: border-box;
             min-height: ${props.compact ? 36 : 40}px;
             padding: ${props.compact ? "5px 9px" : "6px 11px"};
@@ -314,7 +329,7 @@ const useStyles = createStyles<{compact: boolean}>(({css, token}, props) => ({
             background: ${token.colorFillQuaternary};
         }
 
-        .file-picker-status-main {
+        .path-select-status-main {
             min-width: 0;
             display: flex;
             flex: 1;
@@ -323,18 +338,25 @@ const useStyles = createStyles<{compact: boolean}>(({css, token}, props) => ({
             overflow: hidden;
         }
 
-        .file-picker-status-icon {
+        .path-select-status-main > .ant-checkbox-wrapper {
+            flex: none;
+            margin: 0;
+            font-size: ${token.fontSizeSM}px;
+            white-space: nowrap;
+        }
+
+        .path-select-status-icon {
             flex: none;
             color: ${token.colorTextTertiary};
         }
 
-        .file-picker-status-label {
+        .path-select-status-label {
             flex: none;
             color: ${token.colorTextTertiary};
             font-size: ${token.fontSizeSM}px;
         }
 
-        .file-picker-status-value {
+        .path-select-status-value {
             min-width: 0;
             flex: 1;
             display: block;
@@ -345,7 +367,7 @@ const useStyles = createStyles<{compact: boolean}>(({css, token}, props) => ({
             white-space: nowrap;
         }
 
-        .file-picker-status-meta {
+        .path-select-status-meta {
             min-width: 0;
             display: flex;
             flex: none;
@@ -355,7 +377,7 @@ const useStyles = createStyles<{compact: boolean}>(({css, token}, props) => ({
             white-space: nowrap;
         }
 
-        .file-picker-count {
+        .path-select-count {
             min-width: 0;
             overflow: hidden;
             color: ${token.colorTextTertiary};
@@ -364,39 +386,71 @@ const useStyles = createStyles<{compact: boolean}>(({css, token}, props) => ({
             white-space: nowrap;
         }
 
-        .file-picker-pagination {
+        .path-select-pagination {
+            display: inline-flex;
             flex: none;
+            align-items: center;
             margin: 0;
             color: ${token.colorTextSecondary};
             font-size: ${token.fontSizeSM}px;
         }
 
-        .file-picker-pagination .ant-pagination-prev,
-        .file-picker-pagination .ant-pagination-next {
+        .path-select-pagination .ant-pagination-prev,
+        .path-select-pagination .ant-pagination-next {
             min-width: ${props.compact ? 24 : 26}px;
             height: ${props.compact ? 24 : 26}px;
             line-height: ${props.compact ? 24 : 26}px;
         }
 
-        .file-picker-pagination .ant-pagination-item-link {
+        .path-select-pagination .ant-pagination-item-link {
             border-radius: ${token.borderRadiusSM}px;
             color: ${token.colorTextSecondary};
         }
 
-        .file-picker-pagination .ant-pagination-prev:not(.ant-pagination-disabled):hover .ant-pagination-item-link,
-        .file-picker-pagination .ant-pagination-next:not(.ant-pagination-disabled):hover .ant-pagination-item-link {
+        .path-select-pagination .ant-pagination-prev:not(.ant-pagination-disabled):hover .ant-pagination-item-link,
+        .path-select-pagination .ant-pagination-next:not(.ant-pagination-disabled):hover .ant-pagination-item-link {
             background: ${token.colorFillTertiary};
         }
 
-        .file-picker-pagination .ant-pagination-simple-pager {
+        .path-select-pagination .ant-pagination-simple-pager {
             height: ${props.compact ? 24 : 26}px;
             margin-inline: ${props.compact ? 5 : 7}px;
             color: ${token.colorTextTertiary};
             line-height: ${props.compact ? 24 : 26}px;
         }
 
+        .path-select-page-button.ant-btn {
+            width: ${props.compact ? 24 : 26}px;
+            min-width: ${props.compact ? 24 : 26}px;
+            height: ${props.compact ? 24 : 26}px;
+            padding: 0;
+            border: 0;
+            border-radius: ${token.borderRadiusSM}px;
+            color: ${token.colorTextSecondary};
+            font-size: 12px;
+        }
+
+        .path-select-page-button.ant-btn:not(:disabled):hover {
+            background: ${token.colorFillTertiary};
+            color: ${token.colorTextSecondary};
+        }
+
+        .path-select-page-button.ant-btn:disabled {
+            border: 0;
+            background: transparent;
+            color: ${token.colorTextDisabled};
+        }
+
+        .path-select-page-number {
+            height: ${props.compact ? 24 : 26}px;
+            margin-inline: ${props.compact ? 5 : 7}px;
+            color: ${token.colorTextTertiary};
+            font-size: ${token.fontSizeSM}px;
+            line-height: ${props.compact ? 24 : 26}px;
+        }
+
         @media (max-width: 520px) {
-            .file-picker-status {
+            .path-select-status {
                 min-height: 0;
                 padding: 6px 9px 7px;
                 align-items: stretch;
@@ -404,44 +458,44 @@ const useStyles = createStyles<{compact: boolean}>(({css, token}, props) => ({
                 gap: 4px;
             }
 
-            .file-picker-status-main,
-            .file-picker-status-meta {
+            .path-select-status-main,
+            .path-select-status-meta {
                 width: 100%;
                 min-width: 0;
             }
 
-            .file-picker-status-meta {
+            .path-select-status-meta {
                 justify-content: space-between;
             }
         }
 
         @media (pointer: coarse) {
-            .file-picker-up {
+            .path-select-up {
                 width: 40px;
                 min-width: 40px;
                 height: 40px;
             }
 
-            .file-picker-path {
+            .path-select-path {
                 height: 40px;
             }
 
-            .file-picker-path-button,
-            .file-picker-path-current {
+            .path-select-path-button,
+            .path-select-path-current {
                 display: inline-flex;
                 align-items: center;
             }
 
-            .file-picker-path-button,
-            .file-picker-path-current {
+            .path-select-path-button,
+            .path-select-path-current {
                 min-height: 40px;
             }
 
-            .file-picker-path-input.ant-input {
+            .path-select-path-input.ant-input {
                 height: 40px;
             }
 
-            .file-picker-table .ant-table-tbody > tr > td {
+            .path-select-table .ant-table-tbody > tr > td {
                 padding-block: 10px !important;
             }
         }

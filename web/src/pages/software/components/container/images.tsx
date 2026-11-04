@@ -17,7 +17,7 @@ import {
 import {ModalTable, ProModal, Title, useTheme} from "sinking-antd";
 import type {ModalTableProps, ModalTableRef} from "sinking-antd";
 import ActionDropdown from "@/pages/components/ui/action-dropdown";
-import FilePicker from "@/pages/components/file-picker";
+import FileSelect from "@/pages/components/file-select";
 import {containerImages} from "@/service/api/container";
 
 import {getParams} from "@/utils/page";
@@ -285,11 +285,13 @@ const ImagesManager = memo(forwardRef<any, any>(({onRun, open: controlledOpen, o
             <ConfigProvider input={{variant: "filled"}}>
                 <Form form={form} layout="vertical" onFinish={importImage} disabled={importing} clearOnDestroy>
                     <Form.Item name="image_path" label="镜像路径"
+                               getValueProps={(value) => ({value: value ? [value] : []})}
+                               getValueFromEvent={(paths: string[]) => paths[0] || ""}
                                rules={[{required: true, whitespace: true, message: "请输入或选择镜像路径"}, {
                                    validator: (_, value) => !value || String(value).trim().startsWith("/")
                                        ? Promise.resolve() : Promise.reject(new Error("请输入服务器上的绝对路径")),
                                }]}>
-                        <FilePicker mode="file" placeholder="请输入或选择镜像路径" autoComplete="off"
+                        <FileSelect mode="file" placeholder="请输入或选择镜像路径" autoComplete="off"
                                     disabled={importing} buttonProps={{color: "default", variant: "filled"}}/>
                     </Form.Item>
                 </Form>

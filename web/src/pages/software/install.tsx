@@ -1,7 +1,7 @@
 import {useEffect, useRef, useState} from "react";
 import {App, Form, Grid} from "antd";
 import {ProModal, Title} from "sinking-antd";
-import FilePicker from "@/pages/components/file-picker";
+import FileSelect from "@/pages/components/file-select";
 import {installSoftware} from "@/service/api/software";
 
 export default function InstallSoftware({open, onCancel, onSuccess}: any) {
@@ -31,10 +31,12 @@ export default function InstallSoftware({open, onCancel, onSuccess}: any) {
             okText: "安装", cancelText: "取消", confirmLoading: busy, closable: !busy, keyboard: !busy,
             mask: {closable: !busy}, cancelButtonProps: {disabled: busy}, afterClose: () => form.resetFields()} as any}>
         <Form form={form} layout="vertical" variant="filled" disabled={busy} onFinish={submit}>
-            <Form.Item name="path" label="软件路径" rules={[
+            <Form.Item name="path" label="软件路径"
+                getValueProps={(value) => ({value: value ? [value] : []})}
+                getValueFromEvent={(paths: string[]) => paths[0] || ""} rules={[
                 {required: true, whitespace: true, message: "请输入软件路径"}, {max: 4096, message: "路径最多 4096 个字符"},
             ]}>
-                <FilePicker mode="file" placeholder="请输入或选择路径" maxLength={4096}/>
+                <FileSelect mode="file" placeholder="请输入或选择路径" maxLength={4096}/>
             </Form.Item>
         </Form>
     </ProModal>;

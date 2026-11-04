@@ -1,12 +1,12 @@
 import {useRef} from "react";
 import {Redis, Mysql, Postgres, Mongo, SqlServer, Sqlite, Elasticsearch} from "./components";
 import ActionDropdown from "@/pages/components/ui/action-dropdown";
-import FilePicker from "@/pages/components/file-picker";
+import FileSelect from "@/pages/components/file-select";
 import AceEditor from "@/components/ace-editor";
 import {databaseRequests} from "@/service/api/database";
 import ScriptTools from "@/pages/components/script-tools";
 
-const components = {ActionDropdown, FilePicker, Editor: AceEditor, ScriptTools};
+const components = {ActionDropdown, FileSelect, Editor: AceEditor, ScriptTools};
 const managers: Record<number, any> = {1: Redis, 2: Mysql, 3: Postgres, 4: Mongo, 5: SqlServer, 6: Sqlite, 7: Elasticsearch};
 
 export default (props: any) => {
