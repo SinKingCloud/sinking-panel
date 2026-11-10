@@ -5,11 +5,12 @@ import (
 	"log"
 	"os"
 	"server/app/constant"
+	"server/app/enum/system_task_status"
 	serviceConfig "server/app/service/config"
 	"server/app/util/container"
 	"server/app/util/daemon"
+	"server/app/util/datastore"
 	"server/app/util/psutil"
-	"server/app/util/recordstore"
 	"sync"
 	"sync/atomic"
 )
@@ -24,12 +25,12 @@ type Service interface {
 	SetTimezone(name string) error                                           // 设置系统时区
 	GetStatis() map[string]interface{}                                       // CPU、内存、磁盘等资源统计
 	GetIO(netInterface, diskName string, after int64) map[string]interface{} // 网络与磁盘 I/O 统计
-	GetMonitorSettings() (recordstore.SeriesSettings, error)
+	GetMonitorSettings() (datastore.SeriesSettings, error)
 	SetMonitorSettings(enabled bool, days int) error
 	GetMonitorHistory(ctx context.Context, start, end int64, maxPoints ...int) (MonitorHistory, error)
 	GetTask(id string) *Task
 	TaskList(status *int) ([]*Task, error)
-	TaskCreate(id, name string, data interface{}, run func(context.Context, interface{}, func(int, float64, string)))
+	TaskCreate(id, name string, data interface{}, run func(context.Context, interface{}, func(int, float64, string))) error
 	TaskUpdate(id string, status int, progress float64, message string, result ...interface{})
 	TaskCancel(id string) bool
 	TaskDelete(id string) bool
@@ -41,6 +42,7 @@ type service struct {
 	ctx                    context.Context
 	cancel                 context.CancelFunc
 	wait                   sync.WaitGroup
+	closeOnce              sync.Once
 	lifecycleMu            sync.Mutex
 	started                bool
 	closed                 bool
@@ -74,7 +76,8 @@ type service struct {
 	monitorSequence     int64
 	monitorUpdatedAt    int64
 	monitorHistory      []monitorSample
-	monitorRecorder     *recordstore.Recorder
+	monitorArchive      *datastore.Timeline
+	monitorRecorder     *datastore.Recorder
 	monitorInitError    error
 	monitorDisks        map[string]bool
 	monitorNetworks     map[string]bool
@@ -130,27 +133,45 @@ func (s *service) Start(monitor ...bool) {
 	}
 }
 
-// Close 停止后台任务并等待全部协程退出。
+// Close 取消排队与执行中的任务，等待监控和后台协程退出后保存历史，可重复调用。
 func (s *service) Close() {
-	s.lifecycleMu.Lock()
-	if !s.closed {
+	s.closeOnce.Do(func() {
+		s.lifecycleMu.Lock()
 		s.closed = true
 		s.cancel()
+		s.lifecycleMu.Unlock()
+
+		s.mu.RLock()
+		ids := make([]string, 0, len(s.tasks))
+		for id, task := range s.tasks {
+			if task.Status == system_task_status.Pending || task.Status == system_task_status.Running {
+				ids = append(ids, id)
+			}
+		}
+		s.mu.RUnlock()
+		for _, id := range ids {
+			s.TaskCancel(id)
+		}
+
 		s.queueMu.Lock()
+		clear(s.jobs)
+		s.queue = nil
 		s.queueCond.Broadcast()
 		s.queueMu.Unlock()
-	}
-	s.lifecycleMu.Unlock()
-	s.wait.Wait()
-	// 记录器排空后才关闭进程库，保留最后一批成功指标对应的进程快照。
-	if s.monitorRecorder != nil {
-		if err := s.monitorRecorder.Close(); err != nil {
-			log.Printf("保存系统监控历史失败: %v", err)
+		s.wait.Wait()
+		// 记录器排空后才关闭进程库，保留最后一批成功指标对应的进程快照。
+		if s.monitorRecorder != nil {
+			if err := s.monitorRecorder.Close(); err != nil {
+				log.Printf("保存系统监控历史失败: %v", err)
+			}
 		}
-	}
-	if s.monitorProcessStore != nil {
-		if err := s.monitorProcessStore.Close(); err != nil {
-			log.Printf("保存监控进程历史失败: %v", err)
+		if s.monitorProcessStore != nil {
+			if err := s.monitorProcessStore.Close(); err != nil {
+				log.Printf("保存监控进程历史失败: %v", err)
+			}
 		}
-	}
+		if s.monitorArchive != nil {
+			_ = s.monitorArchive.Close()
+		}
+	})
 }

@@ -53,7 +53,7 @@ func (s *service) Transfer(id int64, databaseType int, action, path, databaseNam
 		"path":          path,
 		"database_name": databaseName,
 	}
-	s.systemService.TaskCreate(taskID, name, params, func(ctx context.Context, _ interface{}, update func(int, float64, string)) {
+	err = s.tasks.Create(taskID, name, params, func(ctx context.Context, _ interface{}, update func(int, float64, string)) {
 		percent := float64(0)
 		lastUpdate := time.Time{}
 		update(system_task_status.Running, 0, "正在准备"+label)
@@ -82,8 +82,8 @@ func (s *service) Transfer(id int64, databaseType int, action, path, databaseNam
 		}
 		s.systemService.TaskUpdate(taskID, status, percent, message, result)
 	})
-	if s.systemService.GetTask(taskID) == nil {
-		return "", errors.New("创建后台任务失败，面板正在停止")
+	if err != nil {
+		return "", err
 	}
 	return taskID, nil
 }

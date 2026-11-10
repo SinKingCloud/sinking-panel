@@ -27,6 +27,9 @@ func (s *service) Update(id int64, data *repositoryDatabase.UpdateDatabase) erro
 			return errors.New("分类不合法")
 		}
 		if *data.TypeId > 0 {
+			if s.typeService == nil {
+				return errors.New("分类服务未初始化")
+			}
 			category, err := s.typeService.FindById(*data.TypeId)
 			if err != nil {
 				return err

@@ -26,6 +26,12 @@ import (
 
 // Install 只读取清单并提交任务；大文件打包、解压和插件生命周期均在后台执行。
 func (s *service) Install(path string) (int64, error) {
+	if s.system == nil {
+		return 0, errors.New("系统任务服务未初始化")
+	}
+	if s.plugins == nil {
+		return 0, errors.New("插件管理器未初始化")
+	}
 	path, err := filepath.Abs(path)
 	if err != nil {
 		return 0, err
@@ -153,6 +159,12 @@ func (s *service) Install(path string) (int64, error) {
 	s.mu.Unlock()
 	e.busy.Store(true)
 	s.system.TaskCreate(key, "安装 "+record.Name, map[string]interface{}{"software_id": record.Id}, func(ctx context.Context, _ interface{}, progress func(int, float64, string)) {
+		ctx, cancel := context.WithCancel(ctx)
+		stop := context.AfterFunc(s.ctx, cancel)
+		defer func() { stop(); cancel() }()
+		if s.ctx.Err() != nil {
+			cancel()
+		}
 		e.mu.Lock()
 		defer e.mu.Unlock()
 		if e.taskID != key {
@@ -170,8 +182,8 @@ func (s *service) Install(path string) (int64, error) {
 		defer s.invalidate(record.Code)
 		defer s.invalidateManifest(record.Code)
 		progress(system_task_status.Running, 10, "正在准备软件包并执行安装")
-		ctx, cancel := context.WithTimeout(ctx, 10*time.Minute)
-		defer cancel()
+		ctx, timeoutCancel := context.WithTimeout(ctx, 10*time.Minute)
+		defer timeoutCancel()
 		// 生命周期可能回写内部配置，失败时由 install 恢复代码及配置，再恢复安装状态。
 		runErr := s.install(ctx, path, record, isNew)
 		if runErr != nil {

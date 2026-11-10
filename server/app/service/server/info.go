@@ -20,6 +20,9 @@ func (s *service) FindById(id int64) (*model.Server, error) {
 	var data *model.Server
 	var err error
 	if id == 0 {
+		if s.configService == nil {
+			return nil, errors.New("配置服务未初始化")
+		}
 		configs := s.configService.Group(constant.SshGroup)
 		ip := strings.TrimSpace(configs[constant.SshIP])
 		if ip == "" {

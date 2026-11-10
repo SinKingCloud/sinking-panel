@@ -1,24 +1,25 @@
 # 通用记录存储
 
-`recordstore.Open` 提供按业务集合隔离的本地持久化存储。集合可以保存 Go 结构体、map、数组、切片、字符串、数字、布尔、null，以及原始字节；数据内容由业务定义。默认永久保存，可为单条记录设置 TTL。
+`datastore.Open` 提供按业务集合隔离的本地持久化存储。集合可以保存 Go 结构体、map、数组、切片、字符串、数字、布尔、null，以及原始字节；数据内容由业务定义。默认永久保存，可为单条记录设置 TTL。
 
 | 入口 | 用途 | 保存方式 |
 | --- | --- | --- |
 | `Open` → `Store.Collection` | 任意业务记录、配置、文档、业务快照、自定义编码数据 | 独立 `records.db`，bbolt 事务、键和时间索引 |
-| `OpenRecorder` | 需要按分钟汇总的数值序列 | 有界异步队列、定长二进制日文件 |
+| `OpenRecorder` | 需要按分钟汇总的数值序列 | 有界异步队列、定长二进制 `.data` 日文件 |
+| `OpenTimeline` | 按固定时间间隔保存任意编码的快照 | `.data` 日文件、时间槽索引、变长字节记录 |
 | `OpenSeries` | 业务已有调度的数值序列 | 数值存储，由调用方刷新和清理 |
 | `OpenEvents` | 结构化事件记录 | 按天追加 JSONL，提供查询与统计 |
 
-后三项是数值汇总与事件存储扩展；通用 `Store` 没有预设业务字段，也不要求每条记录都是数值指标或事件。
+其余入口是时间序列与事件存储扩展；通用 `Store` 没有预设业务字段，也不要求每条记录都是数值指标或事件。
 
 ## 打开存储与业务集合
 
 同一目录只打开一个 `Store`，业务之间共享此实例，通过不同集合名隔离记录。不同集合可以使用相同 key，互不覆盖。`Store` 和 `Collection` 可供多个 goroutine 使用；集合不单独关闭。
 
 ```go
-import "server/app/util/recordstore"
+import "server/app/util/datastore"
 
-store, err := recordstore.Open("data/records/business")
+store, err := datastore.Open("data/records/business")
 if err != nil {
     return err
 }
@@ -70,7 +71,7 @@ type Stock struct {
     Available int    `json:"available"`
     Warehouse string `json:"warehouse"`
 }
-keys, err := inventory.PutMany([]recordstore.Entry{
+keys, err := inventory.PutMany([]datastore.Entry{
     {Key: "sku:A", Value: Stock{Available: 12, Warehouse: "east"}},
     {Key: "sku:B", Value: Stock{Available: 8, Warehouse: "west"}},
     {Value: []string{"sku:A", "sku:B"}}, // 空 Key 自动生成
@@ -93,7 +94,7 @@ record, err := drafts.Get("encoded:example")
 if err != nil {
     return err
 }
-// record.Encoding == recordstore.EncodingBytes，record.Data 是独立的字节副本。
+// record.Encoding == datastore.EncodingBytes，record.Data 是独立的字节副本。
 payload := record.Data
 _ = payload
 ```
@@ -105,7 +106,7 @@ JSON 入口使用 Go 的 `encoding/json`：支持可编码的结构体及容器�
 ## 时间、TTL 与查询
 
 ```go
-err = drafts.Put("temporary", []string{"临时内容"}, recordstore.WriteOptions{
+err = drafts.Put("temporary", []string{"临时内容"}, datastore.WriteOptions{
     Time: time.Now().UnixMilli(), // 省略时使用本次写入时间
     TTL:  30 * time.Minute,       // 从本次写入时刻计算；零值永久保存
 })
@@ -113,10 +114,10 @@ if err != nil {
     return err
 }
 
-page, err := inventory.Query(ctx, recordstore.Query{
+page, err := inventory.Query(ctx, datastore.Query{
     Start: start.UnixMilli(), End: end.UnixMilli(),
     Prefix: "sku:", Desc: true, Limit: 100,
-    Match: func(record recordstore.Record) (bool, error) {
+    Match: func(record datastore.Record) (bool, error) {
         var item Stock
         if err := record.Decode(&item); err != nil {
             return false, err
@@ -142,7 +143,7 @@ if err != nil {
 
 ```go
 totals := make(map[string]int)
-err = inventory.Scan(ctx, recordstore.Query{Prefix: "sku:"}, func(record recordstore.Record) error {
+err = inventory.Scan(ctx, datastore.Query{Prefix: "sku:"}, func(record datastore.Record) error {
     var item Stock
     if err := record.Decode(&item); err != nil {
         return err
@@ -167,17 +168,31 @@ if err != nil {
 
 TTL 清理和删除会释放可复用的数据库页面，不保证物理文件立即缩小。查询页上限限制返回数据量，不等于固定内存开销或固定查询时延；JSON 解码、业务回调和并发访问都会影响实际性能。这里没有对生产高并发或任意数据规模作吞吐保证。
 
+## 按时间索引的变长快照
+
+`OpenTimeline(dir, TimelineOptions{Interval: time.Minute, MaxValueBytes: 64 << 10})` 保存任意编码的 `[]byte`，业务可自行选择 JSON、压缩 JSON 或其他格式。`PutMany([]TimelineEntry{{Time: timestamp, Data: payload}})` 覆盖对应时间槽，`Get(timestamp)` 读取单槽，`Scan(ctx, start, end, visit)` 按时间顺序遍历范围；时间为 Unix 毫秒，按配置间隔向下对齐。间隔必须为整毫秒、整除一天，每天最多 1440 个槽，单条默认最多 64 KiB。
+
+每个 UTC 日期对应一个 `YYYY-MM-DD.data`：文件头保存格式与间隔，固定索引指向追加的变长数据。查询直接定位时间槽，范围扫描按天打开文件，使用最多 64 KiB 的顺序预读，不遍历无关日期或解码其他流。`Scan` 返回独立数据副本；`ScanView` 在回调期间借用只读缓冲，不能修改或保留 Data。二者的回调都在读锁内执行，不可重入同一根实例；大记录的借用缓冲上限由单条记录大小限制约束，索引缓冲只按查询范围分配。每槽双索引及 CRC 防止半写数据被当作完整记录；先同步数据，再发布索引。同内容重试不会追加；不同内容覆盖会保留旧 payload 至整个日文件过期。批量写入不提供跨槽、跨日或跨实例事务，调用方应允许重试，同一目录只由一个实例写入。
+
+新日文件先在同目录完成临时文件初始化和同步，再通过硬链接原子发布，避免失败留下半个正式日文件；所在文件系统需支持硬链接。工具没有后台任务；`Cleanup(cutoffMillis)` 删除完整过期日文件，边界日由业务按精确时间过滤；`Size()` 返回日文件占用，`Close()` 关闭实例。仅打开目录不会创建空数据文件。
+
+同一天需要保存多种数据时，使用 `TimelineOptions.Streams` 定义命名流，每个流配置 `Name`、`Interval`、`MaxValueBytes` 和可选 `Schema`，再通过 `timeline.Stream(name)` 取得流视图。所有流共享同一日文件、锁和生命周期；只有根实例负责 `Close`。`Size` 和 `Cleanup` 面向整个文件，业务只调用一次，不叠加各流的文件占用。`Scan` 回调不能调用同一根实例下其他流的方法，跨流查询需退出回调后执行。流配置及格式摘要写入文件头校验，错误的名称、间隔或数值字段定义不会误读现存数据。
+
+`SeriesOptions.Storage` 可借用一个分钟流，`Schema` 使用 `SeriesSchemaHash(fields)`，`MaxValueBytes` 至少为 `16 + 8 × 字段数`。数值聚合、异步记录器和查询点数预算保持原语义。共享模式由 `Series` 统一统计整个日文件和清理过期日，进程流只维护其写入与错误状态；退出先关闭记录器、排空进程写入，再关闭根存储。
+
+系统监控每天只使用一个 `monitor/YYYY-MM-DD.data`，内部包含 `metrics` 数值分钟流、`processes` 进程分钟流、`processes_hourly` 进程小时汇总流，各自有独立时间索引。查询数值时不解码进程内容，长区间进程查询优先读取小时汇总。进程快照由 80 字节峰值头及 gzip 数据组成，省去数据库包装和 base64 编码。分钟流保存原始快照，活跃小时直接查询分钟流；小时结束后再生成一次汇总，关闭或停用时可提前保存尾部。定时唤醒同时检查上一完整小时，稀疏采样也能生成汇总。补写已汇总小时之前先同步空槽使旧汇总失效，写入后重建；缺失或失效汇总回退分钟，避免中断后误读旧高点。长区间先通过峰值头为每个时间桶选择 CPU、内存、I/O 赢家，再解压最多三份不同来源的快照；候选压缩缓冲只保留当前桶并复用，不随整个区间增长。两类历史共用保留天数，开关与保留天数仍在配置表中。监控不再使用 `records.db`；原通用键值 `Store` 仍可用于其他业务。系统监控只使用新的共享日文件格式，不兼容、不迁移旧 `.series`、分目录 `.data` 或进程 `records.db`。发现同名旧日文件会明确报告格式不兼容，不会覆盖；现存旧文件不主动删除。
+
 ## 数值序列与事件存储扩展
 
-`OpenRecorder`、`OpenSeries`、`OpenEvents` 分别使用独立目录。
+`OpenRecorder`、`OpenSeries`、`OpenTimeline`、`OpenEvents` 分别使用独立目录。
 
 **数值序列。** 初始化 `[]Field{{Name: "requests", Aggregate: Sum}, ...}` 后，用 `recorder.Record(timestamp, map[string]float64{...})` 提交完整字段集合。支持 `Mean`（按实际样本数加权）、`Max`、`Min`、`Sum`、`Last`；`Sum` 提交周期增量，`Last` 按提交顺序取值。底层 `Series.Add(Point{Time: ..., Samples: ..., Values: ...})` 可指定权重，`Sum` 不会再次乘以 `Samples`。
 
-`Recorder` 有 120 条队列，队列满时返回错误并在 `Settings.LastError` 累计提示；启用时成功返回仅表示入队，停用时直接忽略。它自动按分钟汇总和刷新、按小时清理，退出时 `Close` 排空队列并落盘。`Series` 本身不启动协程，由业务调用 `Flush`、`Cleanup`。数值目录默认开启、保留 30 天，可设置 1–365 天；这套默认值不适用于通用 `Store`。
+`Recorder` 有 120 条队列，队列满时返回错误并在 `Settings.LastError` 累计提示；启用时成功返回仅表示入队，停用时直接忽略。它自动按分钟汇总，定时只刷新已结束分钟，避免同一分钟先写半段、再追加最终值；内存中的最新数据仍可查询。按小时清理，退出时 `Close` 排空队列并保存尾部不足一分钟的数据。`Series` 本身不启动协程，由业务调用 `Flush`、`Cleanup`。数值目录默认开启、保留 30 天，可设置 1–365 天；这套默认值不适用于通用 `Store`。
 
-需要关联其他内存记录时，可传 `recorder.Record(timestamp, values, committed)`。回调在当前代次采样成功合并后执行一次；队满、停用、代次已失效或合并失败时不执行。回调在写入锁内执行，只做短小内存操作，不可重入记录器，也不代表数据已落盘。关闭时先 `Recorder.Close()` 排空回调，再关闭回调依赖的存储。系统监控用此方式配对同轮指标与进程快照。
+需要关联其他内存记录时，可传 `recorder.Record(timestamp, values, committed)`。回调在当前代次采样成功合并后执行一次；队满、停用、代次已失效或合并失败时不执行。回调在写入锁内执行，只做短小内存操作，不可重入记录器，也不代表数据已落盘。关闭时先 `Recorder.Close()` 排空回调，再关闭回调依赖的存储。系统监控用此方式配对同轮指标与进程快照；系统监控业务默认关闭，与通用数值目录的默认值独立。
 
-字段名称、顺序和聚合规则的校验值保存在 `.series` 日文件头。打开目录时验证已有日文件，拒绝不匹配的字段定义，不读取额外的字段定义文件。每条分钟记录占 `16 + 8 × 字段数` 字节。
+字段名称、顺序和聚合规则的校验值保存在 `.data` 日文件头。打开目录时验证已有日文件，拒绝不匹配的字段定义，不读取额外的字段定义文件。每条分钟记录占 `16 + 8 × 字段数` 字节。
 
 `Series.Query(start, end)` 和 `Recorder.Query(start, end)` 默认将长区间聚合为最多约 1200 点。可传入 `SeriesQueryOptions{MaxPoints: 1440}` 设置目标点数（1–1440，0 使用默认行为），按常用分钟、小时、天间隔向上选择粒度，含两端边界最多返回目标点数加 1。聚合仍读取所选区间的分钟记录，并按字段规则保留加权均值、峰值等信息；查询期间持读锁，可能暂时阻塞该序列写入。通用查询只返回真实记录；系统监控的 `history` 请求可传入 `max_points`（120–720，省略时默认 480），页面对超过 6 小时至 24 小时的范围使用桌面端 300、移动端 120 点预算（含自定义日期），其他范围使用桌面端 720、移动端 240 点预算。监控 service 从首条真实采样开始，按同一时间桶补齐中间及末尾缺失值为 0（`samples=0`）；不补采样前的空白，无记录时返回空列表，含两端边界最多返回目标点数加 1。补零不会改变存储及聚合结果，返回指标保持原始聚合精度。
 

@@ -1,5 +1,6 @@
 import {Button, Col, Form, Input, Row, Select} from "antd";
 import {Icon} from "sinking-antd";
+import {requestBodyMethods} from "../../utils";
 
 const methodOptions = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"].map((value) => ({
     label: value,
@@ -7,6 +8,9 @@ const methodOptions = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS
 }));
 
 const Request = () => {
+    const form = Form.useFormInstance();
+    const method = Form.useWatch(["request", "method"], form);
+
     return (
         <>
             <Row gutter={[12, 0]}>
@@ -107,7 +111,7 @@ const Request = () => {
                     )}
                 </Form.List>
             </Form.Item>
-            <Form.Item name={["request", "body"]} label="请求体">
+            <Form.Item name={["request", "body"]} label="请求体" hidden={!requestBodyMethods.includes(method)}>
                 <Input.TextArea autoSize={{minRows: 3, maxRows: 8}} placeholder="请输入请求内容"/>
             </Form.Item>
         </>

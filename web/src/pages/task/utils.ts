@@ -85,6 +85,8 @@ export const describeSchedule = (schedule: any): string => {
 
 export const describeTaskSchedule = (value: any) => describeSchedule(parseSchedule(value));
 
+export const requestBodyMethods = ["POST", "PUT", "PATCH", "DELETE"];
+
 export const parseRequest = (value: any): any => {
     let data = value;
     if (typeof value === "string") {
@@ -109,6 +111,7 @@ export const parseRequest = (value: any): any => {
 };
 
 export const stringifyRequest = (value: any): string => {
+    const method = String(value?.method || "GET").trim().toUpperCase();
     const headers: any = {};
     const names = new Set<string>();
     (value?.headers || []).forEach((header: any) => {
@@ -137,9 +140,9 @@ export const stringifyRequest = (value: any): string => {
         headers[name] = headerValue;
     });
     return JSON.stringify({
-        method: String(value?.method || "GET").trim().toUpperCase(),
+        method,
         url: String(value?.url || "").trim(),
         headers,
-        body: String(value?.body ?? ""),
+        body: requestBodyMethods.includes(method) ? String(value?.body ?? "") : "",
     });
 };

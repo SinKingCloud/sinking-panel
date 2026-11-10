@@ -95,7 +95,7 @@ func (s *service) start(records []*model.Software) (func(), error) {
 			release()
 			return nil, errors.New("软件尚未就绪或已禁用")
 		}
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		ctx, cancel := context.WithTimeout(s.ctx, 30*time.Second)
 		_, err = s.plugins.Lifecycle(ctx, current.Code, "start", "{}")
 		cancel()
 		if err != nil {

@@ -1,4 +1,4 @@
-package recordstore
+package datastore
 
 import (
 	"bytes"

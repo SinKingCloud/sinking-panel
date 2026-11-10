@@ -5,8 +5,8 @@ import (
 	"sync"
 	"time"
 
+	"server/app/util/datastore"
 	"server/app/util/psutil"
-	"server/app/util/recordstore"
 )
 
 // Task 任务信息
@@ -31,6 +31,16 @@ type job struct {
 	ctx  context.Context
 	data interface{}
 	run  func(context.Context, interface{}, func(int, float64, string))
+}
+
+// TaskGroup 管理一个业务服务创建的系统任务，不持有或关闭系统服务。
+type TaskGroup struct {
+	system    Service
+	mu        sync.Mutex
+	closed    bool
+	jobs      map[string]context.CancelFunc
+	wait      sync.WaitGroup
+	closeOnce sync.Once
 }
 
 // monitorSample 保存前端增量读取所需的短期 I/O 快照，不写入资源工具类。
@@ -90,20 +100,20 @@ type pendingProcessPeaks struct {
 
 // monitorProcessStore 只接受有界 Top 5 快照。采集线程仅合并内存，文件 I/O 全部交给单个 worker。
 type monitorProcessStore struct {
-	store      *recordstore.Store
-	collection *recordstore.Collection
-	path       string
-	cancel     context.CancelFunc
-	done       chan struct{}
-	wake       chan struct{}
-	queries    chan struct{}
-	mu         sync.Mutex
-	pending    map[int64]pendingProcessPeaks
-	enabled    bool
-	closed     bool
-	days       int
-	acceptFrom int64
-	lastError  error
-	dropped    uint64
-	closeError error
+	minutes     *datastore.Timeline
+	hours       *datastore.Timeline
+	cancel      context.CancelFunc
+	done        chan struct{}
+	wake        chan struct{}
+	queries     chan struct{}
+	mu          sync.Mutex
+	pending     map[int64]pendingProcessPeaks
+	enabled     bool
+	closed      bool
+	days        int
+	acceptFrom  int64
+	lastError   error
+	dropped     uint64
+	closeError  error
+	checkedHour int64 // 仅后台写入协程使用，避免重复检查已结束小时。
 }

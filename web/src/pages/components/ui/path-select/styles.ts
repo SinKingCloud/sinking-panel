@@ -34,6 +34,15 @@ const useStyles = createStyles<{compact: boolean}>(({css, token}, props) => ({
         .ant-btn-color-default:not(:disabled) .ant-btn-icon {
             color: ${token.colorTextSecondary};
         }
+
+        && .ant-input:disabled,
+        && .ant-input-affix-wrapper-disabled,
+        && .ant-input-affix-wrapper-disabled:hover,
+        && .ant-select-disabled,
+        && .ant-btn:disabled {
+            border-color: transparent;
+            box-shadow: none;
+        }
     `,
     browser: css`
         min-width: 0;

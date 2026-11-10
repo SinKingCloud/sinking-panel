@@ -1,4 +1,4 @@
-package recordstore
+package datastore
 
 import (
 	"errors"
@@ -119,7 +119,7 @@ func (r *Recorder) Record(timestamp int64, values map[string]float64, committed 
 	}
 }
 
-// Report 将采集错误暴露到设置接口，相同故障只输出一次日志。
+// Report 将采集错误暴露到设置接口。
 func (r *Recorder) Report(err error) {
 	r.setError(&r.sampleError, err)
 }
@@ -157,10 +157,14 @@ func (r *Recorder) run() {
 		case now := <-ticker.C:
 			// 清理故障由 Series.Settings 保留，正常写入不会抹掉该警告。
 			_ = r.series.Cleanup(now)
-		case <-flushTicker.C:
-			// 稀疏业务即使没有下一条采样，也应定时保存内存中的记录。
+		case now := <-flushTicker.C:
+			// 只定时保存已结束的分钟，避免连续采样时重复写入当前分钟。
 			r.writeMu.Lock()
-			r.setError(&r.writeError, r.series.Flush())
+			r.series.mu.Lock()
+			if r.series.pending.Time < now.Truncate(time.Minute).UnixMilli() {
+				r.setError(&r.writeError, r.series.flush())
+			}
+			r.series.mu.Unlock()
 			r.writeMu.Unlock()
 		}
 	}

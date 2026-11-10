@@ -16,7 +16,7 @@ const statusOptions = [
     {label: "暂停", value: 1},
 ];
 
-const useStyles = createStyles(({css, token}: any) => ({
+const useStyles = createStyles<{compact: boolean}>(({css, token}, {compact}) => ({
     modal: css`
         .ant-modal {
             max-width: calc(100vw - 24px);
@@ -38,21 +38,39 @@ const useStyles = createStyles(({css, token}: any) => ({
         align-items: center;
         justify-content: center;
     `,
-    scriptField: css`
-        > .ant-row > .ant-form-item-label > label {
-            width: 100%;
+    configPanel: css`
+        min-width: 0;
+        padding: ${compact ? 12 : 16}px;
+        border: 1px solid ${token.colorBorderSecondary};
+        border-radius: ${token.borderRadiusLG}px;
+        background: ${token.colorBgContainer};
+
+        @media (max-width: 575px) {
+            padding: 12px;
         }
     `,
-    scriptLabel: css`
+    configTitle: css`
         display: flex;
-        flex: 1;
         align-items: center;
         justify-content: space-between;
-        min-width: 0;
-        gap: 8px;
+        gap: 12px;
+        margin: 0 0 ${compact ? 12 : 16}px;
+        color: ${token.colorText};
+        font-size: ${token.fontSize}px;
+        font-weight: 500;
+        line-height: ${token.lineHeight};
 
         > .ant-btn {
+            flex: none;
             font-size: ${token.fontSizeSM}px;
+        }
+    `,
+    configBody: css`
+        min-width: 0;
+
+        > .ant-form-item:last-child,
+        > .ant-row:last-child .ant-form-item {
+            margin-bottom: 0;
         }
     `,
 }));
@@ -66,7 +84,7 @@ const Form = forwardRef<any, {typeData?: any; typeItems?: any[]; execTypeData?: 
     const {message} = App.useApp();
     const theme = useTheme();
     const compact = Boolean(theme?.isCompactTheme?.());
-    const {styles} = useStyles();
+    const {styles} = useStyles({compact});
     const modalRef = useRef<ProModalRef>({} as ProModalRef);
     const requestRef = useRef(0);
     const [form] = AntForm.useForm();
@@ -194,7 +212,7 @@ const Form = forwardRef<any, {typeData?: any; typeItems?: any[]; execTypeData?: 
             try {
                 script = stringifyRequest(values.request);
             } catch (error: any) {
-                message.error(error?.message || "请求配置不合法");
+                message.error(error?.message || "任务配置不合法");
                 return;
             }
         }
@@ -269,7 +287,8 @@ const Form = forwardRef<any, {typeData?: any; typeItems?: any[]; execTypeData?: 
                             <Col xs={24} sm={12}>
                                 <AntForm.Item
                                     name="type_id"
-                                    label="任务分类">
+                                    label="任务分类"
+                                    rules={[{required: true, message: "请选择任务分类"}]}>
                                     <Select
                                         placeholder="全部分类"
                                         options={typeOptions}
@@ -282,6 +301,7 @@ const Form = forwardRef<any, {typeData?: any; typeItems?: any[]; execTypeData?: 
                                     label="执行方式"
                                     rules={[{required: true, message: "请选择执行方式"}]}>
                                     <Select
+                                        placeholder="请选择执行方式"
                                         options={execTypeOptions}
                                         onChange={(value) => {
                                             const nextExecType = Number(value);
@@ -308,42 +328,46 @@ const Form = forwardRef<any, {typeData?: any; typeItems?: any[]; execTypeData?: 
                             rules={[{required: true, whitespace: true, message: "请设置执行周期"}]}>
                             <Schedule/>
                         </AntForm.Item>
-                        {execType === 0 ? (
-                            <AntForm.Item
-                                name="script"
-                                className={styles.scriptField}
-                                label={<span className={styles.scriptLabel}>
-                                    <span>任务内容</span>
-                                    <ScriptTools
-                                        module="script_task"
-                                        mode="sh"
-                                        Editor={AceEditor}
-                                        disabled={submitting}
-                                        value={() => String(form.getFieldValue("script") || "")}
-                                        onUse={(script) => form.setFieldValue("script", script)}/>
-                                </span>}
-                                rules={[{required: true, whitespace: true, message: "请输入任务内容"}]}>
-                                <AceEditor
+                        <section className={styles.configPanel} aria-label="任务配置">
+                            <div className={styles.configTitle}>
+                                <Title size="small">任务配置</Title>
+                                {execType === 0 && <ScriptTools
+                                    module="script_task"
                                     mode="sh"
-                                    theme={theme?.isDarkTheme?.() ? "monokai" : "chrome"}
-                                    width="100%"
-                                    height={280}
-                                    fontSize={compact ? 12 : 14}
-                                    showPrintMargin={false}
-                                    wrapEnabled
-                                    acePath={acePath}
-                                    className={styles.editor}/>
-                            </AntForm.Item>
-                        ) : execType === 1 ? (
-                            <Request/>
-                        ) : (
-                            <AntForm.Item
-                                name="script"
-                                label="任务内容"
-                                rules={[{required: true, whitespace: true, message: "请输入任务内容"}]}>
-                                <Input placeholder="请输入任务内容" maxLength={2000}/>
-                            </AntForm.Item>
-                        )}
+                                    Editor={AceEditor}
+                                    disabled={submitting}
+                                    value={() => String(form.getFieldValue("script") || "")}
+                                    onUse={(script) => form.setFieldValue("script", script)}/>}
+                            </div>
+                            <div className={styles.configBody}>
+                                {execType === 0 ? (
+                                    <AntForm.Item
+                                        name="script"
+                                        label="任务内容"
+                                        rules={[{required: true, whitespace: true, message: "请输入任务内容"}]}>
+                                        <AceEditor
+                                            mode="sh"
+                                            theme={theme?.isDarkTheme?.() ? "monokai" : "chrome"}
+                                            width="100%"
+                                            height={280}
+                                            fontSize={compact ? 12 : 14}
+                                            showPrintMargin={false}
+                                            wrapEnabled
+                                            acePath={acePath}
+                                            className={styles.editor}/>
+                                    </AntForm.Item>
+                                ) : execType === 1 ? (
+                                    <Request/>
+                                ) : (
+                                    <AntForm.Item
+                                        name="script"
+                                        label="任务内容"
+                                        rules={[{required: true, whitespace: true, message: "请输入任务内容"}]}>
+                                        <Input placeholder="请输入任务内容" maxLength={2000}/>
+                                    </AntForm.Item>
+                                )}
+                            </div>
+                        </section>
                     </>
                 ))}
             </AntForm>

@@ -2,16 +2,9 @@ package task
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
-	"fmt"
-	"io"
-	"net/http"
-	"server/app/constant"
 	"server/app/enum/task_exec_type"
 	"server/app/model"
-	"server/app/util/cmd"
-	"strings"
+	"sync"
 	"time"
 
 	"github.com/robfig/cron/v3"
@@ -22,8 +15,14 @@ type job struct {
 	service *service
 	ctx     context.Context
 	run     cron.Job
+	cancel  context.CancelFunc
+	wait    sync.WaitGroup
+	running int
+	entryID cron.EntryID
+	retired bool
 }
 
+// newJob 校验任务并固定本次执行内容。
 func (s *service) newJob(task *model.Task) *job {
 	if task == nil || s == nil || task.Spec == "" {
 		return nil
@@ -33,81 +32,67 @@ func (s *service) newJob(task *model.Task) *job {
 		return nil
 	}
 	task.Script = content
-	return &job{
-		Task:    task,
+	value := *task
+	ctx, cancel := context.WithCancel(s.ctx)
+	result := &job{
+		Task:    &value,
 		service: s,
-		ctx:     s.ctx,
+		ctx:     ctx,
+		cancel:  cancel,
+	}
+	s.jobs[result] = struct{}{}
+	return result
+}
+
+// Run 统一跟踪调度器启动的任务，取消任务后旧的调度快照不再执行。
+func (j *job) Run() {
+	j.service.taskLock.Lock()
+	value, ok := j.begin()
+	j.service.taskLock.Unlock()
+	if ok {
+		j.execute(value)
 	}
 }
 
-func (j *job) Run() {
+// begin 在 taskLock 内登记执行，销毁方先禁止新执行，再安全等待已有执行完成。
+func (j *job) begin() (model.Task, bool) {
+	if j.service.closed || j.retired || j.ctx.Err() != nil {
+		return model.Task{}, false
+	}
+	j.running++
+	j.wait.Add(1)
+	j.service.runWait.Add(1)
+	return *j.Task, true
+}
+
+// execute 运行固定内容，并跟踪完成状态。
+func (j *job) execute(task model.Task) {
+	defer func() {
+		j.service.taskLock.Lock()
+		j.running--
+		if j.running == 0 && j.entryID == 0 && task.Id >= 0 {
+			j.retired = true
+			j.cancel()
+			delete(j.service.jobs, j)
+		}
+		j.service.taskLock.Unlock()
+		j.wait.Done()
+		j.service.runWait.Done()
+	}()
 	if j.run != nil {
 		j.run.Run()
 		return
 	}
 	defer func() {
-		_ = j.service.repositoryTask.UpdateRuntimeById(j.Id, time.Now())
+		_ = j.service.repositoryTask.UpdateRuntimeById(task.Id, time.Now())
 	}()
-	switch j.ExecType {
+	writeLog := func(content string) { _ = j.service.WriteLog(task.Id, content) }
+	switch task.ExecType {
 	case task_exec_type.Script:
-		c := cmd.NewScriptExec(constant.CmdPath, 43200, func(s string) {
-			_ = j.service.WriteLog(j.Id, s)
-		})
-		_, _, _ = c.ExecuteContext(j.ctx, j.Script)
+		_ = j.service.script.Run(j.ctx, task.Script, writeLog)
 	case task_exec_type.Request:
-		data := Request{}
-		if json.Unmarshal([]byte(j.Script), &data) != nil || data.Url == "" {
-			_ = j.service.WriteLog(j.Id, "请求配置不合法")
-			return
+		if err := j.service.request.Run(j.ctx, task.Script, writeLog); err != nil {
+			writeLog(err.Error())
 		}
-		startedAt := time.Now()
-		client := &http.Client{
-			Timeout: 30 * time.Second,
-			CheckRedirect: func(_ *http.Request, via []*http.Request) error {
-				if len(via) >= 10 {
-					return errors.New("重定向次数过多")
-				}
-				return nil
-			},
-		}
-		request, err := http.NewRequestWithContext(j.ctx, data.Method, data.Url, strings.NewReader(data.Body))
-		if err != nil {
-			_ = j.service.WriteLog(j.Id, "请求失败: "+err.Error())
-			return
-		}
-		for name, value := range data.Headers {
-			if strings.EqualFold(name, "Host") {
-				request.Host = value
-			} else {
-				request.Header.Set(name, value)
-			}
-		}
-		response, err := client.Do(request)
-		if err != nil {
-			_ = j.service.WriteLog(j.Id, "请求失败: "+err.Error())
-			return
-		}
-		defer response.Body.Close()
-		responseBody, err := io.ReadAll(io.LimitReader(response.Body, 64*1024+1))
-		if err != nil {
-			_ = j.service.WriteLog(j.Id, "读取响应失败: "+err.Error())
-			return
-		}
-		truncated := len(responseBody) > 64*1024
-		if truncated {
-			responseBody = responseBody[:64*1024]
-		}
-		result := "请求完成"
-		if response.StatusCode >= http.StatusBadRequest {
-			result = "请求异常"
-		}
-		content := fmt.Sprintf("%s: %s %s, 耗时: %s", result, data.Method, response.Status, time.Since(startedAt).Round(time.Millisecond))
-		if len(responseBody) > 0 {
-			content += "\n返回值:\n" + strings.ToValidUTF8(string(responseBody), "�")
-		}
-		if truncated {
-			content += "\n[返回值超过64 KiB，已截断]"
-		}
-		_ = j.service.WriteLog(j.Id, content)
 	}
 }

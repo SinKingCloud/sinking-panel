@@ -303,7 +303,12 @@ func (s *service) ObtainCert(ctx context.Context, name string, request Certifica
 	if ctx == nil {
 		return nil, errors.New("证书申请上下文不能为空")
 	}
-	name, err := s.validateCertificateMetadata(name, cert_type.Auto)
+	ctx, release, err := s.operationContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer release()
+	name, err = s.validateCertificateMetadata(name, cert_type.Auto)
 	if err != nil {
 		return nil, err
 	}
@@ -397,6 +402,11 @@ func (s *service) RenewCert(ctx context.Context, id int64, request CertificateRe
 	if ctx == nil {
 		return nil, errors.New("证书续签上下文不能为空")
 	}
+	ctx, release, err := s.operationContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer release()
 	if id <= 0 {
 		return nil, errors.New("证书 ID 不合法")
 	}
@@ -560,6 +570,11 @@ func (s *service) ManualCert(ctx context.Context, id int64, name string, request
 	if ctx == nil {
 		return nil, errors.New("手动验证上下文不能为空")
 	}
+	ctx, release, err := s.operationContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer release()
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -629,9 +644,14 @@ func (s *service) ManualCert(ctx context.Context, id int64, name string, request
 			}, nil
 		}
 		ctx, cancel := context.WithDeadline(ctx, order.ExpiresAt)
-		defer cancel()
+		done := make(chan struct{})
+		defer func() {
+			cancel()
+			<-done
+		}()
 		// 仅提交期间检查共享缓存，其他节点取消订单后也能中断当前请求。
 		go func() {
+			defer close(done)
 			ticker := time.NewTicker(time.Second)
 			defer ticker.Stop()
 			for {

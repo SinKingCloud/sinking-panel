@@ -11,7 +11,6 @@ import (
 	"sync"
 
 	"server/app/constant"
-	"server/app/enum/task_status"
 	"server/app/model"
 	repositoryCert "server/app/repository/cert"
 	repositorySecret "server/app/repository/secret"
@@ -33,7 +32,8 @@ import (
 
 // Service 网站管理服务接口。
 type Service interface {
-	Boot() func()
+	Boot()
+	Close()
 	Start() error
 	Stop() error
 	Restart() error
@@ -116,6 +116,14 @@ type service struct {
 	active               bool
 	operationMu          sync.Mutex
 	logMu                sync.RWMutex
+	ctx                  context.Context
+	cancel               context.CancelFunc
+	lifecycleMu          sync.Mutex
+	booted               bool
+	closed               bool
+	certTask             bool
+	closeOnce            sync.Once
+	wait                 sync.WaitGroup
 }
 
 // NewService 创建网站管理服务。
@@ -219,22 +227,6 @@ func NewService(repositorySite repositorySite.Interface, repositorySiteDomain re
 		return nil, err
 	}
 	result.http = httpManager
-	// 按保存的周期及开关注册内部任务，不写入用户计划任务表。
-	renewSettings, err := result.GetCertSettings()
-	if err != nil {
-		return nil, err
-	}
-	renewStatus := task_status.Stop
-	if renewSettings.Enabled {
-		renewStatus = task_status.Running
-	}
-	if err = result.taskService.Add(&model.Task{
-		Id:     constant.TaskCertAutoRenew,
-		Name:   "证书自动续签",
-		Spec:   renewSettings.Spec,
-		Status: renewStatus,
-	}, result.autoRenewCerts); err != nil {
-		return nil, fmt.Errorf("注册证书自动续签任务失败: %w", err)
-	}
+	result.ctx, result.cancel = context.WithCancel(context.Background())
 	return result, nil
 }

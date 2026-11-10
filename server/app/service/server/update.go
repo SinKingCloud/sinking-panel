@@ -44,6 +44,9 @@ func (s *service) UpdateByIds(ids []int64, data *repositoryServer.UpdateServer) 
 		if len(configs) == 0 && data.Password == nil {
 			return nil
 		}
+		if s.configService == nil {
+			return errors.New("配置服务未初始化")
+		}
 		stored := s.configService.Group(constant.SshGroup)
 		oldIP := strings.TrimSpace(stored[constant.SshIP])
 		if oldIP == "" {

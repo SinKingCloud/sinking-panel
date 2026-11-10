@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"io"
-	"net/http"
 	"os"
 	"path/filepath"
 	"server/app/constant"
@@ -13,6 +11,7 @@ import (
 	"server/app/enum/task_status"
 	"server/app/enum/type_module"
 	"server/app/model"
+	"server/app/service/task/request"
 	"server/app/util/file"
 	cursorLog "server/app/util/log"
 	"server/app/util/str"
@@ -31,6 +30,9 @@ func (s *service) validateTypeId(typeId int64) error {
 	if typeId == 0 {
 		return nil
 	}
+	if s.typeService == nil {
+		return errors.New("分类服务未初始化")
+	}
 	data, err := s.typeService.FindById(typeId)
 	if err != nil || data == nil || data.Module != type_module.Task {
 		return errors.New("任务分类不合法")
@@ -38,117 +40,38 @@ func (s *service) validateTypeId(typeId int64) error {
 	return nil
 }
 
-// checkContent 判断任务内容
+// checkContent 由对应任务类型校验并规范化任务内容。
 func (s *service) checkContent(content string, execType int) (string, error) {
 	if strings.TrimSpace(content) == "" {
 		return "", errors.New("任务内容不能为空")
 	}
 	switch execType {
 	case task_exec_type.Script:
-		return content, nil
+		return s.script.Validate(content)
 	case task_exec_type.Request:
-		data := Request{}
-		if err := json.Unmarshal([]byte(content), &data); err != nil {
-			data = Request{
-				Method: http.MethodGet,
-				Url:    strings.TrimSpace(content),
-			}
-		}
-		data.Method = strings.ToUpper(strings.TrimSpace(data.Method))
-		if data.Method == "" {
-			data.Method = http.MethodGet
-		}
-		switch data.Method {
-		case http.MethodGet, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodHead, http.MethodOptions:
-		default:
-			return "", errors.New("请求方式不合法")
-		}
-		data.Url = strings.TrimSpace(data.Url)
-		request, err := http.NewRequest(data.Method, data.Url, nil)
-		if err != nil || request.URL.Host == "" || (!strings.EqualFold(request.URL.Scheme, "http") && !strings.EqualFold(request.URL.Scheme, "https")) {
-			return "", errors.New("请求地址必须是有效的HTTP或HTTPS地址")
-		}
-		if len(data.Headers) > 100 {
-			return "", errors.New("请求头数量不能超过100个")
-		}
-		validHeaderName := func(name string) bool {
-			for i := 0; i < len(name); i++ {
-				char := name[i]
-				if (char >= 'a' && char <= 'z') || (char >= 'A' && char <= 'Z') || (char >= '0' && char <= '9') || strings.ContainsRune("!#$%&'*+-.^_`|~", rune(char)) {
-					continue
-				}
-				return false
-			}
-			return name != ""
-		}
-		validHeaderValue := func(value string) bool {
-			for i := 0; i < len(value); i++ {
-				char := value[i]
-				if char != '\t' && (char < 0x20 || char == 0x7f) {
-					return false
-				}
-			}
-			return true
-		}
-		headers := make(map[string]string, len(data.Headers))
-		headerNames := make(map[string]struct{}, len(data.Headers))
-		for name, value := range data.Headers {
-			name = strings.TrimSpace(name)
-			if !validHeaderName(name) {
-				return "", errors.New("请求头名称不合法")
-			}
-			lowerName := strings.ToLower(name)
-			if _, ok := headerNames[lowerName]; ok {
-				return "", errors.New("请求头名称不能重复")
-			}
-			if lowerName == "content-length" || lowerName == "transfer-encoding" || lowerName == "trailer" {
-				return "", errors.New("不支持自定义传输层请求头")
-			}
-			if !validHeaderValue(value) {
-				return "", errors.New("请求头值不合法")
-			}
-			if lowerName == "host" && strings.TrimSpace(value) == "" {
-				return "", errors.New("Host请求头不能为空")
-			}
-			headerNames[lowerName] = struct{}{}
-			name = http.CanonicalHeaderKey(name)
-			headers[name] = value
-			if lowerName == "host" {
-				request.Host = value
-			} else {
-				request.Header.Set(name, value)
-			}
-		}
-		if err = request.Write(io.Discard); err != nil {
-			return "", errors.New("请求配置不合法")
-		}
-		data.Headers = headers
-		value, err := json.Marshal(data)
-		if err != nil {
-			return "", errors.New("请求配置格式化失败")
-		}
-		return string(value), nil
+		return s.request.Validate(content)
 	default:
 		return "", errors.New("任务类型不合法")
 	}
 }
 
-// formatContent 格式化任务内容
+// formatContent 格式化任务内容。
 func (s *service) formatContent(content string, execType int) interface{} {
-	if execType == task_exec_type.Script {
+	switch execType {
+	case task_exec_type.Script:
 		return content
-	}
-	if execType == task_exec_type.Request {
-		content, err := s.checkContent(content, execType)
+	case task_exec_type.Request:
+		value, err := s.request.Validate(content)
 		if err == nil {
-			data := Request{}
-			if json.Unmarshal([]byte(content), &data) == nil {
+			data := request.Config{}
+			if json.Unmarshal([]byte(value), &data) == nil {
 				return data
 			}
 		}
-		return Request{}
+		return request.Config{}
+	default:
+		return nil
 	}
-	return nil
 }
 
 // Stop 暂停任务
@@ -172,7 +95,7 @@ func (s *service) Stop(id int64) error {
 		return err
 	}
 	if entryID > 0 {
-		s.instance.Remove(cron.EntryID(entryID))
+		s.removeEntry(cron.EntryID(entryID))
 	}
 	return nil
 }
@@ -196,9 +119,15 @@ func (s *service) Restore(id int64) error {
 	if j == nil {
 		j = s.newJob(task)
 	}
-	if j == nil {
+	if j == nil || j.retired {
 		return errors.New("任务实例化失败")
 	}
+	defer func() {
+		if id >= 0 && j.entryID == 0 && j.running == 0 {
+			j.cancel()
+			delete(s.jobs, j)
+		}
+	}()
 	entryID, err := s.instance.AddJob(task.Spec, j)
 	if err != nil {
 		return err
@@ -212,11 +141,12 @@ func (s *service) Restore(id int64) error {
 		task.Status = task_status.Running
 		task.UpdateTime = str.DateTime(time.Now())
 	} else if err = s.repositoryTask.UpdateStateById(id, int(entryID), task_status.Running); err != nil {
-		s.instance.Remove(entryID)
+		s.removeEntry(entryID)
 		return err
 	}
+	j.entryID = entryID
 	if oldEntryID > 0 && oldEntryID != entryID {
-		s.instance.Remove(oldEntryID)
+		s.removeEntry(oldEntryID)
 	}
 	return nil
 }
@@ -241,55 +171,58 @@ func (s *service) Run(id int64) error {
 	if j == nil {
 		j = s.newJob(task)
 	}
-	if j == nil {
+	if j == nil || j.retired {
 		s.taskLock.Unlock()
 		return errors.New("任务实例化失败")
 	}
-	s.runWait.Add(1)
+	value, ok := j.begin()
+	if !ok {
+		s.taskLock.Unlock()
+		return errors.New("任务已取消")
+	}
 	s.taskLock.Unlock()
 	go func() {
-		defer s.runWait.Done()
-		cron.Recover(cron.DiscardLogger)(j).Run()
+		cron.Recover(cron.DiscardLogger)(cron.FuncJob(func() { j.execute(value) })).Run()
 	}()
 	return nil
 }
 
 // Remove 移除任务
 func (s *service) Remove(ids []int64) error {
-	s.taskLock.Lock()
-	defer s.taskLock.Unlock()
-
 	if len(ids) == 0 {
 		return errors.New("删除任务不能为空")
 	}
-	tasks := make([]*model.Task, 0, len(ids))
+	s.taskLock.Lock()
 	storedIds := make([]int64, 0, len(ids))
+	selected := make(map[int64]bool, len(ids))
 	for _, id := range ids {
 		task, err := s.findById(id)
 		if err != nil {
+			s.taskLock.Unlock()
 			return err
 		}
 		if task == nil {
+			s.taskLock.Unlock()
 			return errors.New("任务不存在")
 		}
-		tasks = append(tasks, task)
+		selected[id] = true
 		if id >= 0 {
 			storedIds = append(storedIds, id)
 		}
 	}
-	s.logLock.Lock()
-	defer s.logLock.Unlock()
 	if len(storedIds) > 0 {
 		if err := s.repositoryTask.DeleteByIds(storedIds); err != nil {
+			s.taskLock.Unlock()
 			return err
 		}
 	}
-	for _, task := range tasks {
-		delete(s.internalTasks, task.Id)
-		if task.EntryID > 0 {
-			s.instance.Remove(cron.EntryID(task.EntryID))
-		}
-		if err := os.Remove(s.getTaskLogFilePath(task.Id)); err != nil && !os.IsNotExist(err) {
+	jobs := s.cancelJobs(func(j *job) bool { return selected[j.Id] })
+	s.taskLock.Unlock()
+	s.waitJobs(jobs)
+	s.logLock.Lock()
+	defer s.logLock.Unlock()
+	for _, id := range ids {
+		if err := os.Remove(s.getTaskLogFilePath(id)); err != nil && !os.IsNotExist(err) {
 			return err
 		}
 	}
@@ -316,7 +249,7 @@ func (s *service) refresh(id int64) error {
 			} else if err = s.repositoryTask.UpdateEntryIDById(id, 0); err != nil {
 				return err
 			}
-			s.instance.Remove(oldEntryID)
+			s.removeEntry(oldEntryID)
 		}
 		return nil
 	}
@@ -324,9 +257,15 @@ func (s *service) refresh(id int64) error {
 	if j == nil {
 		j = s.newJob(task)
 	}
-	if j == nil {
+	if j == nil || j.retired {
 		return errors.New("任务实例化失败")
 	}
+	defer func() {
+		if id >= 0 && j.entryID == 0 && j.running == 0 {
+			j.cancel()
+			delete(s.jobs, j)
+		}
+	}()
 	entryID, err := s.instance.AddJob(task.Spec, j)
 	if err != nil {
 		return err
@@ -337,11 +276,12 @@ func (s *service) refresh(id int64) error {
 	if id < 0 {
 		task.EntryID = int(entryID)
 	} else if err = s.repositoryTask.UpdateEntryIDById(id, int(entryID)); err != nil {
-		s.instance.Remove(entryID)
+		s.removeEntry(entryID)
 		return err
 	}
+	j.entryID = entryID
 	if oldEntryID > 0 && oldEntryID != entryID {
-		s.instance.Remove(oldEntryID)
+		s.removeEntry(oldEntryID)
 	}
 	return nil
 }
@@ -402,17 +342,17 @@ func (s *service) Add(data *model.Task, run ...func(context.Context)) error {
 		j := &job{
 			Task:    &task,
 			service: s,
-			ctx:     s.ctx,
 		}
+		j.ctx, j.cancel = context.WithCancel(s.ctx)
 		// 复用同一执行包装，改周期、暂停恢复和手动执行都不会重叠运行。
 		j.run = cron.NewChain(
 			cron.SkipIfStillRunning(cron.DiscardLogger),
 			cron.Recover(cron.DiscardLogger),
 		).Then(cron.FuncJob(func() {
 			s.taskLock.Lock()
-			active := !s.closed && s.internalTasks[id] == j
+			active := !s.closed && !j.retired && s.internalTasks[id] == j
 			s.taskLock.Unlock()
-			if !active || s.ctx.Err() != nil {
+			if !active || j.ctx.Err() != nil {
 				return
 			}
 			defer func() {
@@ -420,16 +360,19 @@ func (s *service) Add(data *model.Task, run ...func(context.Context)) error {
 				defer s.taskLock.Unlock()
 				j.RunTime = str.DateTime(time.Now())
 			}()
-			run[0](s.ctx)
+			run[0](j.ctx)
 		}))
 		if task.Status == task_status.Running {
 			entryID, err := s.instance.AddJob(task.Spec, j)
 			if err != nil {
+				j.cancel()
 				return err
 			}
 			task.EntryID = int(entryID)
+			j.entryID = entryID
 		}
 		s.internalTasks[id] = j
+		s.jobs[j] = struct{}{}
 		*data = task
 		return nil
 	}
@@ -442,23 +385,26 @@ func (s *service) Add(data *model.Task, run ...func(context.Context)) error {
 	if data.Status == task_status.Stop {
 		return s.repositoryTask.Create(data)
 	}
-	j := s.newJob(data)
-	if j == nil {
-		return errors.New("任务实例化失败")
-	}
 	// 先保存并取得任务 ID，避免调度器在 ID 回填前执行任务。
 	if err = s.repositoryTask.Create(data); err != nil {
 		return err
 	}
+	j := s.newJob(data)
+	if j == nil {
+		return errors.Join(errors.New("任务实例化失败"), s.repositoryTask.DeleteByIds([]int64{data.Id}))
+	}
 	id, err := s.instance.AddJob(data.Spec, j)
 	if err == nil {
+		j.entryID = id
 		err = s.repositoryTask.UpdateEntryIDById(data.Id, int(id))
 		if err == nil {
 			data.EntryID = int(id)
 			return nil
 		}
-		s.instance.Remove(id)
+		s.removeEntry(id)
 	}
+	j.cancel()
+	delete(s.jobs, j)
 	return errors.Join(err, s.repositoryTask.DeleteByIds([]int64{data.Id}))
 }
 
@@ -486,8 +432,14 @@ func (s *service) Start() {
 					entryID, err2 := s.instance.AddJob(task.Spec, job2)
 					if err2 == nil && entryID > 0 {
 						if err2 = s.repositoryTask.UpdateEntryIDById(task.Id, int(entryID)); err2 != nil {
-							s.instance.Remove(entryID)
+							s.removeEntry(entryID)
+						} else {
+							job2.entryID = entryID
 						}
+					}
+					if job2.entryID == 0 {
+						job2.cancel()
+						delete(s.jobs, job2)
 					}
 				}
 			}
@@ -502,9 +454,11 @@ func (s *service) Close() {
 		s.taskLock.Lock()
 		s.closed = true
 		s.cancel()
+		jobs := s.cancelJobs(func(*job) bool { return true })
 		s.taskLock.Unlock()
 		<-s.instance.Stop().Done()
 		s.runWait.Wait()
+		s.waitJobs(jobs)
 	})
 }
 

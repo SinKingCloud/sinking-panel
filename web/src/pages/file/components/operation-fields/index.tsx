@@ -83,7 +83,6 @@ export const RemoteDownloadOperationFields = memo(() => {
                     {validator: validateUrl},
                 ]}>
                 <Input
-                    autoFocus
                     placeholder="https://example.com/file.zip"
                     onChange={(event) => {
                         if (!nameEditedRef.current) {

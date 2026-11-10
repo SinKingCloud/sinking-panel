@@ -13,7 +13,7 @@ func (s *service) createTask(action, name string, data map[string]interface{}, r
 		return "", errors.New("后台任务服务不可用")
 	}
 	id := str.GetSnowWorkIns().GetUuid()
-	s.systemService.TaskCreate(id, name, data, func(ctx context.Context, _ interface{}, update func(int, float64, string)) {
+	err := s.tasks.Create(id, name, data, func(ctx context.Context, _ interface{}, update func(int, float64, string)) {
 		update(system_task_status.Running, 0, "开始"+action)
 		err := run(ctx, func(progress float64, message string) {
 			update(system_task_status.Running, progress, message)
@@ -26,8 +26,8 @@ func (s *service) createTask(action, name string, data map[string]interface{}, r
 			update(system_task_status.Completed, 100, action+"完成")
 		}
 	})
-	if s.systemService.GetTask(id) == nil {
-		return "", errors.New("创建后台任务失败，面板正在停止")
+	if err != nil {
+		return "", err
 	}
 	return id, nil
 }

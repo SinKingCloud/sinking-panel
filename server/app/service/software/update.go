@@ -18,6 +18,9 @@ func (s *service) Update(id int64, data *repositorySoftware.UpdateSoftware) erro
 	if data == nil {
 		return nil
 	}
+	if data.Status != nil && s.plugins == nil {
+		return errors.New("插件管理器未初始化")
+	}
 	changes := &repositorySoftware.UpdateSoftware{Name: data.Name, Status: data.Status}
 	if changes.Name != nil {
 		name := strings.TrimSpace(*changes.Name)
@@ -54,7 +57,7 @@ func (s *service) Update(id int64, data *repositorySoftware.UpdateSoftware) erro
 	}
 	changed := changes.Status != nil && *changes.Status != record.Status
 	if changed {
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		ctx, cancel := context.WithTimeout(s.ctx, 30*time.Second)
 		defer cancel()
 		if *changes.Status == software_status.Enabled {
 			pkg, err := s.plugins.Info(record.Code)

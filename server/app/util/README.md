@@ -60,7 +60,7 @@ IP 内部实现：[CZDB](ip/czdb/README.md)、[数据模型](ip/czdb/entity/READ
 | `daemon` | 应用守护运行、启停控制及开机启动集成 | [详细说明](daemon/README.md) |
 | `ipc` | 本机进程间控制通信，平台间使用不同传输机制 | [详细说明](ipc/README.md) |
 | `job` | 有界并发生产/消费任务处理 | [详细说明](job/README.md) |
-| `recordstore` | 任意 JSON / 原始字节的集合存储、键读写、时间查询及 TTL；附数值序列和旧事件格式扩展 | [详细说明](recordstore/README.md) |
+| `datastore` | 任意 JSON / 原始字节的集合存储、键读写、时间查询及 TTL；附数值序列和旧事件格式扩展 | [详细说明](datastore/README.md) |
 | `platform` | 操作系统、运行环境及系统时区管理 | [详细说明](platform/README.md) |
 | `plugin` | Go 插件源码解释、清单、生命周期和宿主能力注入 | [详细说明](plugin/README.md) |
 
@@ -72,9 +72,9 @@ IP 内部实现：[CZDB](ip/czdb/README.md)、[数据模型](ip/czdb/entity/READ
 | --- | --- |
 | 数据库或文件备份上传云存储 | `archive` / `cmd` → `oss`，通过 context 和 io.Reader 连接备份与上传 |
 | 新增 CRUD 列表接口 | `context` → `validator` → `page` → `repository` / `database` |
-| 轻量本地业务记录、配置与自定义编码数据 | `recordstore` 的 `Open` / `Collection`；业务自行定义数据结构与筛选统计 |
+| 轻量本地业务记录、配置与自定义编码数据 | `datastore` 的 `Open` / `Collection`；业务自行定义数据结构与筛选统计 |
 | 宿主后台常驻任务 | `process`，结合 `log` 提供增量日志；一次性命令使用 `cmd` |
-| 容器软件管理 | `container` → `log` / `recordstore`；插件侧接入再阅读 `plugin` |
+| 容器软件管理 | `container` → `log` / `datastore`；插件侧接入再阅读 `plugin` |
 | 网站与自动证书 | `caddy`，并按相应 DNS 提供商配置凭据 |
 | 系统服务启停控制 | `daemon` → `ipc`，根据平台确认控制通道与身份要求 |
 | IP 归属展示 | `ip`；只有维护数据格式时才阅读 czdb 子包 |

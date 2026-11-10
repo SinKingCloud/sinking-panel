@@ -48,6 +48,9 @@ func (s *service) Restart(action string, containers bool) error {
 			return err
 		}
 		run = func() error {
+			if err := s.ctx.Err(); err != nil {
+				return err
+			}
 			output, err := command.CombinedOutput()
 			if err != nil {
 				return fmt.Errorf("重启服务器失败: %w: %s", err, strings.TrimSpace(string(output)))
@@ -57,13 +60,19 @@ func (s *service) Restart(action string, containers bool) error {
 	default:
 		return errors.New("重启操作无效")
 	}
-	if s.ctx.Err() != nil {
+	s.lifecycleMu.Lock()
+	if s.closed {
+		s.lifecycleMu.Unlock()
 		return errors.New("面板正在停止")
 	}
 	if !s.restartPending.CompareAndSwap(false, true) {
+		s.lifecycleMu.Unlock()
 		return errors.New("正在重启，请勿重复提交")
 	}
+	s.wait.Add(1)
+	s.lifecycleMu.Unlock()
 	go func() {
+		defer s.wait.Done()
 		timer := time.NewTimer(time.Second)
 		defer timer.Stop()
 		select {
@@ -73,7 +82,9 @@ func (s *service) Restart(action string, containers bool) error {
 		case <-timer.C:
 		}
 		if err := run(); err != nil {
-			log.Printf("执行系统重启失败 [%s]: %v", action, err)
+			if s.ctx.Err() == nil {
+				log.Printf("执行系统重启失败 [%s]: %v", action, err)
+			}
 			s.restartPending.Store(false)
 		}
 	}()
@@ -114,7 +125,7 @@ func (s *service) serverRestartCommand(goos string) (*exec.Cmd, error) {
 		}
 		for _, path := range paths {
 			if executable, err := exec.LookPath(path); err == nil {
-				return exec.Command(executable, command[1:]...), nil
+				return exec.CommandContext(s.ctx, executable, command[1:]...), nil
 			}
 		}
 	}

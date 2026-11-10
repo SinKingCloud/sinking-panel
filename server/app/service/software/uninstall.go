@@ -18,6 +18,12 @@ import (
 
 // Uninstall 按标识或 ID 卸载软件并清理插件数据，提交后台任务后立即返回任务 ID。
 func (s *service) Uninstall(target string) (int64, error) {
+	if s.system == nil {
+		return 0, errors.New("系统任务服务未初始化")
+	}
+	if s.plugins == nil {
+		return 0, errors.New("插件管理器未初始化")
+	}
 	target = strings.TrimSpace(target)
 	record, err := s.repository.FindByCode(target)
 	if err != nil {
@@ -98,6 +104,12 @@ func (s *service) Uninstall(target string) (int64, error) {
 		e.pending = record
 		e.taskID = key
 		s.system.TaskCreate(key, "卸载 "+record.Name, map[string]interface{}{"software_id": id}, func(ctx context.Context, _ interface{}, progress func(int, float64, string)) {
+			ctx, cancel := context.WithCancel(ctx)
+			stop := context.AfterFunc(s.ctx, cancel)
+			defer func() { stop(); cancel() }()
+			if s.ctx.Err() != nil {
+				cancel()
+			}
 			e.mu.Lock()
 			defer e.mu.Unlock()
 			if e.taskID != key {
@@ -115,8 +127,8 @@ func (s *service) Uninstall(target string) (int64, error) {
 			defer s.invalidate(record.Code)
 			defer s.invalidateManifest(record.Code)
 			progress(system_task_status.Running, 10, "正在卸载软件")
-			ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
-			defer cancel()
+			ctx, timeoutCancel := context.WithTimeout(ctx, 5*time.Minute)
+			defer timeoutCancel()
 			_, runErr := s.plugins.Lifecycle(ctx, directory, "stop", "{}")
 			if runErr == nil {
 				_, runErr = s.plugins.Lifecycle(ctx, directory, "uninstall", `{"remove_data":true}`)

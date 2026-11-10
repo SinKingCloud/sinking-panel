@@ -33,6 +33,9 @@ func (s *service) UpdateHTTP(config *HTTPUpdate) error {
 }
 
 func (s *service) updateHTTPLocked(config *HTTPUpdate) error {
+	if s.ctx.Err() != nil {
+		return errors.New("网站服务已关闭")
+	}
 	previous := s.http.Options()
 	candidate := previous
 	var err error

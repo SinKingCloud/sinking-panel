@@ -29,7 +29,7 @@ func (s *service) RefreshElasticsearchFields(id int64, databaseName string) (str
 		"database_name": databaseName,
 		"action":        "refresh_fields",
 	}
-	s.systemService.TaskCreate(taskID, "Elasticsearch 回填文档: "+data.Name+"/"+databaseName, params, func(ctx context.Context, _ interface{}, update func(int, float64, string)) {
+	err = s.tasks.Create(taskID, "Elasticsearch 回填文档: "+data.Name+"/"+databaseName, params, func(ctx context.Context, _ interface{}, update func(int, float64, string)) {
 		percent := float64(0)
 		update(system_task_status.Running, 0, "正在连接 Elasticsearch")
 		var result map[string]interface{}
@@ -51,8 +51,8 @@ func (s *service) RefreshElasticsearchFields(id int64, databaseName string) (str
 		}
 		s.systemService.TaskUpdate(taskID, status, percent, message, result)
 	})
-	if s.systemService.GetTask(taskID) == nil {
-		return "", errors.New("创建后台任务失败，面板正在停止")
+	if err != nil {
+		return "", err
 	}
 	return taskID, nil
 }

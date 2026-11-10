@@ -46,11 +46,11 @@ func (s *service) TaskList(status *int) ([]*Task, error) {
 }
 
 // TaskCreate 创建任务
-func (s *service) TaskCreate(id, name string, data interface{}, run func(context.Context, interface{}, func(int, float64, string))) {
+func (s *service) TaskCreate(id, name string, data interface{}, run func(context.Context, interface{}, func(int, float64, string))) error {
 	s.lifecycleMu.Lock()
 	defer s.lifecycleMu.Unlock()
 	if s.closed {
-		return
+		return errors.New("系统任务服务已停止")
 	}
 	now := time.Now().Unix()
 	ctx, cancel := context.WithCancel(s.ctx)
@@ -65,6 +65,11 @@ func (s *service) TaskCreate(id, name string, data interface{}, run func(context
 		cancel:     cancel,
 	}
 	s.mu.Lock()
+	if s.tasks[id] != nil {
+		s.mu.Unlock()
+		cancel()
+		return errors.New("任务ID已存在")
+	}
 	s.tasks[id] = task
 	s.mu.Unlock()
 	s.appendTaskLog(id, system_task_status.Pending, 0, "任务已创建，等待执行")
@@ -79,6 +84,7 @@ func (s *service) TaskCreate(id, name string, data interface{}, run func(context
 	s.queue = append(s.queue, id)
 	s.queueCond.Signal()
 	s.queueMu.Unlock()
+	return nil
 }
 
 // TaskUpdate 更新任务
@@ -154,6 +160,7 @@ func (s *service) TaskCancel(id string) bool {
 		return false
 	}
 	cancel := task.cancel
+	task.cancel = nil
 	// 更新任务状态
 	task.Status = system_task_status.Canceled
 	task.Message = "任务已取消"
@@ -270,13 +277,18 @@ func (s *service) runTask(job *job) {
 }
 
 func (s *service) finishTask(job *job) {
-	s.mu.RLock()
+	s.mu.Lock()
 	task, ok := s.tasks[job.id]
 	status := system_task_status.Failed
+	var cancel context.CancelFunc
 	if ok {
 		status = task.Status
+		cancel, task.cancel = task.cancel, nil
 	}
-	s.mu.RUnlock()
+	s.mu.Unlock()
+	if cancel != nil {
+		defer cancel()
+	}
 	terminal := status == system_task_status.Completed || status == system_task_status.Failed || status == system_task_status.Canceled
 	if !ok || terminal {
 		return

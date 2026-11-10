@@ -1,4 +1,4 @@
-package recordstore
+package datastore
 
 import (
 	"encoding/json"
@@ -43,7 +43,7 @@ func (s *Series) validateFiles() error {
 		return err
 	}
 	for _, entry := range entries {
-		if filepath.Ext(entry.Name()) != ".series" {
+		if filepath.Ext(entry.Name()) != ".data" {
 			continue
 		}
 		if _, valid := seriesDay(entry.Name()); !valid {
@@ -74,14 +74,22 @@ func (s *Series) validateFiles() error {
 
 func seriesDay(name string) (time.Time, bool) {
 	extension := filepath.Ext(name)
-	if extension != ".series" {
+	if extension != ".data" {
 		return time.Time{}, false
 	}
 	day, err := time.Parse("2006-01-02", strings.TrimSuffix(name, extension))
 	return day, err == nil && day.Format("2006-01-02")+extension == name
 }
 
-func seriesSchemaHash(fields []Field) uint32 {
+// SeriesSchemaHash 生成共享数值流的字段摘要；省略聚合方式与显式 Mean 等价。
+// 字段是否合法仍由 OpenSeries 校验。
+func SeriesSchemaHash(fields []Field) uint32 {
+	fields = slices.Clone(fields)
+	for index := range fields {
+		if fields[index].Aggregate == "" {
+			fields[index].Aggregate = Mean
+		}
+	}
 	data, _ := json.Marshal(fields)
 	return crc32.ChecksumIEEE(data)
 }

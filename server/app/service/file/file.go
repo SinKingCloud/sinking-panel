@@ -11,6 +11,7 @@ import (
 
 // Service service接口
 type Service interface {
+	Close()
 	List(path, keyword string, query *page.Query) (*page.Result[*File], error)
 	Info(path string, read bool, cursor int64, pageSize int, version string) (map[string]interface{}, error)
 	Count(path string) (map[string]interface{}, error)
@@ -50,6 +51,7 @@ type service struct {
 	recycleService serviceRecycle.Service
 	systemService  serviceSystem.Service
 	upload         uploadState
+	tasks          *serviceSystem.TaskGroup
 }
 
 // NewService 实例化service
@@ -59,5 +61,11 @@ func NewService(recycleService serviceRecycle.Service, systemService serviceSyst
 		recycleService: recycleService,
 		systemService:  systemService,
 		upload:         uploadState{locks: make(map[string]*uploadSessionLock)},
+		tasks:          serviceSystem.NewTaskGroup(systemService),
 	}
+}
+
+// Close 取消并等待本服务创建的后台文件任务，不关闭共享系统服务。
+func (s *service) Close() {
+	s.tasks.Close()
 }

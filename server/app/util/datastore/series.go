@@ -1,4 +1,4 @@
-package recordstore
+package datastore
 
 import (
 	"encoding/binary"
@@ -31,6 +31,7 @@ type Series struct {
 	fields            []Field
 	recordSize        int
 	schemaHash        uint32
+	storage           *Timeline
 	config            SeriesConfiguration
 	saveConfiguration func(SeriesConfiguration) error
 	pending           Point
@@ -62,9 +63,13 @@ func OpenSeries(dir string, fields []Field, options ...SeriesOptions) (*Series, 
 	if err = os.MkdirAll(dir, 0700); err != nil {
 		return nil, fmt.Errorf("创建数值历史目录失败: %w", err)
 	}
-	s := &Series{dir: dir, fields: fields, recordSize: 16 + 8*len(fields), schemaHash: seriesSchemaHash(fields),
+	s := &Series{dir: dir, fields: fields, recordSize: 16 + 8*len(fields), schemaHash: SeriesSchemaHash(fields), storage: option.Storage,
 		config: SeriesConfiguration{Enabled: true, RetentionDays: 30}}
-	if err = s.validateFiles(); err != nil {
+	if s.storage != nil {
+		if s.storage.interval != seriesMinuteMillis || s.storage.schema != s.schemaHash || s.storage.maximum < s.recordSize {
+			return nil, errors.New("共享数值流的间隔、字段定义或记录大小不匹配")
+		}
+	} else if err = s.validateFiles(); err != nil {
 		return nil, err
 	}
 	if option.Configuration != nil {
@@ -97,6 +102,11 @@ func (s *Series) Settings() (SeriesSettings, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	result := SeriesSettings{Enabled: s.config.Enabled, RetentionDays: s.config.RetentionDays, Interval: 60, LastError: s.lastError}
+	if s.storage != nil {
+		var err error
+		result.StorageBytes, err = s.storage.Size()
+		return result, err
+	}
 	entries, err := os.ReadDir(s.dir)
 	if err != nil {
 		return result, err
@@ -183,6 +193,13 @@ func (s *Series) flush() error {
 	if !s.dirty || s.pending.Samples == 0 {
 		return nil
 	}
+	if s.storage != nil {
+		if err := s.storage.PutMany([]TimelineEntry{{Time: s.pending.Time, Data: s.encode(s.pending)}}); err != nil {
+			return err
+		}
+		s.dirty = false
+		return nil
+	}
 	file, err := os.OpenFile(s.path(s.pending.Time), os.O_CREATE|os.O_RDWR, 0600)
 	if err != nil {
 		return err
@@ -215,7 +232,7 @@ func (s *Series) flush() error {
 }
 
 func (s *Series) path(timestamp int64) string {
-	return filepath.Join(s.dir, time.UnixMilli(timestamp).UTC().Format("2006-01-02")+".series")
+	return filepath.Join(s.dir, time.UnixMilli(timestamp).UTC().Format("2006-01-02")+".data")
 }
 
 func (s *Series) slotOffset(timestamp int64) int64 {
@@ -235,6 +252,20 @@ func (s *Series) checkHeader(file *os.File) error {
 }
 
 func (s *Series) readSlot(timestamp int64) (Point, error) {
+	if s.storage != nil {
+		data, err := s.storage.Get(timestamp)
+		if errors.Is(err, ErrNotFound) {
+			return Point{}, nil
+		}
+		if err != nil {
+			return Point{}, err
+		}
+		point, ok := s.decode(data, make([]float64, len(s.fields)))
+		if !ok || point.Time != timestamp {
+			return Point{}, errors.New("共享数值流记录损坏或时间不匹配")
+		}
+		return point, nil
+	}
 	file, err := os.Open(s.path(timestamp))
 	if errors.Is(err, os.ErrNotExist) {
 		return Point{}, nil
@@ -284,7 +315,8 @@ func (s *Series) encode(point Point) []byte {
 
 // decode 复用调用方提供的数组，查询时只为最终返回的时间桶复制 Values。
 func (s *Series) decode(data []byte, values []float64) (Point, bool) {
-	if binary.LittleEndian.Uint32(data[s.recordSize-4:]) != crc32.ChecksumIEEE(data[:s.recordSize-4]) {
+	if len(data) != s.recordSize || len(values) != len(s.fields) ||
+		binary.LittleEndian.Uint32(data[s.recordSize-4:]) != crc32.ChecksumIEEE(data[:s.recordSize-4]) {
 		return Point{}, false
 	}
 	point := Point{Time: int64(binary.LittleEndian.Uint64(data[:8])), Samples: binary.LittleEndian.Uint32(data[8:12]), Values: values}

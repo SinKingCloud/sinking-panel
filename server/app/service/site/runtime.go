@@ -1,6 +1,7 @@
 package site
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -19,8 +20,19 @@ import (
 	"gorm.io/gorm"
 )
 
-// Boot 启动网站服务，并返回负责停止服务的清理函数。
-func (s *service) Boot() func() {
+// Boot 启动网站服务和自己的后台任务，重复调用不会重复注册。
+func (s *service) Boot() {
+	s.lifecycleMu.Lock()
+	defer s.lifecycleMu.Unlock()
+	if s.booted || s.closed {
+		return
+	}
+	s.booted = true
+	if err := s.initCertTask(); err != nil {
+		caddyRuntime.Log().Error("注册证书自动续签任务失败", zap.Error(err))
+	} else {
+		s.certTask = true
+	}
 	s.operationMu.Lock()
 	var err error
 	if s.active {
@@ -30,7 +42,23 @@ func (s *service) Boot() func() {
 	if err != nil {
 		caddyRuntime.Log().Error("启动网站服务失败", zap.Error(err))
 	}
-	return func() {
+}
+
+// Close 注销自己的计划任务，取消并等待证书操作，再释放网站运行时。
+// 不关闭注入的任务、配置、数据库等共享服务，也不修改用户保存的启停设置。
+func (s *service) Close() {
+	s.closeOnce.Do(func() {
+		s.lifecycleMu.Lock()
+		s.closed = true
+		s.cancel()
+		certTask := s.certTask
+		s.lifecycleMu.Unlock()
+		if certTask {
+			if err := s.taskService.Cancel([]int64{constant.TaskCertAutoRenew}); err != nil {
+				caddyRuntime.Log().Error("注销证书自动续签任务失败", zap.Error(err))
+			}
+		}
+		s.wait.Wait()
 		s.operationMu.Lock()
 		err := errors.Join(s.http.Stop(), s.process.StopAll())
 		s.processes = nil
@@ -38,7 +66,28 @@ func (s *service) Boot() func() {
 		if err != nil {
 			caddyRuntime.Log().Error("停止网站服务失败", zap.Error(err))
 		}
+	})
+}
+
+// operationContext 将请求关联到网站生命周期；关闭时取消操作并等待释放。
+func (s *service) operationContext(ctx context.Context) (context.Context, func(), error) {
+	if err := ctx.Err(); err != nil {
+		return nil, nil, err
 	}
+	s.lifecycleMu.Lock()
+	if s.closed {
+		s.lifecycleMu.Unlock()
+		return nil, nil, errors.New("网站服务已关闭")
+	}
+	s.wait.Add(1)
+	s.lifecycleMu.Unlock()
+	ctx, cancel := context.WithCancel(ctx)
+	stop := context.AfterFunc(s.ctx, cancel)
+	return ctx, func() {
+		stop()
+		cancel()
+		s.wait.Done()
+	}, nil
 }
 
 // Start 启动网站 HTTP 服务和通用网站进程。
@@ -56,6 +105,9 @@ func (s *service) Stop() error {
 }
 
 func (s *service) setActiveLocked(active bool) error {
+	if s.ctx.Err() != nil {
+		return errors.New("网站服务已关闭")
+	}
 	previous := s.active
 	wasRunning := s.http.Running()
 	s.active = active
@@ -88,6 +140,9 @@ func (s *service) setActiveLocked(active bool) error {
 func (s *service) Restart() error {
 	s.operationMu.Lock()
 	defer s.operationMu.Unlock()
+	if s.ctx.Err() != nil {
+		return errors.New("网站服务已关闭")
+	}
 	sites, processes, err := s.runtime()
 	if err != nil {
 		return err
@@ -177,6 +232,9 @@ func (s *service) Running() bool {
 func (s *service) Sync() error {
 	s.operationMu.Lock()
 	defer s.operationMu.Unlock()
+	if s.ctx.Err() != nil {
+		return errors.New("网站服务已关闭")
+	}
 	config, exists, err := s.loadHTTP()
 	if err != nil {
 		return fmt.Errorf("读取 HTTP 配置失败: %w", err)
@@ -192,6 +250,9 @@ func (s *service) Sync() error {
 
 // syncLocked 同步并保存配置，仅在明确请求启动时启动已停止的服务。
 func (s *service) syncLocked(start bool) error {
+	if s.ctx.Err() != nil {
+		return errors.New("网站服务已关闭")
+	}
 	sites, processes, err := s.runtime()
 	if err != nil {
 		return err

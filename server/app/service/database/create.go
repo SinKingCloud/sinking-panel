@@ -30,6 +30,9 @@ func (s *service) Create(data *model.Database) error {
 		return errors.New("分类不合法")
 	}
 	if data.TypeId > 0 {
+		if s.typeService == nil {
+			return errors.New("分类服务未初始化")
+		}
 		category, err := s.typeService.FindById(data.TypeId)
 		if err != nil {
 			return err

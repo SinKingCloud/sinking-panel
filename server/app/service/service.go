@@ -77,17 +77,18 @@ func Init() {
 	Type = serviceTypes.NewService(typesRepository, scriptRepository, siteRepository, taskRepository, databaseRepository, global.App.Database, global.App.Cache)
 	Script = serviceScript.NewService(scriptRepository, typesRepository)
 	Log = serviceLog.NewService(logRepository)
-	Task = serviceTask.NewService(taskRepository, Type)
 	System = serviceSystem.NewService(Config, global.App.Daemon, global.App.Container)
 	Oss = serviceOss.NewService(ossRepository, secretRepository, System, global.App.Database)
+	Task = serviceTask.NewService(taskRepository, Type)
 	Recycle = serviceRecycle.NewService()
 	File = serviceFile.NewService(Recycle, System, global.App.Cache)
 	Database = serviceDatabase.NewService(databaseRepository, scriptRepository, typesRepository, Type, System, global.App.Database, global.App.Cache)
 	Container = serviceContainer.NewManager(global.App.Container)
-	var err error
-	Site, err = serviceSite.NewService(siteRepository, siteDomainRepository, certRepository, secretRepository, Type, Config, Task, Recycle, global.App.Database, global.App.Cache)
-	if err != nil {
+	Site = nil
+	if site, err := serviceSite.NewService(siteRepository, siteDomainRepository, certRepository, secretRepository, Type, Config, Task, Recycle, global.App.Database, global.App.Cache); err != nil {
 		panic(err)
+	} else {
+		Site = site
 	}
 	services := &sdk.Service{
 		Config:    Config,
@@ -117,20 +118,40 @@ func Init() {
 
 // Boot 启动服务运行时，并返回统一的清理函数。
 func Boot() func() {
-	System.Start()
-	var stopSite func()
-	if Site != nil {
-		stopSite = Site.Boot()
+	if System != nil {
+		System.Start()
 	}
-	Task.Start()
-	Software.Boot()
+	if Site != nil {
+		Site.Boot()
+	}
+	if Task != nil {
+		Task.Start()
+	}
+	if Software != nil {
+		Software.Boot()
+	}
 	return func() {
 		// 插件先停止，清理钩子仍可使用计划任务、网站和系统服务。
-		Software.Close()
-		Task.Close()
-		if stopSite != nil {
-			stopSite()
+		if Software != nil {
+			Software.Close()
 		}
-		System.Close()
+		if Site != nil {
+			Site.Close()
+		}
+		if Task != nil {
+			Task.Close()
+		}
+		if File != nil {
+			File.Close()
+		}
+		if Database != nil {
+			Database.Close()
+		}
+		if Oss != nil {
+			Oss.Close()
+		}
+		if System != nil {
+			System.Close()
+		}
 	}
 }

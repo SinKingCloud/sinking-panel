@@ -11,6 +11,9 @@ import (
 
 // Login 账号登录
 func (s *service) Login(account string, pwd string, types string, ip string) (string, error) {
+	if s.configService == nil {
+		return "", errors.New("配置服务未初始化")
+	}
 	sUser := s.configService.Get(constant.LoginGroup, constant.LoginAccount)
 	sPwd := s.configService.Get(constant.LoginGroup, constant.LoginPassword)
 	if sUser == "" || sPwd == "" || sUser != account || !str.NewStringTool(sPwd).CheckPassword(pwd) {
@@ -39,11 +42,17 @@ func (s *service) Login(account string, pwd string, types string, ip string) (st
 
 // Logout 注销登录
 func (s *service) Logout(types string) error {
+	if s.configService == nil {
+		return errors.New("配置服务未初始化")
+	}
 	return s.configService.Set(constant.LoginToken+"."+types, "")
 }
 
 // UpdateAccount 修改账户
 func (s *service) UpdateAccount(account string, password string) error {
+	if s.configService == nil {
+		return errors.New("配置服务未初始化")
+	}
 	configs := make(map[string]string)
 	if account != "" {
 		configs[constant.LoginAccount] = account

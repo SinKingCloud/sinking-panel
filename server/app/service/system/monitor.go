@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,7 +13,6 @@ import (
 	"maps"
 	"math"
 	"os"
-	"path/filepath"
 	"runtime"
 	"slices"
 	"strconv"
@@ -21,9 +21,9 @@ import (
 	"time"
 
 	"server/app/constant"
+	"server/app/util/datastore"
 	"server/app/util/platform"
 	"server/app/util/psutil"
-	"server/app/util/recordstore"
 )
 
 var panelStartedAt = time.Now().UnixMilli()
@@ -334,28 +334,28 @@ func (s *service) updateStaticMonitor() {
 }
 
 // 字段顺序与已保存的历史文件保持一致；聚合和存储由通用记录器负责。
-var systemMonitorFields = []recordstore.Field{
-	{Name: "cpu", Aggregate: recordstore.Mean},
-	{Name: "cpu_max", Aggregate: recordstore.Max},
-	{Name: "memory", Aggregate: recordstore.Mean},
-	{Name: "memory_used", Aggregate: recordstore.Mean},
-	{Name: "memory_total", Aggregate: recordstore.Mean},
-	{Name: "disk_usage", Aggregate: recordstore.Mean},
-	{Name: "disk_used", Aggregate: recordstore.Mean},
-	{Name: "disk_total", Aggregate: recordstore.Mean},
-	{Name: "disk_read", Aggregate: recordstore.Mean},
-	{Name: "disk_write", Aggregate: recordstore.Mean},
-	{Name: "net_sent", Aggregate: recordstore.Mean},
-	{Name: "net_recv", Aggregate: recordstore.Mean},
-	{Name: "load1", Aggregate: recordstore.Mean},
-	{Name: "load5", Aggregate: recordstore.Mean},
-	{Name: "load15", Aggregate: recordstore.Mean},
+var systemMonitorFields = []datastore.Field{
+	{Name: "cpu", Aggregate: datastore.Mean},
+	{Name: "cpu_max", Aggregate: datastore.Max},
+	{Name: "memory", Aggregate: datastore.Mean},
+	{Name: "memory_used", Aggregate: datastore.Mean},
+	{Name: "memory_total", Aggregate: datastore.Mean},
+	{Name: "disk_usage", Aggregate: datastore.Mean},
+	{Name: "disk_used", Aggregate: datastore.Mean},
+	{Name: "disk_total", Aggregate: datastore.Mean},
+	{Name: "disk_read", Aggregate: datastore.Mean},
+	{Name: "disk_write", Aggregate: datastore.Mean},
+	{Name: "net_sent", Aggregate: datastore.Mean},
+	{Name: "net_recv", Aggregate: datastore.Mean},
+	{Name: "load1", Aggregate: datastore.Mean},
+	{Name: "load5", Aggregate: datastore.Mean},
+	{Name: "load15", Aggregate: datastore.Mean},
 }
 
 // startMonitorHistory 读取采集设置并初始化指标与进程历史存储。
 func (s *service) startMonitorHistory() {
-	configuration, err := func() (recordstore.SeriesConfiguration, error) {
-		configuration := recordstore.SeriesConfiguration{Enabled: false, RetentionDays: 30}
+	configuration, err := func() (datastore.SeriesConfiguration, error) {
+		configuration := datastore.SeriesConfiguration{Enabled: false, RetentionDays: 30}
 		if s.configService == nil {
 			return configuration, errors.New("系统配置服务未初始化")
 		}
@@ -397,9 +397,27 @@ func (s *service) startMonitorHistory() {
 		log.Printf("读取系统监控配置失败: %v", err)
 		return
 	}
-	s.monitorRecorder, s.monitorInitError = recordstore.OpenRecorder(constant.MonitorPath, systemMonitorFields, recordstore.SeriesOptions{
+	shared, err := datastore.OpenTimeline(constant.MonitorPath, datastore.TimelineOptions{Streams: []datastore.TimelineStreamOptions{
+		{Name: "metrics", Interval: time.Minute, MaxValueBytes: 16 + 8*len(systemMonitorFields), Schema: datastore.SeriesSchemaHash(systemMonitorFields)},
+		{Name: "processes", Interval: time.Minute, MaxValueBytes: 64 << 10, Schema: processRecordSchema},
+		{Name: "processes_hourly", Interval: time.Hour, MaxValueBytes: 64 << 10, Schema: processRecordSchema},
+	}})
+	if err != nil {
+		s.monitorInitError = err
+		log.Printf("打开系统监控数据文件失败: %v", err)
+		return
+	}
+	metrics, err := shared.Stream("metrics")
+	if err != nil {
+		_ = shared.Close()
+		s.monitorInitError = err
+		return
+	}
+	s.monitorArchive = shared
+	s.monitorRecorder, s.monitorInitError = datastore.OpenRecorder(constant.MonitorPath, systemMonitorFields, datastore.SeriesOptions{
+		Storage:       metrics,
 		Configuration: &configuration,
-		SaveConfiguration: func(configuration recordstore.SeriesConfiguration) error {
+		SaveConfiguration: func(configuration datastore.SeriesConfiguration) error {
 			if s.configService == nil {
 				return errors.New("系统配置服务未初始化")
 			}
@@ -416,18 +434,20 @@ func (s *service) startMonitorHistory() {
 		},
 	})
 	if s.monitorInitError != nil {
+		_ = shared.Close()
+		s.monitorArchive = nil
 		log.Printf("打开系统监控历史失败: %v", s.monitorInitError)
 		return
 	}
 	// 退出时先排空指标记录器的回调，再显式关闭进程库，避免尾部快照先被关闭丢弃。
-	s.monitorProcessStore, s.monitorProcessError = s.openMonitorProcessStore(context.WithoutCancel(s.ctx), filepath.Join(constant.MonitorPath, "processes"), configuration)
+	s.monitorProcessStore, s.monitorProcessError = s.openMonitorProcessStore(context.WithoutCancel(s.ctx), shared, configuration)
 	if s.monitorProcessError != nil {
 		log.Printf("打开监控进程历史失败: %v", s.monitorProcessError)
 	}
 }
 
 // monitorStorage 返回已启动的指标记录器，并报告初始化或关闭状态。
-func (s *service) monitorStorage() (*recordstore.Recorder, error) {
+func (s *service) monitorStorage() (*datastore.Recorder, error) {
 	s.lifecycleMu.Lock()
 	defer s.lifecycleMu.Unlock()
 	if s.closed {
@@ -442,10 +462,10 @@ func (s *service) monitorStorage() (*recordstore.Recorder, error) {
 	return s.monitorRecorder, nil
 }
 
-func (s *service) GetMonitorSettings() (recordstore.SeriesSettings, error) {
+func (s *service) GetMonitorSettings() (datastore.SeriesSettings, error) {
 	recorder, err := s.monitorStorage()
 	if err != nil {
-		return recordstore.SeriesSettings{}, err
+		return datastore.SeriesSettings{}, err
 	}
 	settings, err := recorder.Settings()
 	if err != nil {
@@ -455,9 +475,7 @@ func (s *service) GetMonitorSettings() (recordstore.SeriesSettings, error) {
 	if s.monitorProcessError != nil {
 		processError = s.monitorProcessError.Error()
 	} else if s.monitorProcessStore != nil {
-		var size int64
-		size, processError = s.monitorProcessStore.Settings()
-		settings.StorageBytes += size
+		processError = s.monitorProcessStore.Settings()
 	}
 	if processError != "" {
 		if settings.LastError != "" {
@@ -503,12 +521,12 @@ func (s *service) GetMonitorHistory(ctx context.Context, start, end int64, maxPo
 	if err != nil {
 		return MonitorHistory{}, err
 	}
-	result, err := recorder.Query(start, end, recordstore.SeriesQueryOptions{MaxPoints: maximum})
+	result, err := recorder.Query(start, end, datastore.SeriesQueryOptions{MaxPoints: maximum})
 	if err != nil {
 		return MonitorHistory{}, err
 	}
 	// 从首条真实采样开始补齐时间桶；中间及末尾空桶仍以 samples=0 标记。
-	result, err = func(result recordstore.RecordResult) (recordstore.RecordResult, error) {
+	result, err = func(result datastore.RecordResult) (datastore.RecordResult, error) {
 		if result.Start <= 0 || result.End <= result.Start || result.Interval <= 0 || result.Interval > math.MaxInt64/1000 {
 			return result, errors.New("监控历史时间桶无效")
 		}
@@ -589,7 +607,7 @@ func (s *service) GetMonitorHistory(ctx context.Context, start, end int64, maxPo
 			// 上游已排序，只返回各榜单实际展示的指标与实际采样时刻。
 			var groups [3]*monitorProcessRanking
 			for index, group := range peaks[point["time"].(int64)/step*step] {
-				// 旧版独立高点不能用于归因；两份存储不匹配时也不展示其他秒的 CPU 排行。
+				// 指标与进程高点不匹配时，不展示其他采样时刻的 CPU 排行。
 				if group.Peak == nil || (index == 0 && *group.Peak != point["cpu_max"].(float64)) {
 					continue
 				}
@@ -605,6 +623,12 @@ func (s *service) GetMonitorHistory(ctx context.Context, start, end int64, maxPo
 	return history, nil
 }
 
+const (
+	processRecordMagic      = "SPPRC001"
+	processRecordHeaderSize = 80
+	processRecordSchema     = 1
+)
+
 var processGzipWriters = sync.Pool{New: func() interface{} {
 	writer, _ := gzip.NewWriterLevel(io.Discard, gzip.BestSpeed)
 	return writer
@@ -615,19 +639,18 @@ var processGzipReaders = sync.Pool{New: func() interface{} { return new(gzip.Rea
 var processGzipBuffers = sync.Pool{New: func() interface{} { return new(bytes.Buffer) }}
 
 // openMonitorProcessStore 打开进程历史文件，初始化有界缓冲并启动后台写入。
-func (s *service) openMonitorProcessStore(ctx context.Context, dir string, configuration recordstore.SeriesConfiguration) (*monitorProcessStore, error) {
-	store, err := recordstore.Open(dir, recordstore.Options{MaxValueBytes: 64 << 10})
+func (s *service) openMonitorProcessStore(ctx context.Context, shared *datastore.Timeline, configuration datastore.SeriesConfiguration) (*monitorProcessStore, error) {
+	minutes, err := shared.Stream("processes")
 	if err != nil {
 		return nil, err
 	}
-	collection, err := store.Collection("process-peaks-v1")
+	hours, err := shared.Stream("processes_hourly")
 	if err != nil {
-		_ = store.Close()
 		return nil, err
 	}
 	ctx, cancel := context.WithCancel(ctx)
 	h := &monitorProcessStore{
-		store: store, collection: collection, path: filepath.Join(dir, "records.db"), cancel: cancel,
+		minutes: minutes, hours: hours, cancel: cancel,
 		done: make(chan struct{}), wake: make(chan struct{}, 1), queries: make(chan struct{}, 2),
 		pending: make(map[int64]pendingProcessPeaks), enabled: configuration.Enabled, days: configuration.RetentionDays,
 	}
@@ -670,7 +693,7 @@ func (h *monitorProcessStore) Record(snapshot psutil.ProcessTopSnapshot, peaks [
 		if index == 2 {
 			group.IOScope = snapshot.IOScope
 		}
-		if h.betterPeak(group, pending.peaks[index], index) {
+		if h.betterPeak(group, pending.peaks[index]) {
 			group.Items = append([]psutil.ProcessTopItem{}, items[:min(len(items), 5)]...)
 			pending.peaks[index] = group
 		}
@@ -679,38 +702,21 @@ func (h *monitorProcessStore) Record(snapshot psutil.ProcessTopSnapshot, peaks [
 	h.pending[minute] = pending
 }
 
-// betterPeak 优先比较同轮整机峰值，旧版记录回退到进程占用总和。
-func (h *monitorProcessStore) betterPeak(next, previous MonitorProcessGroup, metric int) bool {
-	if next.Peak != nil || previous.Peak != nil {
-		if next.Peak == nil {
-			return false
-		}
-		if previous.Peak == nil || *next.Peak != *previous.Peak {
-			return previous.Peak == nil || *next.Peak > *previous.Peak
-		}
-		if next.Available != previous.Available {
-			return next.Available
-		}
-		if next.Partial != previous.Partial {
-			return !next.Partial
-		}
-		return next.Time > previous.Time
-	}
-	if !next.Available {
+// betterPeak 按同轮整机峰值、榜单完整性与采样时间选择高点。
+func (h *monitorProcessStore) betterPeak(next, previous MonitorProcessGroup) bool {
+	if next.Peak == nil {
 		return false
 	}
-	if !previous.Available {
-		return true
+	if previous.Peak == nil || *next.Peak != *previous.Peak {
+		return previous.Peak == nil || *next.Peak > *previous.Peak
 	}
-	score := func(group MonitorProcessGroup) float64 {
-		var value float64
-		for _, item := range group.Items {
-			value += processMetricValue(item, metric)
-		}
-		return value
+	if next.Available != previous.Available {
+		return next.Available
 	}
-	a, b := score(next), score(previous)
-	return a > b || a == b && next.Time > previous.Time
+	if next.Partial != previous.Partial {
+		return !next.Partial
+	}
+	return next.Time > previous.Time
 }
 
 // UpdateSettings 不执行文件操作；启用边界排除上一轮在途采样，后台保留已接受的历史。
@@ -731,30 +737,19 @@ func (h *monitorProcessStore) run(ctx context.Context) {
 	defer close(h.done)
 	timer := time.NewTimer(time.Until(time.Now().Truncate(time.Minute).Add(time.Minute)))
 	defer timer.Stop()
-	var cleanedAt time.Time
 	for {
-		cleanup := time.Since(cleanedAt) >= time.Hour
 		select {
 		case <-ctx.Done():
 			h.mu.Lock()
 			h.closed = true
 			h.mu.Unlock()
-			h.closeError = errors.Join(h.flush(true), h.store.Close())
+			h.closeError = h.flush(true)
 			return
 		case <-h.wake:
-			cleanup = true
 		case <-timer.C:
 			timer.Reset(time.Until(time.Now().Truncate(time.Minute).Add(time.Minute)))
 		}
 		err := h.flush(false)
-		if cleanup {
-			h.mu.Lock()
-			days := h.days
-			h.mu.Unlock()
-			_, cleanupErr := h.collection.DeleteBefore(ctx, time.Now().UnixMilli()-int64(days)*processDayMillis)
-			err = errors.Join(err, cleanupErr)
-			cleanedAt = time.Now()
-		}
 		h.mu.Lock()
 		h.lastError = err
 		h.mu.Unlock()
@@ -766,6 +761,7 @@ func (h *monitorProcessStore) flush(all bool) error {
 	h.mu.Lock()
 	cutoff := now - int64(h.days)*processDayMillis
 	pending := make(map[int64]pendingProcessPeaks, len(h.pending))
+	enabled := h.enabled
 	for minute, value := range h.pending {
 		if minute < cutoff {
 			delete(h.pending, minute)
@@ -774,58 +770,124 @@ func (h *monitorProcessStore) flush(all bool) error {
 		}
 	}
 	h.mu.Unlock()
-	values := make(map[string]processPeaks, len(pending)*2)
-	times := make(map[string]int64, len(pending)*2)
-	for minute, value := range pending {
-		// 重启、开关或慢盘重试可能再次写入同一分钟/小时；与已保存峰值合并。
-		for _, prefix := range []string{"m", "h"} {
-			timestamp := minute
-			if prefix == "h" {
-				timestamp = minute / processHourMillis * processHourMillis
-			}
-			key := prefix + strconv.FormatInt(timestamp, 10)
-			peaks, exists := values[key]
-			if !exists {
-				record, err := h.collection.Get(key)
-				if err == nil {
-					peaks, err = h.decodePeaks(record)
-				}
-				if err != nil && !errors.Is(err, recordstore.ErrNotFound) {
-					return err
-				}
-			}
-			for index, group := range value.peaks {
-				if h.betterPeak(group, peaks[index], index) {
-					peaks[index] = group
-				}
-			}
-			values[key], times[key] = peaks, timestamp
-		}
+	completedHour := now/processHourMillis*processHourMillis - processHourMillis
+	if len(pending) == 0 && h.checkedHour == completedHour {
+		return nil
 	}
-	entries := make([]recordstore.Entry, 0, len(values))
-	for key, peaks := range values {
-		data, err := func() ([]byte, error) {
-			var buffer bytes.Buffer
-			writer := processGzipWriters.Get().(*gzip.Writer)
-			defer processGzipWriters.Put(writer)
-			writer.Reset(&buffer)
-			if err := json.NewEncoder(writer).Encode(peaks); err != nil {
-				_ = writer.Close()
-				return nil, err
+	encode := func(timestamp int64, peaks processPeaks) (datastore.TimelineEntry, error) {
+		var header [processRecordHeaderSize]byte
+		copy(header[:], processRecordMagic)
+		for metric, group := range peaks {
+			field := header[8+24*metric:]
+			binary.LittleEndian.PutUint64(field, uint64(group.Time))
+			if group.Peak != nil {
+				binary.LittleEndian.PutUint64(field[8:], math.Float64bits(*group.Peak))
+				field[16] |= 1
 			}
-			if err := writer.Close(); err != nil {
-				return nil, err
+			if group.Available {
+				field[16] |= 2
 			}
-			return buffer.Bytes(), nil
-		}()
+			if group.Partial {
+				field[16] |= 4
+			}
+		}
+		var buffer bytes.Buffer
+		buffer.Write(header[:])
+		writer := processGzipWriters.Get().(*gzip.Writer)
+		defer processGzipWriters.Put(writer)
+		writer.Reset(&buffer)
+		if err := json.NewEncoder(writer).Encode(peaks); err != nil {
+			_ = writer.Close()
+			return datastore.TimelineEntry{}, err
+		}
+		if err := writer.Close(); err != nil {
+			return datastore.TimelineEntry{}, err
+		}
+		return datastore.TimelineEntry{Time: timestamp, Data: buffer.Bytes()}, nil
+	}
+	hours := make(map[int64]bool, len(pending)+1)
+	entries := make([]datastore.TimelineEntry, 0, len(pending))
+	for minute, value := range pending {
+		var peaks processPeaks
+		data, err := h.minutes.Get(minute)
+		if err == nil {
+			peaks, err = h.decodePeaks(data)
+		}
+		if err != nil && !errors.Is(err, datastore.ErrNotFound) {
+			return err
+		}
+		// 重启、开关或慢盘重试仍与已落盘高点合并。
+		for metric, group := range value.peaks {
+			if h.betterPeak(group, peaks[metric]) {
+				peaks[metric] = group
+			}
+		}
+		entry, err := encode(minute, peaks)
 		if err != nil {
 			return err
 		}
-		entries = append(entries, recordstore.Entry{Key: key, Value: data, Options: recordstore.WriteOptions{Time: times[key]}})
+		entries = append(entries, entry)
+		hours[minute/processHourMillis*processHourMillis] = true
 	}
-	if _, err := h.collection.PutMany(entries); err != nil {
+	// 活跃小时按分钟查询；结束后才汇总，稀疏采样也由定时唤醒补上上一小时。
+	if h.checkedHour != completedHour && !hours[completedHour] {
+		hours[completedHour] = false
+	}
+	summaries := make([]datastore.TimelineEntry, 0, len(hours))
+	invalid := make([]datastore.TimelineEntry, 0, len(hours))
+	for hour, changed := range hours {
+		data, err := h.hours.Get(hour)
+		if err != nil && !errors.Is(err, datastore.ErrNotFound) {
+			return err
+		}
+		if changed && err == nil {
+			// 重启或补写已汇总小时，先同步失效标记；空槽也重同步以覆盖上次 Sync 失败。
+			invalid = append(invalid, datastore.TimelineEntry{Time: hour})
+		}
+		if (changed || len(data) == 0) && (hour <= completedHour || all || !enabled) {
+			summaries = append(summaries, datastore.TimelineEntry{Time: hour})
+		}
+	}
+	if len(invalid) > 0 {
+		if err := h.hours.PutMany(invalid); err != nil {
+			return err
+		}
+	}
+	if err := h.minutes.PutMany(entries); err != nil {
 		return err
 	}
+	written := summaries[:0]
+	for index := range summaries {
+		hour := summaries[index].Time
+		var peaks processPeaks
+		// 每个受影响小时最多读 60 条，避免中断重试或重启后漏掉已提交的分钟高点。
+		if err := h.minutes.ScanView(context.Background(), hour, hour+processHourMillis-1, func(entry datastore.TimelineEntry) error {
+			groups, err := h.decodePeaks(entry.Data)
+			if err != nil {
+				return err
+			}
+			for metric, group := range groups {
+				if h.betterPeak(group, peaks[metric]) {
+					peaks[metric] = group
+				}
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+		if peaks[0].Time == 0 && peaks[1].Time == 0 && peaks[2].Time == 0 {
+			continue
+		}
+		entry, err := encode(hour, peaks)
+		if err != nil {
+			return err
+		}
+		written = append(written, entry)
+	}
+	if err := h.hours.PutMany(written); err != nil {
+		return err
+	}
+	h.checkedHour = completedHour
 	h.mu.Lock()
 	for minute, value := range pending {
 		if h.pending[minute].version == value.version {
@@ -837,19 +899,16 @@ func (h *monitorProcessStore) flush(all bool) error {
 }
 
 // decodePeaks 解压进程峰值并限制展开大小，复用缓冲减少历史查询分配。
-func (h *monitorProcessStore) decodePeaks(record recordstore.Record) (processPeaks, error) {
+func (h *monitorProcessStore) decodePeaks(compressed []byte) (processPeaks, error) {
 	var peaks processPeaks
-	if record.Encoding != recordstore.EncodingJSON {
-		return peaks, errors.New("原始字节记录不能作为 JSON 解码")
-	}
-	var compressed []byte
-	// 此处是固定的 JSON 字节串，不需要通用 Decode 的流式解码器及 UseNumber。
-	if err := json.Unmarshal(record.Data, &compressed); err != nil {
+	var values [3]float64
+	header, err := processPeakHeader(compressed, &values)
+	if err != nil {
 		return peaks, err
 	}
 	reader := processGzipReaders.Get().(*gzip.Reader)
 	defer processGzipReaders.Put(reader)
-	if err := reader.Reset(bytes.NewReader(compressed)); err != nil {
+	if err := reader.Reset(bytes.NewReader(compressed[processRecordHeaderSize:])); err != nil {
 		return peaks, err
 	}
 	defer reader.Close()
@@ -857,26 +916,65 @@ func (h *monitorProcessStore) decodePeaks(record recordstore.Record) (processPea
 	buffer := processGzipBuffers.Get().(*bytes.Buffer)
 	defer processGzipBuffers.Put(buffer)
 	buffer.Reset()
-	_, err := buffer.ReadFrom(io.LimitReader(reader, (64<<10)+1))
+	_, err = buffer.ReadFrom(io.LimitReader(reader, (64<<10)+1))
 	if err != nil {
 		return peaks, err
 	}
 	if buffer.Len() > 64<<10 {
 		return peaks, errors.New("进程历史记录大小超过限制")
 	}
-	err = json.Unmarshal(buffer.Bytes(), &peaks)
-	return peaks, err
+	if err = json.Unmarshal(buffer.Bytes(), &peaks); err != nil {
+		return peaks, err
+	}
+	for metric, group := range peaks {
+		field := header[metric]
+		if group.Time != field.Time || group.Available != field.Available || group.Partial != field.Partial ||
+			(group.Peak == nil) != (field.Peak == nil) || group.Peak != nil && *group.Peak != *field.Peak {
+			return processPeaks{}, errors.New("进程历史峰值头与内容不一致")
+		}
+	}
+	return peaks, nil
 }
 
-// Settings 合并存储占用、后台读写错误与丢弃采样统计。
-func (h *monitorProcessStore) Settings() (int64, string) {
+// processPeakHeader 仅读固定长度峰值头；数值由调用方持有，逐条扫描不分配 Peak 指针。
+func processPeakHeader(data []byte, values *[3]float64) (processPeaks, error) {
+	var peaks processPeaks
+	if len(data) <= processRecordHeaderSize || string(data[:8]) != processRecordMagic {
+		return peaks, errors.New("进程历史记录格式无效")
+	}
+	for metric := range peaks {
+		field := data[8+24*metric : 8+24*(metric+1)]
+		flags := field[16]
+		group := &peaks[metric]
+		group.Time = int64(binary.LittleEndian.Uint64(field))
+		group.Available, group.Partial = flags&2 != 0, flags&4 != 0
+		if flags&^byte(7) != 0 || group.Time < 0 || flags&1 == 0 && (group.Time != 0 || flags != 0) {
+			return processPeaks{}, errors.New("进程历史峰值头无效")
+		}
+		for _, value := range field[17:] {
+			if value != 0 {
+				return processPeaks{}, errors.New("进程历史峰值头无效")
+			}
+		}
+		values[metric] = math.Float64frombits(binary.LittleEndian.Uint64(field[8:]))
+		if math.IsNaN(values[metric]) || math.IsInf(values[metric], 0) || values[metric] < 0 || flags&1 == 0 && values[metric] != 0 {
+			return processPeaks{}, errors.New("进程历史峰值无效")
+		}
+		if flags&1 != 0 {
+			group.Peak = &values[metric]
+		}
+	}
+	return peaks, nil
+}
+
+// Settings 返回进程后台错误与丢弃统计，共享文件占用统一由数值记录器统计。
+func (h *monitorProcessStore) Settings() string {
 	h.mu.Lock()
 	err, dropped := h.lastError, h.dropped
 	h.mu.Unlock()
-	info, statErr := os.Stat(h.path)
 	message := ""
-	if failure := errors.Join(err, statErr); failure != nil {
-		message = failure.Error()
+	if err != nil {
+		message = err.Error()
 	}
 	if dropped > 0 {
 		if message != "" {
@@ -884,10 +982,7 @@ func (h *monitorProcessStore) Settings() (int64, string) {
 		}
 		message += fmt.Sprintf("累计跳过 %d 个进程历史分钟桶", dropped)
 	}
-	if info == nil {
-		return 0, message
-	}
-	return info.Size(), message
+	return message
 }
 
 func (h *monitorProcessStore) Close() error {
@@ -896,7 +991,7 @@ func (h *monitorProcessStore) Close() error {
 	return h.closeError
 }
 
-// history 一次聚合整个历史区间；每条源记录仅解压一次，同时归并三个指标。
+// history 先按峰值头选每桶赢家，再解压最多三份进程榜单；短区间直接读取。
 // 返回键是 UTC 时间桶起点，不是某个指标的实际峰值时间。
 func (h *monitorProcessStore) history(ctx context.Context, start, end, step int64) (map[int64]processPeaks, error) {
 	result := make(map[int64]processPeaks)
@@ -932,48 +1027,144 @@ func (h *monitorProcessStore) history(ctx context.Context, start, end, step int6
 			}
 			bucket := group.Time / step * step
 			previous := result[bucket]
-			if h.betterPeak(group, previous[metric], metric) {
+			if h.betterPeak(group, previous[metric]) {
 				previous[metric] = group
 				result[bucket] = previous
 			}
 		}
 	}
-	scanMinutes := func(from, to int64) error {
+	// 每次扫描仅保留当前时间桶的三份候选，ScanView 的借用数据不跨回调保留。
+	scan := func(store *datastore.Timeline, from, to, interval int64, present func(int64)) error {
 		if from > to {
 			return nil
 		}
-		return h.collection.Scan(ctx, recordstore.Query{Prefix: "m", Start: from / processMinuteMillis * processMinuteMillis, End: to, Limit: 128}, func(record recordstore.Record) error {
-			peaks, err := h.decodePeaks(record)
-			if err == nil {
-				accept(peaks)
+		var candidates processPeaks
+		var currentValues, winnerValues [3]float64
+		var sources [3]int64
+		var slots [3]int
+		var records [3][]byte
+		bucket := int64(-1)
+		flush := func() error {
+			var decoded [3]processPeaks
+			var ready [3]bool
+			for metric, source := range sources {
+				if source == 0 {
+					continue
+				}
+				if err := ctx.Err(); err != nil {
+					return err
+				}
+				slot := slots[metric]
+				if !ready[slot] {
+					var err error
+					decoded[slot], err = h.decodePeaks(records[slot])
+					if err != nil {
+						return err
+					}
+					ready[slot] = true
+				}
+				var winner processPeaks
+				winner[metric] = decoded[slot][metric]
+				accept(winner)
 			}
-			return err
+			return nil
+		}
+		err := store.ScanView(ctx, from/interval*interval, to, func(entry datastore.TimelineEntry) error {
+			if interval == processHourMillis && len(entry.Data) == 0 {
+				return nil // 失效或未完成的小时汇总稍后补扫分钟。
+			}
+			if present != nil {
+				present(entry.Time)
+			}
+			if step == interval {
+				peaks, err := h.decodePeaks(entry.Data)
+				if err != nil {
+					return err
+				}
+				for metric, group := range peaks {
+					if group.Time < entry.Time || group.Time >= entry.Time+interval {
+						peaks[metric] = MonitorProcessGroup{}
+					}
+				}
+				accept(peaks)
+				return nil
+			}
+			groups, err := processPeakHeader(entry.Data, &currentValues)
+			if err != nil {
+				return err
+			}
+			nextBucket := entry.Time / step * step
+			if nextBucket != bucket {
+				if err := flush(); err != nil {
+					return err
+				}
+				bucket, candidates, sources = nextBucket, processPeaks{}, [3]int64{}
+			}
+			var replace [3]bool
+			changed := false
+			for metric, group := range groups {
+				if group.Time < entry.Time || group.Time >= entry.Time+interval || group.Time < start || group.Time > end {
+					continue
+				}
+				replace[metric] = h.betterPeak(group, candidates[metric])
+				changed = changed || replace[metric]
+			}
+			if !changed {
+				return nil
+			}
+			// 同一条源记录赢得多个指标时只复制一份，仍需保留的候选不会被覆盖。
+			slot := 0
+			for ; slot < len(records); slot++ {
+				used := false
+				for metric, source := range sources {
+					used = used || source != 0 && !replace[metric] && slots[metric] == slot
+				}
+				if !used {
+					break
+				}
+			}
+			if cap(records[slot]) < len(entry.Data) {
+				records[slot] = make([]byte, 0, min(64<<10, max(len(entry.Data), 2*cap(records[slot]))))
+			}
+			records[slot] = append(records[slot][:0], entry.Data...)
+			for metric, replacing := range replace {
+				if replacing {
+					group := groups[metric]
+					winnerValues[metric] = *group.Peak
+					group.Peak = &winnerValues[metric]
+					candidates[metric], sources[metric], slots[metric] = group, entry.Time, slot
+				}
+			}
+			return nil
 		})
+		if err != nil {
+			return err
+		}
+		return flush()
+	}
+	scanMinutes := func(from, to int64) error {
+		return scan(h.minutes, from, to, processMinuteMillis, nil)
 	}
 	firstHour := (start + processHourMillis - 1) / processHourMillis * processHourMillis
 	lastHour := (end + 1) / processHourMillis * processHourMillis
 	if step >= processHourMillis && firstHour < lastHour {
-		// 大桶整段直取小时主键，全年最多 8760 条；不遍历其间的全部分钟索引。
-		for hour := firstHour; hour < lastHour; hour += processHourMillis {
-			if err := ctx.Err(); err != nil {
+		// 大桶按日索引直取小时汇总，全年最多 8760 条；缺少汇总的区间回退到分钟。
+		nextHour := firstHour
+		var gaps [][2]int64
+		if err := scan(h.hours, firstHour, lastHour-1, processHourMillis, func(timestamp int64) {
+			if nextHour < timestamp {
+				gaps = append(gaps, [2]int64{nextHour, timestamp - 1})
+			}
+			nextHour = timestamp + processHourMillis
+		}); err != nil {
+			return nil, err
+		}
+		// 各流共享读写锁，退出小时扫描后再补分钟缺口，不能在回调中重入。
+		gaps = append(gaps, [2]int64{nextHour, lastHour - 1})
+		for _, gap := range gaps {
+			if err := scanMinutes(gap[0], gap[1]); err != nil {
 				return nil, err
 			}
-			record, err := h.collection.Get("h" + strconv.FormatInt(hour, 10))
-			if errors.Is(err, recordstore.ErrNotFound) {
-				// 缩短保留期可能删掉边界小时汇总但留下部分分钟；扩大保留期后仍可查询这些记录。
-				if err := scanMinutes(hour, hour+processHourMillis-1); err != nil {
-					return nil, err
-				}
-				continue
-			}
-			if err != nil {
-				return nil, err
-			}
-			peaks, err := h.decodePeaks(record)
-			if err != nil {
-				return nil, err
-			}
-			accept(peaks)
 		}
 		if err := scanMinutes(start, firstHour-1); err != nil {
 			return nil, err
@@ -989,7 +1180,7 @@ func (h *monitorProcessStore) history(ctx context.Context, start, end, step int6
 	}
 	for bucket, peaks := range result {
 		for metric, group := range peaks {
-			// 克隆最终榜单并限五项，兼容旧记录；不修改共享缓存。
+			// 克隆最终榜单并限五项，不修改共享缓存。
 			peaks[metric] = func() MonitorProcessGroup {
 				if !group.Available && group.Peak == nil {
 					return MonitorProcessGroup{}

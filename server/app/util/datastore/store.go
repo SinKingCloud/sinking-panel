@@ -1,4 +1,4 @@
-package recordstore
+package datastore
 
 import (
 	"encoding/binary"
@@ -16,6 +16,7 @@ import (
 const storeHeaderSize = 18
 
 var (
+	// 固定的磁盘格式标识，不随包名更改。
 	storeRootBucket   = []byte("recordstore.collections.v1")
 	storeValuesBucket = []byte("records")
 	storeTimeBucket   = []byte("time")

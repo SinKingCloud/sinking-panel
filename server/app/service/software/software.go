@@ -1,10 +1,11 @@
 package software
 
 import (
+	"context"
 	"server/app/model"
 	repositorySoftware "server/app/repository/software"
 	serviceSystem "server/app/service/system"
-	"server/app/util/context"
+	webContext "server/app/util/context"
 	"server/app/util/page"
 	"server/app/util/plugin"
 	"sync"
@@ -21,13 +22,16 @@ type Service interface {
 	Update(int64, *repositorySoftware.UpdateSoftware) error
 	GetConfig(string) (string, error)
 	SetConfig(string, string) error
-	Invoke(*context.Context, string, string) error
+	Invoke(*webContext.Context, string, string) error
 	Page(string, string) ([]byte, string, string, error)
 	Boot()
 	Close()
 }
 
 type service struct {
+	ctx        context.Context
+	cancel     context.CancelFunc
+	closeOnce  sync.Once
 	repository repositorySoftware.Interface
 	system     serviceSystem.Service
 	plugins    *plugin.Manager
@@ -38,13 +42,15 @@ type service struct {
 	cacheMu    sync.RWMutex
 	records    map[string]*model.Software
 	importing  sync.Mutex
-	closed     bool
 	booted     atomic.Bool
 }
 
 // NewService 注入仓储、系统任务与已配置业务能力的插件管理器。
 func NewService(repository repositorySoftware.Interface, system serviceSystem.Service, plugins *plugin.Manager) *service {
+	ctx, cancel := context.WithCancel(context.Background())
 	return &service{
+		ctx:        ctx,
+		cancel:     cancel,
 		repository: repository,
 		system:     system,
 		plugins:    plugins,

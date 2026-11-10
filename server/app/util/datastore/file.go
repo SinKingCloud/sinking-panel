@@ -1,4 +1,4 @@
-package recordstore
+package datastore
 
 import (
 	"encoding/json"
@@ -20,7 +20,7 @@ func writeJSON(dir, name string, value interface{}) error {
 	if err != nil {
 		return err
 	}
-	file, err := os.CreateTemp(dir, ".recordstore-*")
+	file, err := os.CreateTemp(dir, ".datastore-*")
 	if err != nil {
 		return err
 	}

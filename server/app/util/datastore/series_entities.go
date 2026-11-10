@@ -1,4 +1,4 @@
-package recordstore
+package datastore
 
 // Aggregate 定义一个字段在分钟记录和查询时间桶中的聚合方式。
 type Aggregate string
@@ -45,10 +45,11 @@ type SeriesSettings struct {
 	LastError     string `json:"last_error,omitempty"`
 }
 
-// SeriesOptions 允许调用方接管配置持久化。
+// SeriesOptions 允许调用方接管配置持久化及借用共享日文件中的数值流。
 type SeriesOptions struct {
 	Configuration     *SeriesConfiguration
 	SaveConfiguration func(SeriesConfiguration) error
+	Storage           *Timeline // 只借用，不关闭；间隔必须为一分钟，Schema 与字段定义一致。
 }
 
 // SeriesConfiguration 是可持久化的采集配置，不包含运行状态。

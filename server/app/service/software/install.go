@@ -106,7 +106,7 @@ func (s *service) install(ctx context.Context, path string, record *model.Softwa
 		}
 		cleanup, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
-		if restorePrevious {
+		if restorePrevious && s.ctx.Err() == nil {
 			_, restoreErr := s.plugins.Lifecycle(cleanup, directory, "start", "{}")
 			err = errors.Join(err, restoreErr)
 		}

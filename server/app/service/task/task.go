@@ -4,6 +4,8 @@ import (
 	"context"
 	"server/app/model"
 	repositoryTask "server/app/repository/task"
+	"server/app/service/task/request"
+	"server/app/service/task/script"
 	serviceTypes "server/app/service/types"
 	"server/app/util/page"
 	"sync"
@@ -16,6 +18,7 @@ type Service interface {
 	Stop(id int64) error
 	Restore(id int64) error
 	Run(id int64) error
+	Cancel(ids []int64) error // 取消并等待指定任务，保留数据库配置和日志
 	Remove(ids []int64) error
 	Refresh(id int64) error
 	Add(data *model.Task, run ...func(context.Context)) error
@@ -35,6 +38,7 @@ type service struct {
 	typeService    serviceTypes.Service
 	instance       *cron.Cron
 	internalTasks  map[int64]*job
+	jobs           map[*job]struct{}
 	ctx            context.Context
 	cancel         context.CancelFunc
 	startOnce      sync.Once
@@ -43,6 +47,8 @@ type service struct {
 	closed         bool
 	taskLock       sync.Mutex
 	logLock        sync.RWMutex
+	script         *script.Manager
+	request        *request.Manager
 }
 
 // NewService 实例化service
@@ -51,7 +57,10 @@ func NewService(repositoryTask repositoryTask.Interface, typeService serviceType
 	return &service{
 		repositoryTask: repositoryTask,
 		typeService:    typeService,
+		script:         script.NewManager(),
+		request:        request.NewManager(),
 		internalTasks:  make(map[int64]*job),
+		jobs:           make(map[*job]struct{}),
 		ctx:            ctx,
 		cancel:         cancel,
 		instance: cron.New(

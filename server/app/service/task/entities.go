@@ -15,11 +15,3 @@ type Info struct {
 	CreateTime str.DateTime `json:"create_time"`
 	UpdateTime str.DateTime `json:"update_time"`
 }
-
-// Request HTTP请求配置
-type Request struct {
-	Method  string            `json:"method"`
-	Url     string            `json:"url"`
-	Headers map[string]string `json:"headers"`
-	Body    string            `json:"body"`
-}

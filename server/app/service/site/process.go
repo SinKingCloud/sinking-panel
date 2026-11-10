@@ -14,6 +14,9 @@ import (
 func (s *service) Process(id int64, action string) (*processManager.Status, error) {
 	s.operationMu.Lock()
 	defer s.operationMu.Unlock()
+	if s.ctx.Err() != nil {
+		return nil, errors.New("网站服务已关闭")
+	}
 	if id <= 0 {
 		return nil, errors.New("网站 ID 不合法")
 	}

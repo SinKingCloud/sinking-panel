@@ -1,6 +1,7 @@
-package recordstore
+package datastore
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -37,8 +38,6 @@ func (s *Series) Query(start, end int64, options ...SeriesQueryOptions) (SeriesR
 	if first > last {
 		return result, nil
 	}
-	// 复用单日缓冲区，全年查询也不按日重复分配内存。
-	buffer := make([]byte, min(int64(1440), (last-first)/seriesMinuteMillis+1)*int64(s.recordSize))
 	appendPoint := func(sample Point) error {
 		bucket := sample.Time / step * step
 		// 使用实际首个样本的时间，保持返回点处于请求区间内。
@@ -54,6 +53,32 @@ func (s *Series) Query(start, end int64, options ...SeriesQueryOptions) (SeriesR
 		return nil
 	}
 	values := make([]float64, len(s.fields))
+	if s.storage != nil {
+		pending := s.pending.Samples > 0 && s.pending.Time >= first && s.pending.Time <= last
+		err := s.storage.ScanView(context.Background(), first, last, func(entry TimelineEntry) error {
+			// 内存中的同分钟数据覆盖落盘版本；缺少该槽时仍按时间插入。
+			if pending && s.pending.Time <= entry.Time {
+				if err := appendPoint(s.pending); err != nil {
+					return err
+				}
+				pending = false
+				if s.pending.Time == entry.Time {
+					return nil
+				}
+			}
+			sample, ok := s.decode(entry.Data, values)
+			if !ok || sample.Time != entry.Time {
+				return errors.New("共享数值流记录损坏或时间不匹配")
+			}
+			return appendPoint(sample)
+		})
+		if err == nil && pending {
+			err = appendPoint(s.pending)
+		}
+		return result, err
+	}
+	// 复用单日缓冲区，全年查询也不按日重复分配内存。
+	buffer := make([]byte, min(int64(1440), (last-first)/seriesMinuteMillis+1)*int64(s.recordSize))
 	for day := first / seriesDayMillis * seriesDayMillis; day <= last; day += seriesDayMillis {
 		file, err := os.Open(s.path(day))
 		if errors.Is(err, os.ErrNotExist) {
@@ -163,6 +188,16 @@ func (s *Series) cleanupStatus(now time.Time) error {
 
 func (s *Series) cleanup(now time.Time) error {
 	cutoff := now.UnixMilli() - int64(s.config.RetentionDays)*seriesDayMillis
+	if s.storage != nil {
+		if err := s.storage.Cleanup(cutoff); err != nil {
+			return err
+		}
+		if s.pending.Samples > 0 && s.pending.Time < cutoff {
+			s.pending = Point{}
+			s.dirty = false
+		}
+		return nil
+	}
 	entries, err := os.ReadDir(s.dir)
 	if err != nil {
 		return err

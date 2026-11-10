@@ -9,6 +9,7 @@ import (
 	"server/app/enum/cert_auto_renew"
 	"server/app/enum/cert_type"
 	"server/app/enum/task_status"
+	"server/app/model"
 	repositoryTask "server/app/repository/task"
 	"strconv"
 	"strings"
@@ -18,11 +19,32 @@ import (
 	"go.uber.org/zap"
 )
 
-// GetCertSettings 读取续签设置，未配置时保持每天凌晨三点执行且不重试。
+// initCertTask 在业务启动时按保存的设置注册内部续签任务。
+func (s *service) initCertTask() error {
+	settings, err := s.GetCertSettings()
+	if err != nil {
+		return err
+	}
+	status := task_status.Stop
+	if settings.Enabled {
+		status = task_status.Running
+	}
+	return s.taskService.Add(&model.Task{
+		Id:     constant.TaskCertAutoRenew,
+		Name:   "证书自动续签",
+		Spec:   settings.Spec,
+		Status: status,
+	}, s.autoRenewCerts)
+}
+
+// GetCertSettings 读取续签设置，未配置时每天凌晨三点执行且不重试。
 func (s *service) GetCertSettings() (*CertSettings, error) {
 	configs := s.configService.Group(constant.CertGroup)
 	var err error
-	settings := &CertSettings{Enabled: true, Spec: "0 0 3 * * *"}
+	settings := &CertSettings{
+		Enabled: true,
+		Spec:    "0 0 3 * * *",
+	}
 	if value, exists := configs[constant.CertAutoRenewEnabled]; exists {
 		settings.Enabled, err = strconv.ParseBool(value)
 		if err != nil {
@@ -41,7 +63,7 @@ func (s *service) GetCertSettings() (*CertSettings, error) {
 	return settings, nil
 }
 
-// SetCertSettings 复用内部任务更新周期与状态，配置写入失败时恢复原调度。
+// SetCertSettings 更新内部任务及配置，配置写入失败时恢复原调度。
 func (s *service) SetCertSettings(settings CertSettings) error {
 	if settings.Retries < 0 || settings.Retries > 10 {
 		return errors.New("自动续签重试次数必须为 0–10")
@@ -57,7 +79,7 @@ func (s *service) SetCertSettings(settings CertSettings) error {
 	if settings.Enabled {
 		status = task_status.Running
 	}
-	// 任务服务统一校验 Cron，并复用原任务的防重复执行逻辑。
+	// 任务服务统一校验周期，更新调度时保留同一防重复执行包装。
 	if err = s.taskService.UpdateByIds([]int64{constant.TaskCertAutoRenew}, &repositoryTask.UpdateTask{
 		Spec:   &settings.Spec,
 		Status: &status,
@@ -81,17 +103,21 @@ func (s *service) SetCertSettings(settings CertSettings) error {
 	return nil
 }
 
-// autoRenewCerts 按配置检查临近到期的证书，仅对失败证书进行有限次数重试。
+// autoRenewCerts 检查临近到期的证书，执行前复核配置与证书状态，仅对失败证书重试。
 func (s *service) autoRenewCerts(ctx context.Context) {
-	if ctx.Err() != nil {
+	if ctx == nil || ctx.Err() != nil {
 		return
 	}
+	ctx, release, err := s.operationContext(ctx)
+	if err != nil {
+		return
+	}
+	defer release()
 	writeLog := func(format string, args ...interface{}) {
 		if err := s.taskService.WriteLog(constant.TaskCertAutoRenew, fmt.Sprintf(format, args...)); err != nil {
 			caddyRuntime.Log().Error("写入证书续签日志失败", zap.Error(err))
 		}
 	}
-
 	settings, err := s.GetCertSettings()
 	if err != nil {
 		writeLog("读取自动续签设置失败：%v", err)
@@ -144,7 +170,7 @@ certificatesLoop:
 				continue certificatesLoop
 			}
 			previousCertificate = certificate.Certificate
-			// 自动任务执行前重新检查，避免覆盖期间已续签或已关闭自动续签的证书。
+			// 自动任务独立检查条件，不限制用户主动续签未到期的证书。
 			if certificate.Type != cert_type.Auto || certificate.AutoRenew != cert_auto_renew.Enabled || time.Time(certificate.ExpireTime).After(before) {
 				writeLog("证书 #%d 已不满足自动续签条件，本次跳过", certificate.Id)
 				continue certificatesLoop
@@ -156,7 +182,7 @@ certificatesLoop:
 				continue certificatesLoop
 			}
 			if len(domains) != 1 {
-				// 当前签发接口一次只申请一个域名，自动任务不能丢失原有的其他 SAN。
+				// 一次仅申请一个域名，不能在自动续签时丢失原有的其他 SAN。
 				writeLog("证书 #%d 为多域名证书，需要手动更新，本次跳过", certificate.Id)
 				continue certificatesLoop
 			}
@@ -173,7 +199,7 @@ certificatesLoop:
 				continue
 			}
 			success++
-			writeLog("证书 #%d [%s] 续签成功，到期时间：%s", result.Id, strings.Join(domains, ", "), time.Time(result.ExpireTime).Format("2006-01-02 15:04:05"))
+			writeLog("证书 #%d [%s] 续签成功，到期时间：%s", certificate.Id, strings.Join(domains, ", "), result.ExpireTime.Format("2006-01-02 15:04:05"))
 			break
 		}
 	}

@@ -1,6 +1,7 @@
 package software
 
 import (
+	stdContext "context"
 	"errors"
 	"strings"
 
@@ -14,6 +15,12 @@ func (s *service) Invoke(c *context.Context, code, method string) error {
 	if c == nil || c.Context == nil || c.Request == nil {
 		return errors.New("软件请求上下文不能为空")
 	}
+	if s.plugins == nil {
+		return errors.New("插件管理器未初始化")
+	}
+	ctx, cancel := stdContext.WithCancel(c.Request.Context())
+	stop := stdContext.AfterFunc(s.ctx, cancel)
+	defer func() { stop(); cancel() }()
 	method = strings.TrimSpace(method)
 	record, err := s.record(code)
 	if err != nil {
@@ -64,8 +71,8 @@ func (s *service) Invoke(c *context.Context, code, method string) error {
 		return err
 	}
 	defer release()
-	if _, err = s.plugins.Lifecycle(c.Request.Context(), record.Code, "start", "{}"); err != nil {
+	if _, err = s.plugins.Lifecycle(ctx, record.Code, "start", "{}"); err != nil {
 		return err
 	}
-	return s.plugins.Call(c.Request.Context(), record.Code, method, c)
+	return s.plugins.Call(ctx, record.Code, method, c)
 }

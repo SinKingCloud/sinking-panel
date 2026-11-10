@@ -17,7 +17,7 @@ import (
 // entry 保存软件后台任务状态，插件加载和调用由 plugin.Manager 管理。
 func (s *service) entry(id int64) (*entry, error) {
 	s.mu.Lock()
-	if s.closed {
+	if s.ctx.Err() != nil {
 		s.mu.Unlock()
 		return nil, errors.New("软件管理正在关闭")
 	}
@@ -121,6 +121,9 @@ func (s *service) Select(where *repositorySoftware.SelectSoftware, query *page.Q
 
 // Info 读取软件公开信息及页面入口，不执行插件代码或返回内部配置。
 func (s *service) Info(id int64) (*Info, error) {
+	if s.plugins == nil {
+		return nil, errors.New("插件管理器未初始化")
+	}
 	record, err := s.repository.FindById(id)
 	if err != nil {
 		return nil, err
@@ -150,9 +153,12 @@ func (s *service) Info(id int64) (*Info, error) {
 
 // Boot 按依赖顺序启动插件；失败保留安装状态，之后调用或启动面板时可重试。
 func (s *service) Boot() {
+	if s.plugins == nil {
+		return
+	}
 	s.importing.Lock()
 	s.mu.Lock()
-	if s.closed || !s.booted.CompareAndSwap(false, true) {
+	if s.ctx.Err() != nil || !s.booted.CompareAndSwap(false, true) {
 		s.mu.Unlock()
 		s.importing.Unlock()
 		return
@@ -239,80 +245,81 @@ func (s *service) Boot() {
 
 // Close 先停止依赖方，再停止被依赖的软件，最后释放解释器，保留容器和数据。
 func (s *service) Close() {
-	// 安装提交或回滚完成后再关闭 Manager，确保临时目录完成清理。
-	s.importing.Lock()
-	s.mu.Lock()
-	if s.closed {
+	s.closeOnce.Do(func() {
+		// 先取消接口和生命周期调用，再等待软件锁，避免等待中的请求阻塞销毁。
+		s.cancel()
+		// 安装提交或回滚完成后再关闭 Manager，确保临时目录完成清理。
+		s.importing.Lock()
+		s.mu.Lock()
+		entries := s.entries
+		taskIDs := make([]string, 0, len(entries))
+		for _, e := range entries {
+			if e.busy.Load() {
+				taskIDs = append(taskIDs, e.taskID)
+			}
+		}
 		s.mu.Unlock()
 		s.importing.Unlock()
-		return
-	}
-	s.closed = true
-	entries := s.entries
-	taskIDs := make([]string, 0, len(entries))
-	for _, e := range entries {
-		if e.busy.Load() {
-			taskIDs = append(taskIDs, e.taskID)
+		for _, taskID := range taskIDs {
+			s.system.TaskCancel(taskID)
 		}
-	}
-	s.mu.Unlock()
-	s.importing.Unlock()
-	for _, taskID := range taskIDs {
-		s.system.TaskCancel(taskID)
-	}
-	for _, e := range entries {
-		e.mu.Lock()
-		if e.pending != nil {
-			if err := s.restoreTask(e); err != nil {
-				log.Printf("恢复软件任务失败: %v", err)
-			}
-		}
-		e.mu.Unlock()
-	}
-	if s.repository != nil && s.plugins != nil {
-		records, err := s.repository.SelectAll()
-		if err != nil {
-			log.Printf("读取插件停止列表失败: %v", err)
-		}
-		byCode := make(map[string]*model.Software, len(records))
-		for _, record := range records {
-			byCode[record.Code] = record
-		}
-		ordered := make([]string, 0, len(records))
-		visited := make(map[string]bool, len(records))
-		var visit func(string)
-		visit = func(code string) {
-			if visited[code] || byCode[code] == nil {
-				return
-			}
-			visited[code] = true
-			// 依赖由包清单定义；清单损坏也继续停止，避免遗留后台任务。
-			if manifest, err := s.plugins.Manifest(code); err == nil {
-				for _, dependency := range manifest.Requires {
-					visit(dependency)
+		for _, e := range entries {
+			e.mu.Lock()
+			if e.pending != nil {
+				if err := s.restoreTask(e); err != nil {
+					log.Printf("恢复软件任务失败: %v", err)
 				}
 			}
-			ordered = append(ordered, code)
+			e.mu.Unlock()
 		}
-		for _, record := range records {
-			visit(record.Code)
-		}
-		for index := len(ordered) - 1; index >= 0; index-- {
-			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-			_, err := s.plugins.Lifecycle(ctx, ordered[index], "stop", "{}")
-			cancel()
+		if s.repository != nil && s.plugins != nil {
+			records, err := s.repository.SelectAll()
 			if err != nil {
-				log.Printf("停止插件 %s 失败: %v", ordered[index], err)
+				log.Printf("读取插件停止列表失败: %v", err)
+			}
+			byCode := make(map[string]*model.Software, len(records))
+			for _, record := range records {
+				byCode[record.Code] = record
+			}
+			ordered := make([]string, 0, len(records))
+			visited := make(map[string]bool, len(records))
+			var visit func(string)
+			visit = func(code string) {
+				if visited[code] || byCode[code] == nil {
+					return
+				}
+				visited[code] = true
+				// 依赖由包清单定义；清单损坏也继续停止，避免遗留后台任务。
+				if manifest, err := s.plugins.Manifest(code); err == nil {
+					for _, dependency := range manifest.Requires {
+						visit(dependency)
+					}
+				}
+				ordered = append(ordered, code)
+			}
+			for _, record := range records {
+				visit(record.Code)
+			}
+			for index := len(ordered) - 1; index >= 0; index-- {
+				ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+				_, err := s.plugins.Lifecycle(ctx, ordered[index], "stop", "{}")
+				cancel()
+				if err != nil {
+					log.Printf("停止插件 %s 失败: %v", ordered[index], err)
+				}
 			}
 		}
-	}
-	if s.plugins != nil {
-		s.plugins.Close()
-	}
+		if s.plugins != nil {
+			s.plugins.Close()
+		}
+	})
 }
 
 // Page 读取 web 目录内的相对路径，省略路径时返回清单中的前端入口；禁用时仅允许清单图标。
 func (s *service) Page(code, path string) ([]byte, string, string, error) {
+	if s.plugins == nil {
+		return nil, "", "", errors.New("插件管理器未初始化")
+	}
 	record, err := s.record(code)
 	if err != nil {
 		return nil, "", "", err

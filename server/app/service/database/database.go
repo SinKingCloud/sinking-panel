@@ -22,6 +22,7 @@ import (
 
 // Service 管理实例连接，直接读取和操作实例中的数据库。
 type Service interface {
+	Close()
 	Config(databaseType int, content string, id int64, stored string, action string) (interface{}, error)
 	Create(data *model.Database) error
 	Update(id int64, data *repositoryDatabase.UpdateDatabase) error
@@ -53,6 +54,7 @@ type service struct {
 	systemService    serviceSystem.Service
 	database         *utilDatabase.Database
 	cache            cache.Interface
+	tasks            *serviceSystem.TaskGroup
 }
 
 // NewService 创建数据库客户端服务。
@@ -65,5 +67,11 @@ func NewService(repository repositoryDatabase.Interface, repositoryScript reposi
 		systemService:    systemService,
 		database:         database,
 		cache:            cache,
+		tasks:            serviceSystem.NewTaskGroup(systemService),
 	}
+}
+
+// Close 取消并等待本服务的导入、导出和文档回填任务，不关闭借用的服务和数据库。
+func (s *service) Close() {
+	s.tasks.Close()
 }
