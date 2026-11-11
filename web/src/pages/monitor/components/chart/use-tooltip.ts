@@ -12,7 +12,6 @@ type MonitorTooltipModel = ChartTooltipModel & {
         valueLabel: string;
         rows: {name: string; pid: string; value: string}[];
         time: string;
-        state: string;
         widths: {pid: number; value: number};
     };
 };
@@ -23,7 +22,6 @@ const useStyles = createStyles(({css, token}) => ({
         .process-heading { display: flex; justify-content: space-between; gap: 8px; font-weight: 500; }
         .process-heading span:last-child { color: ${token.colorTextSecondary}; font-size: 11px; font-weight: 400; }
         .process-time { color: ${token.colorTextTertiary}; font-size: 11px; line-height: 16px; margin-top: 3px; white-space: nowrap; }
-        .process-state { padding: 14px 0; color: ${token.colorTextSecondary}; }
         .process-list { display: grid; grid-template-columns: var(--process-pid-width) minmax(0, 1fr) var(--process-value-width); align-items: center; column-gap: 8px; margin: 6px 0 0; padding: 0; list-style: none; }
         .process-row { display: contents; line-height: 24px; }
         .process-pid { color: ${token.colorTextSecondary}; font-size: 11px; white-space: nowrap; }
@@ -78,19 +76,17 @@ export default function useTooltip(metric: MonitorProcessMetric | undefined, his
             const peakLabel = rows.length && group ? metric === "cpu" ? "峰值时刻"
                 : `${highPoint} ${metric === "memory" ? `${numberLabel(group.peak!)}%` : `${formatSize(group.peak!)}/s`}` : "";
             models.set(point.time, {
-                title: `${dayjs(point.time).format("YYYY-MM-DD HH:mm")}${point.samples === 0 ? "（无采样）" : ""}`,
+                title: dayjs(point.time).format("YYYY-MM-DD HH:mm"),
                 values: series.map((item) => {
                     const value = point[item.key];
-                    if (!Number.isFinite(value)) return "无数据";
+                    if (!Number.isFinite(value)) return "--";
                     return unit === "bytes" ? `${formatSize(value)}/s` : `${numberLabel(value)}${unit === "percent" ? "%" : ""}`;
                 }),
-                process: metric ? {
+                process: metric && rows.length ? {
                     ...labels[metric === "disk_io" && group?.io_scope === "process" ? "process_io" : metric],
                     rows,
                     widths,
                     time: rows.length ? `${peakLabel} · ${group && Number.isFinite(group.time) && group.time > 0 ? dayjs(group.time).format(metric === "cpu" ? "YYYY-MM-DD HH:mm:ss" : "HH:mm:ss") : "时间未知"}${group?.partial ? "（部分进程）" : ""}` : "",
-                    state: point.samples === 0 ? "该时段无采样" : history.process_error ? "进程记录暂不可用"
-                        : matched ? `${highPoint}时刻的进程信息不可用` : `该时段未记录${highPoint}对应的进程`,
                 } : undefined,
             });
         });
@@ -105,6 +101,7 @@ export default function useTooltip(metric: MonitorProcessMetric | undefined, his
             // 只在绑定时创建节点；换采样点仅更新文本，刷新数据也不重建渲染器。
             renderContent: (container) => {
                 const section = element("div", "process-section");
+                section.hidden = true;
                 const heading = element("div", "process-heading");
                 const title = element("span", "", label.title);
                 const valueLabel = element("span", "", label.valueLabel);
@@ -120,32 +117,31 @@ export default function useTooltip(metric: MonitorProcessMetric | undefined, his
                     list.append(node);
                     return {node, name, pid, value};
                 });
-                const state = element("div", "process-state");
-                section.append(heading, time, list, state);
+                section.append(heading, time, list);
                 container.append(section);
                 let widths: {pid: number; value: number} | undefined;
                 return (model) => {
                     const info = model.process;
-                    const hasRows = Boolean(info?.rows.length);
-                    text(title, info?.title || label.title);
-                    text(valueLabel, info?.valueLabel || label.valueLabel);
-                    visible(time, hasRows);
-                    visible(list, hasRows);
-                    visible(state, !hasRows);
-                    text(hasRows ? time : state, hasRows ? info!.time : info?.state || "该时段暂无进程记录");
-                    if (info && widths !== info.widths) {
+                    const sizeChanged = section.hidden === Boolean(info);
+                    visible(section, Boolean(info));
+                    if (!info) return sizeChanged;
+                    text(title, info.title);
+                    text(valueLabel, info.valueLabel);
+                    text(time, info.time);
+                    if (widths !== info.widths) {
                         widths = info.widths;
                         section.style.setProperty("--process-pid-width", `${widths.pid + 1}ch`);
                         section.style.setProperty("--process-value-width", `${widths.value + 1}ch`);
                     }
                     rows.forEach((row, index) => {
-                        const item = info?.rows[index];
+                        const item = info.rows[index];
                         visible(row.node, Boolean(item));
                         if (!item) return;
                         text(row.name, item.name);
                         text(row.pid, item.pid);
                         text(row.value, item.value);
                     });
+                    return sizeChanged;
                 };
             },
         };

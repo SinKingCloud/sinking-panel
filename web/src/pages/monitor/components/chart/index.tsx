@@ -1,6 +1,6 @@
 import React, {useEffect, useMemo, useRef, useState} from "react";
 import {Line} from "@ant-design/charts";
-import {Empty, Grid, theme as antdTheme} from "antd";
+import {Grid, theme as antdTheme} from "antd";
 import dayjs from "dayjs";
 import {Title, useTheme} from "sinking-antd";
 import {formatSize} from "@/utils/string";
@@ -21,7 +21,7 @@ type Props = {
 
 const units = ["B/s", "KB/s", "MB/s", "GB/s", "TB/s"];
 const numberLabel = new Intl.NumberFormat("zh-CN", {maximumFractionDigits: 2}).format;
-type ChartDatum = {time: number; value: number | null; series: string; samples: number};
+type ChartDatum = {time: number; value: number | null; series: string};
 const metricValue = (value: number | undefined, unit: Props["unit"]) => {
     if (typeof value !== "number" || !Number.isFinite(value)) return {value: "--", suffix: ""};
     if (unit === "bytes") {
@@ -95,13 +95,13 @@ const MonitorChart = React.memo(({title, subtitle, history, series, unit, rangeK
         const data: ChartDatum[] = [];
         const areaData: ChartDatum[] = [];
         let maximum = 0;
-        // 直接展示后端从首个真实采样开始的时间桶，不在页面补点。
+        // 直接展示后端按完整查询范围补齐的时间桶，不在页面补点。
         points?.forEach((point) => {
             series.forEach((item) => {
                 const value = point[item.key];
                 const valid = Number.isFinite(value);
                 if (valid) maximum = Math.max(maximum, value);
-                const datum = {time: point.time, value: valid ? value : null, series: item.label, samples: point.samples};
+                const datum = {time: point.time, value: valid ? value : null, series: item.label};
                 data.push(datum);
                 if (item === series[0]) areaData.push(datum);
             });
@@ -176,7 +176,6 @@ const MonitorChart = React.memo(({title, subtitle, history, series, unit, rangeK
                     color: series.find((item) => item.label === datum?.series)?.color,
                     value: datum?.value,
                     time: datum?.time,
-                    samples: datum?.samples,
                 })],
             },
             slider: pointCount > 1 && start !== undefined && end !== undefined && end > start ? {
@@ -252,9 +251,9 @@ const MonitorChart = React.memo(({title, subtitle, history, series, unit, rangeK
         <section className={styles.panel} aria-label={title}>
             <div className={styles.heading}>
                 <Title size="small"><h3>{title}</h3></Title>
-                <span className="sample-time" title={latest ? `${latest.samples > 0 ? "所选范围末个时段" : "当前时段无采样"}：${dayjs(latest.time).format("YYYY-MM-DD HH:mm")}` : undefined}>
-                    {latest ? <>{latest.samples > 0 ? "统计时段" : "无采样"} <time dateTime={new Date(latest.time).toISOString()}>{dayjs(latest.time).format("MM-DD HH:mm")}</time></> : "暂无采样"}
-                </span>
+                {latest && <span className="sample-time" title={`所选范围末个时段：${dayjs(latest.time).format("YYYY-MM-DD HH:mm")}`}>
+                    统计时段 <time dateTime={new Date(latest.time).toISOString()}>{dayjs(latest.time).format("MM-DD HH:mm")}</time>
+                </span>}
             </div>
             <div className={styles.summary}>
                 <div className="summary-metrics" style={{gridTemplateColumns: `repeat(${series.length}, minmax(0, 1fr))`}}>
@@ -270,9 +269,7 @@ const MonitorChart = React.memo(({title, subtitle, history, series, unit, rangeK
             </div>
             <div ref={containerRef} className={styles.plot}>
                 <div className="chart-unit">{chart.displayUnit}</div>
-                {!view ? <div style={{height: chartHeight}}/> : points?.length
-                    ? plot
-                    : <div className="chart-empty" style={{height: chartHeight}}><Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="所选时间暂无监控数据"/></div>}
+                {points?.length ? plot : <div style={{height: chartHeight}}/>}
             </div>
         </section>
     );

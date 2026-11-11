@@ -12,10 +12,10 @@ import type {MonitorHistory, MonitorSeries, MonitorSettings} from "./types";
 import useStyles from "./styles";
 
 const periods = [
-    {value: "1", label: "1 小时"},
-    {value: "6", label: "6 小时"},
-    {value: "24", label: "24 小时"},
-    {value: "168", label: "7 天"},
+    {value: "today", label: "今天"},
+    {value: "yesterday", label: "昨天"},
+    {value: "3", label: "最近3天"},
+    {value: "7", label: "最近7天"},
 ];
 
 export default (): React.ReactNode => {
@@ -33,7 +33,7 @@ export default (): React.ReactNode => {
     const [historyError, setHistoryError] = useState("");
     const [loading, setLoading] = useState(true);
     const [initialLoading, setInitialLoading] = useState(true);
-    const [period, setPeriod] = useState("1");
+    const [period, setPeriod] = useState("today");
     const [customRange, setCustomRange] = useState<[Dayjs, Dayjs] | null>(null);
     const [datePickerOpen, setDatePickerOpen] = useState(false);
     const [data, setData] = useState<MonitorHistory>();
@@ -43,8 +43,16 @@ export default (): React.ReactNode => {
         if (background && historyLoadingRef.current) return;
         const request = ++historyRequestRef.current;
         historyLoadingRef.current = true;
-        const end = customRange ? Math.min(customRange[1].endOf("day").valueOf(), Date.now()) : Date.now();
-        const start = customRange ? customRange[0].startOf("day").valueOf() : end - Number(period) * 3600000;
+        const now = dayjs();
+        const today = now.startOf("day");
+        let end = customRange ? Math.min(customRange[1].endOf("day").valueOf(), now.valueOf())
+            : period === "yesterday" ? today.valueOf() - 1 : now.valueOf();
+        const start = customRange ? customRange[0].startOf("day").valueOf()
+            : period === "today" ? today.valueOf()
+            : period === "yesterday" ? today.subtract(1, "day").startOf("day").valueOf()
+            : end - Number(period) * 86400000;
+        // 刚好跨到零点时仍保留有效区间，避免 start 与 end 相同。
+        end = Math.max(end, start + 1);
         const span = end - start;
         // 一天内的趋势不需要铺满像素，24 小时在桌面按 5 分钟、移动端按 15 分钟聚合。
         const maxPoints = span > 6 * 3600000 && span <= 24 * 3600000 ? (isMobile ? 120 : 300) : pointLimit;
@@ -53,7 +61,8 @@ export default (): React.ReactNode => {
             const response = await systemMonitor({body: {action: "history", start, end, max_points: maxPoints}});
             if (request !== historyRequestRef.current) return;
             if (response?.code !== 200 || !response.data) throw new Error(response?.message || "读取监控历史失败");
-            setRangeKey(customRange ? customRange.map((date) => date.format("YYYY-MM-DD")).join("/") : period);
+            setRangeKey(customRange ? customRange.map((date) => date.format("YYYY-MM-DD")).join("/")
+                : period === "today" || period === "yesterday" ? `${period}/${dayjs(start).format("YYYY-MM-DD")}` : period);
             setData({...response.data, data: Array.isArray(response.data.data) ? response.data.data : []});
             setHistoryError("");
         } catch (error) {
@@ -77,11 +86,14 @@ export default (): React.ReactNode => {
     }, [loadHistory]);
 
     useEffect(() => {
-        if ((customRange && !customRange[1].isSame(dayjs(), "day")) || settings?.enabled === false) return;
+        if (customRange && !customRange[1].isSame(dayjs(), "day")) return;
         const refresh = () => {
-            if (document.visibilityState === "visible" && (!customRange || customRange[1].isSame(dayjs(), "day"))) {
-                void loadHistory(true);
-            }
+            if (document.visibilityState !== "visible" || (customRange && !customRange[1].isSame(dayjs(), "day"))) return;
+            // 相对日期跨日后更新范围；昨天的数据在同一天内无需轮询。
+            const dateChanged = !customRange && (period === "today" || period === "yesterday")
+                && rangeKey !== `${period}/${dayjs().subtract(period === "yesterday" ? 1 : 0, "day").format("YYYY-MM-DD")}`;
+            if (!dateChanged && (settings?.enabled === false || (!customRange && period === "yesterday"))) return;
+            void loadHistory(true);
         };
         const timer = window.setInterval(refresh, 60000);
         document.addEventListener("visibilitychange", refresh);
@@ -89,7 +101,7 @@ export default (): React.ReactNode => {
             window.clearInterval(timer);
             document.removeEventListener("visibilitychange", refresh);
         };
-    }, [loadHistory, customRange, settings?.enabled]);
+    }, [loadHistory, period, customRange, settings?.enabled, rangeKey]);
 
     const latest = data?.data[data.data.length - 1];
     const charts = useMemo<{title: string; capacity?: [MonitorSeries["key"], MonitorSeries["key"]]; unit: "percent" | "bytes" | "load"; series: MonitorSeries[]}[]>(() => [

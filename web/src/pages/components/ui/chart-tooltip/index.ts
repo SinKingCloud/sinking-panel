@@ -11,8 +11,8 @@ export type ChartTooltipModel = {
 export type ChartTooltipOptions<T extends ChartTooltipModel> = {
     width?: number;
     className?: string;
-    // 绑定时创建内容节点，数据点变化时更新；避免悬浮移动触发 React 渲染。
-    renderContent?: (container: HTMLElement) => (model: T) => void;
+    // 绑定时创建内容节点，数据点变化时更新；返回 true 表示尺寸变化，需要重新测量。
+    renderContent?: (container: HTMLElement) => (model: T) => boolean | void;
 };
 
 function element<K extends keyof HTMLElementTagNameMap>(tag: K, className = "", text?: string) {
@@ -61,7 +61,7 @@ export default function useChartTooltip<T extends ChartTooltipModel>(models: Rea
                     root.append(row);
                     return value;
                 });
-                let updateContent: ((model: T) => void) | undefined;
+                let updateContent: ((model: T) => boolean | void) | undefined;
                 if (renderContent) {
                     const content = element("div");
                     root.append(content);
@@ -93,15 +93,16 @@ export default function useChartTooltip<T extends ChartTooltipModel>(models: Rea
                         frame = 0;
                         const model = pending;
                         if (!model) return;
+                        let sizeChanged = false;
                         if (active !== model) {
                             active = model;
                             text(title, model.title);
                             values.forEach((value, index) => text(value, model.values[index] ?? ""));
-                            updateContent?.(model);
+                            sizeChanged = updateContent?.(model) === true;
                         }
                         const opening = root.hidden;
-                        if (opening) {
-                            // 打开时缓存尺寸和边界，移动时只做数值判断与 transform 更新。
+                        if (opening || sizeChanged) {
+                            // 仅打开或内容尺寸变化时缓存边界，普通移动只计算 transform。
                             root.style.visibility = "hidden";
                             root.hidden = false;
                             measuredWidth = root.offsetWidth;
@@ -124,7 +125,7 @@ export default function useChartTooltip<T extends ChartTooltipModel>(models: Rea
                             lastX = x;
                             lastY = y;
                         }
-                        if (opening) root.style.visibility = "visible";
+                        if (opening || sizeChanged) root.style.visibility = "visible";
                     });
                 };
                 const dismiss = () => {

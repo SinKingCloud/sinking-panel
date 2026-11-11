@@ -525,7 +525,8 @@ func (s *service) GetMonitorHistory(ctx context.Context, start, end int64, maxPo
 	if err != nil {
 		return MonitorHistory{}, err
 	}
-	// 从首条真实采样开始补齐时间桶；中间及末尾空桶仍以 samples=0 标记。
+	var processStart int64
+	// 按完整查询范围补齐时间桶，包括首尾及完全无记录的区间；空桶以 samples=0 标记。
 	result, err = func(result datastore.RecordResult) (datastore.RecordResult, error) {
 		if result.Start <= 0 || result.End <= result.Start || result.Interval <= 0 || result.Interval > math.MaxInt64/1000 {
 			return result, errors.New("监控历史时间桶无效")
@@ -537,9 +538,6 @@ func (s *service) GetMonitorHistory(ctx context.Context, start, end int64, maxPo
 			return result, errors.New("监控历史时间桶数量超出限制")
 		}
 
-		if len(result.Points) == 0 {
-			return result, nil
-		}
 		// Query 已按时间排序并聚合，顺序归位即可，无需再建立桶索引。
 		previous := int64(-1)
 		for index, point := range result.Points {
@@ -552,13 +550,12 @@ func (s *service) GetMonitorHistory(ctx context.Context, start, end int64, maxPo
 				return result, errors.New("监控历史时间桶重复或顺序无效")
 			}
 			if index == 0 {
-				first = bucket
+				processStart = timestamp
 			}
 			previous = bucket
 		}
 
-		result.Start = result.Points[0]["time"].(int64)
-		points := make([]map[string]interface{}, 0, int(last-first+1))
+		points := make([]map[string]interface{}, 0, int(count))
 		index := 0
 		for bucket := first; bucket <= last; bucket++ {
 			timestamp := max(result.Start, bucket*step)
@@ -586,7 +583,7 @@ func (s *service) GetMonitorHistory(ctx context.Context, start, end int64, maxPo
 	for _, point := range history.Data {
 		point["process"] = monitorProcessData{}
 	}
-	if len(history.Data) == 0 {
+	if processStart == 0 {
 		return history, nil
 	}
 	if s.monitorProcessStore == nil {
@@ -594,7 +591,8 @@ func (s *service) GetMonitorHistory(ctx context.Context, start, end int64, maxPo
 		return history, nil
 	}
 	step := history.Interval * 1000
-	peaks, err := s.monitorProcessStore.history(ctx, history.Start, history.End, step)
+	// 进程查询仍从真实采样开始，避免把范围首个不完整分钟的排行关联到后续指标。
+	peaks, err := s.monitorProcessStore.history(ctx, processStart, history.End, step)
 	if err != nil {
 		if ctx.Err() != nil {
 			return MonitorHistory{}, ctx.Err()

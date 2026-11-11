@@ -6,6 +6,7 @@ import (
 	"server/app/service"
 	"server/app/util/context"
 	"strconv"
+	"time"
 )
 
 // Monitor 查询监控历史、读取或修改历史采集设置。
@@ -25,14 +26,22 @@ func Monitor(c *context.Context) {
 	message := "获取监控设置成功"
 	switch form.Action {
 	case "history":
-		// 通用绑定会忽略文本转整数失败；显式无效值不能误用默认查询精度。
+		// 通用绑定会忽略文本转整数失败；显式无效值不能误用默认范围或精度。
 		for _, values := range []map[string]string{c.AllQuery(), c.AllForm()} {
-			if raw, exists := values["max_points"]; exists {
-				if _, err := strconv.Atoi(raw); err != nil {
-					c.Error("查询点数必须为整数")
-					return
+			for name, label := range map[string]string{"start": "开始时间", "end": "结束时间", "max_points": "查询点数"} {
+				if raw, exists := values[name]; exists {
+					if _, err := strconv.ParseInt(raw, 10, 64); err != nil {
+						c.Error(label + "必须为整数")
+						return
+					}
 				}
 			}
+		}
+		if form.End == 0 {
+			form.End = time.Now().UnixMilli()
+		}
+		if form.Start == 0 {
+			form.Start = form.End - int64(24*time.Hour/time.Millisecond)
 		}
 		var maxPoints []int
 		if form.MaxPoints != nil {

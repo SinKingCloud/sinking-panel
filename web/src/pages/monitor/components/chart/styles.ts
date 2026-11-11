@@ -132,7 +132,5 @@ export default createStyles(({css, token}, {compact}: {compact: boolean}) => ({
             text-align: right;
         }
 
-        .chart-empty { display: flex; align-items: center; justify-content: center; }
-        .ant-empty-description { color: ${token.colorTextTertiary}; font-size: 12px; }
     `,
 }));
