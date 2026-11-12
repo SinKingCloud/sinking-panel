@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"time"
@@ -56,11 +55,7 @@ func (s *service) install(ctx context.Context, path string, record *model.Softwa
 		return err
 	}
 	staging := pkg.Directory
-	defer func() {
-		if cleanupErr := s.plugins.Remove(staging); cleanupErr != nil {
-			log.Printf("清理软件临时目录失败: %v", cleanupErr)
-		}
-	}()
+	defer s.plugins.Remove(staging)
 	if !pkg.Available {
 		return errors.New(pkg.UnavailableReason)
 	}
@@ -170,9 +165,7 @@ func (s *service) install(ctx context.Context, path string, record *model.Softwa
 	s.icons[record.Code] = pkg.Manifest.Icon
 	s.mu.Unlock()
 	if backedUp {
-		if err = s.plugins.Remove(backup); err != nil {
-			log.Printf("软件已更新，但清理旧代码失败: %v", err)
-		}
+		_ = s.plugins.Remove(backup)
 	}
 	return nil
 }

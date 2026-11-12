@@ -1,5 +1,5 @@
 import {forwardRef, memo, useCallback, useImperativeHandle, useMemo, useRef, useState} from "react";
-import {App, Col, Form as AntForm, Input, Row, Select, Spin} from "antd";
+import {App, Col, Form as AntForm, Grid, Input, Row, Select, Spin} from "antd";
 import {createStyles} from "antd-style";
 import {ProModal, ProModalRef, Title, useTheme} from "sinking-antd";
 import defaultSettings from "@/../config/defaultSettings";
@@ -40,14 +40,8 @@ const useStyles = createStyles<{compact: boolean}>(({css, token}, {compact}) => 
     `,
     configPanel: css`
         min-width: 0;
-        padding: ${compact ? 12 : 16}px;
-        border: 1px solid ${token.colorBorderSecondary};
-        border-radius: ${token.borderRadiusLG}px;
-        background: ${token.colorBgContainer};
-
-        @media (max-width: 575px) {
-            padding: 12px;
-        }
+        padding-top: ${compact ? 14 : 18}px;
+        border-top: 1px solid ${token.colorBorderSecondary};
     `,
     configTitle: css`
         display: flex;
@@ -55,10 +49,6 @@ const useStyles = createStyles<{compact: boolean}>(({css, token}, {compact}) => 
         justify-content: space-between;
         gap: 12px;
         margin: 0 0 ${compact ? 12 : 16}px;
-        color: ${token.colorText};
-        font-size: ${token.fontSize}px;
-        font-weight: 500;
-        line-height: ${token.lineHeight};
 
         > .ant-btn {
             flex: none;
@@ -68,8 +58,7 @@ const useStyles = createStyles<{compact: boolean}>(({css, token}, {compact}) => 
     configBody: css`
         min-width: 0;
 
-        > .ant-form-item:last-child,
-        > .ant-row:last-child .ant-form-item {
+        > .ant-form-item:last-child {
             margin-bottom: 0;
         }
     `,
@@ -83,6 +72,7 @@ const Form = forwardRef<any, {typeData?: any; typeItems?: any[]; execTypeData?: 
 }, ref):any => {
     const {message} = App.useApp();
     const theme = useTheme();
+    const screens = Grid.useBreakpoint();
     const compact = Boolean(theme?.isCompactTheme?.());
     const {styles} = useStyles({compact});
     const modalRef = useRef<ProModalRef>({} as ProModalRef);
@@ -264,7 +254,7 @@ const Form = forwardRef<any, {typeData?: any; typeItems?: any[]; execTypeData?: 
                 okText: editing ? "保存" : "创建",
                 cancelText: "取消",
                 footer: infoLoading ? null : undefined,
-                style: {top: 100, paddingBottom: 100},
+                style: {top: screens.md ? 100 : 24, paddingBottom: screens.md ? 100 : 24},
                 mask: {closable: true},
                 afterClose: reset,
             } as any}>

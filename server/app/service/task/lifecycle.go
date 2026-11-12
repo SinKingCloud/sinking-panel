@@ -1,8 +1,6 @@
 package task
 
-import (
-	"github.com/robfig/cron/v3"
-)
+import "github.com/robfig/cron/v3"
 
 // removeEntry 在 taskLock 内移除调度，已执行的旧快照保留至执行结束。
 func (s *service) removeEntry(id cron.EntryID) {
@@ -58,14 +56,10 @@ func (s *service) waitJobs(jobs []*job) {
 	}
 }
 
-// Cancel 注销指定任务的内存调度，取消并等待执行结束，保留数据库配置和日志。
-func (s *service) Cancel(ids []int64) error {
-	selected := make(map[int64]bool, len(ids))
-	for _, id := range ids {
-		selected[id] = true
-	}
+// Cancel 按 ID 注销任务的所有调度和执行，保留数据库配置和日志。
+func (s *service) Cancel(id int64) error {
 	s.taskLock.Lock()
-	jobs := s.cancelJobs(func(j *job) bool { return selected[j.Id] })
+	jobs := s.cancelJobs(func(j *job) bool { return j.Id == id })
 	s.taskLock.Unlock()
 	s.waitJobs(jobs)
 	return nil

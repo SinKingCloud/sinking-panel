@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"os"
 	"path"
 	"path/filepath"
@@ -649,9 +648,8 @@ func (m *Manager) scheduleAutoRestart(id string, generation uint64) {
 			if instance != nil {
 				instance.Error = err.Error()
 				m.storeInstance(instance)
-				err = errors.Join(err, m.writeJSON(filepath.Join(m.instancesRoot, id, "instance.json"), instance))
+				_ = m.writeJSON(filepath.Join(m.instancesRoot, id, "instance.json"), instance)
 			}
-			log.Printf("自动启动容器 %s 失败: %v", id, err)
 		}
 	})
 	if !started {

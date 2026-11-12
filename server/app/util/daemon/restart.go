@@ -3,7 +3,6 @@ package daemon
 import (
 	"errors"
 	"fmt"
-	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -122,7 +121,6 @@ exec launchctl kickstart "$1"`, "daemon-restart", service, strconv.Itoa(os.Getpi
 	go func() {
 		if err := command.Wait(); err != nil {
 			u.restarting.Store(false)
-			log.Printf("重启控制进程执行失败: %v", err)
 		}
 	}()
 	return nil

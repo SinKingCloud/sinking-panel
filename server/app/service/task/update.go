@@ -62,8 +62,8 @@ func (s *service) UpdateByIds(ids []int64, data *repositoryTask.UpdateTask) (err
 		if findErr != nil {
 			return findErr
 		}
-		if data.ExecType != nil || data.Script != nil {
-			return errors.New("内部任务通过注册的执行方法运行，不能修改执行类型或内容")
+		if data.ExecType != nil {
+			return errors.New("内部任务通过指定的执行方法运行，不能修改执行类型")
 		}
 		value := *task
 		if data.TypeId != nil {
@@ -71,6 +71,9 @@ func (s *service) UpdateByIds(ids []int64, data *repositoryTask.UpdateTask) (err
 		}
 		if data.Name != nil {
 			value.Name = *data.Name
+		}
+		if data.Script != nil {
+			value.Script = *data.Script
 		}
 		if data.Spec != nil {
 			value.Spec = *data.Spec
@@ -118,7 +121,7 @@ func (s *service) UpdateByIds(ids []int64, data *repositoryTask.UpdateTask) (err
 			}
 		}
 	}
-	if data.Script != nil {
+	if data.Script != nil && len(storedIds) > 0 {
 		data.Script = &normalizedContent
 	}
 	if len(storedIds) > 0 {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"server/app/enum/task_exec_type"
 	"server/app/model"
+	"server/app/util/str"
 	"sync"
 	"time"
 
@@ -14,7 +15,7 @@ type job struct {
 	*model.Task
 	service *service
 	ctx     context.Context
-	run     cron.Job
+	run     RunFunc
 	cancel  context.CancelFunc
 	wait    sync.WaitGroup
 	running int
@@ -59,13 +60,17 @@ func (j *job) begin() (model.Task, bool) {
 	if j.service.closed || j.retired || j.ctx.Err() != nil {
 		return model.Task{}, false
 	}
+	// 内部任务复用同一实例，手动执行、改周期和恢复调度都不会重叠。
+	if j.run != nil && j.running > 0 {
+		return model.Task{}, false
+	}
 	j.running++
 	j.wait.Add(1)
 	j.service.runWait.Add(1)
 	return *j.Task, true
 }
 
-// execute 运行固定内容，并跟踪完成状态。
+// execute 运行固定内容，业务执行器须同步完成并响应上下文取消。
 func (j *job) execute(task model.Task) {
 	defer func() {
 		j.service.taskLock.Lock()
@@ -79,14 +84,22 @@ func (j *job) execute(task model.Task) {
 		j.wait.Done()
 		j.service.runWait.Done()
 	}()
-	if j.run != nil {
-		j.run.Run()
-		return
-	}
 	defer func() {
-		_ = j.service.repositoryTask.UpdateRuntimeById(task.Id, time.Now())
+		if task.Id < 0 {
+			j.service.taskLock.Lock()
+			j.RunTime = str.DateTime(time.Now())
+			j.service.taskLock.Unlock()
+		} else {
+			_ = j.service.repositoryTask.UpdateRuntimeById(task.Id, time.Now())
+		}
 	}()
 	writeLog := func(content string) { _ = j.service.WriteLog(task.Id, content) }
+	if j.run != nil {
+		if err := j.run(j.ctx, task.Id, task.Script, writeLog); err != nil {
+			writeLog(err.Error())
+		}
+		return
+	}
 	switch task.ExecType {
 	case task_exec_type.Script:
 		_ = j.service.script.Run(j.ctx, task.Script, writeLog)

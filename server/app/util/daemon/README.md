@@ -105,13 +105,12 @@ func main() {
 
 ## 示例：停止宿主时一并回收业务子进程
 
-下面的完整函数构造可传给 NewDaemon 的 Service 回调，说明如何把停止通道连接到 process.Manager。`workDir` 必须存在，`command` 是受信任的前台命令。初始化失败会记录错误并返回；生产入口可另外记录服务失败状态。
+下面的完整函数构造可传给 NewDaemon 的 Service 回调，说明如何把停止通道连接到 process.Manager。`workDir` 必须存在，`command` 是受信任的前台命令。初始化失败会返回；生产入口可另外记录服务失败状态。
 
 ```go
 package example
 
 import (
-    "log"
     "path/filepath"
 
     "server/app/util/process"
@@ -120,11 +119,7 @@ import (
 func WorkerService(workDir, command string) func(<-chan struct{}) {
     return func(stop <-chan struct{}) {
         manager := process.NewManager()
-        defer func() {
-            if err := manager.StopAll(); err != nil {
-                log.Printf("停止工作进程失败: %v", err)
-            }
-        }()
+        defer manager.StopAll()
         if _, err := manager.Start(process.Config{
             ID: "worker",
             Command: command,
@@ -132,7 +127,6 @@ func WorkerService(workDir, command string) func(<-chan struct{}) {
             AutoRestart: true,
             LogPath: filepath.Join(workDir, "logs", "worker.log"),
         }); err != nil {
-            log.Printf("启动工作进程失败: %v", err)
             return
         }
         <-stop

@@ -40,70 +40,65 @@ const useStyles = createStyles(({css, token}: any, props: any = {}) => {
     return {
     schedule: css`
         min-width: 0;
-        container-type: inline-size;
+        container: task-schedule / inline-size;
     `,
     editor: css`
+        --schedule-number-width: 96px;
+        --schedule-minute-width: 88px;
+        --schedule-time-width: 120px;
+        --schedule-weekday-width: 104px;
         min-width: 0;
-        display: flex;
+        display: grid;
+        grid-template-columns: 132px minmax(0, 1fr);
         align-items: center;
         gap: 8px;
 
-        .cycle-type {
-            width: 132px;
-            flex: none;
+        .cycle-type.ant-select {
+            width: 100%;
         }
 
         .cycle-value {
             min-width: 0;
-            flex: 1;
         }
 
         .schedule-number {
-            width: 96px;
+            width: var(--schedule-number-width);
             flex: none;
         }
 
         .schedule-minute {
-            width: 88px;
+            width: var(--schedule-minute-width);
             flex: none;
         }
 
         .schedule-time {
-            width: 120px;
+            width: var(--schedule-time-width);
             flex: none;
         }
 
-        .schedule-weekday {
-            width: 104px;
+        .schedule-weekday.ant-select {
+            width: var(--schedule-weekday-width);
             flex: none;
         }
 
-        @container (max-width: 520px) {
-            flex-direction: column;
+        @container task-schedule (max-width: 480px) {
+            --schedule-number-width: 64px;
+            --schedule-minute-width: 64px;
+            --schedule-time-width: 112px;
+            --schedule-weekday-width: 86px;
+            grid-template-columns: 108px minmax(0, 1fr);
+        }
+
+        @container task-schedule (max-width: 360px) {
+            grid-template-columns: minmax(0, 1fr);
             align-items: stretch;
-
-            .cycle-type {
-                width: 100%;
-            }
-
-            .schedule-number,
-            .schedule-minute {
-                width: 60px;
-            }
-
-            .schedule-time {
-                width: 88px;
-            }
-
-            .schedule-weekday {
-                width: 74px;
-            }
         }
     `,
     inlineControl: css`
         min-width: 0;
         min-height: ${token.controlHeight}px;
         display: flex;
+        flex-wrap: wrap;
         align-items: center;
         gap: 8px;
         white-space: nowrap;
@@ -112,18 +107,8 @@ const useStyles = createStyles(({css, token}: any, props: any = {}) => {
             flex: none;
         }
 
-        @container (max-width: 520px) {
-            gap: 3px;
-            flex-wrap: wrap;
-            font-size: 12px;
-            white-space: nowrap;
-
-            .schedule-number,
-            .schedule-minute,
-            .schedule-time,
-            .schedule-weekday {
-                flex: none;
-            }
+        @container task-schedule (max-width: 480px) {
+            gap: 6px;
         }
     `,
     preview: css`
@@ -195,6 +180,17 @@ const useStyles = createStyles(({css, token}: any, props: any = {}) => {
 
         .schedule-expression .ant-typography-copy:hover {
             color: ${token.colorPrimary};
+        }
+
+        @container task-schedule (max-width: 360px) {
+            flex-direction: column;
+            align-items: stretch;
+            gap: 2px;
+
+            .schedule-expression.ant-typography {
+                padding-inline-start: 0;
+                border-inline-start: 0;
+            }
         }
 
     `,

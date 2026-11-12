@@ -53,8 +53,8 @@ func (s *service) Close() {
 		s.cancel()
 		certTask := s.certTask
 		s.lifecycleMu.Unlock()
-		if certTask {
-			if err := s.taskService.Cancel([]int64{constant.TaskCertAutoRenew}); err != nil {
+		if s.taskService != nil && certTask {
+			if err := s.taskService.Cancel(constant.TaskCertAutoRenew); err != nil {
 				caddyRuntime.Log().Error("注销证书自动续签任务失败", zap.Error(err))
 			}
 		}

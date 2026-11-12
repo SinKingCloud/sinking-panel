@@ -3,7 +3,6 @@ package software
 import (
 	"context"
 	"errors"
-	"log"
 	"time"
 
 	"server/app/enum/software_state"
@@ -166,7 +165,6 @@ func (s *service) Boot() {
 	s.mu.Unlock()
 	records, err := s.repository.SelectAll()
 	if err != nil {
-		log.Printf("读取插件启动列表失败: %v", err)
 		s.importing.Unlock()
 		return
 	}
@@ -175,12 +173,9 @@ func (s *service) Boot() {
 		switch record.State {
 		case software_state.Installing:
 			if err := s.plugins.Remove(record.Code); err != nil {
-				log.Printf("清理中断安装 %s 失败: %v", record.Code, err)
 				continue
 			}
-			if err := s.repository.DeleteById(record.Id); err != nil {
-				log.Printf("清理中断安装记录失败: %v", err)
-			}
+			_ = s.repository.DeleteById(record.Id)
 			s.invalidate(record.Code)
 			continue
 		case software_state.Upgrading:
@@ -192,7 +187,6 @@ func (s *service) Boot() {
 					err = s.plugins.Rename(backup, record.Code)
 				}
 				if err != nil {
-					log.Printf("恢复升级 %s 失败: %v", record.Code, err)
 					continue
 				}
 			}
@@ -201,12 +195,7 @@ func (s *service) Boot() {
 			continue
 		}
 		state := software_state.Installed
-		if err := s.repository.UpdateById(record.Id, &repositorySoftware.UpdateSoftware{State: &state, Status: &record.Status}); err != nil {
-			log.Printf("恢复软件 %s 状态失败: %v", record.Code, err)
-		} else {
-			if record.State == software_state.Upgrading {
-				log.Printf("软件 %s 升级被中断，已恢复并禁用，请检查配置后重新启用", record.Code)
-			}
+		if err := s.repository.UpdateById(record.Id, &repositorySoftware.UpdateSoftware{State: &state, Status: &record.Status}); err == nil {
 			record.State = state
 			s.invalidate(record.Code)
 		}
@@ -231,14 +220,11 @@ func (s *service) Boot() {
 			dependencies, err = s.dependencies(pkg.Manifest)
 			if err == nil {
 				var release func()
-				release, err = s.start(append(dependencies, record))
+				release, _ = s.start(append(dependencies, record))
 				if release != nil {
 					release()
 				}
 			}
-		}
-		if err != nil {
-			log.Printf("启动插件 %s 失败: %v", record.Code, err)
 		}
 	}
 }
@@ -266,17 +252,12 @@ func (s *service) Close() {
 		for _, e := range entries {
 			e.mu.Lock()
 			if e.pending != nil {
-				if err := s.restoreTask(e); err != nil {
-					log.Printf("恢复软件任务失败: %v", err)
-				}
+				_ = s.restoreTask(e)
 			}
 			e.mu.Unlock()
 		}
 		if s.repository != nil && s.plugins != nil {
-			records, err := s.repository.SelectAll()
-			if err != nil {
-				log.Printf("读取插件停止列表失败: %v", err)
-			}
+			records, _ := s.repository.SelectAll()
 			byCode := make(map[string]*model.Software, len(records))
 			for _, record := range records {
 				byCode[record.Code] = record
@@ -302,11 +283,8 @@ func (s *service) Close() {
 			}
 			for index := len(ordered) - 1; index >= 0; index-- {
 				ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-				_, err := s.plugins.Lifecycle(ctx, ordered[index], "stop", "{}")
+				_, _ = s.plugins.Lifecycle(ctx, ordered[index], "stop", "{}")
 				cancel()
-				if err != nil {
-					log.Printf("停止插件 %s 失败: %v", ordered[index], err)
-				}
 			}
 		}
 		if s.plugins != nil {

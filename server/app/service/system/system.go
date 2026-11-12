@@ -2,7 +2,6 @@ package system
 
 import (
 	"context"
-	"log"
 	"os"
 	"server/app/constant"
 	"server/app/enum/system_task_status"
@@ -27,7 +26,7 @@ type Service interface {
 	GetIO(netInterface, diskName string, after int64) map[string]interface{} // 网络与磁盘 I/O 统计
 	GetMonitorSettings() (datastore.SeriesSettings, error)
 	SetMonitorSettings(enabled bool, days int) error
-	GetMonitorHistory(ctx context.Context, start, end int64, maxPoints ...int) (MonitorHistory, error)
+	GetMonitorHistory(ctx context.Context, start, end int64, maxPoints int) (MonitorHistory, error)
 	GetTask(id string) *Task
 	TaskList(status *int) ([]*Task, error)
 	TaskCreate(id, name string, data interface{}, run func(context.Context, interface{}, func(int, float64, string))) error
@@ -161,14 +160,10 @@ func (s *service) Close() {
 		s.wait.Wait()
 		// 记录器排空后才关闭进程库，保留最后一批成功指标对应的进程快照。
 		if s.monitorRecorder != nil {
-			if err := s.monitorRecorder.Close(); err != nil {
-				log.Printf("保存系统监控历史失败: %v", err)
-			}
+			_ = s.monitorRecorder.Close()
 		}
 		if s.monitorProcessStore != nil {
-			if err := s.monitorProcessStore.Close(); err != nil {
-				log.Printf("保存监控进程历史失败: %v", err)
-			}
+			_ = s.monitorProcessStore.Close()
 		}
 		if s.monitorArchive != nil {
 			_ = s.monitorArchive.Close()

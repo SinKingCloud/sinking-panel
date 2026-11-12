@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"maps"
 	"math"
 	"os"
@@ -394,7 +393,6 @@ func (s *service) startMonitorHistory() {
 	}()
 	if err != nil {
 		s.monitorInitError = err
-		log.Printf("读取系统监控配置失败: %v", err)
 		return
 	}
 	shared, err := datastore.OpenTimeline(constant.MonitorPath, datastore.TimelineOptions{Streams: []datastore.TimelineStreamOptions{
@@ -404,7 +402,6 @@ func (s *service) startMonitorHistory() {
 	}})
 	if err != nil {
 		s.monitorInitError = err
-		log.Printf("打开系统监控数据文件失败: %v", err)
 		return
 	}
 	metrics, err := shared.Stream("metrics")
@@ -436,14 +433,10 @@ func (s *service) startMonitorHistory() {
 	if s.monitorInitError != nil {
 		_ = shared.Close()
 		s.monitorArchive = nil
-		log.Printf("打开系统监控历史失败: %v", s.monitorInitError)
 		return
 	}
 	// 退出时先排空指标记录器的回调，再显式关闭进程库，避免尾部快照先被关闭丢弃。
 	s.monitorProcessStore, s.monitorProcessError = s.openMonitorProcessStore(context.WithoutCancel(s.ctx), shared, configuration)
-	if s.monitorProcessError != nil {
-		log.Printf("打开监控进程历史失败: %v", s.monitorProcessError)
-	}
 }
 
 // monitorStorage 返回已启动的指标记录器，并报告初始化或关闭状态。
@@ -502,26 +495,22 @@ func (s *service) SetMonitorSettings(enabled bool, days int) error {
 	return nil
 }
 
-// GetMonitorHistory 按展示宽度控制查询点数，省略时使用默认预算；原始分钟数据保持不变。
-func (s *service) GetMonitorHistory(ctx context.Context, start, end int64, maxPoints ...int) (MonitorHistory, error) {
+// GetMonitorHistory 按展示宽度控制查询点数，为 0 时使用默认预算；原始分钟数据保持不变。
+func (s *service) GetMonitorHistory(ctx context.Context, start, end int64, maxPoints int) (MonitorHistory, error) {
 	if err := ctx.Err(); err != nil {
 		return MonitorHistory{}, err
 	}
-	if len(maxPoints) > 1 {
-		return MonitorHistory{}, errors.New("监控历史只接受一个查询点数")
+	if maxPoints == 0 {
+		maxPoints = monitorHistoryDefaultPoints
 	}
-	maximum := monitorHistoryDefaultPoints
-	if len(maxPoints) == 1 {
-		maximum = maxPoints[0]
-	}
-	if maximum < monitorHistoryMinPoints || maximum > monitorHistoryMaxPoints {
+	if maxPoints < monitorHistoryMinPoints || maxPoints > monitorHistoryMaxPoints {
 		return MonitorHistory{}, fmt.Errorf("监控历史查询点数必须为 %d 至 %d", monitorHistoryMinPoints, monitorHistoryMaxPoints)
 	}
 	recorder, err := s.monitorStorage()
 	if err != nil {
 		return MonitorHistory{}, err
 	}
-	result, err := recorder.Query(start, end, datastore.SeriesQueryOptions{MaxPoints: maximum})
+	result, err := recorder.Query(start, end, datastore.SeriesQueryOptions{MaxPoints: maxPoints})
 	if err != nil {
 		return MonitorHistory{}, err
 	}

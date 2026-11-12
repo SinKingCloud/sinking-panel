@@ -3,7 +3,6 @@ package bootstrap
 import (
 	"errors"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 
@@ -53,13 +52,7 @@ func LoadContainer() error {
 		if instance.Status != container.StatusStopped && instance.Status != container.StatusFailed {
 			continue
 		}
-		if _, err := manager.Start(instance.ID); err != nil {
-			// 自动启动可能已先完成；已运行的容器直接接管，不重复启动。
-			if info, infoErr := manager.Info(instance.ID); infoErr == nil && info.Status == container.StatusRunning {
-				continue
-			}
-			log.Printf("启动容器 %s 失败: %v", instance.ID, err)
-		}
+		_, _ = manager.Start(instance.ID)
 	}
 	return nil
 }

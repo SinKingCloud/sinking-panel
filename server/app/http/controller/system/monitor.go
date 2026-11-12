@@ -5,7 +5,6 @@ import (
 	"server/app/enum/log_type"
 	"server/app/service"
 	"server/app/util/context"
-	"strconv"
 	"time"
 )
 
@@ -17,7 +16,7 @@ func Monitor(c *context.Context) {
 		RetentionDays int    `json:"retention_days" validate:"omitempty,min=1,max=365" label:"保留天数"`
 		Start         int64  `json:"start" validate:"omitempty,min=1" label:"开始时间"`
 		End           int64  `json:"end" validate:"omitempty,min=1" label:"结束时间"`
-		MaxPoints     *int   `json:"max_points" validate:"omitempty,min=120,max=720" label:"查询点数"`
+		MaxPoints     int    `json:"max_points" validate:"omitempty,min=120,max=720" label:"查询点数"`
 	}
 	if ok, msg := c.ValidatorAll(&form); !ok {
 		c.Error(msg)
@@ -26,28 +25,13 @@ func Monitor(c *context.Context) {
 	message := "获取监控设置成功"
 	switch form.Action {
 	case "history":
-		// 通用绑定会忽略文本转整数失败；显式无效值不能误用默认范围或精度。
-		for _, values := range []map[string]string{c.AllQuery(), c.AllForm()} {
-			for name, label := range map[string]string{"start": "开始时间", "end": "结束时间", "max_points": "查询点数"} {
-				if raw, exists := values[name]; exists {
-					if _, err := strconv.ParseInt(raw, 10, 64); err != nil {
-						c.Error(label + "必须为整数")
-						return
-					}
-				}
-			}
-		}
 		if form.End == 0 {
 			form.End = time.Now().UnixMilli()
 		}
 		if form.Start == 0 {
 			form.Start = form.End - int64(24*time.Hour/time.Millisecond)
 		}
-		var maxPoints []int
-		if form.MaxPoints != nil {
-			maxPoints = []int{*form.MaxPoints}
-		}
-		data, err := service.System.GetMonitorHistory(c.Request.Context(), form.Start, form.End, maxPoints...)
+		data, err := service.System.GetMonitorHistory(c.Request.Context(), form.Start, form.End, form.MaxPoints)
 		if err != nil {
 			c.Error(err.Error())
 		} else {

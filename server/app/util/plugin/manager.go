@@ -3,7 +3,6 @@ package plugin
 import (
 	"context"
 	"errors"
-	"log"
 	"os"
 	"path/filepath"
 	"slices"
@@ -98,7 +97,6 @@ func (m *Manager) Unload(directory string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	if _, err := i.stop(ctx, "{}"); err != nil {
-		log.Printf("停止插件 %s 失败: %v", directory, err)
 		return
 	}
 	i.unload()
@@ -218,9 +216,7 @@ func (m *Manager) Close() {
 			defer func() { <-i.gate }()
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
-			if _, err := i.stop(ctx, "{}"); err != nil {
-				log.Printf("停止插件 %s 失败: %v", i.manifest.Id, err)
-			}
+			_, _ = i.stop(ctx, "{}")
 			i.unload()
 		}()
 	}

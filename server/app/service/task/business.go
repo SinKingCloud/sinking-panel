@@ -175,6 +175,10 @@ func (s *service) Run(id int64) error {
 		s.taskLock.Unlock()
 		return errors.New("任务实例化失败")
 	}
+	if j.run != nil && j.running > 0 {
+		s.taskLock.Unlock()
+		return errors.New("任务正在执行")
+	}
 	value, ok := j.begin()
 	if !ok {
 		s.taskLock.Unlock()
@@ -286,7 +290,7 @@ func (s *service) refresh(id int64) error {
 	return nil
 }
 
-// Refresh 刷新任务
+// Refresh 按 ID 刷新任务配置，不中断正在执行的任务。
 func (s *service) Refresh(id int64) error {
 	s.taskLock.Lock()
 	defer s.taskLock.Unlock()
@@ -294,7 +298,8 @@ func (s *service) Refresh(id int64) error {
 }
 
 // Add 添加任务。传入执行方法时使用固定负数 ID 注册内部任务，只保存在内存中。
-func (s *service) Add(data *model.Task, run ...func(context.Context)) error {
+// 执行时传入当时的任务配置，修改周期和配置不会重建业务方法。
+func (s *service) Add(data *model.Task, run ...RunFunc) error {
 	s.taskLock.Lock()
 	defer s.taskLock.Unlock()
 	if s.closed {
@@ -338,30 +343,12 @@ func (s *service) Add(data *model.Task, run ...func(context.Context)) error {
 		task.EntryID = 0
 		task.CreateTime = str.DateTime(time.Now())
 		task.UpdateTime = task.CreateTime
-		id := task.Id
 		j := &job{
 			Task:    &task,
 			service: s,
+			run:     run[0],
 		}
 		j.ctx, j.cancel = context.WithCancel(s.ctx)
-		// 复用同一执行包装，改周期、暂停恢复和手动执行都不会重叠运行。
-		j.run = cron.NewChain(
-			cron.SkipIfStillRunning(cron.DiscardLogger),
-			cron.Recover(cron.DiscardLogger),
-		).Then(cron.FuncJob(func() {
-			s.taskLock.Lock()
-			active := !s.closed && !j.retired && s.internalTasks[id] == j
-			s.taskLock.Unlock()
-			if !active || j.ctx.Err() != nil {
-				return
-			}
-			defer func() {
-				s.taskLock.Lock()
-				defer s.taskLock.Unlock()
-				j.RunTime = str.DateTime(time.Now())
-			}()
-			run[0](j.ctx)
-		}))
 		if task.Status == task_status.Running {
 			entryID, err := s.instance.AddJob(task.Spec, j)
 			if err != nil {
@@ -371,7 +358,7 @@ func (s *service) Add(data *model.Task, run ...func(context.Context)) error {
 			task.EntryID = int(entryID)
 			j.entryID = entryID
 		}
-		s.internalTasks[id] = j
+		s.internalTasks[task.Id] = j
 		s.jobs[j] = struct{}{}
 		*data = task
 		return nil
@@ -416,7 +403,6 @@ func (s *service) Start() {
 		if s.closed {
 			return
 		}
-
 		tasks, err := s.repositoryTask.SelectAll()
 		if err == nil && tasks != nil {
 			for _, task := range tasks {

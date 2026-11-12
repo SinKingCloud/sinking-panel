@@ -3,7 +3,6 @@ package route
 import (
 	"context"
 	"errors"
-	"log"
 	"net"
 	"net/http"
 	"time"
@@ -76,10 +75,7 @@ func Init(stop <-chan struct{}) {
 	err := httpServer.Shutdown(ctx)
 	cancel()
 	if err != nil {
-		log.Printf("停止面板 HTTP 服务超时: %v", err)
-		if closeErr := httpServer.Close(); closeErr != nil {
-			log.Printf("强制停止面板 HTTP 服务失败: %v", closeErr)
-		}
+		_ = httpServer.Close()
 	}
 	if err = <-done; err != nil {
 		panic(err)

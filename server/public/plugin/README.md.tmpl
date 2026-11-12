@@ -986,20 +986,25 @@ err := app.Service.Task.Add(&sdk.ModelTask{
     Id: scheduleID,
     Name: "插件每日检查",
     Spec: "0 0 3 * * *", // 秒 分 时 日 月 周，服务器当地时间每天 03:00。
+    Script: `{"days":7}`, // 执行参数，由插件自行解析。
     ExecType: 0,
     Status: 0,
-}, func(ctx context.Context) {
-    if ctx.Err() != nil {
-        return
+}, func(ctx context.Context, id int64, content string, writeLog func(string)) error {
+    if err := ctx.Err(); err != nil {
+        return err
     }
-    _ = app.Service.Task.WriteLog(scheduleID, "开始执行插件每日检查")
-    // 执行自己的工作，并处理错误。
+    writeLog("开始执行插件每日检查")
+    // id 是任务 ID，content 是本次执行的 Script 配置快照。
+    // 解析配置并执行工作；返回的错误会自动写入任务日志。
+    return nil
 })
 ```
 
-在 `Start` 注册，在 `Stop` 使用 `Remove([]int64{scheduleID})` 移除，防止升级或重新加载后重复注册。其他控制方法为 `Stop(id)`、`Restore(id)`、`Run(id)`、`UpdateByIds(...)`、`ReadLog(...)`、`ClearLog(id)`。
+在 `Start` 注册，在 `Stop` 使用 `Cancel(scheduleID)` 取消并等待任务结束，保留日志，防止升级或重新加载后重复注册。若同时删除日志，使用 `Remove([]int64{scheduleID})`。其他控制方法为 `Stop(id)`、`Restore(id)`、`Run(id)`、`Refresh(id)`、`UpdateByIds(...)`、`ReadLog(...)`、`ClearLog(id)`。
 
-内部任务回调使用计划任务服务的上下文，若它执行长任务，也要关联插件自己的取消信号；移除调度项不应被当作强制终止正在执行的业务代码。
+内部任务支持通过 `UpdateByIds` 修改周期、状态和 `Script` 配置。配置在下一次执行时传入回调，正在执行的任务保留自己的快照；同一内部任务不会重叠执行。
+
+回调必须响应 `ctx.Done()`。`Cancel`、`Remove` 会取消上下文并等待回调退出；`Stop` 只暂停后续调度，不中断当前执行。
 
 ## 文件与容器
 

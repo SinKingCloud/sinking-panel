@@ -1,6 +1,12 @@
 package task
 
-import "server/app/util/str"
+import (
+	"context"
+	"server/app/util/str"
+)
+
+// RunFunc 执行业务任务，配置取自本次执行的快照，日志写入对应任务。
+type RunFunc func(ctx context.Context, id int64, content string, writeLog func(string)) error
 
 // Info 任务详情
 type Info struct {

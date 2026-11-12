@@ -18,10 +18,10 @@ type Service interface {
 	Stop(id int64) error
 	Restore(id int64) error
 	Run(id int64) error
-	Cancel(ids []int64) error // 取消并等待指定任务，保留数据库配置和日志
+	Cancel(id int64) error // 取消并等待任务结束，保留数据库配置和日志
 	Remove(ids []int64) error
-	Refresh(id int64) error
-	Add(data *model.Task, run ...func(context.Context)) error
+	Refresh(id int64) error // 按保存的配置重新挂载任务
+	Add(data *model.Task, run ...RunFunc) error
 	Start()
 	Close()
 	FindById(id int64) (*Info, error)

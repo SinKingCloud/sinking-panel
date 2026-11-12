@@ -3,7 +3,6 @@ package system
 import (
 	"errors"
 	"fmt"
-	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -82,9 +81,6 @@ func (s *service) Restart(action string, containers bool) error {
 		case <-timer.C:
 		}
 		if err := run(); err != nil {
-			if s.ctx.Err() == nil {
-				log.Printf("执行系统重启失败 [%s]: %v", action, err)
-			}
 			s.restartPending.Store(false)
 		}
 	}()

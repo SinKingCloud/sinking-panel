@@ -9,7 +9,6 @@ import (
 	"go/token"
 	"io"
 	"io/fs"
-	"log"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -244,7 +243,6 @@ func (m *Manager) Lifecycle(ctx context.Context, directory, event, params string
 				if ctx.Err() != nil {
 					return nil, ctx.Err()
 				}
-				log.Printf("插件 %s 无法执行数据清理，继续移除代码: %v", directory, err)
 				return nil, nil
 			}
 		}
