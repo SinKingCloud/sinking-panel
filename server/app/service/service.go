@@ -79,7 +79,7 @@ func Init() {
 	Log = serviceLog.NewService(logRepository)
 	System = serviceSystem.NewService(Config, global.App.Daemon, global.App.Container)
 	Oss = serviceOss.NewService(ossRepository, secretRepository, System, global.App.Database)
-	Task = serviceTask.NewService(taskRepository, Type)
+	Task = serviceTask.NewService(taskRepository, siteRepository, Type, Oss)
 	Recycle = serviceRecycle.NewService()
 	File = serviceFile.NewService(Recycle, System, global.App.Cache)
 	Database = serviceDatabase.NewService(databaseRepository, scriptRepository, typesRepository, Type, System, global.App.Database, global.App.Cache)

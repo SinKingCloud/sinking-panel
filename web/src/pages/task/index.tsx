@@ -14,6 +14,7 @@ const emptyEnum = {};
 const defaultExecTypeEnum = {
     "0": "系统脚本",
     "1": "HTTP请求",
+    "2": "数据备份",
 };
 
 export default (): React.ReactNode => {

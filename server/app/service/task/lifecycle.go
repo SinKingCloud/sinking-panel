@@ -56,10 +56,17 @@ func (s *service) waitJobs(jobs []*job) {
 	}
 }
 
-// Cancel 按 ID 注销任务的所有调度和执行，保留数据库配置和日志。
-func (s *service) Cancel(id int64) error {
+// Cancel 按 ID 列表注销任务的所有调度和执行，保留数据库配置和日志。
+func (s *service) Cancel(ids []int64) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	selected := make(map[int64]bool, len(ids))
+	for _, id := range ids {
+		selected[id] = true
+	}
 	s.taskLock.Lock()
-	jobs := s.cancelJobs(func(j *job) bool { return j.Id == id })
+	jobs := s.cancelJobs(func(j *job) bool { return selected[j.Id] })
 	s.taskLock.Unlock()
 	s.waitJobs(jobs)
 	return nil

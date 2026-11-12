@@ -22,6 +22,7 @@ type Service interface {
 	FindById(id int64) (*Oss, error)
 	Select(where *repositoryOss.SelectOss, query *page.Query) (*page.Result[*OssListItem], error)
 	Test(ctx context.Context, secretId int64, config string) error
+	Check(id int64) error
 	StatFile(ctx context.Context, id int64, key string) (*utilOss.File, error)
 	CreateDirectory(ctx context.Context, id int64, key string) (*utilOss.File, error)
 	SetMetadata(ctx context.Context, id int64, key string, options utilOss.PutOptions) (*utilOss.File, error)

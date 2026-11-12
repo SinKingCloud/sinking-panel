@@ -6,11 +6,14 @@ import ResourceSelectModal from "@/pages/components/ui/resource-select/modal";
 import {getSiteInfo, getSiteList} from "@/service/api/site";
 
 type SiteSelectProps = Omit<ComponentProps<typeof ResourceSelect>, "resolveRecord" | "renderModal"> & {
+    requireRoot?: boolean;
     stringValue?: boolean;
     zIndex?: number;
 };
 
-export default function SiteSelect({stringValue, zIndex, ...props}: SiteSelectProps) {
+const missingRoot = (record: any) => !String(record?.root || "").trim();
+
+export default function SiteSelect({requireRoot, stringValue, zIndex, ...props}: SiteSelectProps) {
     const normalize = useCallback((record: any) => ({...record, id: stringValue ? String(record?.id) : Number(record?.id)}), [stringValue]);
     const request = useCallback<NonNullable<ModalTableProps<any>["request"]>>(async ({current, pageSize, keyword}) => {
         const response = await getSiteList({body: {page: current, page_size: pageSize, keyword}});
@@ -30,5 +33,6 @@ export default function SiteSelect({stringValue, zIndex, ...props}: SiteSelectPr
     return <ResourceSelect {...props} resolveRecord={resolveRecord}
         renderModal={(modal) => <ResourceSelectModal {...modal} title="选择网站" placeholder="搜索网站名称"
             multiple={props.multiple} zIndex={zIndex} columns={columns} request={request}
+            disabledRecord={requireRoot ? missingRoot : undefined}
             onSelect={(records) => modal.onSelect(records.map(normalize))}/>}/>;
 }

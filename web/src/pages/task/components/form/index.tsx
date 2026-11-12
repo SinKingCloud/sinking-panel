@@ -9,6 +9,8 @@ import {createTask, getTaskInfo, updateTask} from "@/service/api/task";
 import {parseRequest, stringifyRequest} from "../../utils";
 import Request from "../request";
 import Schedule from "../schedule";
+import Backup from "../backup";
+import {parseBackup, stringifyBackup} from "../backup/config";
 
 const acePath = `${defaultSettings?.basePath || "/"}ace`;
 const statusOptions = [
@@ -136,6 +138,7 @@ const Form = forwardRef<any, {typeData?: any; typeItems?: any[]; execTypeData?: 
             spec: "0 */5 * * * *",
             script: "",
             request: parseRequest({method: "GET"}),
+            backup: parseBackup(),
             status: 0,
         });
         modalRef.current?.show();
@@ -176,6 +179,7 @@ const Form = forwardRef<any, {typeData?: any; typeItems?: any[]; execTypeData?: 
                 spec: data?.spec,
                 script: nextExecType === 0 ? String(data?.script || "") : "",
                 request: nextExecType === 1 ? parseRequest(data?.script) : undefined,
+                backup: nextExecType === 2 ? parseBackup(data?.script) : undefined,
                 status: Number(data?.status),
             });
         }).catch((error: any) => {
@@ -198,9 +202,9 @@ const Form = forwardRef<any, {typeData?: any; typeItems?: any[]; execTypeData?: 
         const requestId = ++requestRef.current;
         const nextExecType = Number(values.exec_type);
         let script = String(values.script || "");
-        if (nextExecType === 1) {
+        if (nextExecType === 1 || nextExecType === 2) {
             try {
-                script = stringifyRequest(values.request);
+                script = nextExecType === 1 ? stringifyRequest(values.request) : stringifyBackup(values.backup);
             } catch (error: any) {
                 message.error(error?.message || "任务配置不合法");
                 return;
@@ -299,7 +303,11 @@ const Form = forwardRef<any, {typeData?: any; typeItems?: any[]; execTypeData?: 
                                             form.setFieldsValue({
                                                 script: "",
                                                 request: nextExecType === 1 ? parseRequest({method: "GET"}) : undefined,
+                                                backup: nextExecType === 2 ? parseBackup() : undefined,
                                             });
+                                            if (nextExecType === 2 && !editing) {
+                                                form.setFieldsValue({spec: "0 0 2 * * *", status: 1});
+                                            }
                                         }}/>
                                 </AntForm.Item>
                             </Col>
@@ -348,6 +356,8 @@ const Form = forwardRef<any, {typeData?: any; typeItems?: any[]; execTypeData?: 
                                     </AntForm.Item>
                                 ) : execType === 1 ? (
                                     <Request/>
+                                ) : execType === 2 ? (
+                                    <Backup/>
                                 ) : (
                                     <AntForm.Item
                                         name="script"

@@ -6,6 +6,12 @@ import (
 	"time"
 )
 
+// Check 校验已保存的存储连接和关联密钥，不发起网络请求。
+func (s *service) Check(id int64) error {
+	_, err := s.client(id)
+	return err
+}
+
 // StatFile 读取当前存储桶中文件的元数据。
 func (s *service) StatFile(ctx context.Context, id int64, key string) (*utilOss.File, error) {
 	client, err := s.client(id)

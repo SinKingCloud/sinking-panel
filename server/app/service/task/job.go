@@ -23,16 +23,14 @@ type job struct {
 	retired bool
 }
 
-// newJob 校验任务并固定本次执行内容。
+// newJob 固定本次任务内容，资源校验和执行交给对应管理器。
 func (s *service) newJob(task *model.Task) *job {
 	if task == nil || s == nil || task.Spec == "" {
 		return nil
 	}
-	content, err := s.checkContent(task.Script, task.ExecType)
-	if err != nil {
+	if _, ok := task_exec_type.Map()[task.ExecType]; !ok {
 		return nil
 	}
-	task.Script = content
 	value := *task
 	ctx, cancel := context.WithCancel(s.ctx)
 	result := &job{
@@ -107,5 +105,7 @@ func (j *job) execute(task model.Task) {
 		if err := j.service.request.Run(j.ctx, task.Script, writeLog); err != nil {
 			writeLog(err.Error())
 		}
+	case task_exec_type.Backup:
+		_ = j.service.backup.Run(j.ctx, task.Id, task.Script, writeLog)
 	}
 }

@@ -2,7 +2,7 @@ package oss
 
 import "errors"
 
-// DeleteByIds 删除面板中的连接。
+// DeleteByIds 删除面板中的对象存储连接。
 func (s *service) DeleteByIds(ids []int64) error {
 	if len(ids) == 0 {
 		return errors.New("请选择要删除的对象存储")

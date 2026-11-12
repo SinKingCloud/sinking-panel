@@ -1000,7 +1000,7 @@ err := app.Service.Task.Add(&sdk.ModelTask{
 })
 ```
 
-在 `Start` 注册，在 `Stop` 使用 `Cancel(scheduleID)` 取消并等待任务结束，保留日志，防止升级或重新加载后重复注册。若同时删除日志，使用 `Remove([]int64{scheduleID})`。其他控制方法为 `Stop(id)`、`Restore(id)`、`Run(id)`、`Refresh(id)`、`UpdateByIds(...)`、`ReadLog(...)`、`ClearLog(id)`。
+在 `Start` 注册，在 `Stop` 使用 `Cancel([]int64{scheduleID})` 取消并等待任务结束，保留日志；也可传入多个 ID 一次取消，防止升级或重新加载后重复注册。若同时删除日志，使用 `Remove([]int64{scheduleID})`。其他控制方法为 `Stop(id)`、`Restore(id)`、`Run(id)`、`Refresh(id)`、`UpdateByIds(...)`、`ReadLog(...)`、`ClearLog(id)`。
 
 内部任务支持通过 `UpdateByIds` 修改周期、状态和 `Script` 配置。配置在下一次执行时传入回调，正在执行的任务保留自己的快照；同一内部任务不会重叠执行。
 

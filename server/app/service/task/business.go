@@ -11,6 +11,7 @@ import (
 	"server/app/enum/task_status"
 	"server/app/enum/type_module"
 	"server/app/model"
+	"server/app/service/task/backup"
 	"server/app/service/task/request"
 	"server/app/util/file"
 	cursorLog "server/app/util/log"
@@ -40,7 +41,7 @@ func (s *service) validateTypeId(typeId int64) error {
 	return nil
 }
 
-// checkContent 由对应任务类型校验并规范化任务内容。
+// checkContent 由各任务管理器校验并规范化内容。
 func (s *service) checkContent(content string, execType int) (string, error) {
 	if strings.TrimSpace(content) == "" {
 		return "", errors.New("任务内容不能为空")
@@ -50,12 +51,13 @@ func (s *service) checkContent(content string, execType int) (string, error) {
 		return s.script.Validate(content)
 	case task_exec_type.Request:
 		return s.request.Validate(content)
-	default:
-		return "", errors.New("任务类型不合法")
+	case task_exec_type.Backup:
+		return s.backup.Validate(content)
 	}
+	return "", errors.New("任务类型不合法")
 }
 
-// formatContent 格式化任务内容。
+// formatContent 格式化任务内容，读取备份配置时不要求关联资源仍然存在。
 func (s *service) formatContent(content string, execType int) interface{} {
 	switch execType {
 	case task_exec_type.Script:
@@ -69,9 +71,15 @@ func (s *service) formatContent(content string, execType int) interface{} {
 			}
 		}
 		return request.Config{}
-	default:
-		return nil
+	case task_exec_type.Backup:
+		// 只解析内容，不校验存储和网站是否存在，失效的配置也能继续编辑。
+		var data *backup.Config
+		if err := json.Unmarshal([]byte(content), &data); err != nil || data == nil {
+			return backup.Config{}
+		}
+		return data
 	}
+	return nil
 }
 
 // Stop 暂停任务
