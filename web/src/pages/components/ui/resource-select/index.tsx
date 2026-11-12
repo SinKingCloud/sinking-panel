@@ -130,10 +130,11 @@ const ResourceSelect = forwardRef<InputRef, ResourceSelectProps>((props, ref) =>
                         show();
                     }
                 }}
-                suffix={allowClear && keys.length > 0 && !isDisabled
+                suffix={<>{allowClear && keys.length > 0 && !isDisabled
                     ? <button type="button" className={styles.clear} aria-label="清除选择"
+                        onMouseDown={(event) => event.preventDefault()}
                         onClick={(event) => { event.stopPropagation(); select([]); }}><Icon type="CloseCircleFilled"/></button>
-                    : inputProps.suffix}/>
+                    : inputProps.suffix}</>}/>
             <Button color="default" variant={variant === "filled" ? "filled" : variant === "outlined" ? "outlined" : "text"}
                 size={size} disabled={isDisabled} aria-label="选择" aria-haspopup="dialog" aria-expanded={open && !isDisabled}
                 icon={<Icon type="UnorderedListOutlined"/>} onClick={show}/>

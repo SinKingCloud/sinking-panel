@@ -1,6 +1,6 @@
 import React, {useEffect, useMemo, useRef, useState} from "react";
 import {Line} from "@ant-design/charts";
-import {Grid, theme as antdTheme} from "antd";
+import {Grid, Spin, theme as antdTheme} from "antd";
 import dayjs from "dayjs";
 import {Title, useTheme} from "sinking-antd";
 import {formatSize} from "@/utils/string";
@@ -17,6 +17,7 @@ type Props = {
     series: MonitorSeries[];
     unit: "percent" | "bytes" | "load";
     rangeKey: string;
+    loading: boolean;
 };
 
 const units = ["B/s", "KB/s", "MB/s", "GB/s", "TB/s"];
@@ -31,7 +32,7 @@ const metricValue = (value: number | undefined, unit: Props["unit"]) => {
     return {value: value.toFixed(unit === "percent" ? 1 : 2), suffix: unit === "percent" ? "%" : ""};
 };
 
-const MonitorChart = React.memo(({title, subtitle, history, series, unit, rangeKey}: Props) => {
+const MonitorChart = React.memo(({title, subtitle, history, series, unit, rangeKey, loading}: Props) => {
     const theme = useTheme();
     const {styles} = useStyles({compact: Boolean(theme?.isCompactTheme?.())});
     const {token} = antdTheme.useToken();
@@ -53,8 +54,8 @@ const MonitorChart = React.memo(({title, subtitle, history, series, unit, rangeK
     const tooltip = useTooltip(processMetric, view?.history, series, unit);
 
     useEffect(() => {
-        if (!inView) tooltip.hide();
-    }, [inView, tooltip]);
+        if (!inView || loading) tooltip.hide();
+    }, [inView, loading, tooltip]);
 
     // 离屏保留实例和选区，暂停接收绘图数据；重新进入视口时一次更新到最新结果。
     useEffect(() => {
@@ -241,14 +242,14 @@ const MonitorChart = React.memo(({title, subtitle, history, series, unit, rangeK
         return tooltip.bind(chartRef.current.chart);
     }, [tooltip, pointCount > 0]);
 
-    // 刷新由工具栏显示状态，图表保留实例和内容，收到新数据后再更新。
+    // 加载时保留图表实例和高度，收到新数据后再更新。
     const plot = useMemo(() => (
         <Line ref={chartRef} {...chart.config} height={chartHeight}
               containerStyle={{height: chartHeight, width: "100%"}}/>
     ), [chart.config, chartHeight]);
 
     return (
-        <section className={styles.panel} aria-label={title}>
+        <section className={styles.panel} aria-label={title} aria-busy={loading}>
             <div className={styles.heading}>
                 <Title size="small"><h3>{title}</h3></Title>
                 {latest && <span className="sample-time" title={`所选范围末个时段：${dayjs(latest.time).format("YYYY-MM-DD HH:mm")}`}>
@@ -268,8 +269,10 @@ const MonitorChart = React.memo(({title, subtitle, history, series, unit, rangeK
                 {subtitle && <span className="summary-detail">{subtitle}</span>}
             </div>
             <div ref={containerRef} className={styles.plot}>
-                <div className="chart-unit">{chart.displayUnit}</div>
-                {points?.length ? plot : <div style={{height: chartHeight}}/>}
+                <Spin spinning={loading}>
+                    <div className="chart-unit">{chart.displayUnit}</div>
+                    {points?.length ? plot : <div style={{height: chartHeight}}/>}
+                </Spin>
             </div>
         </section>
     );

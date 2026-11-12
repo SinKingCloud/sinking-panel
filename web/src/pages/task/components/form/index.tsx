@@ -42,8 +42,14 @@ const useStyles = createStyles<{compact: boolean}>(({css, token}, {compact}) => 
     `,
     configPanel: css`
         min-width: 0;
-        padding-top: ${compact ? 14 : 18}px;
-        border-top: 1px solid ${token.colorBorderSecondary};
+        padding: ${compact ? 12 : 16}px;
+        border: 1px solid ${token.colorBorderSecondary};
+        border-radius: ${token.borderRadiusLG}px;
+        background: ${token.colorBgContainer};
+
+        @media (max-width: 575px) {
+            padding: 12px;
+        }
     `,
     configTitle: css`
         display: flex;

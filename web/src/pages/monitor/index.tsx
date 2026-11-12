@@ -237,7 +237,7 @@ export default (): React.ReactNode => {
                 tableRender={() => <div className={styles.charts}>
                     {charts.map(({capacity, ...chart}) => <MonitorChart key={chart.title} {...chart}
                         subtitle={capacity ? latest ? `${formatSize(latest[capacity[0]])} / ${formatSize(latest[capacity[1]])}` : "-- / --" : ""}
-                        history={data} rangeKey={rangeKey}/>)}
+                        history={data} rangeKey={rangeKey} loading={loading}/>)}
                 </div>}
             />
             <MonitorSettingsModal
