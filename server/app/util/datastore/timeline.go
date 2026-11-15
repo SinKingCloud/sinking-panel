@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"hash/crc32"
+	"io"
 	"math"
 	"os"
 	"path/filepath"
@@ -32,6 +33,7 @@ type TimelineOptions struct {
 	Interval      time.Duration
 	MaxValueBytes int // 默认 64 KiB，上限 16 MiB。
 	Streams       []TimelineStreamOptions
+	ResetInvalid  bool // 初始化时重建格式不兼容或文件头损坏的日文件；默认保留并报错。
 }
 
 // TimelineStreamOptions 为同一日文件中的独立时间流定义名称、间隔和数据格式摘要。
@@ -131,7 +133,7 @@ func OpenTimeline(dir string, options TimelineOptions) (*Timeline, error) {
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return nil, err
 	}
-	if shared {
+	if shared || options.ResetInvalid {
 		entries, err := os.ReadDir(dir)
 		if err != nil {
 			return nil, err
@@ -141,9 +143,9 @@ func OpenTimeline(dir string, options TimelineOptions) (*Timeline, error) {
 			if !valid {
 				continue
 			}
-			opened, _, err := root.open(day, false)
+			opened, _, err := root.open(day, false, options.ResetInvalid)
 			if err != nil {
-				return nil, fmt.Errorf("验证共享时间记录 %s 失败: %w", entry.Name(), err)
+				return nil, fmt.Errorf("初始化时间记录 %s 失败: %w", entry.Name(), err)
 			}
 			if err := opened.Close(); err != nil {
 				return nil, err
@@ -177,7 +179,7 @@ func (s *Timeline) Get(timestamp int64) ([]byte, error) {
 		return nil, os.ErrClosed
 	}
 	day := timestamp / timelineDayMillis * timelineDayMillis
-	file, size, err := s.open(day, false)
+	file, size, err := s.open(day, false, false)
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, ErrNotFound
 	}
@@ -233,7 +235,7 @@ func (s *Timeline) PutMany(entries []TimelineEntry) error {
 }
 
 func (s *Timeline) writeDay(day int64, entries map[int]TimelineEntry) error {
-	file, size, err := s.open(day, true)
+	file, size, err := s.open(day, true, false)
 	if err != nil {
 		return err
 	}
@@ -323,7 +325,7 @@ func (s *Timeline) scan(ctx context.Context, start, end int64, borrowed bool, vi
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		file, size, err := s.open(day, false)
+		file, size, err := s.open(day, false, false)
 		if errors.Is(err, os.ErrNotExist) {
 			continue
 		}
@@ -393,35 +395,40 @@ func (s *Timeline) scan(ctx context.Context, start, end int64, borrowed bool, vi
 	return ctx.Err()
 }
 
-func (s *Timeline) open(day int64, create bool) (*os.File, int64, error) {
+func (s *Timeline) open(day int64, create, resetInvalid bool) (*os.File, int64, error) {
 	path := filepath.Join(s.dir, time.UnixMilli(day).UTC().Format("2006-01-02")+".data")
+	initialize := func(replace bool) error {
+		file, err := os.CreateTemp(s.dir, ".timeline-*.tmp")
+		if err != nil {
+			return err
+		}
+		defer os.Remove(file.Name())
+		var header [timelineHeaderSize]byte
+		copy(header[:8], s.magic)
+		binary.LittleEndian.PutUint64(header[8:16], s.signature)
+		binary.LittleEndian.PutUint64(header[16:24], uint64(day))
+		binary.LittleEndian.PutUint32(header[24:28], uint32(s.total))
+		binary.LittleEndian.PutUint32(header[28:], crc32.ChecksumIEEE(header[:28]))
+		if _, err = file.WriteAt(header[:], 0); err == nil {
+			err = file.Truncate(int64(timelineHeaderSize + s.total*2*timelineIndexSize))
+		}
+		if err == nil {
+			err = file.Sync()
+		}
+		closeErr := file.Close()
+		if err != nil || closeErr != nil {
+			return errors.Join(err, closeErr)
+		}
+		if replace {
+			// 新文件完整落盘后才替换旧文件，创建失败不会先丢弃原文件。
+			return os.Rename(file.Name(), path)
+		}
+		// 同目录硬链接原子发布完整文件且不覆盖已有目标，关闭句柄后也兼容 Windows。
+		return os.Link(file.Name(), path)
+	}
 	info, err := os.Lstat(path)
 	if create && errors.Is(err, os.ErrNotExist) {
-		err = func() error {
-			file, err := os.CreateTemp(s.dir, ".timeline-*.tmp")
-			if err != nil {
-				return err
-			}
-			defer os.Remove(file.Name())
-			var header [timelineHeaderSize]byte
-			copy(header[:8], s.magic)
-			binary.LittleEndian.PutUint64(header[8:16], s.signature)
-			binary.LittleEndian.PutUint64(header[16:24], uint64(day))
-			binary.LittleEndian.PutUint32(header[24:28], uint32(s.total))
-			binary.LittleEndian.PutUint32(header[28:], crc32.ChecksumIEEE(header[:28]))
-			if _, err = file.WriteAt(header[:], 0); err == nil {
-				err = file.Truncate(int64(timelineHeaderSize + s.total*2*timelineIndexSize))
-			}
-			if err == nil {
-				err = file.Sync()
-			}
-			closeErr := file.Close()
-			if err != nil || closeErr != nil {
-				return errors.Join(err, closeErr)
-			}
-			// 同目录硬链接原子发布完整文件且不覆盖已有目标，关闭句柄后也兼容 Windows。
-			return os.Link(file.Name(), path)
-		}()
+		err = initialize(false)
 		if err != nil {
 			return nil, 0, err
 		}
@@ -459,14 +466,21 @@ func (s *Timeline) open(day int64, create bool) (*os.File, int64, error) {
 	}
 	var header [timelineHeaderSize]byte
 	_, err = file.ReadAt(header[:], 0)
-	if err == nil && (string(header[:8]) != s.magic || binary.LittleEndian.Uint64(header[8:16]) != s.signature ||
+	invalid := errors.Is(err, io.EOF) || err == nil && (string(header[:8]) != s.magic || binary.LittleEndian.Uint64(header[8:16]) != s.signature ||
 		binary.LittleEndian.Uint64(header[16:24]) != uint64(day) || binary.LittleEndian.Uint32(header[24:28]) != uint32(s.total) ||
-		binary.LittleEndian.Uint32(header[28:]) != crc32.ChecksumIEEE(header[:28]) || stat.Size() < int64(timelineHeaderSize+s.total*2*timelineIndexSize)) {
-		err = errors.New("时间记录文件格式、流配置或数据结构不兼容，不能覆盖已有文件")
+		binary.LittleEndian.Uint32(header[28:]) != crc32.ChecksumIEEE(header[:28]) || stat.Size() < int64(timelineHeaderSize+s.total*2*timelineIndexSize))
+	if invalid {
+		err = errors.New("时间记录文件格式、流配置或数据结构不兼容")
 	}
 	if err != nil {
-		_ = file.Close()
-		return nil, 0, err
+		closeErr := file.Close()
+		if !resetInvalid || !invalid || closeErr != nil {
+			return nil, 0, errors.Join(err, closeErr)
+		}
+		if err = initialize(true); err != nil {
+			return nil, 0, fmt.Errorf("重建时间记录文件失败: %w", err)
+		}
+		return s.open(day, create, false)
 	}
 	return file, stat.Size(), nil
 }

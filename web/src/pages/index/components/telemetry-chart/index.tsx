@@ -1,8 +1,9 @@
 import {Line} from "@ant-design/charts";
 import {Grid, theme as antdTheme} from "antd";
 import React, {useEffect, useMemo, useRef, useState} from "react";
-import useChartTooltip from "@/pages/components/ui/chart-tooltip";
-import type {ChartTooltipModel} from "@/pages/components/ui/chart-tooltip";
+import {formatCount} from "../../utils";
+import useTooltip from "./use-tooltip";
+import type {TelemetryTooltipModel} from "./use-tooltip";
 
 const byteUnits = ["B/s", "KB/s", "MB/s", "GB/s", "TB/s", "PB/s"];
 const rateFormatters = [0, 1, 2].map((maximumFractionDigits) => new Intl.NumberFormat("zh-CN", {maximumFractionDigits}));
@@ -23,6 +24,8 @@ const formatByteRate = (value: any): string => {
     const maximumFractionDigits = rate >= 100 || unitIndex === 0 ? 0 : rate >= 10 ? 1 : 2;
     return `${rateFormatters[maximumFractionDigits].format(rate)} ${byteUnits[unitIndex]}`;
 };
+
+const formatCountRate = (value: any): string => typeof value === "number" && Number.isFinite(value) && value >= 0 ? `${formatCount(value)} 次/s` : "--";
 
 const formatTime = (value: any): string => {
     const numeric = Number(value);
@@ -101,10 +104,10 @@ const TelemetryChart = React.memo(({className, data, first, second, isDarkMode}:
         };
     }, [active, Boolean(view)]);
 
-    const sampleCache = useMemo(() => new WeakMap<object, {data: any[]; model: ChartTooltipModel; maximum: number}>(), [firstLabel, secondLabel]);
+    const sampleCache = useMemo(() => new WeakMap<object, {data: any[]; model: TelemetryTooltipModel; maximum: number}>(), [firstLabel, secondLabel]);
     const prepared = useMemo(() => {
         const chartData: any[] = [];
-        const models = new Map<number, ChartTooltipModel>();
+        const models = new Map<number, TelemetryTooltipModel>();
         let maxValue = 0;
         // 上游窗口已按时间排序；保留点复用折线对象与已格式化的悬浮内容。
         view?.forEach((item) => {
@@ -115,7 +118,20 @@ const TelemetryChart = React.memo(({className, data, first, second, isDarkMode}:
                 const second = numberValue(item.second);
                 sample = {
                     data: [{time, value: first, series: firstLabel}, {time, value: second, series: secondLabel}],
-                    model: {title: formatTime(time), values: [formatByteRate(first), formatByteRate(second)]},
+                    model: {
+                        title: formatTime(time),
+                        values: [formatByteRate(first), formatByteRate(second)],
+                        iops: item.iops ? {read: formatCountRate(item.iops.read), write: formatCountRate(item.iops.write)} : undefined,
+                        ranking: item.ranking ? {
+                            title: item.ranking.title,
+                            valueLabel: item.ranking.valueLabel,
+                            rows: (Array.isArray(item.ranking.items) ? item.ranking.items : []).slice(0, 5).map((row: any) => ({
+                                name: row?.name || "未知进程",
+                                pid: row?.pid == null ? "" : `PID ${row.pid}`,
+                                value: Number.isFinite(row?.value) ? formatByteRate(row.value) : "--",
+                            })),
+                        } : undefined,
+                    },
                     maximum: Math.max(first, second),
                 };
                 sampleCache.set(item, sample);
@@ -126,7 +142,7 @@ const TelemetryChart = React.memo(({className, data, first, second, isDarkMode}:
         });
         return {chartData, models, maxValue};
     }, [view, sampleCache, firstLabel, secondLabel]);
-    const tooltip = useChartTooltip(prepared.models, series);
+    const tooltip = useTooltip(prepared.models, series);
     useEffect(() => {
         if (!active) tooltip.hide();
     }, [active, tooltip]);
@@ -221,13 +237,15 @@ const TelemetryChart = React.memo(({className, data, first, second, isDarkMode}:
                         series: true,
                         crosshairs: true,
                         body: false,
-                        wait: 0,
+                        wait: 16,
                         disableAutoHide: mobile,
                     },
                 },
                 theme: {type: isDarkMode ? "classicDark" : "classic"},
                 autoFit: true,
                 style: {
+                    // 系列悬浮由绘图区按时间轴选点，避免平滑曲线命中计算阻塞鼠标事件。
+                    pointerEvents: "none",
                     lineWidth: 2,
                     lineCap: "round",
                     lineJoin: "round",

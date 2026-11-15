@@ -4,6 +4,7 @@ import {createStyles} from "antd-style";
 import {Title} from "sinking-antd";
 import {formatSize} from "@/utils/string";
 import DiskPopover from "../disk-popover";
+import ProcessPopover from "../process-popover";
 import {formatPercent, gutter, numberValue, percentValue} from "../../utils";
 import ResourceMetric from "../resource-metric";
 
@@ -80,30 +81,40 @@ const ResourceOverview = React.memo(({statis, diskSizeBase = 1024}: any) => {
                     </Card>
                 </Col>
                 <Col xs={24} md={12} xl={6}>
-                    <Card className={styles.metricCard} variant="borderless">
-                        <ResourceMetric
-                            color={metricColor(cpu?.usage, "#13c2c2")}
-                            icon="DashboardOutlined"
-                            title="CPU 使用率"
-                            value={formatPercent(cpu?.usage)}
-                            detail={cpu?.model || "未知处理器"}
-                            meta={`${numberValue(cpu?.processor)} 个逻辑处理器`}
-                            percent={percentValue(cpu?.usage)}
-                        />
-                    </Card>
+                    <Popover placement="bottom" trigger={["hover", "click"]} destroyOnHidden
+                        content={() => <ProcessPopover processes={statis?.processes} metric="cpu"/>}
+                    >
+                        <Card className={styles.metricCard} variant="borderless">
+                            <ResourceMetric
+                                color={metricColor(cpu?.usage, "#13c2c2")}
+                                icon="DashboardOutlined"
+                                title="CPU 使用率"
+                                value={formatPercent(cpu?.usage)}
+                                detail={cpu?.model || "未知处理器"}
+                                meta={`${numberValue(cpu?.processor)} 个逻辑处理器`}
+                                percent={percentValue(cpu?.usage)}
+                                detailTooltip={false}
+                            />
+                        </Card>
+                    </Popover>
                 </Col>
                 <Col xs={24} md={12} xl={6}>
-                    <Card className={styles.metricCard} variant="borderless">
-                        <ResourceMetric
-                            color={metricColor(memory?.used_percent, "#52c41a")}
-                            icon="DatabaseOutlined"
-                            title="内存使用率"
-                            value={formatPercent(memory?.used_percent)}
-                            detail={`${formatSize(memory?.used)} / ${formatSize(memory?.total)}`}
-                            meta={`${formatSize(memory?.free)} 空闲`}
-                            percent={percentValue(memory?.used_percent)}
-                        />
-                    </Card>
+                    <Popover placement="bottom" trigger={["hover", "click"]} destroyOnHidden
+                        content={() => <ProcessPopover processes={statis?.processes} metric="memory"/>}
+                    >
+                        <Card className={styles.metricCard} variant="borderless">
+                            <ResourceMetric
+                                color={metricColor(memory?.used_percent, "#52c41a")}
+                                icon="DatabaseOutlined"
+                                title="内存使用率"
+                                value={formatPercent(memory?.used_percent)}
+                                detail={`${formatSize(memory?.used)} / ${formatSize(memory?.total)}`}
+                                meta={`${formatSize(memory?.free)} 空闲`}
+                                percent={percentValue(memory?.used_percent)}
+                                detailTooltip={false}
+                            />
+                        </Card>
+                    </Popover>
                 </Col>
                 <Col xs={24} md={12} xl={6}>
                     <Popover

@@ -19,6 +19,8 @@ export type MonitorSample = {
     disk_total: number;
     disk_read: number;
     disk_write: number;
+    disk_read_iops: number;
+    disk_write_iops: number;
     net_sent: number;
     net_recv: number;
     load1: number;
@@ -35,10 +37,13 @@ export type MonitorHistory = {
     process_error?: string;
 };
 
+export type MonitorUnit = "percent" | "bytes" | "load" | "iops";
+
 export type MonitorSeries = {
     key: Exclude<keyof MonitorSample, "process">;
     label: string;
     color: string;
+    unit?: MonitorUnit;
 };
 
 export type MonitorProcessMetric = "cpu" | "memory" | "disk_io";
@@ -54,6 +59,6 @@ export type MonitorProcessGroup = {
     time: number;
     items: MonitorProcess[];
     partial?: boolean;
-    // 同轮整机指标：CPU/内存为百分比，磁盘 I/O 为读写合计 B/s；旧记录缺省。
+    // 采样窗口的整机高点：CPU 和 I/O 为窗口均值，内存为采样时刻的使用率。
     peak?: number;
 };

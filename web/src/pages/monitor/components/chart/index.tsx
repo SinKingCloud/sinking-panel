@@ -4,7 +4,7 @@ import {Grid, Spin, theme as antdTheme} from "antd";
 import dayjs from "dayjs";
 import {Title, useTheme} from "sinking-antd";
 import {formatSize} from "@/utils/string";
-import type {MonitorHistory, MonitorSeries} from "../../types";
+import type {MonitorHistory, MonitorSeries, MonitorUnit} from "../../types";
 import useTimeRange from "./use-time-range";
 import "./range-interaction";
 import useTooltip from "./use-tooltip";
@@ -15,7 +15,8 @@ type Props = {
     subtitle: string;
     history?: MonitorHistory;
     series: MonitorSeries[];
-    unit: "percent" | "bytes" | "load";
+    iopsSeries?: MonitorSeries[];
+    unit: Exclude<MonitorUnit, "iops">;
     rangeKey: string;
     loading: boolean;
 };
@@ -23,16 +24,17 @@ type Props = {
 const units = ["B/s", "KB/s", "MB/s", "GB/s", "TB/s"];
 const numberLabel = new Intl.NumberFormat("zh-CN", {maximumFractionDigits: 2}).format;
 type ChartDatum = {time: number; value: number | null; series: string};
-const metricValue = (value: number | undefined, unit: Props["unit"]) => {
+const metricValue = (value: number | null | undefined, unit: MonitorUnit) => {
     if (typeof value !== "number" || !Number.isFinite(value)) return {value: "--", suffix: ""};
     if (unit === "bytes") {
         const [size, suffix] = formatSize(value).split(" ");
         return {value: size, suffix: `${suffix}/s`};
     }
+    if (unit === "iops") return {value: numberLabel(Math.round(value)), suffix: "次/s"};
     return {value: value.toFixed(unit === "percent" ? 1 : 2), suffix: unit === "percent" ? "%" : ""};
 };
 
-const MonitorChart = React.memo(({title, subtitle, history, series, unit, rangeKey, loading}: Props) => {
+const MonitorChart = React.memo(({title, subtitle, history, series, iopsSeries, unit, rangeKey, loading}: Props) => {
     const theme = useTheme();
     const {styles} = useStyles({compact: Boolean(theme?.isCompactTheme?.())});
     const {token} = antdTheme.useToken();
@@ -44,6 +46,10 @@ const MonitorChart = React.memo(({title, subtitle, history, series, unit, rangeK
     const chartRef = useRef<React.ComponentRef<typeof Line>>(null);
     const [inView, setInView] = useState(false);
     const [view, setView] = useState<{history?: MonitorHistory; rangeKey: string}>();
+    const summarySeries = useMemo(() => [
+        ...series.map((item) => ({...item, unit})),
+        ...(iopsSeries || []).map((item) => ({...item, unit: "iops" as const})),
+    ], [series, iopsSeries, unit]);
     const timeRange = useTimeRange(view?.rangeKey || "");
     const points = view?.history?.data;
     const start = view?.history?.start;
@@ -51,7 +57,7 @@ const MonitorChart = React.memo(({title, subtitle, history, series, unit, rangeK
     const pointCount = points?.length || 0;
     const latest = history?.data[history.data.length - 1];
     const processMetric = series[0]?.key === "cpu" ? "cpu" : series[0]?.key === "memory" ? "memory" : series[0]?.key === "disk_read" ? "disk_io" : undefined;
-    const tooltip = useTooltip(processMetric, view?.history, series, unit);
+    const tooltip = useTooltip(processMetric, view?.history, summarySeries, unit);
 
     useEffect(() => {
         if (!inView || loading) tooltip.hide();
@@ -100,9 +106,9 @@ const MonitorChart = React.memo(({title, subtitle, history, series, unit, rangeK
         points?.forEach((point) => {
             series.forEach((item) => {
                 const value = point[item.key];
-                const valid = Number.isFinite(value);
-                if (valid) maximum = Math.max(maximum, value);
-                const datum = {time: point.time, value: valid ? value : null, series: item.label};
+                const validValue = typeof value === "number" && Number.isFinite(value) ? value : null;
+                if (validValue !== null) maximum = Math.max(maximum, validValue);
+                const datum = {time: point.time, value: validValue, series: item.label};
                 data.push(datum);
                 if (item === series[0]) areaData.push(datum);
             });
@@ -257,12 +263,15 @@ const MonitorChart = React.memo(({title, subtitle, history, series, unit, rangeK
                 </span>}
             </div>
             <div className={styles.summary}>
-                <div className="summary-metrics" style={{gridTemplateColumns: `repeat(${series.length}, minmax(0, 1fr))`}}>
-                    {series.map((item) => {
+                <div className={`summary-metrics${iopsSeries?.length ? " io-metrics" : ""}`} style={{gridTemplateColumns: `repeat(${series.length}, minmax(0, 1fr))`}}>
+                    {series.map((item, index) => {
                         const value = metricValue(latest?.[item.key], unit);
+                        const iops = iopsSeries?.[index];
+                        const count = iops ? metricValue(latest?.[iops.key], "iops") : undefined;
                         return <div className="summary-metric" key={item.key} style={{"--series-color": item.color} as React.CSSProperties}>
                             <span className="metric-label"><i/>{series.length === 1 ? "使用率" : item.label}</span>
-                            <span className="metric-value"><strong>{value.value}</strong>{value.suffix && <small>{value.suffix}</small>}</span>
+                            <span className="metric-value" title={`${value.value}${value.suffix ? ` ${value.suffix}` : ""}`}><strong>{value.value}</strong>{value.suffix && <small>{value.suffix}</small>}</span>
+                            {count && <span className="io-count" title={`${count.value} IOPS`}><strong>{count.value}</strong><small>IOPS</small></span>}
                         </div>;
                     })}
                 </div>

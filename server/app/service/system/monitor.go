@@ -25,8 +25,6 @@ import (
 	"server/app/util/psutil"
 )
 
-var panelStartedAt = time.Now().UnixMilli()
-
 // GetInfo 组合主机信息和面板自身的运行时信息。
 func (s *service) GetInfo() map[string]interface{} {
 	s.monitorMu.RLock()
@@ -46,12 +44,13 @@ func (s *service) GetInfo() map[string]interface{} {
 		"go_version":       runtime.Version(),
 		"num_goroutine":    runtime.NumGoroutine(),
 		"panel_pid":        os.Getpid(),
-		"panel_start_time": panelStartedAt,
+		"panel_start_time": s.panelStartedAt.UnixMilli(),
 	}
 }
 
 // GetStatis 获取同一轮缓存中的 CPU、内存、负载和网卡，以及低频刷新的磁盘容量。
 func (s *service) GetStatis() map[string]interface{} {
+	s.processRequestedUntil.Store(int64(time.Since(s.panelStartedAt) + processViewerTimeout))
 	s.monitorMu.RLock()
 	defer s.monitorMu.RUnlock()
 	return map[string]interface{}{
@@ -66,6 +65,7 @@ func (s *service) GetStatis() map[string]interface{} {
 
 // GetIO 获取网卡和磁盘的 I/O 统计及采样历史。
 func (s *service) GetIO(netInterface, diskName string, after int64) map[string]interface{} {
+	s.processRequestedUntil.Store(int64(time.Since(s.panelStartedAt) + processViewerTimeout))
 	s.monitorMu.RLock()
 	defer s.monitorMu.RUnlock()
 	if after > s.monitorSequence {
@@ -88,12 +88,17 @@ func (s *service) GetIO(netInterface, diskName string, after int64) map[string]i
 		}
 		return sample
 	}
-	current := filter(monitorSample{
+	current := monitorSample{
 		ID:      s.monitorSequence,
 		Time:    s.monitorUpdatedAt,
 		Network: s.netRateCache,
 		Disk:    s.diskRateCache,
-	})
+	}
+	// 当前值与增量历史使用同一份快照，采集失败时不混入下一轮的进程榜单。
+	if len(s.monitorHistory) > 0 {
+		current = s.monitorHistory[len(s.monitorHistory)-1]
+	}
+	current = filter(current)
 	history := make([]monitorSample, 0)
 	for _, sample := range s.monitorHistory {
 		if sample.ID > after {
@@ -105,6 +110,7 @@ func (s *service) GetIO(netInterface, diskName string, after int64) map[string]i
 		"sample_time": current.Time,
 		"network":     current.Network,
 		"disk":        current.Disk,
+		"process":     current.Process,
 		"history":     history,
 	}
 }
@@ -152,8 +158,28 @@ func (s *service) startMonitor() {
 // updateMonitor 同步采集由 util 完成，service 负责发布缓存和记录采样历史。
 func (s *service) updateMonitor() {
 	snapshot := s.resourceSampler.Sample(s.ctx)
-	// 三类进程指标与整机共享每秒采样窗口，逐进程读取不持有缓存锁。
-	processes := s.processSampler.Sample(s.ctx, psutil.ProcessSampleOptions{Snapshot: &snapshot})
+	recorder := s.monitorRecorder
+	// 整机指标仍每秒更新；进程仅在记录历史或最近有人查看时，每五秒扫描一次。
+	// 使用单调时钟安排采集和观看有效期，修改系统时间不会导致长期停采。
+	now := time.Now()
+	active := recorder != nil && recorder.Enabled() || int64(now.Sub(s.panelStartedAt)) < s.processRequestedUntil.Load()
+	var processes psutil.ProcessTopSnapshot
+	previous := s.processBaseline
+	if active {
+		if s.processSampler == nil {
+			s.processSampler = psutil.NewProcessSampler()
+		}
+		if s.processSampleAt.IsZero() || now.Sub(s.processSampleAt) >= processSampleInterval {
+			s.processSampleAt = now
+			processes = s.processSampler.Sample(s.ctx, psutil.ProcessSampleOptions{Snapshot: &snapshot})
+			s.processBaseline = snapshot
+		}
+	} else if s.processSampler != nil {
+		// 无人查看且关闭历史时释放逐进程基线；再次进入先建立新基线，不跨空闲期计算速率。
+		s.processSampler = nil
+		s.processSampleAt = time.Time{}
+		s.processBaseline = psutil.Snapshot{}
+	}
 	network := make([]psutil.NetworkIO, 0, len(snapshot.Network))
 	netReady, diskReady := false, false
 	for _, value := range snapshot.Network {
@@ -171,7 +197,31 @@ func (s *service) updateMonitor() {
 		diskErr = errors.New(message)
 	}
 	s.monitorMu.Lock()
-	s.processCache = processes
+	if !active {
+		s.processCache = psutil.ProcessTopSnapshot{}
+		s.processIOCache = nil
+	} else if processes.Time != 0 {
+		s.processCache = processes
+		s.processIOCache = nil
+		if processes.IOAvailable && processes.Interval > 0 && len(processes.IO) > 0 {
+			// 一次扫描只压缩一次；后续整机快照共用已完成的榜单，保留其真实采样窗口。
+			items := make([]monitorProcessItem, 0, min(len(processes.IO), 5))
+			for _, item := range processes.IO[:min(len(processes.IO), 5)] {
+				items = append(items, monitorProcessItem{
+					PID:   item.PID,
+					Name:  item.Name,
+					Value: item.ReadRate + item.WriteRate,
+				})
+			}
+			s.processIOCache = &monitorProcessRanking{
+				Time:     processes.Time,
+				Interval: processes.Interval,
+				Items:    items,
+				Partial:  processes.IOPartial,
+				IOScope:  processes.IOScope,
+			}
+		}
+	}
 	if netErr == nil {
 		s.netRateCache = make(map[string]psutil.NetworkIO, len(network))
 		for _, value := range network {
@@ -195,6 +245,9 @@ func (s *service) updateMonitor() {
 			Network: s.netRateCache,
 			Disk:    s.diskRateCache,
 		}
+		if diskReady && s.processIOCache != nil && s.processIOCache.Time <= snapshot.Time {
+			sample.Process = s.processIOCache
+		}
 		if len(s.monitorHistory) == 120 {
 			copy(s.monitorHistory, s.monitorHistory[1:])
 			s.monitorHistory[len(s.monitorHistory)-1] = sample
@@ -210,7 +263,6 @@ func (s *service) updateMonitor() {
 		diskErr = errors.New("磁盘计数器正在建立采样基线")
 	}
 	// 汇总业务监控字段，排队、聚合及落盘交给记录器。
-	recorder := s.monitorRecorder
 	if recorder == nil || !recorder.Enabled() {
 		return
 	}
@@ -223,21 +275,23 @@ func (s *service) updateMonitor() {
 		return
 	}
 	values := map[string]float64{
-		"cpu":          snapshot.CPU.Usage,
-		"cpu_max":      snapshot.CPU.Usage,
-		"memory":       snapshot.Memory.UsedPercent,
-		"memory_used":  float64(snapshot.Memory.Used),
-		"memory_total": float64(snapshot.Memory.Total),
-		"disk_usage":   0,
-		"disk_used":    0,
-		"disk_total":   0,
-		"disk_read":    0,
-		"disk_write":   0,
-		"net_sent":     0,
-		"net_recv":     0,
-		"load1":        snapshot.Load.Load1,
-		"load5":        snapshot.Load.Load5,
-		"load15":       snapshot.Load.Load15,
+		"cpu":             snapshot.CPU.Usage,
+		"cpu_max":         snapshot.CPU.Usage,
+		"memory":          snapshot.Memory.UsedPercent,
+		"memory_used":     float64(snapshot.Memory.Used),
+		"memory_total":    float64(snapshot.Memory.Total),
+		"disk_usage":      0,
+		"disk_used":       0,
+		"disk_total":      0,
+		"disk_read":       0,
+		"disk_write":      0,
+		"disk_read_iops":  0,
+		"disk_write_iops": 0,
+		"net_sent":        0,
+		"net_recv":        0,
+		"load1":           snapshot.Load.Load1,
+		"load5":           snapshot.Load.Load5,
+		"load15":          snapshot.Load.Load15,
 	}
 	s.monitorMu.RLock()
 	defer s.monitorMu.RUnlock()
@@ -263,6 +317,8 @@ func (s *service) updateMonitor() {
 			}
 			values["disk_read"] += value.ReadBytesRate
 			values["disk_write"] += value.WriteBytesRate
+			values["disk_read_iops"] += value.ReadCountRate
+			values["disk_write_iops"] += value.WriteCountRate
 		}
 	}
 	// 同一文件系统的多次挂载只计算一次。
@@ -285,11 +341,34 @@ func (s *service) updateMonitor() {
 		values["disk_usage"] = values["disk_used"] / values["disk_total"] * 100
 	}
 	var committed func()
-	if store := s.monitorProcessStore; store != nil {
-		peaks := [3]float64{values["cpu"], values["memory"], values["disk_read"] + values["disk_write"]}
+	if store := s.monitorProcessStore; store != nil && processes.Time == snapshot.Time {
+		// CPU、磁盘高点使用与进程相同窗口的整机均值；内存仍使用本次即时用量。
+		peaks := [3]float64{math.NaN(), values["memory"], math.NaN()}
+		if processes.Interval > 0 {
+			if previous.Errors["cpu"] == "" && snapshot.Errors["cpu"] == "" &&
+				snapshot.CPU.TotalTime > previous.CPU.TotalTime && snapshot.CPU.BusyTime >= previous.CPU.BusyTime {
+				peaks[0] = min(100, max(0, (snapshot.CPU.BusyTime-previous.CPU.BusyTime)/(snapshot.CPU.TotalTime-previous.CPU.TotalTime)*100))
+			}
+			if previous.Errors["disk"] == "" && snapshot.Errors["disk"] == "" {
+				baseline := make(map[string]psutil.DiskIO, len(previous.Disk))
+				for _, disk := range previous.Disk {
+					baseline[disk.Name] = disk
+				}
+				peaks[2] = 0
+				for name := range s.monitorDisks {
+					before, found := baseline[name]
+					after, exists := s.diskRateCache[name]
+					if !found || !exists || after.ReadBytes < before.ReadBytes || after.WriteBytes < before.WriteBytes {
+						peaks[2] = math.NaN()
+						break
+					}
+					peaks[2] += (float64(after.ReadBytes-before.ReadBytes) + float64(after.WriteBytes-before.WriteBytes)) / (float64(processes.Interval) / 1000)
+				}
+			}
+		}
 		committed = func() { store.Record(processes, peaks) }
 	}
-	// 指标合并成功后再提交同轮进程，写入失败或启停丢弃的采样不会留下孤立排行。
+	// 主指标合并成功后再提交同轮进程，失败或启停丢弃的采样不会留下孤立记录。
 	s.monitorSettingsMu.Lock()
 	defer s.monitorSettingsMu.Unlock()
 	if recorder.Enabled() {
@@ -332,7 +411,7 @@ func (s *service) updateStaticMonitor() {
 	s.monitorMu.Unlock()
 }
 
-// 字段顺序与已保存的历史文件保持一致；聚合和存储由通用记录器负责。
+// 字段顺序定义数值历史格式；聚合和存储由通用记录器负责。
 var systemMonitorFields = []datastore.Field{
 	{Name: "cpu", Aggregate: datastore.Mean},
 	{Name: "cpu_max", Aggregate: datastore.Max},
@@ -344,6 +423,8 @@ var systemMonitorFields = []datastore.Field{
 	{Name: "disk_total", Aggregate: datastore.Mean},
 	{Name: "disk_read", Aggregate: datastore.Mean},
 	{Name: "disk_write", Aggregate: datastore.Mean},
+	{Name: "disk_read_iops", Aggregate: datastore.Mean},
+	{Name: "disk_write_iops", Aggregate: datastore.Mean},
 	{Name: "net_sent", Aggregate: datastore.Mean},
 	{Name: "net_recv", Aggregate: datastore.Mean},
 	{Name: "load1", Aggregate: datastore.Mean},
@@ -395,11 +476,14 @@ func (s *service) startMonitorHistory() {
 		s.monitorInitError = err
 		return
 	}
-	shared, err := datastore.OpenTimeline(constant.MonitorPath, datastore.TimelineOptions{Streams: []datastore.TimelineStreamOptions{
-		{Name: "metrics", Interval: time.Minute, MaxValueBytes: 16 + 8*len(systemMonitorFields), Schema: datastore.SeriesSchemaHash(systemMonitorFields)},
-		{Name: "processes", Interval: time.Minute, MaxValueBytes: 64 << 10, Schema: processRecordSchema},
-		{Name: "processes_hourly", Interval: time.Hour, MaxValueBytes: 64 << 10, Schema: processRecordSchema},
-	}})
+	shared, err := datastore.OpenTimeline(constant.MonitorPath, datastore.TimelineOptions{
+		ResetInvalid: true,
+		Streams: []datastore.TimelineStreamOptions{
+			{Name: "metrics", Interval: time.Minute, MaxValueBytes: 16 + 8*len(systemMonitorFields), Schema: datastore.SeriesSchemaHash(systemMonitorFields)},
+			{Name: "processes", Interval: time.Minute, MaxValueBytes: 64 << 10, Schema: processRecordSchema},
+			{Name: "processes_hourly", Interval: time.Hour, MaxValueBytes: 64 << 10, Schema: processRecordSchema},
+		},
+	})
 	if err != nil {
 		s.monitorInitError = err
 		return
@@ -435,7 +519,7 @@ func (s *service) startMonitorHistory() {
 		s.monitorArchive = nil
 		return
 	}
-	// 退出时先排空指标记录器的回调，再显式关闭进程库，避免尾部快照先被关闭丢弃。
+	// 退出时先排空指标记录器的回调，再显式关闭进程历史，避免尾部快照丢失。
 	s.monitorProcessStore, s.monitorProcessError = s.openMonitorProcessStore(context.WithoutCancel(s.ctx), shared, configuration)
 }
 
@@ -594,11 +678,18 @@ func (s *service) GetMonitorHistory(ctx context.Context, start, end int64, maxPo
 			// 上游已排序，只返回各榜单实际展示的指标与实际采样时刻。
 			var groups [3]*monitorProcessRanking
 			for index, group := range peaks[point["time"].(int64)/step*step] {
-				// 指标与进程高点不匹配时，不展示其他采样时刻的 CPU 排行。
-				if group.Peak == nil || (index == 0 && *group.Peak != point["cpu_max"].(float64)) {
+				// 进程排行取低频采样窗口的高点，独立于整机每秒 CPU 峰值。
+				if group.Peak == nil {
 					continue
 				}
-				ranking := &monitorProcessRanking{Time: group.Time, Peak: group.Peak, Partial: group.Partial, IOScope: group.IOScope, Items: make([]monitorProcessItem, 0, len(group.Items))}
+				ranking := &monitorProcessRanking{
+					Time:     group.Time,
+					Interval: group.Interval,
+					Peak:     group.Peak,
+					Partial:  group.Partial,
+					IOScope:  group.IOScope,
+					Items:    make([]monitorProcessItem, 0, len(group.Items)),
+				}
 				for _, item := range group.Items {
 					ranking.Items = append(ranking.Items, monitorProcessItem{PID: item.PID, Name: item.Name, Value: processMetricValue(item, index)})
 				}
@@ -646,11 +737,6 @@ func (s *service) openMonitorProcessStore(ctx context.Context, shared *datastore
 }
 
 func (h *monitorProcessStore) Record(snapshot psutil.ProcessTopSnapshot, peaks [3]float64) {
-	for _, peak := range peaks {
-		if math.IsNaN(peak) || math.IsInf(peak, 0) || peak < 0 {
-			return
-		}
-	}
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if h.closed || !h.enabled || snapshot.Time < h.acceptFrom || snapshot.Time <= 0 {
@@ -675,8 +761,18 @@ func (h *monitorProcessStore) Record(snapshot psutil.ProcessTopSnapshot, peaks [
 	available := [3]bool{snapshot.CPUAvailable, snapshot.MemoryAvailable, snapshot.IOAvailable}
 	partial := [3]bool{snapshot.CPUPartial, snapshot.MemoryPartial, snapshot.IOPartial}
 	for index, items := range lists {
+		if peak := peaks[index]; math.IsNaN(peak) || math.IsInf(peak, 0) || peak < 0 || index != 1 && snapshot.Interval <= 0 {
+			continue
+		}
 		// 即使扫描超时或榜单为空，也保留真正高点，不能用低点的完整榜单替代。
-		group := MonitorProcessGroup{Time: snapshot.Time, Peak: &peaks[index], Items: items, Available: available[index], Partial: partial[index] || !available[index]}
+		group := MonitorProcessGroup{
+			Time:      snapshot.Time,
+			Interval:  snapshot.Interval,
+			Peak:      &peaks[index],
+			Items:     items,
+			Available: available[index],
+			Partial:   partial[index] || !available[index],
+		}
 		if index == 2 {
 			group.IOScope = snapshot.IOScope
 		}
@@ -689,7 +785,7 @@ func (h *monitorProcessStore) Record(snapshot psutil.ProcessTopSnapshot, peaks [
 	h.pending[minute] = pending
 }
 
-// betterPeak 按同轮整机峰值、榜单完整性与采样时间选择高点。
+// betterPeak 按同窗口整机采样值、榜单完整性与采样时间选择高点。
 func (h *monitorProcessStore) betterPeak(next, previous MonitorProcessGroup) bool {
 	if next.Peak == nil {
 		return false

@@ -146,28 +146,56 @@ const MonitorOverview = React.memo(({io, throughputHistory}: any) => {
     ], [diskThroughput, token.colorInfo]);
 
     // 历史点不可变，保留点的投影也可复用；切换设备时才重算完整窗口。
+    const networkRankings = useMemo(() => new WeakMap<object, any>(), []);
     const networkCache = useMemo(() => new WeakMap<object, any>(), [networkDevice]);
     const diskCache = useMemo(() => new WeakMap<object, any>(), [diskDevice]);
     const networkChartData = useMemo(() => throughputHistory.map((sample: any) => {
         const cached = networkCache.get(sample);
         if (cached) return cached;
         const selected = sample.network?.[networkDevice];
+        let ranking = networkRankings.get(sample);
+        if (!sample.placeholder && !ranking) {
+            // 固定保留前五项，不排序所有网卡；选择单个网卡仍展示整机流量排行。
+            const items: {name: string; value: number}[] = [];
+            Object.entries(sample.network || {}).forEach(([name, network]: [string, any]) => {
+                const value = Math.max(0, numberValue(network?.receiveRate)) + Math.max(0, numberValue(network?.sendRate));
+                let index = items.findIndex((item) => value > item.value || value === item.value && deviceNameCollator.compare(name, item.name) < 0);
+                if (index < 0) index = items.length;
+                if (index < 5) {
+                    items.splice(index, 0, {name, value});
+                    if (items.length > 5) items.pop();
+                }
+            });
+            ranking = {title: "网卡流量", valueLabel: "收发合计", items};
+            networkRankings.set(sample, ranking);
+        }
         const value = {
             time: sample.time,
             first: numberValue(networkDevice === allDevices ? sample.networkTotal?.first : selected?.receiveRate),
             second: numberValue(networkDevice === allDevices ? sample.networkTotal?.second : selected?.sendRate),
+            ranking,
         };
         networkCache.set(sample, value);
         return value;
-    }), [networkDevice, throughputHistory, networkCache]);
+    }), [networkDevice, throughputHistory, networkCache, networkRankings]);
     const diskChartData = useMemo(() => throughputHistory.map((sample: any) => {
         const cached = diskCache.get(sample);
         if (cached) return cached;
         const selected = sample.disk?.[diskDevice];
+        const process = sample.diskProcess;
         const value = {
             time: sample.time,
             first: numberValue(diskDevice === allDevices ? sample.diskTotal?.first : selected?.readRate),
             second: numberValue(diskDevice === allDevices ? sample.diskTotal?.second : selected?.writeRate),
+            iops: {
+                read: sample.placeholder ? undefined : diskDevice === allDevices ? sample.diskTotal?.readCountRate : selected?.readCountRate,
+                write: sample.placeholder ? undefined : diskDevice === allDevices ? sample.diskTotal?.writeCountRate : selected?.writeCountRate,
+            },
+            ranking: !sample.placeholder && process ? {
+                title: process.io_scope === "process" ? "进程总 I/O" : "磁盘 I/O 进程",
+                valueLabel: "最近采样均值",
+                items: process.items,
+            } : undefined,
         };
         diskCache.set(sample, value);
         return value;

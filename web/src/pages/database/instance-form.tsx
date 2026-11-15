@@ -1,6 +1,6 @@
-import {useEffect, useRef, useState} from "react";
-import {App, Button, Collapse, Form, Grid, Input, InputNumber, Select, Spin, Typography} from "antd";
-import {Icon, ProModal, Title, useTheme} from "sinking-antd";
+import {useLayoutEffect, useRef, useState} from "react";
+import {App, Button, Collapse, Form, Grid, Input, InputNumber, Select, Space, Spin} from "antd";
+import {ProModal, Title, useTheme} from "sinking-antd";
 import FileSelect from "@/pages/components/file-select";
 import {getDatabaseInfo, testDatabase, updateDatabase} from "@/service/api/database";
 import useStyles from "./components/shared/styles/client";
@@ -16,7 +16,9 @@ export default ({open, record, categories = [], onCancel, onSuccess}: any) => {
     const compact = Boolean(theme?.isCompactTheme?.());
     const screens = Grid.useBreakpoint();
     const [form] = Form.useForm();
-    const config = Form.useWatch("config", {form, preserve: true});
+    // useWatch 的通知会延后；订阅字段变化，但布局始终读取本次已写入的配置。
+    Form.useWatch("config", {form, preserve: true});
+    const config = form.getFieldValue("config");
     const requestRef = useRef(0);
     const busyRef = useRef(false);
     const testedRef = useRef("");
@@ -27,25 +29,24 @@ export default ({open, record, categories = [], onCancel, onSuccess}: any) => {
     const [entered, setEntered] = useState(false);
     const [loading, setLoading] = useState(true);
     const [busy, setBusy] = useState("");
-    const [testResult, setTestResult] = useState<any>();
     const [advanced, setAdvanced] = useState<string[]>([]);
     const fields = connectionFields[type] || [];
     const waiting = loading || (open && (!entered || loadedId !== record?.id));
     const unavailable = waiting || !fields.length;
 
-    useEffect(() => {
+    useLayoutEffect(() => {
         const requestId = ++requestRef.current;
         if (!open) { setEntered(false); return; }
+        // 每次打开先清除上一轮的就绪状态，避免入场结束时短暂露出旧表单。
+        setLoadedId(undefined);
+        setLoading(true);
         // 先显示弹窗和 loading，再初始化表单，避免重置字段阻塞入场绘制。
         if (!entered || !record?.id) return;
         busyRef.current = false;
-        setLoadedId(undefined);
         testedRef.current = "";
         setBusy("");
-        setTestResult(undefined);
         setAdvanced([]);
         form.resetFields();
-        setLoading(true);
         void (async () => {
             try {
                 const response = await getDatabaseInfo({body: {id: record.id}});
@@ -81,22 +82,21 @@ export default ({open, record, categories = [], onCancel, onSuccess}: any) => {
         const requestId = requestRef.current;
         busyRef.current = true;
         setBusy("test");
-        setTestResult(undefined);
         testedRef.current = "";
         try {
             await form.validateFields(fields.map((field) => ["config", field.name]));
+            if (requestId !== requestRef.current) return;
             const body = connectionBody();
             const response = await testDatabase({body});
             if (requestId !== requestRef.current) return;
             if (response?.code !== 200) throw new Error(response?.message || "连接失败");
             testedRef.current = JSON.stringify(body);
-            setTestResult({success: true, text: "连接成功", version: response?.data?.version});
+            message.success("连接成功");
         } catch (reason: any) {
             if (requestId !== requestRef.current) return;
             if (reason?.errorFields) {
                 if (reason?.errorFields.some((item: any) => fields.some((field) => field.advanced && field.name === item.name?.[1]))) setAdvanced(["connection"]);
             } else {
-                setTestResult({success: false, text: reason?.message || "连接失败"});
                 message.error(reason?.message || "连接失败");
             }
         } finally {
@@ -113,16 +113,13 @@ export default ({open, record, categories = [], onCancel, onSuccess}: any) => {
             const connection = connectionBody();
             const snapshot = JSON.stringify(connection);
             if (testedRef.current !== snapshot) {
-                setTestResult(undefined);
                 const response = await testDatabase({body: connection});
                 if (requestId !== requestRef.current) return;
                 if (response?.code !== 200) {
-                    setTestResult({success: false, text: response?.message || "连接失败"});
                     message.error(response?.message || "连接失败");
                     return;
                 }
                 testedRef.current = snapshot;
-                setTestResult({success: true, text: "连接成功", version: response?.data?.version});
             }
             const response = await updateDatabase({body: {id: record.id, name: values.name.trim(), type_id: Number(values.type_id) || 0, config: connection.config}});
             if (requestId !== requestRef.current) return;
@@ -173,20 +170,26 @@ export default ({open, record, categories = [], onCancel, onSuccess}: any) => {
             styles: type === 2 ? {body: {maxHeight: "none", overflow: "visible"}} : undefined,
             closable: !busy, keyboard: !busy, mask: {closable: !busy},
             focusable: {focusTriggerAfterClose: false}, okText: "保存", cancelText: "取消",
-            confirmLoading: busy === "save", okButtonProps: {disabled: unavailable || busy === "test"},
-            footer: waiting ? null : undefined,
+            confirmLoading: busy === "save", okButtonProps: {disabled: !fields.length || busy === "test"},
+            // 加载时只隐藏底部，避免显示时从禁用样式过渡到正常样式。
+            footer: (_: any, {OkBtn, CancelBtn}: any) => <div aria-hidden={waiting}
+                style={{display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, visibility: waiting ? "hidden" : "visible"}}>
+                <Button loading={busy === "test"} disabled={!fields.length || Boolean(busy)}
+                    onClick={() => void testConnection()}>测试连接</Button>
+                <Space><CancelBtn/><OkBtn/></Space>
+            </div>,
             cancelButtonProps: {disabled: Boolean(busy)},
         } as any}>
         <Form form={form} layout="vertical" variant="filled"
-            className={`${styles.form} ${formStyles.form}`}
-            style={{minHeight: type === 2 ? undefined : 285, position: "relative"}} disabled={Boolean(busy) || waiting} onFinish={submit}
+            className={formStyles.form}
+            style={{position: "relative"}} disabled={Boolean(busy)} onFinish={submit}
             onFinishFailed={({errorFields}) => {
                 if (errorFields.some((item) => fields.some((field) => field.advanced && field.name === item.name?.[1]))) setAdvanced(["connection"]);
             }}
-            onValuesChange={(changes) => { if (changes.config) { testedRef.current = ""; setTestResult(undefined); } }}>
-            {waiting && <div className={styles.loading} style={{position: "absolute", inset: 0}}><Spin size="large"/></div>}
-            {/* 加载期间保留对应类型的表单尺寸，避免入场动画中途改变高度。 */}
-            <div style={{visibility: waiting ? "hidden" : "visible"}} aria-hidden={waiting}>
+            onValuesChange={(changes) => { if (changes.config) testedRef.current = ""; }}>
+            {waiting && <div className={styles.loading} style={{position: "absolute", inset: 0}}><Spin/></div>}
+            {/* 加载时隐藏字段以保留自然高度，不切换禁用态，避免显示时边框过渡闪烁。 */}
+            <div className="db-form-fields" style={{visibility: waiting ? "hidden" : "visible"}} aria-hidden={waiting}>
                 <div className="db-form-grid">
                     <Form.Item name="name" label="实例名称" rules={[{required: true, whitespace: true, message: "请输入实例名称"}, {max: 100, message: "名称不能超过 100 个字符"}]}>
                         <Input maxLength={100} placeholder="例如：生产数据库" autoComplete="off"/>
@@ -199,15 +202,6 @@ export default ({open, record, categories = [], onCancel, onSuccess}: any) => {
                     activeKey={advanced} onChange={(keys) => setAdvanced(Array.isArray(keys) ? keys : [keys])}
                     items={[{key: "connection", label: "更多选项", forceRender: true,
                         children: <div className="db-form-grid">{moreFields.map(renderField)}</div>}]}/>}
-                <div className="db-connection-feedback" role="status" aria-live="polite">
-                    <Button color="default" variant="filled" loading={busy === "test"} disabled={unavailable || Boolean(busy)}
-                        onClick={() => void testConnection()}>测试连接</Button>
-                    {testResult && <div className={`db-test-result ${testResult.success ? "success" : "error"}`}>
-                        <Icon type={testResult.success ? "CheckCircleOutlined" : "CloseCircleOutlined"}/>
-                        <Typography.Text ellipsis title={testResult.text} type={testResult.success ? "success" : "danger"}>{testResult.text}</Typography.Text>
-                        {testResult.success && testResult.version && <Typography.Text className="db-test-version" ellipsis title={String(testResult.version)} type="secondary">{String(testResult.version).slice(0, 160)}</Typography.Text>}
-                    </div>}
-                </div>
             </div>
         </Form>
     </ProModal>;

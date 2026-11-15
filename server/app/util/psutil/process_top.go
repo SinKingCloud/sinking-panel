@@ -40,6 +40,7 @@ type ProcessTopItem struct {
 // ProcessTopSnapshot 每榜最多 5 项，按用量降序、PID 升序；Partial 表示结果不完整。
 type ProcessTopSnapshot struct {
 	Time            int64            `json:"time"`
+	Interval        int64            `json:"interval"` // 相邻采样边界的间隔（毫秒），首次建立基线时为 0
 	CPU             []ProcessTopItem `json:"cpu"`
 	Memory          []ProcessTopItem `json:"memory"`
 	IO              []ProcessTopItem `json:"disk_io"`
@@ -62,7 +63,7 @@ func (s ProcessTopSnapshot) Clone() ProcessTopSnapshot {
 	return s
 }
 
-// ProcessSampleOptions 共用主机计数和时间，使进程速率与主机指标属于同一采样窗口。
+// ProcessSampleOptions 共用主机的累计计数和采样时间，进程速率仍按自身相邻两轮的间隔计算。
 type ProcessSampleOptions struct {
 	Snapshot *Snapshot
 }
@@ -135,6 +136,9 @@ func (s *ProcessSampler) Sample(ctx context.Context, options ...ProcessSampleOpt
 		}
 	}
 	previousTotal, previousTime := s.totalCPU, s.sampleAt
+	if previousTime > 0 && result.Time > previousTime {
+		result.Interval = result.Time - previousTime
+	}
 	cpuReady := previousTotal > 0 && total > previousTotal && result.Time > previousTime &&
 		!math.IsNaN(total) && !math.IsInf(total, 0) && (option.Snapshot == nil || option.Snapshot.CPU.Available)
 	s.totalCPU, s.sampleAt = total, result.Time

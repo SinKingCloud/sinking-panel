@@ -11,6 +11,7 @@ import ResourceOverview from "./components/resource-overview";
 
 const throughputPointCount = 120;
 const throughputInitialPointCount = 30;
+const countRate = (value: any): number | undefined => typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : undefined;
 
 const useStyles = createStyles(({css}: any) => ({
     page: css`
@@ -73,7 +74,26 @@ export default (): React.ReactNode => {
             const statisResponse = statisResult.status === "fulfilled" ? statisResult.value : undefined;
             const ioResponse = ioResult.status === "fulfilled" ? ioResult.value : undefined;
             const statisData = statisResponse?.code === 200 && statisResponse?.data
-                ? {cpu: statisResponse.data.cpu, memory: statisResponse.data.memory, load: statisResponse.data.load, disks: statisResponse.data.disks}
+                ? {
+                    cpu: statisResponse.data.cpu,
+                    memory: statisResponse.data.memory,
+                    load: statisResponse.data.load,
+                    disks: statisResponse.data.disks,
+                    processes: {
+                        cpu: statisResponse.data.processes?.cpu?.map((item: any) => ({
+                            pid: item?.pid,
+                            create_time: item?.create_time,
+                            name: item?.name,
+                            cpu: item?.cpu,
+                        })),
+                        memory: statisResponse.data.processes?.memory?.map((item: any) => ({
+                            pid: item?.pid,
+                            create_time: item?.create_time,
+                            name: item?.name,
+                            memory: item?.memory,
+                        })),
+                    },
+                }
                 : undefined;
             const ioData = ioResponse?.code === 200 && ioResponse?.data
                 ? ioResponse?.data
@@ -88,7 +108,7 @@ export default (): React.ReactNode => {
                     : numberValue(baseInfo.uptime),
             } : undefined;
             const currentIOData = ioData ? {...ioData, history: undefined} : undefined;
-            const nextStatisSnapshot = statisData ? JSON.stringify([statisData.cpu, statisData.memory, statisData.load]) : snapshotRef.current.statis;
+            const nextStatisSnapshot = statisData ? JSON.stringify([statisData.cpu, statisData.memory, statisData.load, statisData.processes]) : snapshotRef.current.statis;
             const nextDisksSnapshot = statisData ? JSON.stringify(statisData.disks || []) : snapshotRef.current.disks;
             const nextInfoSnapshot = infoData ? JSON.stringify([
                 infoData.hostname, infoData.os, infoData.platform, infoData.platform_version,
@@ -123,7 +143,8 @@ export default (): React.ReactNode => {
                 });
             const samples = ioSamples.map((item: any) => {
                 const networkTotal = {first: 0, second: 0};
-                const diskTotal = {first: 0, second: 0};
+                const diskEntries = Object.entries(item?.disk || {}) as [string, any][];
+                const diskTotal = {first: 0, second: 0, readCountRate: diskEntries.length ? 0 : undefined, writeCountRate: diskEntries.length ? 0 : undefined};
                 const network = Object.fromEntries((Object.entries(item?.network || {}) as [string, any][]).map(([name, value]) => {
                     const receiveRate = numberValue(value?.recv_rate);
                     const sendRate = numberValue(value?.send_rate);
@@ -131,14 +152,19 @@ export default (): React.ReactNode => {
                     networkTotal.second += sendRate;
                     return [name, {receiveRate, sendRate}];
                 }));
-                const disk = Object.fromEntries((Object.entries(item?.disk || {}) as [string, any][]).map(([name, value]) => {
+                const disk = Object.fromEntries(diskEntries.map(([name, value]) => {
                     const readRate = numberValue(value?.read_bytes_rate);
                     const writeRate = numberValue(value?.write_bytes_rate);
+                    const readCountRate = value?.rate_available === false ? undefined : countRate(value?.read_count_rate);
+                    const writeCountRate = value?.rate_available === false ? undefined : countRate(value?.write_count_rate);
                     diskTotal.first += readRate;
                     diskTotal.second += writeRate;
-                    return [name, {readRate, writeRate}];
+                    // 汇总必须包含每块磁盘的有效次数，缺项时保留未知，避免当成零。
+                    diskTotal.readCountRate = diskTotal.readCountRate !== undefined && readCountRate !== undefined ? diskTotal.readCountRate + readCountRate : undefined;
+                    diskTotal.writeCountRate = diskTotal.writeCountRate !== undefined && writeCountRate !== undefined ? diskTotal.writeCountRate + writeCountRate : undefined;
+                    return [name, {readRate, writeRate, readCountRate, writeCountRate}];
                 }));
-                return {sampleId: numberValue(item?.sample_id), time: numberValue(item?.sample_time), network, disk, networkTotal, diskTotal};
+                return {sampleId: numberValue(item?.sample_id), time: numberValue(item?.sample_time), network, disk, networkTotal, diskTotal, diskProcess: item?.process};
             });
             const latestSampleId = Math.max(
                 sampleCursor,

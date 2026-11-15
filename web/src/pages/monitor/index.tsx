@@ -8,7 +8,7 @@ import {formatSize} from "@/utils/string";
 import MonitorChart from "./components/chart";
 import MonitorSettingsModal from "./components/settings";
 import type {MonitorSettingsRef} from "./components/settings";
-import type {MonitorHistory, MonitorSeries, MonitorSettings} from "./types";
+import type {MonitorHistory, MonitorSeries, MonitorSettings, MonitorUnit} from "./types";
 import useStyles from "./styles";
 
 const periods = [
@@ -104,7 +104,7 @@ export default (): React.ReactNode => {
     }, [loadHistory, period, customRange, settings?.enabled, rangeKey]);
 
     const latest = data?.data[data.data.length - 1];
-    const charts = useMemo<{title: string; capacity?: [MonitorSeries["key"], MonitorSeries["key"]]; unit: "percent" | "bytes" | "load"; series: MonitorSeries[]}[]>(() => [
+    const charts = useMemo<{title: string; capacity?: ["memory_used", "memory_total"] | ["disk_used", "disk_total"]; unit: Exclude<MonitorUnit, "iops">; series: MonitorSeries[]; iopsSeries?: MonitorSeries[]}[]>(() => [
         {title: "系统负载", unit: "load", series: [
             {key: "load1", label: "1 分钟", color: token.colorPrimary},
             {key: "load5", label: "5 分钟", color: "#50b6b2"},
@@ -123,6 +123,9 @@ export default (): React.ReactNode => {
         {title: "磁盘 I/O", unit: "bytes", series: [
             {key: "disk_read", label: "读取", color: token.colorPrimary},
             {key: "disk_write", label: "写入", color: "#50b6b2"},
+        ], iopsSeries: [
+            {key: "disk_read_iops", label: "读取 IOPS", color: token.colorPrimary},
+            {key: "disk_write_iops", label: "写入 IOPS", color: "#50b6b2"},
         ]},
         {title: "网络流量", unit: "bytes", series: [
             {key: "net_recv", label: "接收", color: token.colorPrimary},

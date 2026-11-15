@@ -49,6 +49,7 @@ type monitorSample struct {
 	Time    int64                       `json:"sample_time"`
 	Network map[string]psutil.NetworkIO `json:"network"`
 	Disk    map[string]psutil.DiskIO    `json:"disk"`
+	Process *monitorProcessRanking      `json:"process,omitempty"` // 本时刻最近完成的磁盘 I/O 进程 Top 5，携带实际采样窗口
 }
 
 // MonitorHistory 是监控页面的返回结构，进程排行随对应时间桶一同返回。
@@ -67,11 +68,12 @@ type monitorProcessItem struct {
 }
 
 type monitorProcessRanking struct {
-	Time    int64                `json:"time"`
-	Items   []monitorProcessItem `json:"items"`
-	Partial bool                 `json:"partial,omitempty"`
-	Peak    *float64             `json:"peak,omitempty"`
-	IOScope string               `json:"io_scope,omitempty"`
+	Time     int64                `json:"time"`
+	Interval int64                `json:"interval"` // CPU、I/O 平均值覆盖的毫秒数，内存为采样时刻的值
+	Items    []monitorProcessItem `json:"items"`
+	Partial  bool                 `json:"partial,omitempty"`
+	Peak     *float64             `json:"peak,omitempty"`
+	IOScope  string               `json:"io_scope,omitempty"`
 }
 
 type monitorProcessData struct {
@@ -80,10 +82,11 @@ type monitorProcessData struct {
 	DiskIO *monitorProcessRanking `json:"disk_io,omitempty"`
 }
 
-// MonitorProcessGroup 保留整机 CPU、内存或磁盘 I/O 高点同轮的进程排行。
-// Peak 的单位依次为整机 CPU 百分比、已用内存百分比、磁盘读写字节/秒；nil 表示旧版独立采样。
+// MonitorProcessGroup 保留整机采样高点对应的进程排行，CPU、I/O 使用同窗口均值。
+// Peak 的单位依次为整机 CPU 百分比、已用内存百分比、磁盘读写字节/秒；nil 表示未采样。
 type MonitorProcessGroup struct {
 	Time      int64                   `json:"time"`
+	Interval  int64                   `json:"interval"` // 进程实际采样间隔，不能与整机一秒峰值混用
 	Items     []psutil.ProcessTopItem `json:"items"`
 	Available bool                    `json:"available"`
 	Partial   bool                    `json:"partial"`

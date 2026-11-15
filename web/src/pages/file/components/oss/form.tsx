@@ -12,17 +12,16 @@ interface ConfigField {
     required?: boolean;
     required_without?: string;
     placeholder?: string;
-    help?: string;
     max_length?: number;
 }
 
 const configFields: ConfigField[] = [
     {name: "region", label: "地域", required_without: "endpoint", max_length: 100,
-        placeholder: "请输入存储桶所在地域", help: "地域与服务地址至少填写一项。"},
+        placeholder: "请输入存储桶所在地域"},
     {name: "bucket", label: "存储桶", required: true, max_length: 255,
-        placeholder: "请输入已有存储桶名称", help: "填写已创建的存储桶名称。"},
+        placeholder: "请输入已有存储桶名称"},
     {name: "endpoint", label: "服务地址", required_without: "region", max_length: 500,
-        placeholder: "可选，填写区域服务地址", help: "留空使用该地域的默认地址；地址不包含桶名或路径。"},
+        placeholder: "可选，填写区域服务地址"},
 ];
 
 export default ({open, record, onCancel, onCreated, onSuccess}: any) => {
@@ -112,7 +111,7 @@ export default ({open, record, onCancel, onCreated, onSuccess}: any) => {
             if (current === request.current) { submitting.current = false; setTesting(false); }
         }
     };
-    return <ProModal title={<Title>{editing ? "修改 OSS 配置" : "添加存储"}</Title>} onOk={form.submit} onCancel={() => { if (!blocked) onCancel(); }} modalProps={{open, width: editing ? 460 : 360, zIndex: 1140, rootClassName: modalStyles.modal, style: {top: screens.md ? 90 : 24, paddingBottom: screens.md ? 90 : 24, maxWidth: "calc(100vw - 24px)"}, confirmLoading: busy, okText: editing ? "保存" : "添加", cancelText: "取消", okButtonProps: {disabled: blocked || loading || Boolean(error) || (editing && fields.length === 0)}, cancelButtonProps: {disabled: blocked}, closable: !blocked, keyboard: !blocked, mask: {closable: !blocked},
+    return <ProModal title={<Title>{editing ? "修改配置" : "添加存储"}</Title>} onOk={form.submit} onCancel={() => { if (!blocked) onCancel(); }} modalProps={{open, width: editing ? 460 : 360, zIndex: 1140, rootClassName: modalStyles.modal, style: {top: screens.md ? 90 : 24, paddingBottom: screens.md ? 90 : 24, maxWidth: "calc(100vw - 24px)"}, confirmLoading: busy, okText: editing ? "保存" : "添加", cancelText: "取消", okButtonProps: {disabled: blocked || loading || Boolean(error) || (editing && fields.length === 0)}, cancelButtonProps: {disabled: blocked}, closable: !blocked, keyboard: !blocked, mask: {closable: !blocked},
         footer: loading ? null : !editing ? undefined : (_: any, {OkBtn, CancelBtn}: any) => <div style={{display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12}}>
             <Button loading={testing} disabled={busy || Boolean(error) || fields.length === 0} onClick={() => void test()}>测试连接</Button>
             <Space><CancelBtn/><OkBtn/></Space>
@@ -124,7 +123,7 @@ export default ({open, record, onCancel, onCreated, onSuccess}: any) => {
                 <SecretSelect placeholder="请选择云密钥" zIndex={1160}/>
             </Form.Item>}
             {editing && fields.map((field) => <Form.Item key={field.name}
-                name={["config", field.name]} label={field.label} extra={field.help}
+                name={["config", field.name]} label={field.label}
                 dependencies={field.required_without ? [["config", field.required_without]] : []}
                 rules={[
                     ...(field.required ? [{required: true, whitespace: true, message: `请输入${field.label}`}] : []),

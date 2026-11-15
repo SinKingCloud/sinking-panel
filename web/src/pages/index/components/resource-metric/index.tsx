@@ -270,7 +270,7 @@ const ResourceMetric = React.memo(({
                             <Tooltip title={detail}>
                                 <div className="resource-detail">{detail}</div>
                             </Tooltip>
-                        ) : <div className="resource-detail">{detail}</div>}
+                        ) : <div className="resource-detail" title={detail}>{detail}</div>}
                         <div className="resource-meta">{meta}</div>
                     </div>
                 </Col>

@@ -40,6 +40,16 @@ const useStyles = createStyles<{compact?: boolean; dark?: boolean}>(({css, token
                 overflow: hidden;
                 padding: 0;
             }
+
+            &.is-page-fullscreen .ant-modal {
+                max-width: 100vw;
+                margin: 0;
+            }
+
+            &.is-page-fullscreen .ant-modal-container {
+                max-height: 100dvh;
+                border-radius: 0;
+            }
         `,
         settingsPopup: css`
             position: absolute;
@@ -189,7 +199,7 @@ const useStyles = createStyles<{compact?: boolean; dark?: boolean}>(({css, token
             background: ${token.colorBgContainer};
             transition: grid-template-columns ${token.motionDurationMid};
 
-            &:fullscreen {
+            &.is-fullscreen {
                 width: 100vw;
                 height: 100dvh;
                 max-width: none;
@@ -848,7 +858,7 @@ const useStyles = createStyles<{compact?: boolean; dark?: boolean}>(({css, token
             }
 
             @media (max-width: 767px) {
-                &:not(:fullscreen) {
+                &:not(.is-fullscreen) {
                     height: calc(100dvh - 16px);
                     min-height: 0;
                 }
@@ -965,10 +975,6 @@ const useStyles = createStyles<{compact?: boolean; dark?: boolean}>(({css, token
             }
 
             @media (max-width: 360px) {
-                &:not(:fullscreen) .file-editor-fullscreen {
-                    display: none;
-                }
-
                 .file-editor-toolbar .ant-btn {
                     width: 36px;
                     min-width: 36px;

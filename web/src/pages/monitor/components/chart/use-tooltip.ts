@@ -4,7 +4,7 @@ import dayjs from "dayjs";
 import {formatSize} from "@/utils/string";
 import useChartTooltip from "@/pages/components/ui/chart-tooltip";
 import type {ChartTooltipModel, ChartTooltipOptions} from "@/pages/components/ui/chart-tooltip";
-import type {MonitorHistory, MonitorProcessMetric, MonitorSeries} from "../../types";
+import type {MonitorHistory, MonitorProcessMetric, MonitorSeries, MonitorUnit} from "../../types";
 
 type MonitorTooltipModel = ChartTooltipModel & {
     process?: {
@@ -31,10 +31,10 @@ const useStyles = createStyles(({css, token}) => ({
 }));
 
 const labels = {
-    cpu: {title: "CPU 进程 Top 5", valueLabel: "整机占比"},
-    memory: {title: "内存进程 Top 5", valueLabel: "RSS"},
-    disk_io: {title: "磁盘 I/O 进程 Top 5", valueLabel: "读写总速率"},
-    process_io: {title: "进程总 I/O Top 5", valueLabel: "文件/网络/设备"},
+    cpu: {title: "CPU 进程", valueLabel: "整机占比 · 均值"},
+    memory: {title: "内存进程", valueLabel: "RSS"},
+    disk_io: {title: "磁盘 I/O 进程", valueLabel: "读写均值"},
+    process_io: {title: "进程总 I/O", valueLabel: "总 I/O 均值"},
 };
 const numberLabel = new Intl.NumberFormat("zh-CN", {maximumFractionDigits: 2}).format;
 
@@ -53,7 +53,7 @@ function visible(node: HTMLElement, show: boolean) {
     if (node.hidden === show) node.hidden = !show;
 }
 
-export default function useTooltip(metric: MonitorProcessMetric | undefined, history: MonitorHistory | undefined, series: MonitorSeries[], unit: "percent" | "bytes" | "load") {
+export default function useTooltip(metric: MonitorProcessMetric | undefined, history: MonitorHistory | undefined, series: MonitorSeries[], unit: MonitorUnit) {
     const {styles} = useStyles();
     const models = useMemo(() => {
         const models = new Map<number, MonitorTooltipModel>();
@@ -61,32 +61,33 @@ export default function useTooltip(metric: MonitorProcessMetric | undefined, his
         // 随历史数据一次格式化；悬浮时只读取成品，不排序或请求。
         history?.data.forEach((point) => {
             const group = metric && point.samples > 0 ? point.process?.[metric] : undefined;
-            // 旧记录没有配对高点；内存和 I/O 曲线为区间均值，只有 CPU 与峰值曲线校验。
-            const matched = typeof group?.peak === "number" && Number.isFinite(group.peak) && (metric !== "cpu" || group.peak === point.cpu_max);
-            const rows = (matched ? group?.items : undefined)?.slice(0, 5).map((item) => ({
+            // 进程低频采样，CPU/I/O 展示自身窗口的均值，不与每秒整机峰值混用。
+            const rows = (Array.isArray(group?.items) ? group.items : []).slice(0, 5).map((item) => ({
                 name: item.name || "未知进程", pid: `PID ${item.pid}`,
                 value: !Number.isFinite(item.value) ? "不可用" : metric === "cpu"
                     ? `${numberLabel(item.value)}%` : `${formatSize(item.value)}${metric === "disk_io" ? "/s" : ""}`,
-            })) || [];
+            }));
             rows.forEach((row) => {
                 widths.pid = Math.max(widths.pid, row.pid.length);
                 widths.value = Math.max(widths.value, row.value.length);
             });
-            const highPoint = metric === "cpu" ? "峰值" : metric === "disk_io" && group?.io_scope === "process" ? "磁盘高点" : "高点";
-            const peakLabel = rows.length && group ? metric === "cpu" ? "峰值时刻"
-                : `${highPoint} ${metric === "memory" ? `${numberLabel(group.peak!)}%` : `${formatSize(group.peak!)}/s`}` : "";
+            const peakValue = typeof group?.peak === "number" && Number.isFinite(group.peak)
+                ? metric === "disk_io" ? `${formatSize(group.peak)}/s` : `${numberLabel(group.peak)}%` : "";
+            const peakLabel = metric === "memory" ? "采样时刻" : metric === "disk_io" && group?.io_scope === "process" ? "磁盘采样均值" : "采样均值";
             models.set(point.time, {
                 title: dayjs(point.time).format("YYYY-MM-DD HH:mm"),
                 values: series.map((item) => {
                     const value = point[item.key];
-                    if (!Number.isFinite(value)) return "--";
-                    return unit === "bytes" ? `${formatSize(value)}/s` : `${numberLabel(value)}${unit === "percent" ? "%" : ""}`;
+                    if (typeof value !== "number" || !Number.isFinite(value)) return "--";
+                    const metricUnit = item.unit || unit;
+                    if (metricUnit === "iops") return `${numberLabel(Math.round(value))} 次/s`;
+                    return metricUnit === "bytes" ? `${formatSize(value)}/s` : `${numberLabel(value)}${metricUnit === "percent" ? "%" : ""}`;
                 }),
                 process: metric && rows.length ? {
                     ...labels[metric === "disk_io" && group?.io_scope === "process" ? "process_io" : metric],
                     rows,
                     widths,
-                    time: rows.length ? `${peakLabel} · ${group && Number.isFinite(group.time) && group.time > 0 ? dayjs(group.time).format(metric === "cpu" ? "YYYY-MM-DD HH:mm:ss" : "HH:mm:ss") : "时间未知"}${group?.partial ? "（部分进程）" : ""}` : "",
+                    time: rows.length ? `${peakLabel}${peakValue ? ` ${peakValue}` : ""} · ${group && Number.isFinite(group.time) && group.time > 0 ? dayjs(group.time).format("HH:mm:ss") : "时间未知"}` : "",
                 } : undefined,
             });
         });

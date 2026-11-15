@@ -11,7 +11,9 @@ const (
 )
 
 const (
-	processMinuteMillis = int64(time.Minute / time.Millisecond)
-	processHourMillis   = int64(time.Hour / time.Millisecond)
-	processDayMillis    = 24 * processHourMillis
+	processSampleInterval = 5 * time.Second
+	processViewerTimeout  = 15 * time.Second
+	processMinuteMillis   = int64(time.Minute / time.Millisecond)
+	processHourMillis     = int64(time.Hour / time.Millisecond)
+	processDayMillis      = 24 * processHourMillis
 )

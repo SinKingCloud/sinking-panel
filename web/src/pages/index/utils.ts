@@ -10,7 +10,7 @@ export const percentValue = (value: any): number => Math.min(100, Math.max(0, nu
 export const formatPercent = (value: any): string => `${Number(percentValue(value).toFixed(1))}%`;
 
 const countFormatter = new Intl.NumberFormat("zh-CN", {
-    maximumFractionDigits: 1,
+    maximumFractionDigits: 0,
 });
 
 export const formatCount = (value: any): string => countFormatter.format(numberValue(value));

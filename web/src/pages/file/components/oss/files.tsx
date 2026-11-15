@@ -1,6 +1,6 @@
 import {createContext, forwardRef, memo, useCallback, useContext, useEffect, useMemo, useRef, useState} from "react";
 import type {Key} from "react";
-import {App, Button, Empty, Form, Grid, Input, Select, Space, Tooltip} from "antd";
+import {App, Button, Empty, Form, Grid, Input, Select, Tooltip} from "antd";
 import type {MenuProps, TableColumnsType} from "antd";
 import {Icon, ModalTable, ProModal, Title, useTheme} from "sinking-antd";
 import dayjs from "dayjs";
@@ -432,8 +432,7 @@ const Files = ({id, active, revision, onCancel, onEdit, onBusyChange}: FilesProp
                 ],
             }}
             emptyContent={error ? <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={configError ? error : "无法读取当前目录"}>
-                <Space><Button size="small" icon={<Icon type="ReloadOutlined"/>} aria-label="重新加载文件列表" onClick={reload}>重新加载</Button>
-                    {configError && <Button size="small" onClick={() => onEdit(id)}>修改配置</Button>}</Space>
+                {configError && <Button size="small" onClick={() => onEdit(id)}>修改配置</Button>}
             </Empty> : undefined}/>
         <FileUpload key={revision} ref={upload} path={prefix} active={active} zIndex={1140} request={uploadFile} resumable={false}
             selectionDisabled={uploadDisabled} onUploaded={reload} onUploadingChange={changeUploading}/>

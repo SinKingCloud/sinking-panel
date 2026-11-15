@@ -16,6 +16,11 @@ export default createStyles(({css, token}) => ({
         .db-form-more .ant-collapse-content-box { padding: ${token.paddingXS}px ${token.paddingSM}px ${token.paddingSM}px !important; }
         .db-form-more .db-form-grid { row-gap: ${token.margin}px; }
         .db-form-more .ant-form-item { margin-bottom: 0; }
+        /* 分组和字段之间留间距，最后一项不再额外撑高表单底部。 */
+        .db-form-fields { display: flex; flex-direction: column; gap: ${token.margin}px; }
+        .db-form-fields .db-form-grid { row-gap: ${token.margin}px; }
+        .db-form-fields .db-form-grid > .ant-form-item { margin-bottom: 0; }
+        .db-form-fields > .db-form-more { margin-top: 0; }
         .db-connection-feedback { display: flex; align-items: center; gap: ${token.marginSM}px; min-height: ${token.controlHeight}px; margin-top: ${token.margin}px; font-size: ${token.fontSizeSM}px; }
         .db-connection-feedback > .ant-btn { flex: none; }
         .db-test-result { display: flex; align-items: center; gap: 6px; min-width: 0; flex: 1; }

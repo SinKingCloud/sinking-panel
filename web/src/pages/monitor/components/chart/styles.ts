@@ -105,6 +105,46 @@ export default createStyles(({css, token}, {compact}: {compact: boolean}) => ({
             line-height: 18px;
         }
 
+        .io-metrics .summary-metric {
+            flex-direction: row;
+            align-items: baseline;
+            flex-wrap: nowrap;
+            gap: 6px;
+        }
+
+        .io-metrics .metric-label { flex: none; gap: 4px; }
+
+        .io-count {
+            display: inline-flex;
+            align-items: baseline;
+            gap: 3px;
+            min-width: 0;
+            color: ${token.colorTextSecondary};
+            white-space: nowrap;
+        }
+
+        .io-count::before {
+            content: "·";
+            flex: none;
+            color: ${token.colorTextTertiary};
+        }
+
+        .io-metrics .metric-value strong,
+        .io-count strong {
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .io-count strong { font-size: 13px; font-weight: 500; }
+
+        .io-metrics .metric-value small,
+        .io-count small {
+            flex: none;
+            color: ${token.colorTextTertiary};
+            font-size: 11px;
+        }
+
         .summary-detail {
             min-width: 0;
             color: ${token.colorTextSecondary};
@@ -115,6 +155,17 @@ export default createStyles(({css, token}, {compact}: {compact: boolean}) => ({
 
         @container monitor-chart (max-width: 440px) {
             .summary-metric { flex-direction: column; align-items: flex-start; gap: 0; }
+        }
+
+        @container monitor-chart (max-width: 480px) {
+            .io-metrics { gap: 8px; }
+            .io-metrics .summary-metric { gap: 3px; }
+            .io-metrics .metric-label { font-size: 10px; }
+            .io-metrics .metric-label i { display: none; }
+            .io-metrics .metric-value strong { font-size: ${compact ? 14 : 16}px; }
+            .io-metrics .metric-value small,
+            .io-count small { font-size: 10px; }
+            .io-count strong { font-size: 12px; }
         }
     `,
     plot: css`

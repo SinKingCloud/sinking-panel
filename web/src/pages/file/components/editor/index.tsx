@@ -69,6 +69,7 @@ const FileEditor = forwardRef(function FileEditor(
     const discardConfirmRef = useRef<any>(undefined);
     const deleteConfirmRef = useRef<any>(undefined);
     const deletingPathsRef = useRef(new Set<string>());
+    const fullscreenRequestRef = useRef(0);
     const treeTransitionTimerRef = useRef<number | undefined>(undefined);
     const saveCommandRef = useRef<() => void>(() => undefined);
     const viewStateRef = useRef(new Map<string, any>());
@@ -80,8 +81,11 @@ const FileEditor = forwardRef(function FileEditor(
     const [treeTransitioning, setTreeTransitioning] = useState(false);
     const [aceError, setAceError] = useState<{key: string; message: string}>();
     const [aceAttempt, setAceAttempt] = useState(0);
-    const [fullscreen, setFullscreen] = useState(false);
+    const [nativeFullscreen, setNativeFullscreen] = useState(false);
+    const [pageFullscreen, setPageFullscreen] = useState(false);
+    const [fullscreenPending, setFullscreenPending] = useState(false);
     const [minimized, setMinimized] = useState(false);
+    const fullscreen = nativeFullscreen || pageFullscreen;
 
     useEffect(() => {
         onMinimizedChange(Boolean(session && minimized));
@@ -128,11 +132,15 @@ const FileEditor = forwardRef(function FileEditor(
     }, [files.changeContent]);
 
     const exitWorkspaceFullscreen = useCallback(async () => {
-        if (document.fullscreenElement !== workspaceRef.current) {
+        fullscreenRequestRef.current += 1;
+        setPageFullscreen(false);
+        setFullscreenPending(false);
+        const workspace = workspaceRef.current;
+        if (!workspace || document.fullscreenElement !== workspace) {
             return true;
         }
-        if (!document.fullscreenEnabled || typeof document.exitFullscreen !== "function") {
-            message.info("当前浏览器不支持全屏");
+        if (typeof document.exitFullscreen !== "function") {
+            message.error("退出全屏失败");
             return false;
         }
         await document.exitFullscreen();
@@ -146,17 +154,14 @@ const FileEditor = forwardRef(function FileEditor(
 
     const closeNow = useCallback(() => {
         sessionGenerationRef.current += 1;
+        fullscreenRequestRef.current += 1;
         destroyDiscardConfirm();
         deleteConfirmRef.current?.destroy();
         formContextRef.current = undefined;
         formRef.current?.close();
         permissionsRef.current?.close();
-        if (document.fullscreenElement === workspaceRef.current) {
-            if (document.fullscreenEnabled && typeof document.exitFullscreen === "function") {
-                void document.exitFullscreen().catch(() => undefined);
-            } else {
-                message.info("当前浏览器不支持全屏");
-            }
+        if (workspaceRef.current && document.fullscreenElement === workspaceRef.current && typeof document.exitFullscreen === "function") {
+            void document.exitFullscreen().catch(() => undefined);
         }
         tree.close();
         files.reset();
@@ -164,10 +169,12 @@ const FileEditor = forwardRef(function FileEditor(
         aceRef.current = null;
         sessionRef.current = undefined;
         setAceError(undefined);
-        setFullscreen(false);
+        setNativeFullscreen(false);
+        setPageFullscreen(false);
+        setFullscreenPending(false);
         setMinimized(false);
         setSession(undefined);
-    }, [destroyDiscardConfirm, files.reset, message, tree.close]);
+    }, [destroyDiscardConfirm, files.reset, tree.close]);
 
     const runAfterDiscard = useCallback((
         action: () => void,
@@ -203,13 +210,10 @@ const FileEditor = forwardRef(function FileEditor(
             discardConfirmRef.current = instance;
         };
 
-        if (document.fullscreenElement === workspaceRef.current) {
-            void exitWorkspaceFullscreen()
-                .then((exited) => exited && showConfirm())
-                .catch(() => message.error("退出全屏失败"));
-            return;
-        }
-        showConfirm();
+        // 统一退出全屏再确认，保持导航拦截器稳定，避免退出网页全屏后重新拦截同一次跳转。
+        void exitWorkspaceFullscreen()
+            .then((exited) => exited && showConfirm())
+            .catch(() => message.error("退出全屏失败"));
     }, [destroyDiscardConfirm, exitWorkspaceFullscreen, files.hasUnsavedChanges, message, modal]);
 
     useEffect(() => {
@@ -291,21 +295,43 @@ const FileEditor = forwardRef(function FileEditor(
     }, []);
 
     useEffect(() => () => {
+        fullscreenRequestRef.current += 1;
         discardConfirmRef.current?.destroy();
         deleteConfirmRef.current?.destroy();
-        if (document.fullscreenElement === workspaceRef.current && typeof document.exitFullscreen === "function") {
+        if (workspaceRef.current && document.fullscreenElement === workspaceRef.current && typeof document.exitFullscreen === "function") {
             void document.exitFullscreen().catch(() => undefined);
         }
     }, []);
 
     useEffect(() => {
         const handleFullscreenChange = () => {
-            setFullscreen(document.fullscreenElement === workspaceRef.current);
-            window.requestAnimationFrame(() => aceRef.current?.resize?.());
+            const workspace = workspaceRef.current;
+            setNativeFullscreen(Boolean(workspace && document.fullscreenElement === workspace));
         };
         document.addEventListener("fullscreenchange", handleFullscreenChange);
         return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
     }, []);
+
+    useEffect(() => {
+        const frame = window.requestAnimationFrame(() => aceRef.current?.resize?.());
+        return () => window.cancelAnimationFrame(frame);
+    }, [fullscreen]);
+
+    useEffect(() => {
+        if (!pageFullscreen) {
+            return;
+        }
+        const handleEscape = (event: KeyboardEvent) => {
+            if (event.key !== "Escape" || event.defaultPrevented || event.isComposing || event.keyCode === 229) {
+                return;
+            }
+            event.preventDefault();
+            event.stopPropagation();
+            void exitWorkspaceFullscreen().catch(() => message.error("退出全屏失败"));
+        };
+        document.addEventListener("keydown", handleEscape);
+        return () => document.removeEventListener("keydown", handleEscape);
+    }, [exitWorkspaceFullscreen, message, pageFullscreen]);
 
     useEffect(() => {
         aceRef.current = null;
@@ -379,28 +405,28 @@ const FileEditor = forwardRef(function FileEditor(
             };
             formRef.current?.open(mode, parentPath, undefined, true);
         };
-        if (document.fullscreenElement === workspaceRef.current) {
+        if (pageFullscreen || document.fullscreenElement === workspaceRef.current) {
             void exitWorkspaceFullscreen()
                 .then((exited) => exited && openForm())
                 .catch(() => message.error("退出全屏失败"));
             return;
         }
         openForm();
-    }, [exitWorkspaceFullscreen, message, session, tree.targetDirectory]);
+    }, [exitWorkspaceFullscreen, message, pageFullscreen, session, tree.targetDirectory]);
 
     const openPermissions = useCallback((node: any) => {
         if (!session || !node.record) {
             return;
         }
         const open = () => permissionsRef.current?.open(node.path, node.record, true);
-        if (document.fullscreenElement === workspaceRef.current) {
+        if (pageFullscreen || document.fullscreenElement === workspaceRef.current) {
             void exitWorkspaceFullscreen()
                 .then((exited) => exited && open())
                 .catch(() => message.error("退出全屏失败"));
             return;
         }
         open();
-    }, [exitWorkspaceFullscreen, message, session]);
+    }, [exitWorkspaceFullscreen, message, pageFullscreen, session]);
 
     const openRenameTreeNode = useCallback((node: any) => {
         if (!session || !node.record || node.kind !== "entry") {
@@ -424,14 +450,14 @@ const FileEditor = forwardRef(function FileEditor(
             };
             formRef.current?.openRename(node.path, node.record, true);
         };
-        if (document.fullscreenElement === workspaceRef.current) {
+        if (pageFullscreen || document.fullscreenElement === workspaceRef.current) {
             void exitWorkspaceFullscreen()
                 .then((exited) => exited && openForm())
                 .catch(() => message.error("退出全屏失败"));
             return;
         }
         openForm();
-    }, [exitWorkspaceFullscreen, message, session]);
+    }, [exitWorkspaceFullscreen, message, pageFullscreen, session]);
 
     const deleteTreeNode = useCallback((node: any) => {
         if (!session || !node.record) {
@@ -630,7 +656,15 @@ const FileEditor = forwardRef(function FileEditor(
 
     const toggleFullscreen = useCallback(async () => {
         const workspace = workspaceRef.current;
-        if (!workspace) {
+        if (!workspace || fullscreenPending) {
+            return;
+        }
+        if (pageFullscreen || document.fullscreenElement === workspace) {
+            try {
+                await exitWorkspaceFullscreen();
+            } catch {
+                message.error("退出全屏失败");
+            }
             return;
         }
         if (
@@ -638,19 +672,27 @@ const FileEditor = forwardRef(function FileEditor(
             || typeof workspace.requestFullscreen !== "function"
             || typeof document.exitFullscreen !== "function"
         ) {
-            message.info("当前浏览器不支持全屏");
+            setPageFullscreen(true);
             return;
         }
+        const request = ++fullscreenRequestRef.current;
+        setFullscreenPending(true);
         try {
-            if (document.fullscreenElement === workspace) {
+            await workspace.requestFullscreen();
+            // 关闭或最小化后，退出延迟完成的原生全屏请求。
+            if (request !== fullscreenRequestRef.current && document.fullscreenElement === workspace) {
                 await document.exitFullscreen();
-            } else {
-                await workspace.requestFullscreen();
             }
         } catch {
-            message.error(fullscreen ? "退出全屏失败" : "进入全屏失败");
+            if (request === fullscreenRequestRef.current && workspaceRef.current === workspace && sessionRef.current) {
+                setPageFullscreen(true);
+            }
+        } finally {
+            if (request === fullscreenRequestRef.current) {
+                setFullscreenPending(false);
+            }
         }
-    }, [fullscreen, message]);
+    }, [exitWorkspaceFullscreen, fullscreenPending, message, pageFullscreen]);
 
     const minimizeEditor = useCallback(async () => {
         if (!sessionRef.current) {
@@ -726,7 +768,7 @@ const FileEditor = forwardRef(function FileEditor(
         <ConfigProvider getPopupContainer={getWorkspacePopupContainer}>
             <div
                 ref={workspaceRef}
-                className={`${styles.workspace} ${treeCollapsed ? "tree-collapsed" : ""}`}
+                className={`${styles.workspace} ${treeCollapsed ? "tree-collapsed" : ""} ${fullscreen ? "is-fullscreen" : ""}`}
                 onTransitionEnd={handleWorkspaceTransitionEnd}>
                 {messageContextHolder}
                 <FileEditorTree
@@ -834,6 +876,7 @@ const FileEditor = forwardRef(function FileEditor(
                                     variant="text"
                                     aria-label={fullscreen ? "退出全屏" : "全屏"}
                                     aria-pressed={fullscreen}
+                                    disabled={fullscreenPending}
                                     icon={<Icon type={fullscreenIcon}/>}
                                     onClick={() => void toggleFullscreen()}/>
                             </Tooltip>
@@ -939,10 +982,10 @@ const FileEditor = forwardRef(function FileEditor(
         <>
             <ProModal
                 title={<span>文件编辑器</span>}
-                width="calc(100vw - 24px)"
+                width={pageFullscreen ? "100vw" : "calc(100vw - 24px)"}
                 onCancel={() => requestClose()}
                 modalProps={{
-                    rootClassName: styles.modal,
+                    rootClassName: `${styles.modal} ${pageFullscreen ? "is-page-fullscreen" : ""}`,
                     open: Boolean(active && session && !minimized),
                     footer: null,
                     closable: false,
@@ -950,8 +993,8 @@ const FileEditor = forwardRef(function FileEditor(
                     keyboard: !fullscreen,
                     mask: {closable: true},
                     style: {
-                        top: screens.md ? 16 : 8,
-                        paddingBottom: screens.md ? 16 : 8,
+                        top: pageFullscreen ? 0 : screens.md ? 16 : 8,
+                        paddingBottom: pageFullscreen ? 0 : screens.md ? 16 : 8,
                     },
                     styles: {
                         container: {padding: 0},

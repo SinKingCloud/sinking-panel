@@ -12,6 +12,7 @@ import (
 	"server/app/util/psutil"
 	"sync"
 	"sync/atomic"
+	"time"
 )
 
 // Service 暴露方法。
@@ -45,6 +46,7 @@ type service struct {
 	lifecycleMu            sync.Mutex
 	started                bool
 	closed                 bool
+	panelStartedAt         time.Time
 	tasks                  map[string]*Task
 	mu                     sync.RWMutex
 	configService          serviceConfig.Service
@@ -60,27 +62,31 @@ type service struct {
 	jobs      map[string]*job
 	logMu     sync.RWMutex
 
-	monitorMu           sync.RWMutex
-	resourceSampler     *psutil.Sampler
-	processSampler      *psutil.ProcessSampler
-	processCache        psutil.ProcessTopSnapshot
-	monitorProcessStore *monitorProcessStore
-	monitorProcessError error
-	monitorSettingsMu   sync.Mutex
-	systemBaseCache     psutil.HostInfo
-	resourceCache       psutil.Snapshot
-	disksInfoCache      []psutil.DiskInfo
-	netRateCache        map[string]psutil.NetworkIO
-	diskRateCache       map[string]psutil.DiskIO
-	monitorSequence     int64
-	monitorUpdatedAt    int64
-	monitorHistory      []monitorSample
-	monitorArchive      *datastore.Timeline
-	monitorRecorder     *datastore.Recorder
-	monitorInitError    error
-	monitorDisks        map[string]bool
-	monitorNetworks     map[string]bool
-	monitorDiskReady    bool
+	monitorMu             sync.RWMutex
+	resourceSampler       *psutil.Sampler
+	processSampler        *psutil.ProcessSampler
+	processRequestedUntil atomic.Int64 // 实时接口只延长采集窗口，不触发进程扫描
+	processSampleAt       time.Time    // 以下基线只由监控采集协程使用
+	processBaseline       psutil.Snapshot
+	processCache          psutil.ProcessTopSnapshot
+	processIOCache        *monitorProcessRanking
+	monitorProcessStore   *monitorProcessStore
+	monitorProcessError   error
+	monitorSettingsMu     sync.Mutex
+	systemBaseCache       psutil.HostInfo
+	resourceCache         psutil.Snapshot
+	disksInfoCache        []psutil.DiskInfo
+	netRateCache          map[string]psutil.NetworkIO
+	diskRateCache         map[string]psutil.DiskIO
+	monitorSequence       int64
+	monitorUpdatedAt      int64
+	monitorHistory        []monitorSample
+	monitorArchive        *datastore.Timeline
+	monitorRecorder       *datastore.Recorder
+	monitorInitError      error
+	monitorDisks          map[string]bool
+	monitorNetworks       map[string]bool
+	monitorDiskReady      bool
 }
 
 // NewService 实例化service
@@ -89,6 +95,7 @@ func NewService(configService serviceConfig.Service, daemon *daemon.Daemon, cont
 	s := &service{
 		ctx:                    ctx,
 		cancel:                 cancel,
+		panelStartedAt:         time.Now(),
 		tasks:                  make(map[string]*Task),
 		jobs:                   make(map[string]*job),
 		queue:                  make([]string, 0),
@@ -98,7 +105,6 @@ func NewService(configService serviceConfig.Service, daemon *daemon.Daemon, cont
 		maxTaskWorkers:         maxTaskWorkers,
 		systemTaskLogDirectory: constant.TaskPath,
 		resourceSampler:        psutil.NewSampler(),
-		processSampler:         psutil.NewProcessSampler(),
 		disksInfoCache:         make([]psutil.DiskInfo, 0),
 		resourceCache:          psutil.Snapshot{Network: make([]psutil.NetworkIO, 0)},
 		netRateCache:           make(map[string]psutil.NetworkIO),
@@ -158,7 +164,7 @@ func (s *service) Close() {
 		s.queueCond.Broadcast()
 		s.queueMu.Unlock()
 		s.wait.Wait()
-		// 记录器排空后才关闭进程库，保留最后一批成功指标对应的进程快照。
+		// 主记录器排空后再关闭进程历史，保留最后一批成功指标的进程记录。
 		if s.monitorRecorder != nil {
 			_ = s.monitorRecorder.Close()
 		}
