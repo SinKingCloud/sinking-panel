@@ -312,7 +312,7 @@ const Form = forwardRef<any, {typeData?: any; typeItems?: any[]; execTypeData?: 
                                                 backup: nextExecType === 2 ? parseBackup() : undefined,
                                             });
                                             if (nextExecType === 2 && !editing) {
-                                                form.setFieldsValue({spec: "0 0 2 * * *", status: 1});
+                                                form.setFieldsValue({spec: "0 0 2 * * *", status: 0});
                                             }
                                         }}/>
                                 </AntForm.Item>
