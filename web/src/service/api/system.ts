@@ -5,7 +5,7 @@ export async function systemAccount(params: API.RequestParams = {}) {
     return post("/system/account", params?.body, params?.onSuccess, params?.onFail, params?.onFinally);
 }
 
-/** 查询或设置系统时区 POST /system/timezone */
+/** 查询、设置系统时区或同步服务器时间 POST /system/timezone */
 export async function systemTimezone(params: API.RequestParams = {}) {
     return post("/system/timezone", params?.body, params?.onSuccess, params?.onFail, params?.onFinally);
 }

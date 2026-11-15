@@ -1,6 +1,7 @@
 package system
 
 import (
+	"context"
 	"server/app/util/platform"
 	"time"
 )
@@ -26,4 +27,9 @@ func (s *service) GetTimezone() (map[string]interface{}, error) {
 // SetTimezone 修改系统时区，不调整系统时间，也不重启已运行的服务。
 func (s *service) SetTimezone(name string) error {
 	return platform.TimezoneSet(name)
+}
+
+// SyncTimezone 校准系统时间，保留当前时区，并随请求取消终止同步。
+func (s *service) SyncTimezone(ctx context.Context) error {
+	return platform.TimeSync(ctx)
 }

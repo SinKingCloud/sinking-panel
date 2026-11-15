@@ -1,6 +1,7 @@
 package platform
 
 import (
+	"context"
 	"server/app/util/platform/timezone"
 	"time"
 )
@@ -18,4 +19,9 @@ func TimezoneGet() (string, time.Time, error) {
 // TimezoneSet 持久化系统时区，不执行外部命令或调整系统时间戳。
 func TimezoneSet(name string) error {
 	return timezone.Set(name)
+}
+
+// TimeSync 使用系统配置的时间源执行一次时间同步，无配置时使用公共 NTP。
+func TimeSync(ctx context.Context) error {
+	return timezone.Sync(ctx)
 }

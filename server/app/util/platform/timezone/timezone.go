@@ -1,4 +1,4 @@
-// Package timezone 通过系统原生接口读取和持久化系统时区，不执行外部命令。
+// Package timezone 通过系统原生接口管理系统时区和同步时间，不执行外部命令。
 package timezone
 
 import (
