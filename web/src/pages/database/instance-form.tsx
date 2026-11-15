@@ -142,7 +142,7 @@ export default ({open, record, categories = [], onCancel, onSuccess}: any) => {
             case "number": input = <InputNumber min={field.min} max={field.max} precision={0} placeholder={placeholder} style={{width: "100%"}}/>; break;
             case "select": input = <Select options={field.options} placeholder={placeholder}/>; break;
             case "boolean": input = <Select placeholder={placeholder} options={[{value: 0, label: "关闭"}, {value: 1, label: "开启"}]}/>; break;
-            case "path": input = <FileSelect mode="file" placeholder={placeholder}/>; break;
+            case "path": input = <FileSelect type="file" placeholder={placeholder}/>; break;
             default: input = <Input autoComplete="off" placeholder={placeholder}/>;
         }
         return <Form.Item key={field.name} name={["config", field.name]} label={field.label}

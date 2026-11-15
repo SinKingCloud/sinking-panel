@@ -19,9 +19,7 @@ import (
 
 const backupTimeLayout = "20060102T150405.000000000Z"
 
-var backupPathPattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_-]{0,127}$`)
-
-// Run 分发备份计划，来源在执行时逐项校验，单项失败不阻止其他来源。
+// Run 分发备份计划，执行时重新校验来源。
 func (s *Manager) Run(ctx context.Context, id int64, content string, writeLog func(string)) error {
 	if writeLog == nil {
 		writeLog = func(string) {}
@@ -35,11 +33,11 @@ func (s *Manager) Run(ctx context.Context, id int64, content string, writeLog fu
 		return err
 	}
 	switch config.Type {
-	case "file", "directory":
+	case "file":
 		var options PathOptions
 		options, err = s.parsePathOptions(config.Options)
 		if err == nil {
-			return s.RunPaths(ctx, id, options.Paths, config.Type == "directory", config, writeLog)
+			return s.RunPaths(ctx, id, options.Paths, config, writeLog)
 		}
 	case "site":
 		return s.runSites(ctx, id, config, writeLog)
@@ -52,7 +50,8 @@ func (s *Manager) Run(ctx context.Context, id int64, content string, writeLog fu
 
 // validateBackupPath 限制类型及对象标识为单个目录名，本地和 OSS 使用相同隔离规则。
 func (s *Manager) validateBackupPath(key, id string) error {
-	if !backupPathPattern.MatchString(key) || !backupPathPattern.MatchString(id) {
+	backupPathPattern := regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_-]{0,127}$`)
+	if !backupPathPattern.MatchString(key) || id != "" && !backupPathPattern.MatchString(id) {
 		return errors.New("备份类型或对象标识不合法")
 	}
 	return nil
@@ -70,7 +69,7 @@ func (s *Manager) newBackupName(planID int64, extension string) (string, error) 
 	return "v2_" + time.Now().UTC().Format(backupTimeLayout) + "_" + strconv.FormatInt(planID, 10) + "_" + hex.EncodeToString(value[:]) + extension, nil
 }
 
-// backupDirectory 固定根目录及两层业务目录的句柄，拒绝符号链接和目录替换。
+// backupDirectory 固定根目录及业务目录的句柄，对象标识为空时直接保存在类型目录。
 func (s *Manager) backupDirectory(key, id string, create bool) (*os.Root, error) {
 	if err := s.validateBackupPath(key, id); err != nil {
 		return nil, err
@@ -109,6 +108,9 @@ func (s *Manager) backupDirectory(key, id string, create bool) (*os.Root, error)
 		}
 	}()
 	for _, name := range []string{key, id} {
+		if name == "" {
+			continue
+		}
 		if create {
 			if err = root.Mkdir(name, 0700); err != nil && !errors.Is(err, os.ErrExist) {
 				return nil, err
@@ -144,7 +146,11 @@ func (s *Manager) backupPrefix(key, id string, config Config) string {
 	if prefix != "" {
 		prefix += "/"
 	}
-	return prefix + key + "/" + id + "/"
+	prefix += key + "/"
+	if id != "" {
+		prefix += id + "/"
+	}
+	return prefix
 }
 
 // Save 将调用方输出保存为完整文件后发布，成功后才清理超出的副本。

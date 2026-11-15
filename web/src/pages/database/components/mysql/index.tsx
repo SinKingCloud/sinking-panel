@@ -6,7 +6,7 @@ import type {DatabasePanelRecord, DatabaseVersion, FileSelectProps, MysqlApi, My
 
 export type {MysqlManagerProps, MysqlRequests, MysqlComponents, DatabasePanelRecord, DatabaseVersion} from "./entities";
 
-const FileSelect = ({mode, multiple, buttonProps, onSelect, initialPath, defaultValue, value, onChange, ...props}: FileSelectProps) => <Input {...props}
+const FileSelect = ({type, multiple, buttonProps, onSelect, initialPath, defaultValue, value, onChange, ...props}: FileSelectProps) => <Input {...props}
     defaultValue={defaultValue?.[0]} value={value === undefined ? undefined : value[0] ?? ""}
     onChange={(event) => onChange?.(event.target.value ? [event.target.value] : [])}/>;
 const ActionDropdown = (props: any) => <Dropdown trigger={["click"]} {...props}/>;

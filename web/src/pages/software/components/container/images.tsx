@@ -291,7 +291,7 @@ const ImagesManager = memo(forwardRef<any, any>(({onRun, open: controlledOpen, o
                                    validator: (_, value) => !value || String(value).trim().startsWith("/")
                                        ? Promise.resolve() : Promise.reject(new Error("请输入服务器上的绝对路径")),
                                }]}>
-                        <FileSelect mode="file" placeholder="请输入或选择镜像路径" autoComplete="off"
+                        <FileSelect type="file" placeholder="请输入或选择镜像路径" autoComplete="off"
                                     disabled={importing} buttonProps={{color: "default", variant: "filled"}}/>
                     </Form.Item>
                 </Form>

@@ -55,12 +55,12 @@ export interface DatabaseManagerProps {
 }
 
 // 宿主文件选择器在单选、多选时均接收并返回路径数组。
-export interface FileSelectProps extends Omit<InputProps, "value" | "defaultValue" | "onChange" | "onSelect" | "multiple"> {
+export interface FileSelectProps extends Omit<InputProps, "type" | "value" | "defaultValue" | "onChange" | "onSelect" | "multiple"> {
     value?: string[];
     defaultValue?: string[];
     onChange?: (paths: string[]) => void;
     onSelect?: (paths: string[]) => boolean | void;
-    mode?: "file" | "directory";
+    type?: "file" | "directory";
     multiple?: boolean;
     initialPath?: string;
     buttonProps?: ButtonProps;

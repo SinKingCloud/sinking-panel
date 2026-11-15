@@ -1388,7 +1388,7 @@ const HTTPService = forwardRef<any, any>((_, ref): any => {
                     label: <DisclosureLabel title="数据与日志路径" description="5 项 · 留空时自动使用系统默认路径"/>,
                     children: (
                         <>
-                            {pathFields.map(([name, label, mode, description]) => (
+                            {pathFields.map(([name, label, type, description]) => (
                                 <SettingField
                                     key={name}
                                     styles={styles}
@@ -1399,7 +1399,7 @@ const HTTPService = forwardRef<any, any>((_, ref): any => {
                                     getValueFromEvent={(paths: string[]) => paths[0] || ""}
                                     description={description}>
                                     <FileSelect
-                                        mode={mode}
+                                        type={type}
                                         size="small"
                                         buttonProps={{color: "default", variant: "filled", style: {borderColor: "transparent"}}}
                                         placeholder={`请输入或选择${label}，留空使用默认路径`}

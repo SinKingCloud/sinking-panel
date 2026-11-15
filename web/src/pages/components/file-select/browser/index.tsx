@@ -1,22 +1,23 @@
 import React, {memo, useCallback, useMemo} from "react";
-import {Button, Empty, Input, Pagination, Table, Tooltip, Typography} from "antd";
+import {Button, Checkbox, Empty, Input, Pagination, Table, Tooltip, Typography} from "antd";
 import type {InputRef, TableProps, TableRef} from "antd";
 import {Icon} from "sinking-antd";
 import {
+    buildFileBreadcrumbs,
     comparableFilePath as comparablePath,
     formatFileSize,
     formatFileTime,
     getFileIconType,
+    isAbsoluteFilePath,
     joinFilePath,
 } from "@/pages/file/utils";
 
 type FileSelectBrowserProps = {
     className: string;
     compact: boolean;
-    mode: string;
+    type?: "file" | "directory";
     path: string;
     loadedPath: string;
-    selectedFile?: any;
     multiple: boolean;
     selectedPaths: string[];
     showingDisks: boolean;
@@ -39,9 +40,8 @@ type FileSelectBrowserProps = {
     onCancelPathEditor: (restoreFocus?: boolean) => void;
     onSubmitPathEditor: () => void;
     onPathDraftChange: (path: string) => void;
-    onSelectFile: (file: any) => void;
-    onSelectionChange: (paths: string[]) => void;
-    onConfirm: (file: any) => void;
+    onSelectionChange: (paths: string[], checked: boolean) => void;
+    onConfirm: (path: string) => void;
     onPageChange: (page: number) => void;
     onCreateDirectory: () => void;
     onReload: () => void;
@@ -50,10 +50,9 @@ type FileSelectBrowserProps = {
 const FileSelectBrowser = ({
     className,
     compact,
-    mode,
+    type,
     path,
     loadedPath,
-    selectedFile,
     multiple,
     selectedPaths,
     showingDisks,
@@ -76,35 +75,56 @@ const FileSelectBrowser = ({
     onCancelPathEditor,
     onSubmitPathEditor,
     onPathDraftChange,
-    onSelectFile,
     onSelectionChange,
     onConfirm,
     onPageChange,
     onCreateDirectory,
     onReload,
 }: FileSelectBrowserProps) => {
-    const selectedKeys = useMemo(() => new Set((multiple ? selectedPaths : selectedFile ? [selectedFile.path] : []).map(comparablePath)), [multiple, selectedFile, selectedPaths]);
-    const availablePaths = useMemo(() => {
-        const result = new Map(selectedPaths.map((item) => [comparablePath(item), item]));
-        if (!showingDisks) items.filter((item) => !item.is_dir).forEach((item) => {
-            const value = joinFilePath(path, item.name);
-            result.set(comparablePath(value), value);
-        });
+    const allowFiles = type !== "directory";
+    const allowDirectories = type !== "file";
+    const selectedKeys = useMemo(() => new Set(selectedPaths.filter(isAbsoluteFilePath).map(comparablePath)), [selectedPaths]);
+    const coveredKeys = useMemo(() => {
+        const result = new Set<string>();
+        if (multiple && allowDirectories) {
+            for (const item of items) {
+                const value = showingDisks ? item.path : joinFilePath(path, item.name);
+                if (!allowFiles && !showingDisks && !item.is_dir) continue;
+                if (buildFileBreadcrumbs(value).slice(0, -1).some((parent) => selectedKeys.has(comparablePath(parent.path)))) {
+                    result.add(comparablePath(value));
+                }
+            }
+        }
         return result;
-    }, [items, path, selectedPaths, showingDisks]);
+    }, [allowDirectories, allowFiles, items, multiple, path, selectedKeys, showingDisks]);
+    const checkedKeys = useMemo(() => new Set([...selectedKeys, ...coveredKeys]), [coveredKeys, selectedKeys]);
+    const partialKeys = useMemo(() => {
+        const result = new Set<string>();
+        if (multiple && allowDirectories) {
+            for (const selected of selectedKeys) {
+                buildFileBreadcrumbs(selected).slice(0, -1).forEach((parent) => result.add(comparablePath(parent.path)));
+            }
+        }
+        return result;
+    }, [allowDirectories, multiple, selectedKeys]);
+    const selectablePaths = useMemo(() => items
+        .filter((item) => showingDisks || item.is_dir ? allowDirectories : allowFiles)
+        .map((item) => showingDisks ? item.path : joinFilePath(path, item.name)), [allowDirectories, allowFiles, items, path, showingDisks]);
+    const allChecked = selectablePaths.length > 0 && selectablePaths.every((value) => checkedKeys.has(comparablePath(value)));
+    const someChecked = selectablePaths.some((value) => checkedKeys.has(comparablePath(value)) || partialKeys.has(comparablePath(value)));
     const columns = useMemo<TableProps<any>["columns"]>(() => [
         {
             title: "名称",
             dataIndex: "name",
             render: (name: string, record) => {
                 const recordPath = showingDisks ? record.path : joinFilePath(path, name);
-                const selected = !showingDisks && !record.is_dir
+                const selected = ((showingDisks || record.is_dir) ? allowDirectories : allowFiles)
                     && selectedKeys.has(comparablePath(recordPath));
                 return (
                     <div className="path-select-name-cell">
                         <Icon type={getFileIconType(name, showingDisks || record.is_dir)} className="path-select-icon"/>
                         <span className="path-select-name" title={name}>{name}</span>
-                        {!multiple && !showingDisks && !record.is_dir && mode === "file" ? (
+                        {!multiple && ((showingDisks || record.is_dir) ? allowDirectories : allowFiles) ? (
                             <span className="path-select-row-action">
                                 {selected && <Icon type="CheckOutlined"/>}
                             </span>
@@ -129,23 +149,23 @@ const FileSelectBrowser = ({
             width: compact ? 132 : 154,
             render: formatFileTime,
         }]),
-    ], [compact, mode, multiple, path, selectedKeys, showingDisks]);
+    ], [allowDirectories, allowFiles, compact, multiple, path, selectedKeys, showingDisks]);
 
     const getRowClassName = useCallback((record: any) => {
         if (loading) {
             return "path-select-passive";
         }
         const recordPath = showingDisks ? record.path : joinFilePath(path, record.name);
-        const selected = !showingDisks && !record.is_dir
-            && selectedKeys.has(comparablePath(recordPath));
+        const selected = ((showingDisks || record.is_dir) ? allowDirectories : allowFiles)
+            && checkedKeys.has(comparablePath(recordPath));
         if (selected) {
             return "path-select-selectable path-select-selected";
         }
         if (showingDisks || record.is_dir) {
             return "path-select-directory";
         }
-        return mode === "file" ? "path-select-selectable" : "path-select-passive";
-    }, [loading, mode, path, selectedKeys, showingDisks]);
+        return allowFiles ? "path-select-selectable" : "path-select-passive";
+    }, [allowDirectories, allowFiles, checkedKeys, loading, path, showingDisks]);
 
     const getRowProps = useCallback<NonNullable<TableProps<any>["onRow"]>>((record) => {
         if (loading) {
@@ -167,27 +187,26 @@ const FileSelectBrowser = ({
                 },
             };
         }
-        if (mode !== "file") {
+        if (!allowFiles) {
             return {title: record.name};
         }
-        const selected = selectedKeys.has(comparablePath(recordPath));
-        const nextFile = {name: record.name, path: recordPath};
+        const selected = checkedKeys.has(comparablePath(recordPath));
         return {
             role: "button",
             tabIndex: 0,
             "aria-label": `选择文件 ${record.name}`,
             "aria-pressed": selected,
             title: `选择 ${record.name}`,
-            onClick: () => onSelectFile(nextFile),
-            onDoubleClick: multiple ? undefined : () => onConfirm(nextFile),
+            onClick: () => onSelectionChange([recordPath], !multiple || !selected),
+            onDoubleClick: multiple ? undefined : () => onConfirm(recordPath),
             onKeyDown: (event) => {
                 if (event.key === "Enter" || event.key === " ") {
                     event.preventDefault();
-                    onSelectFile(nextFile);
+                    onSelectionChange([recordPath], !multiple || !selected);
                 }
             },
         };
-    }, [loading, mode, multiple, onConfirm, onNavigate, onSelectFile, path, selectedKeys, showingDisks]);
+    }, [allowFiles, checkedKeys, loading, multiple, onConfirm, onNavigate, onSelectionChange, path, showingDisks]);
 
     const emptyText = error ? (
         <div className="path-select-error">
@@ -196,12 +215,14 @@ const FileSelectBrowser = ({
         </div>
     ) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无数据"/>;
 
-    const statusPath = showingDisks ? undefined : mode === "directory" ? path : selectedFile?.path;
-    const statusLabel = multiple ? "选择结果" : showingDisks ? "本地存储" : mode === "directory" ? "当前目录" : "选择结果";
-    const statusText = multiple ? `已选择 ${selectedPaths.length} 个文件` : showingDisks ? "请选择磁盘或输入路径" : statusPath || (mode === "directory" ? "正在读取磁盘..." : "未选择");
-    const statusIcon = showingDisks || mode === "directory"
+    const selectedPath = selectedPaths[0];
+    const selectingDirectory = allowDirectories && (!selectedPath || type === "directory" || comparablePath(selectedPath) === comparablePath(path));
+    const statusPath = showingDisks ? undefined : selectedPath || (selectingDirectory ? path : undefined);
+    const statusLabel = multiple ? "选择结果" : showingDisks ? "本地存储" : selectingDirectory ? "当前目录" : "选择结果";
+    const statusText = multiple ? `已选择 ${selectedPaths.length} ${type === "file" ? "个文件" : type === "directory" ? "个目录" : "项"}` : showingDisks ? "请选择磁盘或输入路径" : statusPath || (selectingDirectory ? "正在读取磁盘..." : "未选择");
+    const statusIcon = showingDisks || selectingDirectory
         ? "FolderOpenOutlined"
-        : selectedFile ? getFileIconType(selectedFile.name) : "FileOutlined";
+        : selectedPath ? getFileIconType(selectedPath) : "FileOutlined";
     const rangeStart = total > 0 ? (page - 1) * pageSize + 1 : 0;
     const rangeEnd = Math.min(page * pageSize, total);
     const countText = loading && !loadedPath
@@ -321,13 +342,20 @@ const FileSelectBrowser = ({
                 }}
                 pagination={false}
                 rowSelection={multiple ? {
-                    selectedRowKeys: [...selectedKeys],
+                    type: "checkbox",
+                    selectedRowKeys: [...checkedKeys],
                     preserveSelectedRowKeys: true,
-                    getCheckboxProps: (record) => ({disabled: loading || showingDisks || record.is_dir, "aria-label": `选择文件 ${record.name}`}),
-                    onChange: (keys) => onSelectionChange(keys.flatMap((key) => {
-                        const selected = availablePaths.get(String(key));
-                        return selected ? [selected] : [];
-                    })),
+                    columnTitle: <Checkbox aria-label="选择当前页" checked={allChecked}
+                        indeterminate={!allChecked && someChecked} disabled={loading || !selectablePaths.length}
+                        onChange={(event) => onSelectionChange(selectablePaths, event.target.checked)}/>,
+                    getCheckboxProps: (record) => ({
+                        disabled: loading || ((showingDisks || record.is_dir) ? !allowDirectories : !allowFiles),
+                        indeterminate: !checkedKeys.has(comparablePath(showingDisks ? record.path : joinFilePath(path, record.name)))
+                            && partialKeys.has(comparablePath(showingDisks ? record.path : joinFilePath(path, record.name))),
+                        "aria-label": `选择${record.is_dir ? "目录" : "文件"} ${record.name}`,
+                    }),
+                    onSelect: (record, checked) => onSelectionChange([showingDisks ? record.path : joinFilePath(path, record.name)], checked),
+                    onSelectMultiple: (checked, _, records) => onSelectionChange(records.map((record) => showingDisks ? record.path : joinFilePath(path, record.name)), checked),
                     onCell: () => ({onClick: (event) => event.stopPropagation(), onKeyDown: (event) => event.stopPropagation()}),
                 } : undefined}
                 rowClassName={getRowClassName}
@@ -342,7 +370,6 @@ const FileSelectBrowser = ({
                         ellipsis={{tooltip: statusPath}}>
                         {statusText}
                     </Typography.Text>
-                    {multiple && selectedPaths.length > 0 && <Button size="small" type="text" onClick={() => onSelectionChange([])}>清空</Button>}
                 </div>
                 <div className="path-select-status-meta">
                     <span className="path-select-count">{countText}</span>

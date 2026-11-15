@@ -155,12 +155,12 @@ export default ({record, schema, table, collection, disabled, readOnly, exportOn
                     getValueProps={(value) => ({value: value ? [value] : []})}
                     getValueFromEvent={(paths: string[]) => paths[0] || ""}
                     rules={[{required: true, whitespace: true, message: "请选择服务器上的文件"}]}>
-                    <FileSelect mode="file" placeholder={`请选择或输入 ${format} 文件路径`} buttonProps={{color: "default", variant: "filled"}}/>
+                    <FileSelect type="file" placeholder={`请选择或输入 ${format} 文件路径`} buttonProps={{color: "default", variant: "filled"}}/>
                 </Form.Item> : <>
                     <Form.Item name="directory" label="服务器目录"
                         getValueProps={(value) => ({value: value ? [value] : []})}
                         getValueFromEvent={(paths: string[]) => paths[0] || ""}
-                        rules={[{required: true, whitespace: true, message: "请选择保存目录"}]}><FileSelect mode="directory" placeholder="请选择或输入保存目录" buttonProps={{color: "default", variant: "filled"}}/></Form.Item>
+                        rules={[{required: true, whitespace: true, message: "请选择保存目录"}]}><FileSelect type="directory" placeholder="请选择或输入保存目录" buttonProps={{color: "default", variant: "filled"}}/></Form.Item>
                     <Form.Item name="name" label="文件名称" rules={[{required: true, whitespace: true, max: 255, message: "请输入文件名称"},
                         {pattern: /^(?!\.{1,2}$)[^/\\\x00]+$/, message: "文件名称不能包含路径"}]}><Input placeholder="请输入文件名称"/></Form.Item>
                 </>)}

@@ -2,8 +2,6 @@ package backup
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -22,14 +20,14 @@ func (s *Manager) parsePathOptions(content json.RawMessage) (PathOptions, error)
 }
 
 // ValidatePaths 校验并规范化来源，不创建备份目录。
-func (s *Manager) ValidatePaths(paths []string, directory bool) ([]string, error) {
+func (s *Manager) ValidatePaths(paths []string) ([]string, error) {
 	if len(paths) < 1 || len(paths) > 1000 {
 		return nil, errors.New("备份路径数量须为 1 到 1000")
 	}
 	result := make([]string, 0, len(paths))
 	seen := make(map[string]bool, len(paths))
 	for _, path := range paths {
-		path, err := s.validateSourcePath(path, directory)
+		path, err := s.validateSourcePath(path)
 		if err != nil {
 			return nil, err
 		}
@@ -38,10 +36,27 @@ func (s *Manager) ValidatePaths(paths []string, directory bool) ([]string, error
 			result = append(result, path)
 		}
 	}
-	return result, nil
+	// 已选择父目录时不重复打包其中的文件或子目录。
+	filtered := result[:0]
+	for _, path := range result {
+		covered := false
+		for parent := filepath.Dir(path); parent != path; parent = filepath.Dir(parent) {
+			if seen[parent] {
+				covered = true
+				break
+			}
+			if filepath.Dir(parent) == parent {
+				break
+			}
+		}
+		if !covered {
+			filtered = append(filtered, path)
+		}
+	}
+	return filtered, nil
 }
 
-func (s *Manager) validateSourcePath(path string, directory bool) (string, error) {
+func (s *Manager) validateSourcePath(path string) (string, error) {
 	if !filepath.IsAbs(path) || strings.ContainsRune(path, '\x00') {
 		return "", fmt.Errorf("备份来源须为绝对路径: %q", path)
 	}
@@ -55,11 +70,8 @@ func (s *Manager) validateSourcePath(path string, directory bool) (string, error
 	if err != nil {
 		return "", fmt.Errorf("读取备份来源 %q 失败: %w", path, err)
 	}
-	if directory && !info.IsDir() {
-		return "", fmt.Errorf("备份来源不是普通目录: %q", path)
-	}
-	if !directory && !info.Mode().IsRegular() {
-		return "", fmt.Errorf("备份来源不是普通文件: %q", path)
+	if !info.IsDir() && !info.Mode().IsRegular() {
+		return "", fmt.Errorf("备份来源须为普通文件或目录: %q", path)
 	}
 	output, err := s.resolveBackupRoot()
 	if err != nil {
@@ -91,21 +103,18 @@ func (s *Manager) resolveBackupRoot() (string, error) {
 	}
 }
 
-// RunPaths 逐个归档来源；单个来源失败不阻止其他来源，取消时立即停止。
-func (s *Manager) RunPaths(ctx context.Context, id int64, paths []string, directory bool, config Config, writeLog func(string)) (err error) {
+// RunPaths 将自定义的文件和目录合并归档，每次执行生成一个副本。
+func (s *Manager) RunPaths(ctx context.Context, id int64, paths []string, config Config, writeLog func(string)) (err error) {
 	if writeLog == nil {
 		writeLog = func(string) {}
 	}
 	defer func() {
 		if err != nil {
-			writeLog("路径备份失败: " + err.Error())
+			writeLog("自定义备份失败: " + err.Error())
 		}
 	}()
 	if id <= 0 {
 		return errors.New("备份计划 ID 不合法")
-	}
-	if len(paths) < 1 || len(paths) > 1000 {
-		return errors.New("备份路径数量须为 1 到 1000")
 	}
 	if _, running := s.pathRuns.LoadOrStore(id, struct{}{}); running {
 		return errors.New("该备份计划正在执行")
@@ -114,57 +123,25 @@ func (s *Manager) RunPaths(ctx context.Context, id int64, paths []string, direct
 	if err = ctx.Err(); err != nil {
 		return err
 	}
-	if config, err = config.Validate(); err != nil {
+	paths, err = s.ValidatePaths(paths)
+	if err != nil {
 		return err
 	}
-	key := "file"
-	if directory {
-		key = "directory"
+	writeLog(fmt.Sprintf("开始自定义备份，共 %d 个来源", len(paths)))
+	file, err := s.Save(ctx, Target{
+		Key:         "file",
+		PlanId:      id,
+		Extension:   ".tar.gz",
+		ContentType: "application/gzip",
+	}, config, func(ctx context.Context, output io.Writer) error {
+		return s.packPathsArchive(ctx, paths, output)
+	})
+	if err != nil {
+		return err
 	}
-	var failures []error
-	completed := 0
-	seen := make(map[string]bool, len(paths))
-	for _, path := range paths {
-		if err = ctx.Err(); err != nil {
-			return errors.Join(append(failures, err)...)
-		}
-		source, sourceErr := s.validateSourcePath(path, directory)
-		if sourceErr != nil {
-			writeLog(sourceErr.Error())
-			failures = append(failures, sourceErr)
-			continue
-		}
-		if seen[source] {
-			continue
-		}
-		seen[source] = true
-		digest := sha256.Sum256([]byte(source))
-		target := Target{
-			Key:         key,
-			ID:          hex.EncodeToString(digest[:]),
-			PlanId:      id,
-			Extension:   ".tar.gz",
-			ContentType: "application/gzip",
-		}
-		writeLog(fmt.Sprintf("开始备份: %q", source))
-		file, runErr := s.Save(ctx, target, config, func(ctx context.Context, output io.Writer) error {
-			return s.packPathArchive(ctx, source, directory, output)
-		})
-		if runErr != nil {
-			runErr = fmt.Errorf("备份 %q 失败: %w", source, runErr)
-			writeLog(runErr.Error())
-			failures = append(failures, runErr)
-			if ctx.Err() != nil {
-				return errors.Join(append(failures, ctx.Err())...)
-			}
-			continue
-		}
-		completed++
-		writeLog(fmt.Sprintf("备份完成: %q，文件: %s，大小: %d 字节", source, file.Name, file.Size))
-		if file.Warning != "" {
-			writeLog(file.Warning)
-		}
+	writeLog(fmt.Sprintf("备份完成，文件: %s，大小: %d 字节", file.Name, file.Size))
+	if file.Warning != "" {
+		writeLog(file.Warning)
 	}
-	writeLog(fmt.Sprintf("路径备份结束，成功 %d 项，失败 %d 项", completed, len(failures)))
-	return errors.Join(failures...)
+	return nil
 }

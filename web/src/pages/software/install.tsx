@@ -36,7 +36,7 @@ export default function InstallSoftware({open, onCancel, onSuccess}: any) {
                 getValueFromEvent={(paths: string[]) => paths[0] || ""} rules={[
                 {required: true, whitespace: true, message: "请输入软件路径"}, {max: 4096, message: "路径最多 4096 个字符"},
             ]}>
-                <FileSelect mode="file" placeholder="请输入或选择路径" maxLength={4096}/>
+                <FileSelect placeholder="请输入或选择路径" maxLength={4096}/>
             </Form.Item>
         </Form>
     </ProModal>;

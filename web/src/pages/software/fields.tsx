@@ -17,7 +17,7 @@ export default function SoftwareField({field}: any) {
             : field.type === "select" ? <Select placeholder={placeholder} options={booleanSelect ? field.options.map((option: any) => ({...option, value: String(option.value)})) : field.options || []}/>
                 : field.type === "password" ? <Input.Password placeholder={placeholder} autoComplete="new-password"/>
                     : field.type === "switch" ? <Switch/>
-                        : field.type === "file" ? <FileSelect mode="file" placeholder={placeholder}/>
+                        : field.type === "file" ? <FileSelect type="file" placeholder={placeholder}/>
                             : <Input placeholder={placeholder} autoComplete="off" maxLength={field.max_length}/>}
     </Form.Item>;
 }

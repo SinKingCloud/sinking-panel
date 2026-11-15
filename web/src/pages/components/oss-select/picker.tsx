@@ -43,9 +43,26 @@ const OssPathPicker = forwardRef<InputRef, OssPathPickerProps>((props, ref) => {
     const isDisabled = disabled ?? contextDisabled;
     const [variant] = useVariant("input", inputProps.variant, inputProps.bordered);
     const multi = Boolean(multiple);
+    const selectionKeys = useCallback((keys: string[]) => {
+        if (!multi) return keys.slice(0, 1);
+        const unique = new Set(mode === "directory" ? keys.map(directoryPrefix) : keys);
+        if (mode !== "directory") return [...unique];
+        // 保留父目录即可，空键表示整个桶；按目录层级匹配，避免误包含相似前缀。
+        return [...unique].filter((key) => {
+            for (let parent = parentPrefix(key); parent !== key; parent = parentPrefix(parent)) {
+                if (unique.has(parent)) return false;
+                if (!parent) break;
+            }
+            return true;
+        });
+    }, [mode, multi]);
+    const selectionItems = useCallback((items: any[]) => {
+        const available = new Map(items.map((item) => [mode === "directory" ? directoryPrefix(item.key) : item.key, item]));
+        return selectionKeys([...available.keys()]).map((key) => ({...available.get(key), key}));
+    }, [mode, selectionKeys]);
     const [localValue, setLocalValue] = useState<string[]>(defaultValue ?? []);
     const currentValue = Object.prototype.hasOwnProperty.call(props, "value") ? value : localValue;
-    const values = useMemo(() => multi ? [...new Set(currentValue)] : currentValue?.slice(0, 1) ?? [], [currentValue, multi]);
+    const values = useMemo(() => selectionKeys(currentValue ?? []), [currentValue, selectionKeys]);
     const singleValue = values[0];
     const [keyDraft, setKeyDraft] = useState("");
     const validId = Number(ossId) > 0;
@@ -58,6 +75,14 @@ const OssPathPicker = forwardRef<InputRef, OssPathPickerProps>((props, ref) => {
     const [selected, setSelected] = useState<any>();
     const [selectedItems, setSelectedItems] = useState<any[]>([]);
     const selectedKeys = useMemo(() => new Set(selectedItems.map((item) => item.key)), [selectedItems]);
+    const checkedKeys = useMemo(() => new Set([...selectedKeys, ...rows.filter((item) => multi && mode === "directory"
+        && item.directory && [...selectedKeys].some((key) => item.key.startsWith(key))).map((item) => item.key)]), [mode, multi, rows, selectedKeys]);
+    const selectableRows = useMemo(() => rows.filter((item) => Boolean(item.directory) === (mode === "directory")), [mode, rows]);
+    const partialKeys = useMemo(() => new Set(mode === "directory" ? selectableRows.filter((item) => !checkedKeys.has(item.key)
+        && [...selectedKeys].some((key) => key.startsWith(item.key))).map((item) => item.key) : []), [checkedKeys, mode, selectableRows, selectedKeys]);
+    const allChecked = selectableRows.length > 0 && selectableRows.every((item) => checkedKeys.has(item.key));
+    const someChecked = !allChecked && selectableRows.some((item) => checkedKeys.has(item.key) || partialKeys.has(item.key));
+    const [selecting, setSelecting] = useState(false);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
     const [reload, setReload] = useState(0);
@@ -69,11 +94,15 @@ const OssPathPicker = forwardRef<InputRef, OssPathPickerProps>((props, ref) => {
     const request = useRef(0);
     const folderRequest = useRef(0);
     const folderPending = useRef(false);
+    const selectionRequest = useRef(0);
+    const selectionPending = useRef(false);
+    const selectionDirectories = useRef(new Map<string, any[]>());
     const selectionScope = useRef({ossId: String(ossId ?? ""), mode, multi});
     const breadcrumbRef = useRef<HTMLOListElement>(null);
     const pathInput = useRef<InputRef>(null);
     const table = useRef<TableRef>(null);
     const {prefix, cursor, tokens} = query;
+    const directoryCovered = multi && mode === "directory" && [...selectedKeys].some((key) => prefix.startsWith(key));
     const loaded = loadedPath !== undefined && loadedPath === prefix && !loading && !error;
     const breadcrumbs = useMemo(() => {
         const parts = [{key: "", label: "/"}];
@@ -87,7 +116,7 @@ const OssPathPicker = forwardRef<InputRef, OssPathPickerProps>((props, ref) => {
     }, [prefix]);
 
     const change = (keys: string[]) => {
-        const next = multi ? [...new Set(keys)] : keys.slice(0, 1);
+        const next = selectionKeys(keys);
         setLocalValue(next);
         onChange?.(next);
     };
@@ -98,14 +127,87 @@ const OssPathPicker = forwardRef<InputRef, OssPathPickerProps>((props, ref) => {
         }
         setKeyDraft("");
     };
+    const updateSelection = async (items: any[], checked: boolean) => {
+        if (selectionPending.current || isDisabled) return;
+        const current = ++selectionRequest.current;
+        selectionPending.current = true;
+        setSelecting(true);
+        try {
+            let next = selectedItems;
+            const cache = selectionDirectories.current;
+            if (loaded && cursor === 0 && !nextToken) cache.set(prefix, rows);
+            // 反选继承的目录时，只列举目标分支的各层兄弟目录，不扫描整棵树。
+            const children = async (directory: string) => {
+                if (cache.has(directory)) return cache.get(directory)!;
+                const result: any[] = [];
+                const cursors = new Set<string>();
+                let token = "";
+                do {
+                    if (selectionRequest.current !== current) throw new Error("选择已取消");
+                    const response = await getOssFiles({body: {id: ossId, prefix: directory, delimiter: "/", cursor_id: token, page_size: 1000}});
+                    if (selectionRequest.current !== current) throw new Error("选择已取消");
+                    if (response?.code !== 200) throw new Error(response?.message || "读取目录失败");
+                    const data = response?.data;
+                    if (!Array.isArray(data?.list)) throw new Error("目录数据不完整，请刷新后重试");
+                    result.push(...data.list.filter((item: any) => typeof item?.key === "string"));
+                    if (!data.has_more) break;
+                    token = String(data.next_cursor_id || "");
+                    if (!token || cursors.has(token)) throw new Error("目录分页异常，请刷新后重试");
+                    cursors.add(token);
+                } while (true);
+                cache.set(directory, result);
+                return result;
+            };
+            if (checked) next = selectionItems([...next, ...items]);
+            else for (const item of selectionItems(items)) {
+                if (mode !== "directory") {
+                    next = next.filter((entry) => entry.key !== item.key);
+                    continue;
+                }
+                const ancestor = next.find((entry) => item.key.startsWith(entry.key));
+                next = next.filter((entry) => !entry.key.startsWith(item.key) && entry !== ancestor);
+                if (!ancestor || ancestor.key === item.key) continue;
+                let branch = ancestor.key;
+                while (branch !== item.key) {
+                    const child = item.key.slice(0, item.key.indexOf("/", branch.length) + 1);
+                    const siblings = (await children(branch)).filter((entry) => entry.directory && entry.key !== branch
+                        && parentPrefix(entry.key) === branch);
+                    if (!child || !siblings.some((entry) => entry.key === child)) throw new Error("目录已变化，请刷新后重试");
+                    next = [...next, ...siblings.filter((entry) => entry.key !== child)];
+                    branch = child;
+                }
+            }
+            if (checked && mode === "directory") {
+                // 已完整读取过的层级可自下而上收起，重新勾全子目录后恢复父目录全选。
+                for (const [directory, entries] of [...cache].sort(([left], [right]) => right.length - left.length)) {
+                    const children = entries.filter((entry) => entry.directory && entry.key !== directory && parentPrefix(entry.key) === directory);
+                    if (!children.length || next.some((entry) => directory.startsWith(entry.key))) continue;
+                    if (children.every((child) => next.some((entry) => child.key.startsWith(entry.key)))) {
+                        next = [...next.filter((entry) => !entry.key.startsWith(directory)), {key: directory, directory: true}];
+                    }
+                }
+            }
+            if (selectionRequest.current === current) setSelectedItems(selectionItems(next));
+        } catch (reason: any) {
+            if (selectionRequest.current === current) message.error(reason?.message || "更新选择失败");
+        } finally {
+            if (selectionRequest.current === current) {
+                selectionPending.current = false;
+                setSelecting(false);
+            }
+        }
+    };
     const selectItem = (item: any) => {
-        if (multi) setSelectedItems((current) => current.some((selected) => selected.key === item.key)
-            ? current.filter((selected) => selected.key !== item.key) : [...current, item]);
+        if (multi) void updateSelection([item], !checkedKeys.has(item.key));
         else setSelected(item);
     };
     const close = useCallback(() => {
         request.current++;
         folderRequest.current++;
+        selectionRequest.current++;
+        selectionPending.current = false;
+        selectionDirectories.current.clear();
+        setSelecting(false);
         setOpen(false);
         setCreating(false);
         setEditing(false);
@@ -120,11 +222,12 @@ const OssPathPicker = forwardRef<InputRef, OssPathPickerProps>((props, ref) => {
         selectionScope.current = next;
         close();
         setSelectedItems([]);
-        return () => { request.current++; folderRequest.current++; };
+        return () => { request.current++; folderRequest.current++; selectionRequest.current++; };
     }, [ossId, mode, multi, close]);
     useEffect(() => { if (isDisabled) close(); }, [isDisabled, close]);
 
     const navigate = useCallback((key: string) => {
+        if (selectionPending.current) return;
         request.current++;
         setLoading(true);
         setLoadedPath(undefined);
@@ -162,6 +265,9 @@ const OssPathPicker = forwardRef<InputRef, OssPathPickerProps>((props, ref) => {
                 if (response?.code !== 200) throw new Error(response?.message || "读取文件列表失败");
                 const data = response?.data;
                 setRows(Array.isArray(data?.list) ? data?.list.filter((item: any) => typeof item?.key === "string") : []);
+                if (cursor === 0 && !data?.has_more && Array.isArray(data?.list)) {
+                    selectionDirectories.current.set(prefix, data.list.filter((item: any) => typeof item?.key === "string"));
+                }
                 setNextToken(data?.has_more ? String(data?.next_cursor_id || "") : "");
                 setLoadedPath(prefix);
                 try {
@@ -187,16 +293,21 @@ const OssPathPicker = forwardRef<InputRef, OssPathPickerProps>((props, ref) => {
     }, [editing, breadcrumbs, open]);
 
     const refresh = () => {
+        if (selectionPending.current) return;
+        for (const directory of selectionDirectories.current.keys()) {
+            if (directory.startsWith(prefix)) selectionDirectories.current.delete(directory);
+        }
         request.current++;
         setLoading(true);
         setQuery((current) => ({...current, cursor: 0, tokens: [""]}));
         setReload((current) => current + 1);
     };
     const confirm = (record = selected) => {
-        if (isDisabled || !validId) return;
+        if (isDisabled || !validId || selectionPending.current) return;
         if (multi) {
-            const keys = selectedItems.map((item) => item.key);
-            if (onSelect?.(keys, selectedItems) === false) return;
+            const items = selectionItems(selectedItems);
+            const keys = items.map((item) => item.key);
+            if (onSelect?.(keys, items) === false) return;
             change(keys);
         } else {
             if (!loaded || (mode === "file" && !record?.key)) return;
@@ -223,13 +334,13 @@ const OssPathPicker = forwardRef<InputRef, OssPathPickerProps>((props, ref) => {
     ], [compact, mode, multi, prefix, selected]);
 
     const openFolder = () => {
-        if (!loaded || saving) return;
+        if (!loaded || saving || selectionPending.current) return;
         folderRequest.current++;
         folderForm.resetFields();
         setCreating(true);
     };
     const createFolder = async ({name}: {name: string}) => {
-        if (!open || !creating || folderPending.current || isDisabled || !validId) return;
+        if (!open || !creating || folderPending.current || selectionPending.current || isDisabled || !validId) return;
         const current = ++folderRequest.current;
         folderPending.current = true;
         setSaving(true);
@@ -237,6 +348,7 @@ const OssPathPicker = forwardRef<InputRef, OssPathPickerProps>((props, ref) => {
             const response = await ossFile({body: {id: ossId, action: "mkdir", key: `${prefix}${name}/`}});
             if (folderRequest.current !== current) return;
             if (response?.code !== 200) throw new Error(response?.message || "新建文件夹失败");
+            selectionDirectories.current.delete(prefix);
             setCreating(false);
             message.success("新建成功");
             setQuery((current) => ({...current, cursor: 0, tokens: [""]}));
@@ -275,14 +387,14 @@ const OssPathPicker = forwardRef<InputRef, OssPathPickerProps>((props, ref) => {
             <ProModal title={<Title>{title}</Title>} width="640px" okText="选择" onOk={() => confirm()} onCancel={close}
                 modalProps={{open: open && !isDisabled, zIndex, rootClassName: styles.modal, cancelText: "取消",
                     style: {top: screens.md ? 100 : 24, paddingBottom: screens.md ? 100 : 24},
-                    okButtonProps: {disabled: !multi && (!loaded || (mode === "file" && !selected?.key))},
+                    okButtonProps: {loading: selecting, disabled: selecting || (!multi && (!loaded || (mode === "file" && !selected?.key)))},
                     focusable: {focusTriggerAfterClose: false}, mask: {closable: true},
                     styles: {body: {paddingTop: compact ? 10 : 15}}}}>
                 <Form component={false} size={compact ? "small" : "middle"} variant="outlined">
                     <div className={styles.browser}>
                         <div className="path-select-toolbar">
                             <Tooltip title="上一级"><Button type="text" className="path-select-up" aria-label="返回上一级"
-                                disabled={!prefix || loading} icon={<Icon type="ArrowLeftOutlined"/>} onClick={() => navigate(parentPrefix(prefix))}/></Tooltip>
+                                disabled={!prefix || loading || selecting} icon={<Icon type="ArrowLeftOutlined"/>} onClick={() => navigate(parentPrefix(prefix))}/></Tooltip>
                             {editing ? <Input ref={pathInput} value={draft} className="path-select-path-input" placeholder="/ 表示存储桶根目录"
                                 onChange={(event) => setDraft(event.target.value)} onBlur={() => setEditing(false)}
                                 onKeyDown={(event) => {
@@ -293,7 +405,7 @@ const OssPathPicker = forwardRef<InputRef, OssPathPickerProps>((props, ref) => {
                                 : <ol ref={breadcrumbRef} className="path-select-path" aria-label="当前 OSS 目录">
                                     {breadcrumbs.map((item, index) => <li key={item.key}>
                                         {index > 0 && <Icon type="RightOutlined" className="path-select-path-separator"/>}
-                                        <button type="button" disabled={loading}
+                                        <button type="button" disabled={loading || selecting}
                                             className={index === breadcrumbs.length - 1 ? "path-select-path-current" : "path-select-path-button"}
                                             aria-current={index === breadcrumbs.length - 1 ? "page" : undefined}
                                             title={displayPath(item.key)} onClick={() => {
@@ -304,9 +416,9 @@ const OssPathPicker = forwardRef<InputRef, OssPathPickerProps>((props, ref) => {
                                 </ol>}
                             <div className="path-select-actions">
                                 <Button type="text" className="path-select-up" aria-label="新建文件夹"
-                                    disabled={!loaded || saving} icon={<Icon type="PlusOutlined"/>} onClick={openFolder}/>
+                                    disabled={!loaded || saving || selecting} icon={<Icon type="PlusOutlined"/>} onClick={openFolder}/>
                                 <Button type="text" className="path-select-up" aria-label="刷新"
-                                    loading={loading} icon={<Icon type="ReloadOutlined"/>} onClick={refresh}/>
+                                    loading={loading} disabled={selecting} icon={<Icon type="ReloadOutlined"/>} onClick={refresh}/>
                             </div>
                         </div>
                         <Table<any> ref={table} className="path-select-table" size="small" rowKey="key" rowHoverable={false} tableLayout="auto" loading={loading}
@@ -316,18 +428,22 @@ const OssPathPicker = forwardRef<InputRef, OssPathPickerProps>((props, ref) => {
                                 <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={error}/><Button size="small" onClick={refresh}>重试</Button>
                             </div> : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无数据"/>}}
                             rowSelection={multi ? {
-                                selectedRowKeys: [...selectedKeys],
+                                selectedRowKeys: [...checkedKeys],
                                 preserveSelectedRowKeys: true,
-                                getCheckboxProps: (item) => ({disabled: loading || Boolean(item.directory) !== (mode === "directory")}),
-                                onChange: (keys) => setSelectedItems((current) => {
-                                    const available = new Map([...current, ...rows].map((item) => [item.key, item]));
-                                    return keys.flatMap((key) => available.has(key) ? [available.get(key)] : []);
+                                columnTitle: mode === "directory" ? <Checkbox aria-label="选择当前页" checked={allChecked} indeterminate={someChecked}
+                                    disabled={loading || selecting || selectableRows.length === 0}
+                                    onChange={(event) => { void updateSelection(selectableRows, event.target.checked); }}/> : undefined,
+                                getCheckboxProps: (item) => ({disabled: loading || selecting || Boolean(item.directory) !== (mode === "directory"),
+                                    indeterminate: partialKeys.has(item.key),
                                 }),
+                                onSelect: (item, checked) => { void updateSelection([item], checked); },
+                                onSelectAll: (checked, _, changed) => { void updateSelection(changed, checked); },
+                                onSelectMultiple: (checked, _, changed) => { void updateSelection(changed, checked); },
                                 onCell: () => ({onClick: (event) => event.stopPropagation(), onKeyDown: (event) => event.stopPropagation()}),
                             } : undefined}
                             rowClassName={(item) => [item?.directory ? "path-select-directory" : "", item?.directory || mode === "file" ? "path-select-selectable" : "",
-                                multi ? selectedKeys.has(item.key) ? "path-select-selected" : "" : !item?.directory && selected?.key === item.key ? "path-select-selected" : ""].filter(Boolean).join(" ")}
-                            onRow={(item) => loading ? {} : item?.directory ? {
+                                multi ? checkedKeys.has(item.key) ? "path-select-selected" : "" : !item?.directory && selected?.key === item.key ? "path-select-selected" : ""].filter(Boolean).join(" ")}
+                            onRow={(item) => loading || selecting ? {} : item?.directory ? {
                                 tabIndex: 0, role: "button", "aria-label": `进入 ${item.key}`,
                                 onClick: () => navigate(item.key),
                                 onKeyDown: (event) => {
@@ -348,14 +464,14 @@ const OssPathPicker = forwardRef<InputRef, OssPathPickerProps>((props, ref) => {
                                     {multi ? `已选择 ${selectedItems.length} 个${mode === "directory" ? "目录" : "文件"}`
                                         : mode === "directory" ? displayPath(prefix) : selected?.key ? displayPath(selected.key) : "未选择"}
                                 </Typography.Text>
-                                {multi && mode === "directory" && <Checkbox checked={selectedKeys.has(prefix)} disabled={!loaded}
-                                    onChange={() => selectItem({key: prefix, directory: true})}>当前目录</Checkbox>}
-                                {multi && selectedItems.length > 0 && <Button size="small" type="text" onClick={() => setSelectedItems([])}>清空</Button>}
+                                {multi && mode === "directory" && <Checkbox checked={directoryCovered} disabled={!loaded || selecting}
+                                    indeterminate={!directoryCovered && [...selectedKeys].some((key) => key.startsWith(prefix))}
+                                    onChange={(event) => { void updateSelection([{key: prefix, directory: true}], event.target.checked); }}>当前目录</Checkbox>}
                             </div>
                             <div className="path-select-status-meta">
                                 <span className="path-select-count">{loading && loadedPath === undefined ? "加载中" : `${rows.length} 项`}</span>
                                 {(cursor > 0 || nextToken) && <div className="path-select-pagination">
-                                    <Button type="text" className="path-select-page-button" aria-label="上一页" icon={<Icon type="LeftOutlined"/>} disabled={loading || cursor === 0}
+                                    <Button type="text" className="path-select-page-button" aria-label="上一页" icon={<Icon type="LeftOutlined"/>} disabled={loading || selecting || cursor === 0}
                                         onClick={() => {
                                             request.current++;
                                             setLoading(true);
@@ -363,7 +479,7 @@ const OssPathPicker = forwardRef<InputRef, OssPathPickerProps>((props, ref) => {
                                             table.current?.scrollTo({top: 0});
                                         }}/>
                                     <span className="path-select-page-number">{cursor + 1}</span>
-                                    <Button type="text" className="path-select-page-button" aria-label="下一页" icon={<Icon type="RightOutlined"/>} disabled={loading || !nextToken}
+                                    <Button type="text" className="path-select-page-button" aria-label="下一页" icon={<Icon type="RightOutlined"/>} disabled={loading || selecting || !nextToken}
                                         onClick={() => {
                                             request.current++;
                                             setLoading(true);

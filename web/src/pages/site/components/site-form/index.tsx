@@ -388,7 +388,7 @@ const SiteForm = forwardRef(({onSuccess, typeItems}: any, ref): any => {
                                 getValueProps={(value) => ({value: value ? [value] : []})}
                                 getValueFromEvent={(paths: string[]) => paths[0] || ""}
                                 rules={[{required: true, whitespace: true, message: "请选择执行文件"}]}>
-                                <FileSelect mode="file" placeholder="输入路径，或点击右侧选择文件"
+                                <FileSelect type="file" placeholder="输入路径，或点击右侧选择文件"
                                     buttonProps={{color: "default", variant: "filled"}}/>
                             </Form.Item>
                             <Row gutter={[16, 0]}>
@@ -410,7 +410,7 @@ const SiteForm = forwardRef(({onSuccess, typeItems}: any, ref): any => {
                             <Form.Item name="root" label="网站目录" extra="选择已有网页文件所在的目录；留空会自动创建一个目录。"
                                 getValueProps={(value) => ({value: value ? [value] : []})}
                                 getValueFromEvent={(paths: string[]) => paths[0] || ""}>
-                                <FileSelect mode="directory" placeholder="自动创建，或选择已有目录"
+                                <FileSelect type="directory" placeholder="自动创建，或选择已有目录"
                                     buttonProps={{color: "default", variant: "filled"}}/>
                             </Form.Item>
                             {siteType === 3 && <Form.Item name="fastcgi_address" label="PHP-FPM 地址" extra="填写已运行的 PHP-FPM 服务地址，也可以使用套接字路径。"

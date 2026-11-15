@@ -26,12 +26,12 @@ func (s *Manager) Validate(content string) (string, error) {
 		return "", err
 	}
 	switch config.Type {
-	case "file", "directory":
+	case "file":
 		options, err := s.parsePathOptions(config.Options)
 		if err != nil {
 			return "", err
 		}
-		options.Paths, err = s.ValidatePaths(options.Paths, config.Type == "directory")
+		options.Paths, err = s.ValidatePaths(options.Paths)
 		if err != nil {
 			return "", err
 		}

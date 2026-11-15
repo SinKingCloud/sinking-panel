@@ -2106,26 +2106,25 @@ const RunPathPicker = ({root, value = "", onChange, ...props}: any) => {
             message.warning("运行目录必须位于网站目录内");
             return false;
         }
-        const prefix = initialPath.endsWith("/") ? initialPath : `${initialPath}/`;
-        const relative = comparableFilePath(selectedPath) === comparableFilePath(initialPath)
-            ? ""
-            : selectedPath.slice(prefix.length);
-        onChange?.(relative);
         return true;
-    }, [initialPath, message, onChange]);
+    }, [initialPath, message]);
     const change = useCallback((paths: string[]) => {
         const input = paths[0] || "";
         if (isAbsoluteFilePath(input)) {
-            select(paths);
+            if (!select(paths)) return;
+            const selectedPath = normalizeFilePath(input);
+            const prefix = initialPath.endsWith("/") ? initialPath : `${initialPath}/`;
+            onChange?.(comparableFilePath(selectedPath) === comparableFilePath(initialPath)
+                ? "" : selectedPath.slice(prefix.length));
             return;
         }
         onChange?.(input);
-    }, [onChange, select]);
+    }, [initialPath, onChange, select]);
     return (
         <FileSelect
             buttonProps={{color: "default", variant: "filled", style: {borderColor: "transparent"}}}
             {...props}
-            mode="directory"
+            type="directory"
             value={value ? [value] : []}
             initialPath={initialPath}
             onChange={change}
@@ -2189,7 +2188,7 @@ const BasicPane = ({site, styles, typeItems, onChange, hideHeader = false}: any)
                         <SettingField className="site-file-select" name="root" label="网站目录" extra="网站文件保存位置"
                             getValueProps={(value: string) => ({value: value ? [value] : []})}
                             getValueFromEvent={(paths: string[]) => paths[0] || ""}
-                            rules={[{required: true, message: "请选择网站目录"}]}><FileSelect buttonProps={{color: "default", variant: "filled", style: {borderColor: "transparent"}}} mode="directory" placeholder="请输入或选择网站目录"/></SettingField>
+                            rules={[{required: true, message: "请选择网站目录"}]}><FileSelect buttonProps={{color: "default", variant: "filled", style: {borderColor: "transparent"}}} type="directory" placeholder="请输入或选择网站目录"/></SettingField>
                         <SettingField
                             className="site-file-select"
                             name="run_path"
@@ -3839,7 +3838,7 @@ const RouteRule = ({field, index, count, move, remove, copy, errors, styles}: an
                     getValueProps={(value) => ({value: value ? [value] : []})}
                     getValueFromEvent={(paths: string[]) => paths[0] || ""}
                     rules={[{required: true, whitespace: true, message: "请选择文件所在目录"}]}>
-                    <FileSelect buttonProps={{color: "default", variant: "filled", style: {borderColor: "transparent"}}} mode="directory" placeholder="请输入或选择文件目录"/>
+                    <FileSelect buttonProps={{color: "default", variant: "filled", style: {borderColor: "transparent"}}} type="directory" placeholder="请输入或选择文件目录"/>
                 </Form.Item>
                 <SettingSwitch name={[field.name, "browse"]} title="允许浏览目录" description="直接显示文件列表，不再自动打开首页文件" styles={styles}/>
             </>}

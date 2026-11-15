@@ -12,7 +12,7 @@ type SiteOptions struct {
 	SiteIds  []int64 `json:"site_ids"`
 }
 
-// PathOptions 保存指定目录或文件的来源路径。
+// PathOptions 保存自定义备份的文件和目录路径。
 type PathOptions struct {
 	Paths []string `json:"paths"`
 }
@@ -30,8 +30,8 @@ type Config struct {
 
 // Target 定义文件的归属，同一对象可由多个计划分别保留副本。
 type Target struct {
-	Key         string // 业务标识，作为第一层目录，如 site、database。
-	ID          string // 对象标识，作为第二层目录。
+	Key         string // 业务标识，作为第一层目录，如 site、file。
+	ID          string // 可选对象标识；非空时作为第二层目录。
 	PlanId      int64  // 副本归属的计划 ID，Save 时必须为正数。
 	Extension   string // 文件扩展名，默认 .bak，如 .tar.gz。
 	ContentType string // OSS 文件内容类型，默认 application/octet-stream。

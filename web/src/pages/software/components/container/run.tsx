@@ -560,7 +560,7 @@ const RunContainer = forwardRef<any, { onChange?: () => void }>(({onChange}, ref
                                                whitespace: true,
                                                message: "请选择已创建的服务器路径"
                                            }]}>
-                                    <FileSelect placeholder="选择目录或输入文件路径" disabled={submitting}
+                                    <FileSelect placeholder="选择文件或目录" disabled={submitting}
                                                 buttonProps={{color: "default", variant: "filled"}}/>
                                 </Form.Item>
                                 <Form.Item name={[name, "destination"]} label="容器路径"

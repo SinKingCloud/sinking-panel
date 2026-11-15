@@ -1,9 +1,9 @@
 import {isAbsoluteFilePath} from "@/pages/file/utils";
 
-export type BackupType = "site" | "directory" | "file";
+export type BackupType = "site" | "file";
 
 type BackupOptions = {type: "site"; options: {all_sites: boolean; site_ids: number[]}}
-    | {type: "directory" | "file"; options: {paths: string[]}};
+    | {type: "file"; options: {paths: string[]}};
 type BackupConfig = BackupOptions & {
     storage: string;
     local_keep: number;
@@ -13,17 +13,16 @@ type BackupConfig = BackupOptions & {
 };
 
 // validateBackupPaths 保留路径中的空格，只去重完全相同的路径。
-export const validateBackupPaths = (paths: unknown, type: "directory" | "file"): string[] => {
-    const label = type === "directory" ? "目录" : "文件";
+export const validateBackupPaths = (paths: unknown): string[] => {
     if (!Array.isArray(paths) || paths.length === 0
         || paths.some((path) => typeof path !== "string" || !path.trim())) {
-        throw new Error(`请至少选择一个${label}`);
+        throw new Error("请至少选择一个文件或目录");
     }
     if (paths.length > 1000) {
-        throw new Error(`最多选择 1000 个${label}`);
+        throw new Error("最多选择 1000 个文件或目录");
     }
     if (paths.some((path) => !isAbsoluteFilePath(path) || path.includes("\0"))) {
-        throw new Error(`请输入有效的${label}绝对路径`);
+        throw new Error("请输入有效的文件或目录绝对路径");
     }
     return [...new Set<string>(paths)];
 };
@@ -36,7 +35,7 @@ export const parseBackup = (value?: any): BackupConfig => {
     if (!data || typeof data !== "object" || Array.isArray(data)) {
         throw new Error("备份配置格式不正确");
     }
-    if (!["site", "directory", "file"].includes(data.type)) {
+    if (!["site", "file"].includes(data.type)) {
         throw new Error("不支持的备份内容");
     }
     const options = data.options;
@@ -53,7 +52,7 @@ export const parseBackup = (value?: any): BackupConfig => {
         if (!Array.isArray(options.paths) || options.paths.some((path: unknown) => typeof path !== "string")) {
             throw new Error("路径备份参数格式不正确");
         }
-        target = {type: data.type, options: {paths: [...options.paths]}};
+        target = {type: "file", options: {paths: [...options.paths]}};
     }
     return {
         ...target,
@@ -75,7 +74,7 @@ export const stringifyBackup = (value: any): string => {
             throw new Error("请选择要备份的网站");
         }
     } else {
-        data.options.paths = validateBackupPaths(data.options.paths, data.type);
+        data.options.paths = validateBackupPaths(data.options.paths);
     }
     if (data.storage !== "local" && data.storage !== "oss") {
         throw new Error("请选择存储方式");

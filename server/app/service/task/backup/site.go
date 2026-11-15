@@ -162,7 +162,7 @@ func (s *Manager) packSiteArchive(ctx context.Context, site *model.Site, output 
 	if err != nil {
 		return err
 	}
-	sourcePath, err = s.validateSourcePath(sourcePath, true)
+	sourcePath, err = s.validateSourcePath(sourcePath)
 	if err != nil {
 		return err
 	}

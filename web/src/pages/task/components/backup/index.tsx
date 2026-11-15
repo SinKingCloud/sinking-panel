@@ -1,7 +1,7 @@
 import {useRef} from "react";
-import {Button, Col, Form, InputNumber, Row, Select} from "antd";
+import {Col, Form, InputNumber, Row, Select} from "antd";
 import {createStyles} from "antd-style";
-import {Icon, useTheme} from "sinking-antd";
+import {useTheme} from "sinking-antd";
 import FileSelect from "@/pages/components/file-select";
 import SiteSelect from "@/pages/components/site-select";
 import OssSelect from "@/pages/components/oss-select";
@@ -9,20 +9,6 @@ import {validateBackupPaths} from "./config";
 import type {BackupType} from "./config";
 
 const useStyles = createStyles<{compact: boolean}>(({css, token}, {compact}) => ({
-    directoryRow: css`
-        display: flex;
-        align-items: flex-start;
-        gap: ${compact ? 6 : 8}px;
-        min-width: 0;
-
-        > .ant-form-item {
-            flex: 1;
-            min-width: 0;
-            margin-bottom: ${compact ? 6 : 8}px;
-        }
-
-        > .ant-btn { flex: none; }
-    `,
     storage: css`
         > .ant-col:last-child > .ant-form-item {
             margin-bottom: 0;
@@ -58,7 +44,7 @@ const Backup = () => {
     const changeType = (nextType: BackupType) => {
         optionDrafts.current[type as BackupType] = form.getFieldValue(["backup", "options"]);
         const options = optionDrafts.current[nextType]
-            || (nextType === "site" ? {all_sites: true, site_ids: []} : {paths: nextType === "directory" ? [""] : []});
+            || (nextType === "site" ? {all_sites: true, site_ids: []} : {paths: []});
         form.setFieldValue(["backup", "options"], options);
     };
 
@@ -68,8 +54,7 @@ const Backup = () => {
                 <Form.Item name={["backup", "type"]} label="备份内容" rules={[{required: true, message: "请选择备份内容"}]}>
                     <Select placeholder="选择备份内容" onChange={changeType} options={[
                         {label: "网站目录", value: "site"},
-                        {label: "指定目录", value: "directory"},
-                        {label: "指定文件", value: "file"},
+                        {label: "自定义", value: "file"},
                     ]}/>
                 </Form.Item>
             </Col>
@@ -86,39 +71,10 @@ const Backup = () => {
             rules={allSites === false ? [{required: true, type: "array", min: 1, message: "请至少选择一个网站"}] : []}>
             <SiteSelect multiple requireRoot allowClear placeholder="选择需要备份的网站"/>
         </Form.Item>}
-        {type === "directory" && <Form.Item label="选择目录" required>
-            <Form.List name={["backup", "options", "paths"]} rules={[{
-                validator: async (_, paths: string[] = []) => {
-                    if (paths.length === 0) throw new Error("请至少选择一个目录");
-                    if (paths.length > 1000) throw new Error("最多选择 1000 个目录");
-                },
-            }]}>
-                {(fields, {add, remove}, {errors}) => <>
-                    {fields.map((field) => <div className={styles.directoryRow} key={field.key}>
-                        <Form.Item name={field.name} rules={[{
-                            validator: async (_, path) => { validateBackupPaths([path], "directory"); },
-                        }]}
-                            getValueProps={(value) => ({value: value ? [value] : []})}
-                            getValueFromEvent={(paths: string[]) => paths[0] || ""}>
-                            <FileSelect mode="directory" allowClear placeholder="请输入或选择需要备份的目录"
-                                aria-label={`备份目录 ${field.name + 1}`}
-                                buttonProps={{color: "default", variant: "filled", style: {borderColor: "transparent"}}}/>
-                        </Form.Item>
-                        <Button color="danger" variant="filled" icon={<Icon type="DeleteOutlined"/>}
-                            aria-label={`移除备份目录 ${field.name + 1}`} onClick={() => remove(field.name)}/>
-                    </div>)}
-                    <Button type="dashed" block icon={<Icon type="PlusOutlined"/>}
-                        disabled={fields.length >= 1000} onClick={() => add("")}>
-                        添加目录
-                    </Button>
-                    <Form.ErrorList errors={errors}/>
-                </>}
-            </Form.List>
-        </Form.Item>}
-        {type === "file" && <Form.Item name={["backup", "options", "paths"]} label="选择文件" required rules={[{
-            validator: async (_, paths) => { validateBackupPaths(paths, "file"); },
+        {type === "file" && <Form.Item name={["backup", "options", "paths"]} label="选择文件和目录" required rules={[{
+            validator: async (_, paths) => { validateBackupPaths(paths); },
         }]}>
-            <FileSelect mode="file" multiple placeholder="请输入或选择需要备份的文件"
+            <FileSelect multiple placeholder="请输入或选择需要备份的文件和目录"
                 buttonProps={{color: "default", variant: "filled", style: {borderColor: "transparent"}}}/>
         </Form.Item>}
         <Row gutter={[16, 0]} className={styles.storage}>
@@ -183,7 +139,7 @@ const Backup = () => {
         </Row>
         <p className={styles.note}>{type === "site"
             ? "按网站分别保留，备份成功后清理旧副本。网站目录备份不包含数据库。"
-            : `按${type === "directory" ? "目录" : "文件"}分别保留，备份成功后清理旧副本。`}</p>
+            : "所选文件和目录合并为一份备份，成功后清理旧副本。"}</p>
     </>;
 };
 

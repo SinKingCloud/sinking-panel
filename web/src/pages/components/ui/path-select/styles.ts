@@ -51,6 +51,10 @@ const useStyles = createStyles<{compact: boolean}>(({css, token}, props) => ({
         border-radius: ${token.borderRadius}px;
         background: ${token.colorBgContainer};
 
+        .ant-checkbox {
+            border-radius: 2px;
+        }
+
         .path-select-toolbar {
             display: grid;
             min-width: 0;

@@ -17,16 +17,20 @@ import {
     parentFilePath,
 } from "@/pages/file/utils";
 import FileSelectBrowser from "./browser";
+import useFileSelection from "./selection";
 import useStyles from "@/pages/components/ui/path-select/styles";
 
-export interface FileSelectProps extends Omit<InputProps, "value" | "defaultValue" | "onChange" | "onSelect" | "multiple"> {
+export interface FileSelectProps extends Omit<InputProps, "value" | "defaultValue" | "onChange" | "onSelect" | "multiple" | "type"> {
     buttonProps?: ButtonProps;
     initialPath?: string;
-    mode?: "directory" | "file";
+    /** 不传时允许选择文件和目录。 */
+    type?: "file" | "directory";
+    /** 文件、目录及混选均支持多选。 */
     multiple?: boolean;
     value?: string[];
     defaultValue?: string[];
     onChange?: (paths: string[]) => void;
+    /** 弹窗确认前校验，返回 false 保持弹窗；通过后触发 onChange。 */
     onSelect?: (paths: string[]) => boolean | void;
 }
 
@@ -37,7 +41,7 @@ const FileSelect = forwardRef<InputRef, FileSelectProps>((props, ref) => {
         defaultValue = [],
         disabled,
         initialPath,
-        mode = "directory",
+        type,
         multiple = false,
         onChange,
         onSelect,
@@ -53,7 +57,6 @@ const FileSelect = forwardRef<InputRef, FileSelectProps>((props, ref) => {
     const {styles} = useStyles({compact});
     const contextDisabled = useContext(DisabledContext);
     const isDisabled = disabled ?? contextDisabled;
-    const multi = mode === "file" && multiple;
     const controlled = Object.prototype.hasOwnProperty.call(props, "value");
     const [localValue, setLocalValue] = useState<string[]>(defaultValue);
     const values = controlled ? value || [] : localValue;
@@ -73,8 +76,16 @@ const FileSelect = forwardRef<InputRef, FileSelectProps>((props, ref) => {
     const [open, setOpen] = useState(false);
     const [path, setPath] = useState("");
     const [loadedPath, setLoadedPath] = useState("");
-    const [selectedFile, setSelectedFile] = useState<any>();
-    const [selectedPaths, setSelectedPaths] = useState<string[]>([]);
+    const {
+        paths: selectedPaths,
+        pending: selectionPending,
+        select: selectPaths,
+        compact: compactPaths,
+        reset: resetSelection,
+        cancel: cancelSelection,
+        remember: rememberDirectory,
+        forget: forgetDirectory,
+    } = useFileSelection({type, multiple, disabled: isDisabled, onError: (error) => message.error(error)});
     const [searchValue, setSearchValue] = useState("");
     const [disks, setDisks] = useState<string[]>([]);
     const [disksLoading, setDisksLoading] = useState(false);
@@ -99,10 +110,12 @@ const FileSelect = forwardRef<InputRef, FileSelectProps>((props, ref) => {
         directoryOpenRef.current = false;
     }, []);
 
-    const title = mode === "directory" ? "选择目录" : "选择文件";
+    const selectionLabel = type === "directory" ? "目录" : type === "file" ? "文件" : "文件或目录";
+    const storageKey = type || "all";
+    const title = `选择${selectionLabel}`;
     const showingDisks = !path || (path === "/" && !disks.includes("/"))
         || (disks.some(isWindowsFilePath) && !isWindowsFilePath(path));
-    const browserLoading = showingDisks ? disksLoading : loading;
+    const browserLoading = selectionPending || (showingDisks ? disksLoading : loading);
     const browserError = showingDisks ? disksError : error;
     const diskItems = useMemo(() => disks.map((path) => ({path, name: getFileDiskName(path), is_dir: true})), [disks]);
     const {breadcrumbs: pathBreadcrumbs, parentPath} = useMemo(
@@ -110,6 +123,7 @@ const FileSelect = forwardRef<InputRef, FileSelectProps>((props, ref) => {
     );
 
     const navigate = useCallback((nextPath: string) => {
+        if (selectionPending) return;
         const targetPath = nextPath ? normalizeFilePath(nextPath) : "";
         requestRef.current += 1;
         selectionRequestRef.current += 1;
@@ -118,12 +132,12 @@ const FileSelect = forwardRef<InputRef, FileSelectProps>((props, ref) => {
         setPathDraft(targetPath);
         setPath(targetPath);
         setLoadedPath("");
-        setSelectedFile(undefined);
+        if (!multiple) resetSelection();
         setItems([]);
         setTotal(0);
         setPage(1);
         setError("");
-    }, []);
+    }, [multiple, resetSelection, selectionPending]);
 
     const show = useCallback(() => {
         if (isDisabled) return;
@@ -131,11 +145,11 @@ const FileSelect = forwardRef<InputRef, FileSelectProps>((props, ref) => {
         const absolute = isAbsoluteFilePath(input) ? normalizeFilePath(input) : "";
         const preferred = String(initialPath || "").trim();
         const preferredPath = isAbsoluteFilePath(preferred) ? normalizeFilePath(preferred) : "";
-        let initialDirectory = preferredPath || (mode === "file" && absolute ? parentFilePath(absolute) : absolute);
+        let initialDirectory = preferredPath || (type !== "directory" && absolute ? parentFilePath(absolute) : absolute);
         restoredPathRef.current = "";
         if (!initialDirectory) {
             try {
-                const saved = readFileStorage()?.pickerPaths?.[mode];
+                const saved = readFileStorage()?.pickerPaths?.[storageKey];
                 if (typeof saved === "string" && isAbsoluteFilePath(saved)) {
                     initialDirectory = normalizeFilePath(saved);
                     restoredPathRef.current = initialDirectory;
@@ -150,8 +164,7 @@ const FileSelect = forwardRef<InputRef, FileSelectProps>((props, ref) => {
         requestRef.current += 1;
         setPath(initialDirectory);
         setLoadedPath("");
-        setSelectedFile(undefined);
-        setSelectedPaths(multi ? values.slice() : []);
+        resetSelection(multiple ? values : []);
         setDisks([]);
         setDisksLoading(true);
         setDisksError("");
@@ -163,19 +176,21 @@ const FileSelect = forwardRef<InputRef, FileSelectProps>((props, ref) => {
         setEditingPath(false);
         setPathDraft(initialDirectory);
         setOpen(true);
-        if (!multi && mode === "file" && absolute && initialName) {
+        if (!multiple && type !== "directory" && absolute && initialName) {
             void getFileInfo({body: {path: absolute}}).then((response) => {
                 if (selectionRequestRef.current === selectionRequest
-                    && response?.code === 200 && response?.data && !response?.data?.is_dir) {
-                    setSelectedFile({name: response?.data?.name || initialName, path: absolute});
+                    && response?.code === 200 && response?.data && (type === undefined || !response?.data?.is_dir)) {
+                    if (response.data.is_dir && !preferredPath) navigate(absolute);
+                    void selectPaths([absolute], true);
                 }
             }).catch(() => undefined);
         }
-    }, [initialPath, isDisabled, mode, multi, values]);
+    }, [initialPath, isDisabled, type, multiple, navigate, resetSelection, selectPaths, storageKey, values]);
 
     const close = useCallback(() => {
         requestRef.current += 1;
         selectionRequestRef.current += 1;
+        cancelSelection();
         directoryRequestRef.current += 1;
         directoryOpenRef.current = false;
         directorySubmittingRef.current = false;
@@ -183,48 +198,36 @@ const FileSelect = forwardRef<InputRef, FileSelectProps>((props, ref) => {
         setDirectorySubmitting(false);
         setLoading(false);
         setEditingPath(false);
-        setPathDraft(path);
         setOpen(false);
-    }, [path]);
+    }, [cancelSelection]);
 
-    const confirm = useCallback((file = selectedFile) => {
-        if (isDisabled) return;
-        if (!multi && (showingDisks || loading || error || !loadedPath || comparablePath(loadedPath) !== comparablePath(path))) {
+    const confirm = useCallback((filePath?: string) => {
+        if (isDisabled || selectionPending) return;
+        if (!multiple && (showingDisks || loading || error || !loadedPath || comparablePath(loadedPath) !== comparablePath(path))) return;
+        const selectedPath = filePath || selectedPaths[0] || (type !== "file" ? loadedPath : undefined);
+        if (!multiple && !selectedPath) return;
+        const paths = multiple ? selectedPaths : [selectedPath!];
+        if (paths.some((item) => !isAbsoluteFilePath(item))) {
+            message.warning(`请输入${selectionLabel}的绝对路径`);
             return;
         }
-        const selectedPath = mode === "directory" ? loadedPath : file?.path;
-        if (!multi && !selectedPath) {
-            return;
-        }
-        if (multi && selectedPaths.some((item) => !isAbsoluteFilePath(item))) {
-            message.warning("请输入文件的绝对路径");
-            return;
-        }
-        const normalized = (multi ? selectedPaths : [selectedPath]).map(normalizeFilePath);
-        if (onSelect) {
-            if (onSelect(normalized) === false) {
-                return;
-            }
-        } else {
-            onChange?.(normalized);
-        }
+        const normalized = compactPaths(paths).map(normalizeFilePath);
+        if (onSelect?.(normalized) === false) return;
+        onChange?.(normalized);
         if (!controlled) setLocalValue(normalized);
         close();
-    }, [close, controlled, error, isDisabled, loadedPath, loading, message, mode, multi, onChange, onSelect, path, selectedFile, selectedPaths, showingDisks]);
+    }, [close, compactPaths, controlled, error, isDisabled, loadedPath, loading, message, type, multiple, onChange, onSelect, path, selectedPaths, selectionLabel, selectionPending, showingDisks]);
 
-    const selectFile = useCallback((file: any) => {
+    useEffect(() => { close(); }, [close, isDisabled, multiple, type]);
+
+    const changeSelection = useCallback((paths: string[], checked: boolean) => {
         selectionRequestRef.current += 1;
-        if (multi) {
-            const key = comparablePath(file.path);
-            setSelectedPaths((current) => current.some((item) => comparablePath(item) === key)
-                ? current.filter((item) => comparablePath(item) !== key) : [...current, file.path]);
-        } else setSelectedFile(file);
-    }, [multi]);
+        void selectPaths(paths, checked);
+    }, [selectPaths]);
 
     // 手输路径按原样加入，避免 tags 模式自动删去文件名末尾的空格。
     const changePaths = (paths: string[]) => {
-        const unique = new Map(paths.map((item) => [isAbsoluteFilePath(item) ? comparablePath(item) : item, item]));
-        const nextValue = [...unique.values()];
+        const nextValue = compactPaths(paths);
         if (!controlled) setLocalValue(nextValue);
         onChange?.(nextValue);
     };
@@ -276,9 +279,13 @@ const FileSelect = forwardRef<InputRef, FileSelectProps>((props, ref) => {
     }, [cancelPathEditor, message, navigate, path, pathDraft]);
 
     const reloadList = useCallback(() => {
+        if (selectionPending) return;
         if (showingDisks) setDiskReload((current) => current + 1);
-        else setReload((current) => current + 1);
-    }, [showingDisks]);
+        else {
+            forgetDirectory(path);
+            setReload((current) => current + 1);
+        }
+    }, [forgetDirectory, path, selectionPending, showingDisks]);
 
     const openDirectoryForm = useCallback(() => {
         if (isDisabled || showingDisks || browserLoading || browserError || !loadedPath
@@ -311,6 +318,7 @@ const FileSelect = forwardRef<InputRef, FileSelectProps>((props, ref) => {
             }
             message.success(response?.message || "创建成功");
             closeDirectoryForm();
+            forgetDirectory(directoryPath);
             setLoading(true);
             setReload((current) => current + 1);
         } catch (error: any) {
@@ -419,12 +427,13 @@ const FileSelect = forwardRef<InputRef, FileSelectProps>((props, ref) => {
             }
             setItems(nextItems);
             setLoadedPath(path);
+            if (page === 1 && nextItems.length === nextTotal) rememberDirectory(path, nextItems);
             restoredPathRef.current = "";
             try {
-                if (readFileStorage()?.pickerPaths?.[mode] !== path) {
+                if (readFileStorage()?.pickerPaths?.[storageKey] !== path) {
                     updateFileStorage((current) => ({
                         ...current,
-                        pickerPaths: {...current.pickerPaths, [mode]: path},
+                        pickerPaths: {...current.pickerPaths, [storageKey]: path},
                     }));
                 }
             } catch {
@@ -445,7 +454,7 @@ const FileSelect = forwardRef<InputRef, FileSelectProps>((props, ref) => {
         return () => {
             if (requestRef.current === requestId) requestRef.current += 1;
         };
-    }, [mode, open, page, path, reload, showingDisks]);
+    }, [open, page, path, reload, rememberDirectory, showingDisks, storageKey]);
 
     useEffect(() => {
         if (!open || !error || !disks.length || restoredPathRef.current !== path) {
@@ -462,7 +471,7 @@ const FileSelect = forwardRef<InputRef, FileSelectProps>((props, ref) => {
     return (
         <>
             <Space.Compact className={styles.field} block>
-                {multi ? <Select
+                {multiple ? <Select
                     {...inputProps as any}
                     ref={ref as any}
                     size={size}
@@ -476,7 +485,7 @@ const FileSelect = forwardRef<InputRef, FileSelectProps>((props, ref) => {
                     maxTagCount="responsive"
                     searchValue={searchValue}
                     onSearch={setSearchValue}
-                    placeholder={placeholder || "请输入或选择文件"}
+                    placeholder={placeholder || `请输入或选择${selectionLabel}`}
                     onInputKeyDown={(event) => {
                         if (event.key === "Enter" && !event.nativeEvent.isComposing) {
                             event.preventDefault(); event.stopPropagation(); addPath();
@@ -490,7 +499,7 @@ const FileSelect = forwardRef<InputRef, FileSelectProps>((props, ref) => {
                     size={size}
                     value={values[0] || ""}
                     disabled={isDisabled}
-                    placeholder={placeholder || (mode === "directory" ? "请输入或选择目录" : "请输入或选择文件")}
+                    placeholder={placeholder || `请输入或选择${selectionLabel}`}
                     onChange={(event) => changePaths(event.target.value ? [event.target.value] : [])}/>}
                 <Tooltip title={title}>
                     <Button
@@ -500,7 +509,7 @@ const FileSelect = forwardRef<InputRef, FileSelectProps>((props, ref) => {
                         size={size}
                         disabled={isDisabled}
                         aria-label={title}
-                        icon={<Icon type={mode === "directory" ? "FolderOpenOutlined" : "FileSearchOutlined"}/>}
+                        icon={<Icon type={type === "directory" ? "FolderOpenOutlined" : "FileSearchOutlined"}/>}
                         onClick={show}/>
                 </Tooltip>
             </Space.Compact>
@@ -518,9 +527,8 @@ const FileSelect = forwardRef<InputRef, FileSelectProps>((props, ref) => {
                         style: {top: screens.md ? 100 : 24, paddingBottom: screens.md ? 100 : 24},
                         cancelText: "取消",
                         okButtonProps: {
-                            disabled: !multi && (showingDisks || loading || Boolean(error) || (mode === "directory"
-                                ? !loadedPath || comparablePath(loadedPath) !== comparablePath(path)
-                                : !selectedFile)),
+                            disabled: selectionPending || !multiple && (showingDisks || loading || Boolean(error) || !loadedPath
+                                || comparablePath(loadedPath) !== comparablePath(path) || (type === "file" && !selectedPaths.length)),
                         },
                         focusable: {focusTriggerAfterClose: false},
                         mask: {closable: true},
@@ -530,11 +538,10 @@ const FileSelect = forwardRef<InputRef, FileSelectProps>((props, ref) => {
                         <FileSelectBrowser
                             className={styles.browser}
                             compact={compact}
-                            mode={mode}
+                            type={type}
                             path={path}
                             loadedPath={loadedPath}
-                            selectedFile={selectedFile}
-                            multiple={multi}
+                            multiple={multiple}
                             selectedPaths={selectedPaths}
                             showingDisks={showingDisks}
                             pathBreadcrumbs={pathBreadcrumbs}
@@ -556,8 +563,7 @@ const FileSelect = forwardRef<InputRef, FileSelectProps>((props, ref) => {
                             onCancelPathEditor={cancelPathEditor}
                             onSubmitPathEditor={submitPathEditor}
                             onPathDraftChange={setPathDraft}
-                            onSelectFile={selectFile}
-                            onSelectionChange={setSelectedPaths}
+                            onSelectionChange={changeSelection}
                             onConfirm={confirm}
                             onPageChange={changePage}
                             onCreateDirectory={openDirectoryForm}

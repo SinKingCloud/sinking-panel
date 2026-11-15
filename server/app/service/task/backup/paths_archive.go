@@ -4,44 +4,83 @@ import (
 	"archive/tar"
 	"compress/gzip"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
+	"time"
 )
 
-func (s *Manager) packPathArchive(ctx context.Context, path string, directory bool, output io.Writer) (err error) {
-	checked, err := s.validateSourcePath(path, directory)
-	if err != nil {
-		return err
-	}
-	if checked != path {
-		return errors.New("备份来源路径已变化")
-	}
-	info, err := os.Lstat(path)
-	if err != nil {
-		return err
-	}
-	parent, name := filepath.Dir(path), filepath.Base(path)
-	if directory {
-		parent, name = path, "."
-	}
-	source, err := os.OpenRoot(parent)
-	if err != nil {
-		return err
-	}
-	defer source.Close()
-	current, err := source.Lstat(name)
-	if err != nil || !os.SameFile(info, current) || info.Mode() != current.Mode() {
-		return errors.New("备份来源已变化")
-	}
+// packPathsArchive 流式归档多个来源，保留相对根目录的路径，避免同名文件覆盖。
+func (s *Manager) packPathsArchive(ctx context.Context, paths []string, output io.Writer) (err error) {
 	compressed := gzip.NewWriter(output)
 	archive := tar.NewWriter(compressed)
 	defer func() {
 		err = errors.Join(err, archive.Close(), compressed.Close(), ctx.Err())
 	}()
-	return s.writePathEntry(ctx, source, name, filepath.Base(path), archive, make([]byte, 32*1024))
+	metadata, err := json.Marshal(map[string]interface{}{
+		"version": 1,
+		"time":    time.Now().UTC(),
+		"paths":   paths,
+	})
+	if err != nil {
+		return err
+	}
+	if err = archive.WriteHeader(&tar.Header{
+		Name:    "backup.json",
+		Mode:    0600,
+		Size:    int64(len(metadata)),
+		ModTime: time.Now(),
+	}); err != nil {
+		return err
+	}
+	if _, err = archive.Write(metadata); err != nil {
+		return err
+	}
+	buffer := make([]byte, 32*1024)
+	for _, path := range paths {
+		if err = ctx.Err(); err != nil {
+			return err
+		}
+		if err = func() error {
+			checked, err := s.validateSourcePath(path)
+			if err != nil {
+				return err
+			}
+			if checked != path {
+				return errors.New("备份来源路径已变化")
+			}
+			info, err := os.Lstat(path)
+			if err != nil {
+				return err
+			}
+			parent, name := filepath.Dir(path), filepath.Base(path)
+			if info.IsDir() {
+				parent, name = path, "."
+			}
+			source, err := os.OpenRoot(parent)
+			if err != nil {
+				return err
+			}
+			defer source.Close()
+			current, err := source.Lstat(name)
+			if err != nil || !os.SameFile(info, current) || info.Mode() != current.Mode() {
+				return errors.New("备份来源已变化")
+			}
+			volume := filepath.VolumeName(path)
+			archiveName := strings.TrimLeft(filepath.ToSlash(strings.TrimPrefix(path, volume)), "/")
+			if volume != "" {
+				archiveName = filepath.Join(strings.Trim(filepath.ToSlash(volume), "/:"), archiveName)
+			}
+			return s.writePathEntry(ctx, source, name, filepath.Join("files", archiveName), archive, buffer)
+		}(); err != nil {
+			return fmt.Errorf("备份来源 %q 失败: %w", path, err)
+		}
+	}
+	return nil
 }
 
 func (s *Manager) writePathEntry(ctx context.Context, source *os.Root, name, archiveName string, archive *tar.Writer, buffer []byte) error {
