@@ -3,6 +3,9 @@ package psutil
 import (
 	"context"
 	"errors"
+	"fmt"
+	"net"
+	"os"
 	"runtime"
 	"slices"
 	"strings"
@@ -28,7 +31,33 @@ func Host(ctx context.Context) (HostInfo, error) {
 	if err := ctx.Err(); err != nil {
 		return result, err
 	}
-	value, err := host.InfoWithContext(ctx)
+	value, err := func() (*host.InfoStat, error) {
+		if runtime.GOOS != "linux" && runtime.GOOS != "darwin" && runtime.GOOS != "windows" {
+			return host.InfoWithContext(ctx)
+		}
+		// 按返回字段采集，避免完整主机信息接口额外收集未使用的数据。
+		value := &host.InfoStat{}
+		var err error
+		if value.Hostname, err = os.Hostname(); err != nil {
+			return nil, fmt.Errorf("getting hostname: %w", err)
+		}
+		if value.Platform, _, value.PlatformVersion, err = host.PlatformInformationWithContext(ctx); err != nil {
+			return nil, fmt.Errorf("getting platform information: %w", err)
+		}
+		if value.KernelVersion, err = host.KernelVersionWithContext(ctx); err != nil {
+			return nil, fmt.Errorf("getting kernel version: %w", err)
+		}
+		if value.KernelArch, err = host.KernelArch(); err != nil {
+			return nil, fmt.Errorf("getting kernel architecture: %w", err)
+		}
+		if value.BootTime, err = host.BootTimeWithContext(ctx); err != nil {
+			return nil, fmt.Errorf("getting boot time: %w", err)
+		}
+		if value.Uptime, err = host.UptimeWithContext(ctx); err != nil {
+			return nil, fmt.Errorf("getting uptime: %w", err)
+		}
+		return value, nil
+	}()
 	err = errors.Join(err, ctx.Err())
 	if err != nil {
 		return result, err
@@ -168,8 +197,9 @@ func NetworkCounters(ctx context.Context) ([]NetworkIO, error) {
 	if err != nil {
 		return result, err
 	}
-	interfaces, interfaceErr := gnet.InterfacesWithContext(ctx)
-	flags := make(map[string][]string, len(interfaces))
+	// 采样只使用网卡标志，避免每秒额外枚举接口地址和构造展示信息。
+	interfaces, interfaceErr := net.Interfaces()
+	flags := make(map[string]net.Flags, len(interfaces))
 	for _, item := range interfaces {
 		flags[item.Name] = item.Flags
 	}
@@ -187,8 +217,8 @@ func NetworkCounters(ctx context.Context) ([]NetworkIO, error) {
 			Dropin:         value.Dropin,
 			Dropout:        value.Dropout,
 			StateAvailable: interfaceErr == nil && stateKnown,
-			IsUp:           slices.Contains(flags[value.Name], "up"),
-			IsLoopback:     slices.Contains(flags[value.Name], "loopback") || name == "lo" || name == "lo0" || strings.Contains(name, "loopback"),
+			IsUp:           flags[value.Name]&net.FlagUp != 0,
+			IsLoopback:     flags[value.Name]&net.FlagLoopback != 0 || name == "lo" || name == "lo0" || strings.Contains(name, "loopback"),
 		})
 	}
 	slices.SortFunc(result, func(a, b NetworkIO) int { return strings.Compare(a.Name, b.Name) })

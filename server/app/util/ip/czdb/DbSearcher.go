@@ -62,6 +62,12 @@ func NewDbSearcher(dbFile string, queryType string, key string) (*DbSearcher, er
 	if err != nil {
 		return nil, err
 	}
+	initialized := false
+	defer func() {
+		if !initialized {
+			_ = ds.raf.Close()
+		}
+	}()
 
 	// 设置数据库类型
 	_, err = ds.raf.Seek1(0)
@@ -95,6 +101,7 @@ func NewDbSearcher(dbFile string, queryType string, key string) (*DbSearcher, er
 		return nil, err
 	}
 
+	initialized = true
 	return ds, nil
 }
 
@@ -173,10 +180,14 @@ func (ds *DbSearcher) initializeForMemorySearch() error {
 	if err != nil {
 		return err
 	}
-	return ds.initMemoryOrBinaryModeParam(ds.dbBinStr, length)
+	return ds.initSearchIndex(ds.dbBinStr, length)
 }
 
-func (ds *DbSearcher) initMemoryOrBinaryModeParam(bytes []byte, fileSize int64) error {
+// initSearchIndex 校验索引范围，两个查询模式共享相同的头部索引。
+func (ds *DbSearcher) initSearchIndex(bytes []byte, fileSize int64) error {
+	if len(bytes) < constant.SUPER_PART_LENGTH {
+		return fmt.Errorf("db header is incomplete")
+	}
 	ds.totalHeaderBlockSize = byteUtil.GetIntLong(bytes, constant.HEADER_BLOCK_PTR)
 	fileSizeInFile := byteUtil.GetIntLong(bytes, constant.FILE_SIZE_PTR)
 	if fileSizeInFile != fileSize {
@@ -184,11 +195,24 @@ func (ds *DbSearcher) initMemoryOrBinaryModeParam(bytes []byte, fileSize int64) 
 	}
 	ds.firstIndexPtr = byteUtil.GetIntLong(bytes, constant.FIRST_INDEX_PTR)
 	lastIndexPtr := byteUtil.GetIntLong(bytes, constant.END_INDEX_PTR)
-	ds.totalIndexBlocks = (int(lastIndexPtr-ds.firstIndexPtr) / entity.GetIndexBlockLength(ds.dbType)) + 1
+	indexLength := int64(entity.GetIndexBlockLength(ds.dbType))
+	if ds.totalHeaderBlockSize <= 0 || ds.totalHeaderBlockSize%20 != 0 ||
+		ds.totalHeaderBlockSize > fileSize-constant.SUPER_PART_LENGTH ||
+		ds.firstIndexPtr < constant.SUPER_PART_LENGTH+ds.totalHeaderBlockSize ||
+		lastIndexPtr < ds.firstIndexPtr || lastIndexPtr > fileSize-indexLength ||
+		(lastIndexPtr-ds.firstIndexPtr)%indexLength != 0 || int64(int(lastIndexPtr)) != lastIndexPtr {
+		return fmt.Errorf("db index range is invalid")
+	}
+	ds.totalIndexBlocks = int((lastIndexPtr-ds.firstIndexPtr)/indexLength) + 1
 
-	b := make([]byte, ds.totalHeaderBlockSize)
-	copy(b, bytes[constant.SUPER_PART_LENGTH:])
-	return ds.initHeaderBlock(b)
+	if ds.queryType == constant.MEMORY {
+		return ds.initHeaderBlock(bytes[constant.SUPER_PART_LENGTH : constant.SUPER_PART_LENGTH+ds.totalHeaderBlockSize])
+	}
+	header := make([]byte, ds.totalHeaderBlockSize)
+	if _, err := ds.raf.ReadAt(header, constant.SUPER_PART_LENGTH); err != nil {
+		return err
+	}
+	return ds.initHeaderBlock(header)
 }
 
 func (ds *DbSearcher) initBtreeModeParam(raf *RandomAccessFile) error {
@@ -201,24 +225,11 @@ func (ds *DbSearcher) initBtreeModeParam(raf *RandomAccessFile) error {
 	if err != nil {
 		return err
 	}
-	ds.totalHeaderBlockSize = byteUtil.GetIntLong(superBytes, constant.HEADER_BLOCK_PTR)
-
-	fileSizeInFile := byteUtil.GetIntLong(superBytes, constant.FILE_SIZE_PTR)
 	realFileSize, err := ds.raf.Length()
 	if err != nil {
 		return err
 	}
-	if fileSizeInFile != realFileSize {
-		return fmt.Errorf("db file size error, excepted [%d], real [%d]", fileSizeInFile, realFileSize)
-	}
-
-	b := make([]byte, ds.totalHeaderBlockSize)
-	err = ds.raf.ReadFully(b)
-	if err != nil {
-		return err
-	}
-
-	return ds.initHeaderBlock(b)
+	return ds.initSearchIndex(superBytes, realFileSize)
 }
 
 func (ds *DbSearcher) initHeaderBlock(headerBytes []byte) error {
@@ -231,16 +242,26 @@ func (ds *DbSearcher) initHeaderBlock(headerBytes []byte) error {
 	}
 	ds.headerPtr = make([]int, length)
 	var dataPtr int64
+	indexBlockLength := int64(entity.GetIndexBlockLength(ds.dbType))
+	lastIndexPtr := ds.firstIndexPtr + int64(ds.totalIndexBlocks-1)*indexBlockLength
 	for i := 0; i < len(headerBytes); i += indexLength {
 		dataPtr = byteUtil.GetIntLong(headerBytes, i+16)
 		if dataPtr == 0 {
 			break
+		}
+		if dataPtr < ds.firstIndexPtr || dataPtr > lastIndexPtr ||
+			(dataPtr-ds.firstIndexPtr)%indexBlockLength != 0 ||
+			(idx > 0 && dataPtr <= int64(ds.headerPtr[idx-1])) {
+			return fmt.Errorf("db header index pointer is invalid")
 		}
 		copy(ds.headerSip[idx][:16], headerBytes[i:i+16])
 		ds.headerPtr[idx] = int(dataPtr)
 		idx++
 	}
 	ds.headerLength = idx
+	if idx == 0 {
+		return fmt.Errorf("db header index is empty")
+	}
 	return nil
 }
 
@@ -365,7 +386,7 @@ func (ds *DbSearcher) searchInHeader(ip []byte) [2]int {
 	}
 
 	// less than header range
-	if l == 0 && h <= 0 {
+	if h < 0 {
 		return [2]int{0, 0}
 	}
 
@@ -378,7 +399,7 @@ func (ds *DbSearcher) searchInHeader(ip []byte) [2]int {
 			entry = ds.headerPtr[h+1]
 		} else {
 			spur = ds.headerPtr[ds.headerLength-1]
-			entry = spur + entity.GetIndexBlockLength(ds.dbType)
+			entry = int(ds.firstIndexPtr) + (ds.totalIndexBlocks-1)*entity.GetIndexBlockLength(ds.dbType)
 		}
 	}
 
@@ -398,12 +419,7 @@ func (ds *DbSearcher) bTreeSearch(ip []byte) (*entity.DataBlock, error) {
 	blen := entity.GetIndexBlockLength(ds.dbType)
 
 	iBuffer := make([]byte, blockLen+blen)
-	_, err := ds.raf.Seek1(int64(spar))
-	if err != nil {
-		return nil, err
-	}
-	err = ds.raf.ReadFully(iBuffer)
-	if err != nil {
+	if _, err := ds.raf.ReadAt(iBuffer, int64(spar)); err != nil {
 		return nil, err
 	}
 
@@ -439,13 +455,11 @@ func (ds *DbSearcher) bTreeSearch(ip []byte) (*entity.DataBlock, error) {
 		return nil, nil
 	}
 
-	_, err = ds.raf.Seek1(int64(dataPtr))
-	if err != nil {
-		return nil, err
+	if int64(dataPtr) < constant.SUPER_PART_LENGTH+ds.totalHeaderBlockSize || int64(dataPtr)+int64(dataLen) > ds.firstIndexPtr {
+		return nil, fmt.Errorf("db data pointer is invalid")
 	}
 	region := make([]byte, dataLen)
-	err = ds.raf.ReadFully(region)
-	if err != nil {
+	if _, err := ds.raf.ReadAt(region, int64(dataPtr)); err != nil {
 		return nil, err
 	}
 

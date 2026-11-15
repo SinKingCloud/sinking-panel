@@ -73,7 +73,7 @@ func NewManager(root string, options ...Options) (*Manager, error) {
 	if m.configPath != "" {
 		stored, readErr := os.ReadFile(m.configPath)
 		if readErr == nil {
-			if err = m.validateConfig(stored); err != nil {
+			if err = m.validateConfig(stored, true); err != nil {
 				return nil, fmt.Errorf("读取已有 http 配置失败: %w", err)
 			}
 			if err = os.Chmod(m.configPath, 0600); err != nil {
@@ -115,7 +115,7 @@ func (m *Manager) Start(sites ...Site) error {
 		config = currentConfig
 		candidate = make(map[string]*Site)
 		nextConfigMode = true
-		err = m.validateConfig(config)
+		err = m.validateConfig(config, false)
 	} else {
 		source := make([]Site, 0, len(storedSites))
 		for _, site := range storedSites {
@@ -211,7 +211,7 @@ func (m *Manager) Reload() error {
 	config := currentConfig
 	var err error
 	if configMode {
-		err = m.validateConfig(config)
+		err = m.validateConfig(config, false)
 	} else {
 		input := make([]Site, 0, len(storedSites))
 		for _, site := range storedSites {

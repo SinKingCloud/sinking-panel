@@ -19,9 +19,9 @@ import "server/app/util/ip/czdb"
 | 模式 | 资源行为 | 使用建议 |
 | --- | --- | --- |
 | `MEMORY` | 将逻辑数据库读取到内存，初始化后关闭底层文件 | 重复查询、可接受数据库内存占用的场景 |
-| `BTREE` | 缓存索引，查询时继续使用文件游标 | 希望减少完整文件内存占用时使用；共享实例的查询需在外层串行化 |
+| `BTREE` | 缓存头部索引和地区映射，以 `ReadAt` 读取命中的索引块及数据 | 默认低内存模式，支持多个 goroutine 共享查询 |
 
-`BTREE` 的 `Seek` 和读取组合没有互斥保护，多个 goroutine 不能无保护地共用搜索器。任意模式都不能在查询期间调用 `Close`，关闭后不要继续使用。
+初始化后的 `MEMORY` 和 `BTREE` 搜索器均可供并发查询。`BTREE` 不使用共享文件游标，短读取会返回错误；初始化时校验索引范围，查询时检查地区数据偏移。任意模式都不能在查询期间调用 `Close`，关闭后不要继续使用。
 
 ## 自定义数据库查询示例
 
@@ -66,7 +66,7 @@ func Lookup(databasePath, databaseKey, address string) (string, error) {
 
 ## 随包资源与辅助接口
 
-`Ip` 是嵌入了 `data/*` 的 `embed.FS`，可通过 `czdb.Ip.Open("data/ipv4")`、`ReadFile("data/ipv6")` 读取打包资源。直接查询仍需向 `NewDbSearcher` 提供文件路径，上层 `ip` 负责释放这些资源到运行目录。
+`Ip` 是嵌入了 `data/*.gz` 的 `embed.FS`，资源名为 `data/ipv4.gz`、`data/ipv6.gz`。使用 `Open` 配合标准库 `gzip.NewReader` 可流式解压，无需把压缩文件或整个数据库读入内存。直接查询仍需向 `NewDbSearcher` 提供解压后的文件路径，上层 `ip` 负责按需释放到原运行目录。
 
 `NewDecrypted(key string) *Decrypted` 是地区映射内部解密器的构造入口，实际解密方法未导出，业务层无需单独创建它。
 
@@ -76,6 +76,7 @@ func Lookup(databasePath, databaseKey, address string) (string, error) {
 | --- | --- |
 | `NewRandomAccessFile(name string, offset int64) (*RandomAccessFile, error)` | 只读打开真实文件，记录逻辑起点；不会自动跳到该起点 |
 | `Seek1(offset int64) (int64, error)` | 定位到“逻辑起点 + offset”，返回物理文件位置 |
+| `ReadAt(p []byte, offset int64) (int, error)` | 从逻辑偏移读取，不改变文件游标；不足 `len(p)` 字节时返回错误 |
 | `Length() (int64, error)` | 物理长度减去逻辑起点 |
 | `ReadFully(p []byte) error` | 从当前游标精确读取 `len(p)` 个字节 |
 | `ReadFullyAt(p []byte, off, length int) error` | `off` 是目标切片下标，**不是文件偏移**；仍从当前文件游标读取 |

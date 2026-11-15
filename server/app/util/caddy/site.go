@@ -59,9 +59,6 @@ func (m *Manager) prepareSites(sites []Site) (map[string]*Site, error) {
 		}
 		result[site.ID] = site
 	}
-	if err := m.validateSiteSet(result); err != nil {
-		return nil, err
-	}
 	return result, nil
 }
 

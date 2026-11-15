@@ -5,6 +5,6 @@ import (
 )
 
 var (
-	//go:embed data/*
+	//go:embed data/*.gz
 	Ip embed.FS
 )

@@ -58,6 +58,14 @@ func (f *RandomAccessFile) Seek1(offset int64) (int64, error) {
 	return f.File.Seek(offset+f.offset, io.SeekStart)
 }
 
+// ReadAt 从逻辑偏移读取，不改变文件游标，可供并发查询使用。
+func (f *RandomAccessFile) ReadAt(p []byte, offset int64) (int, error) {
+	if offset < 0 || offset+f.offset < offset {
+		return 0, fmt.Errorf("invalid file offset")
+	}
+	return f.File.ReadAt(p, offset+f.offset)
+}
+
 // Length 返回文件的大小，考虑了偏移量。
 //
 // 返回值:

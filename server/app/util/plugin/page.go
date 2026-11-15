@@ -1,6 +1,7 @@
 package plugin
 
 import (
+	"bytes"
 	"errors"
 	"io"
 	"os"
@@ -73,13 +74,18 @@ func (m *Manager) Page(directory, path string) ([]byte, string, string, error) {
 		if err != nil {
 			return nil, "", "", err
 		}
-		if !info.Mode().IsRegular() || info.Size() > 8<<20 {
+		if !info.Mode().IsRegular() || info.Size() < 0 || info.Size() > 8<<20 {
 			return nil, "", "", errors.New("插件资源必须是不超过8MB的普通文件")
 		}
-		data, err := io.ReadAll(io.LimitReader(file, (8<<20)+1))
+		// 已知大小时直接预留空间，避免 ReadAll 的中间缓冲与最终内容同时占用内存。
+		// 仍读取到 EOF，并保留大小限制，以处理读取期间文件增长或截断的情况。
+		var buffer bytes.Buffer
+		buffer.Grow(int(info.Size()) + bytes.MinRead)
+		_, err = buffer.ReadFrom(io.LimitReader(file, (8<<20)+1))
 		if err != nil {
 			return nil, "", "", err
 		}
+		data := buffer.Bytes()
 		if len(data) > 8<<20 {
 			return nil, "", "", errors.New("插件资源不能超过8MB")
 		}

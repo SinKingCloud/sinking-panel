@@ -101,6 +101,8 @@ func ServeStatic(ctx context.Context, dataRoot, webRoot string) (err error) {
 
 更新有操作锁保护，并在校验、加载或保存失败时尝试恢复旧配置。出现回滚本身失败的错误后，应核对 `Running()` 和 `Config()`，不要假定运行时一定保持原状。业务层还要自行处理“写数据库”和“更新运行配置”的一致性。
 
+原始 JSON 模式启动、重载及运行中应用新配置时，先检查 JSON 结构和关闭管理接口的要求，再由 Caddy 加载流程完成模块初始化与验证，避免重复构建 WAF 等模块。读取已有快照、停止状态下保存配置，以及未发生实际重载的保存操作，仍执行完整验证。
+
 站点访问日志、WAF 审计日志和业务进程日志路径分别为 `root/<ID>/http.log`、`waf.log`、`process.log`。`LogProcess` 只提供约定路径，不会自动启动进程或创建进程日志；可交给 [process](../process/README.md) 的 LogPath 使用。
 
 ## 示例：增加代理站点及局部更新

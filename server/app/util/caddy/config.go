@@ -10,6 +10,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"reflect"
 	"sort"
 	"strconv"
 	"strings"
@@ -402,7 +403,7 @@ func (m *Manager) updateOptions(options Options) error {
 	}
 	changed := !bytes.Equal(config, currentConfig)
 	if !running {
-		if err = candidate.validateConfig(config); err != nil {
+		if err = candidate.validateConfig(config, true); err != nil {
 			return err
 		}
 	}
@@ -416,7 +417,7 @@ func (m *Manager) updateOptions(options Options) error {
 		m.wafLogPath = candidate.wafLogPath
 		m.configPath = candidate.configPath
 		m.acmeStorage = candidate.acmeStorage
-		m.sites = candidate.cloneSites(prepared)
+		m.sites = prepared
 		m.config = append([]byte(nil), config...)
 		m.configMode = false
 		m.mu.Unlock()
@@ -484,7 +485,7 @@ func (m *Manager) applySites(candidate map[string]*Site) error {
 			if err = caddy.Load(config, false); err != nil {
 				return fmt.Errorf("加载 http 配置失败: %w", err)
 			}
-		} else if err = m.validateConfig(config); err != nil {
+		} else if err = m.validateConfig(config, true); err != nil {
 			return err
 		}
 	}
@@ -492,7 +493,7 @@ func (m *Manager) applySites(candidate map[string]*Site) error {
 		if running && changed {
 			if rollbackErr := caddy.Load(currentConfig, false); rollbackErr != nil {
 				m.mu.Lock()
-				m.sites = m.cloneSites(candidate)
+				m.sites = candidate
 				m.config = append([]byte(nil), config...)
 				m.configMode = false
 				m.mu.Unlock()
@@ -503,7 +504,7 @@ func (m *Manager) applySites(candidate map[string]*Site) error {
 		return fmt.Errorf("保存 http 配置失败: %w", err)
 	}
 	m.mu.Lock()
-	m.sites = m.cloneSites(candidate)
+	m.sites = candidate
 	m.config = append([]byte(nil), config...)
 	m.configMode = false
 	m.mu.Unlock()
@@ -523,10 +524,18 @@ func (m *Manager) applyConfig(config []byte) error {
 	if running && httpRuntime.owner != m {
 		return errors.New("当前 Manager 已失去 http 运行时所有权")
 	}
-	if err := m.validateConfig(config); err != nil {
+	changed := !bytes.Equal(config, currentConfig)
+	provision := !running || !changed
+	if !provision {
+		// Load 会跳过仅格式不同的相同 JSON，这种情况仍需校验外部证书等资源。
+		var current, next interface{}
+		if json.Unmarshal(currentConfig, &current) == nil && json.Unmarshal(config, &next) == nil {
+			provision = reflect.DeepEqual(current, next)
+		}
+	}
+	if err := m.validateConfig(config, provision); err != nil {
 		return err
 	}
-	changed := !bytes.Equal(config, currentConfig)
 	if running && changed {
 		if err := caddy.Load(config, false); err != nil {
 			return fmt.Errorf("加载 http 配置失败: %w", err)
@@ -1122,7 +1131,8 @@ func (m *Manager) buildHTTPServer(listen []string, routes []interface{}, tlsPoli
 	return server
 }
 
-func (m *Manager) validateConfig(config []byte) error {
+// validateConfig 始终检查配置结构；即将 Load 时由 Caddy 完成模块初始化和校验。
+func (m *Manager) validateConfig(config []byte, provision bool) error {
 	if len(bytes.TrimSpace(config)) == 0 {
 		return errors.New("http 配置不能为空")
 	}
@@ -1139,6 +1149,9 @@ func (m *Manager) validateConfig(config []byte) error {
 	var parsed caddy.Config
 	if err := caddy.StrictUnmarshalJSON(config, &parsed); err != nil {
 		return fmt.Errorf("解析 http 配置失败: %w", err)
+	}
+	if !provision {
+		return nil
 	}
 	// 配置校验会初始化日志，校验结束后恢复面板的标准日志配置。
 	output, flags, prefix := log.Writer(), log.Flags(), log.Prefix()

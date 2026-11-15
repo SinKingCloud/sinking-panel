@@ -1,6 +1,7 @@
 package ip
 
 import (
+	"compress/gzip"
 	"errors"
 	"io"
 	"net"
@@ -10,7 +11,6 @@ import (
 	"sync"
 
 	"server/app/constant"
-	"server/app/util/file"
 	"server/app/util/ip/czdb"
 )
 
@@ -19,28 +19,20 @@ func Query(ip string) (*Info, error) {
 	if parse == nil {
 		return nil, errors.New("ip格式不正确")
 	}
-	// 首次查询时加载，插件初始化等命令无需创建 IP 数据文件。
-	initialize.Do(func() {
-		if path, err := initIPFile("ipv4"); err == nil && path != "" {
-			v4Search, _ = czdb.NewDbSearcher(path, "MEMORY", key)
-		}
-		if path, err := initIPFile("ipv6"); err == nil && path != "" {
-			v6Search, _ = czdb.NewDbSearcher(path, "MEMORY", key)
+	family, name := 0, "ipv4"
+	if parse.To4() == nil {
+		family, name = 1, "ipv6"
+	}
+	// 按地址族首次加载索引，查询时只读取命中的数据块。
+	initialize[family].Do(func() {
+		if path, err := initIPFile(name); err == nil && path != "" {
+			searchers[family], _ = czdb.NewDbSearcher(path, "BTREE", key)
 		}
 	})
-	var txt string
-	var err error
-	if parse.To4() != nil {
-		if v4Search == nil {
-			return nil, errors.New("ipv4数据库初始化失败")
-		}
-		txt, err = v4Search.Search(ip)
-	} else {
-		if v6Search == nil {
-			return nil, errors.New("ipv6数据库初始化失败")
-		}
-		txt, err = v6Search.Search(ip)
+	if searchers[family] == nil {
+		return nil, errors.New(name + "数据库初始化失败")
 	}
+	txt, err := searchers[family].Search(ip)
 	if err != nil {
 		return nil, err
 	}
@@ -78,39 +70,50 @@ func Query(ip string) (*Info, error) {
 }
 
 var (
-	initialize sync.Once
-	v4Search   *czdb.DbSearcher //ipv4查询
-	v6Search   *czdb.DbSearcher //ipv6查询
+	initialize [2]sync.Once
+	searchers  [2]*czdb.DbSearcher // IPv4、IPv6 搜索器
 )
 
 const key = "SFdbti7sFbLvmjxB/W179A==" //纯真IP库key
 
 // initIPFile 初始化ip文件
 func initIPFile(name string) (string, error) {
-	path := constant.IPPath
-	f := file.NewDisk(path)
-	if !f.Exists(name) {
-		_ = f.AutoCreate(name)
-		open, err := czdb.Ip.Open("data/" + name)
-		if err == nil {
-			defer func() {
-				_ = open.Close()
-			}()
-			newFile, err2 := f.OpenFile(name, os.O_WRONLY|os.O_TRUNC|os.O_CREATE, 0755)
-			if err2 != nil {
-				err = err2
-			} else {
-				defer func() {
-					_ = newFile.Close()
-				}()
-				_, err = io.Copy(newFile, open)
-			}
-		} else {
-			err = f.AutoCreate(name)
-		}
-		if err != nil {
-			return "", err
-		}
+	path := filepath.Join(constant.IPPath, name)
+	if _, err := os.Stat(path); err == nil {
+		return path, nil
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return "", err
 	}
-	return filepath.Join(path, name), nil
+	if err := os.MkdirAll(constant.IPPath, 0755); err != nil {
+		return "", err
+	}
+	source, err := czdb.Ip.Open("data/" + name + ".gz")
+	if err != nil {
+		return "", err
+	}
+	defer source.Close()
+	reader, err := gzip.NewReader(source)
+	if err != nil {
+		return "", err
+	}
+	defer reader.Close()
+	target, err := os.CreateTemp(constant.IPPath, "."+name+"-*")
+	if err != nil {
+		return "", err
+	}
+	defer target.Close()
+	defer os.Remove(target.Name())
+	if _, err = io.Copy(target, reader); err != nil {
+		return "", err
+	}
+	if err = target.Chmod(0644); err != nil {
+		return "", err
+	}
+	if err = target.Close(); err != nil {
+		return "", err
+	}
+	if err = os.Rename(target.Name(), path); err != nil {
+		return "", err
+	}
+	return path, nil
 }
