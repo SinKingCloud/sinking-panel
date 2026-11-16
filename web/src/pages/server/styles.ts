@@ -14,28 +14,19 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
 
     return {
         page: css`
-            --terminal-page-height: calc(100dvh - 92px);
+            --terminal-page-height: max(320px, calc(100dvh - var(--terminal-page-offset, 92px)));
+            container-name: terminal-workspace;
+            container-type: inline-size;
             width: 100%;
             max-width: 1450px;
             min-height: var(--terminal-page-height);
             margin: 0 auto;
 
             @supports not (height: 100dvh) {
-                --terminal-page-height: calc(100vh - 92px);
-            }
-
-            @media (max-width: 780px) {
-                --terminal-page-height: calc(100dvh - 20px);
-                min-height: var(--terminal-page-height);
-
-                @supports not (height: 100dvh) {
-                    --terminal-page-height: calc(100vh - 20px);
-                }
+                --terminal-page-height: max(320px, calc(100vh - var(--terminal-page-offset, 92px)));
             }
         `,
         workspace: css`
-            container-name: terminal-workspace;
-            container-type: inline-size;
             width: 100%;
             height: var(--terminal-page-height);
             min-width: 0;
@@ -51,59 +42,92 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
                 padding: 0;
             }
 
-            @media (max-width: 780px) {
+            @container terminal-workspace (max-width: 760px) {
                 height: auto;
                 min-height: var(--terminal-page-height);
-            }
-
-            @media (min-width: 781px) and (max-height: 600px) and (orientation: landscape) {
-                height: auto;
-                min-height: 300px;
+                > .ant-card-body {
+                    height: auto;
+                }
             }
         `,
         terminalLayout: css`
+            --terminal-server-width: ${serverWidth}px;
+            --terminal-script-width: ${scriptWidth}px;
+            --terminal-console-width: 420px;
             width: 100%;
             height: 100%;
             min-width: 0;
             min-height: 0;
             display: grid;
-            grid-template-columns: ${serverWidth}px minmax(420px, 1fr) ${scriptWidth}px;
+            grid-template-columns: var(--terminal-server-width) minmax(var(--terminal-console-width), 1fr) var(--terminal-script-width);
             grid-template-rows: minmax(0, 1fr);
 
+            /* 终端高度由网格分配，避免 xterm 的旧尺寸反过来撑高布局。 */
+            > section {
+                min-height: 0;
+                contain: size;
+            }
+
+            @container terminal-workspace (min-width: 761px) {
+                transition: grid-template-columns ${token.motionDurationSlow} ${token.motionEaseInOut};
+
+                > aside {
+                    overflow: hidden;
+                }
+
+                /* 内容保持展开宽度并由侧栏裁切，滑动时不反复挤压搜索框和文字。 */
+                > aside:not(.collapsed) > :not(header) {
+                    width: calc(var(--terminal-pane-width) - 1px);
+                }
+
+                > aside > header {
+                    transition: padding ${token.motionDurationSlow} ${token.motionEaseInOut};
+                }
+
+                > aside > header .panel-heading {
+                    white-space: nowrap;
+                }
+
+                > aside > header .collapse-trigger {
+                    margin-inline-start: auto;
+                }
+
+                > aside.collapsed > header {
+                    padding-inline: ${compact ? 6 : 7}px;
+                }
+            }
+
+            @media (prefers-reduced-motion: reduce) {
+                transition: none;
+
+                > aside > header {
+                    transition: none;
+                }
+            }
+
             &.server-collapsed {
-                grid-template-columns: ${collapsedWidth}px minmax(420px, 1fr) ${scriptWidth}px;
+                grid-template-columns: ${collapsedWidth}px minmax(var(--terminal-console-width), 1fr) var(--terminal-script-width);
             }
 
             &.scripts-collapsed {
-                grid-template-columns: ${serverWidth}px minmax(420px, 1fr) ${collapsedWidth}px;
+                grid-template-columns: var(--terminal-server-width) minmax(var(--terminal-console-width), 1fr) ${collapsedWidth}px;
             }
 
             &.server-collapsed.scripts-collapsed {
-                grid-template-columns: ${collapsedWidth}px minmax(420px, 1fr) ${collapsedWidth}px;
+                grid-template-columns: ${collapsedWidth}px minmax(var(--terminal-console-width), 1fr) ${collapsedWidth}px;
             }
 
             @container terminal-workspace (max-width: 980px) {
-                grid-template-columns: ${compact ? 196 : 208}px minmax(300px, 1fr) ${compact ? 220 : 232}px;
-                grid-template-rows: minmax(0, 1fr);
-
-                &.scripts-collapsed {
-                    grid-template-columns: ${compact ? 196 : 208}px minmax(300px, 1fr) ${collapsedWidth}px;
-                }
-
-                &.server-collapsed {
-                    grid-template-columns: ${collapsedWidth}px minmax(300px, 1fr) ${compact ? 220 : 232}px;
-                }
-
-                &.server-collapsed.scripts-collapsed {
-                    grid-template-columns: ${collapsedWidth}px minmax(300px, 1fr) ${collapsedWidth}px;
-                }
+                --terminal-server-width: ${compact ? 196 : 208}px;
+                --terminal-script-width: ${compact ? 220 : 232}px;
+                --terminal-console-width: 300px;
             }
 
             @container terminal-workspace (max-width: 760px) {
                 height: auto;
                 min-height: var(--terminal-page-height);
                 grid-template-columns: 1fr;
-                grid-template-rows: auto auto minmax(0, 1fr);
+                grid-template-rows: auto auto minmax(480px, 1fr);
 
                 &.server-collapsed,
                 &.scripts-collapsed {
@@ -114,14 +138,9 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
                     grid-template-columns: 1fr;
                 }
             }
-
-            @media (min-width: 781px) and (max-height: 600px) and (orientation: landscape) {
-                height: auto;
-                min-height: 300px;
-                grid-template-rows: minmax(300px, 1fr);
-            }
         `,
         serverPane: css`
+            --terminal-pane-width: var(--terminal-server-width);
             min-width: 0;
             min-height: 0;
             display: flex;
@@ -744,6 +763,7 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, props: any = {}) 
         `,
         ...createTerminalStyles({css, token}, {compact, terminalBackground}),
         scriptPane: css`
+            --terminal-pane-width: var(--terminal-script-width);
             min-width: 0;
             min-height: 0;
             display: flex;

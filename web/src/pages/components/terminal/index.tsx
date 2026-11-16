@@ -104,6 +104,7 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
     const socketRef = useRef<WebSocket | undefined>(undefined);
     const socketEncoderRef = useRef(new TextEncoder());
     const fitFrameRef = useRef(0);
+    const fitFocusRef = useRef(false);
     const lastSizeRef = useRef("");
     socketRef.current = socket;
 
@@ -167,14 +168,14 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
     }, [sendResize]);
 
     const scheduleFit = useCallback((focus = false) => {
-        cancelAnimationFrame(fitFrameRef.current);
+        fitFocusRef.current ||= focus;
+        // 合并同一帧的尺寸通知，持续拖动窗口时也及时适配终端。
+        if (fitFrameRef.current) return;
         fitFrameRef.current = requestAnimationFrame(() => {
-            fitFrameRef.current = requestAnimationFrame(() => {
-                fitNow();
-                if (focus) {
-                    terminalRef.current?.focus();
-                }
-            });
+            fitFrameRef.current = 0;
+            fitNow();
+            if (fitFocusRef.current) terminalRef.current?.focus();
+            fitFocusRef.current = false;
         });
     }, [fitNow]);
 
@@ -242,12 +243,20 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
         fitAddonRef.current = addon;
 
         const input = terminal.onData(sendInput);
-        const observer = new ResizeObserver(() => scheduleFit());
+        let resizeTimer = 0;
+        const observer = new ResizeObserver(() => {
+            // 折叠和拖动期间先裁切画面，尺寸稳定后再重排行列并通知远端。
+            window.clearTimeout(resizeTimer);
+            resizeTimer = window.setTimeout(() => scheduleFit(), 100);
+        });
         observer.observe(host);
         scheduleFit();
 
         return () => {
+            window.clearTimeout(resizeTimer);
             cancelAnimationFrame(fitFrameRef.current);
+            fitFrameRef.current = 0;
+            fitFocusRef.current = false;
             observer.disconnect();
             input.dispose();
             terminal.dispose();

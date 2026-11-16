@@ -33,7 +33,7 @@ export default (): React.ReactNode => {
     const formRef = useRef<any>({} as any);
     const terminalRefs = useRef(new Map<number, TerminalRef>());
     const terminalRefCallbacks = useRef(new Map<number, (value: TerminalRef | null) => void>());
-    const {pageRef, pageStyle} = useHeight(`${isCompactMode}:${enumLoading}`);
+    const pageRef = useHeight(`${isCompactMode}:${enumLoading}`);
     const [selectedId, setSelectedId] = useState(localServer.id);
     const [sessions, setSessions] = useState<any>(() => ({
         [String(localServer.id)]: {server: localServer, resetKey: 0},
@@ -219,7 +219,7 @@ export default (): React.ReactNode => {
     }, [modal, remove]);
     return (
         <Body loading={enumLoading} space={false}>
-            <div ref={pageRef} className={styles.page} style={pageStyle}>
+            <div ref={pageRef} className={styles.page}>
                 <Card className={styles.workspace} variant="borderless">
                     <main className={[
                         styles.terminalLayout,
