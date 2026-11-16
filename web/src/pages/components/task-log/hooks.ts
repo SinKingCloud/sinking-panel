@@ -427,7 +427,7 @@ const useLog = (
         const confirmation = modal.confirm({
             getContainer: () => {
                 const panel = panelRef?.current;
-                return panel && document.fullscreenElement === panel ? panel : document.body;
+                return panel && (document.fullscreenElement === panel || panel.classList.contains("panel-page-fullscreen")) ? panel : document.body;
             },
             title: "清理日志",
             content: `确定清理“${currentTask.name || "-"}”的全部日志吗？清理后无法恢复。`,

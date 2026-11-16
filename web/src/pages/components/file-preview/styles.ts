@@ -77,9 +77,11 @@ const useStyles = createStyles<{compact?: boolean}>(({css, token}, props = {}) =
                 border-radius: 0;
             }
 
-            .file-preview-stage:fullscreen {
+            .file-preview-stage:fullscreen,
+            .file-preview-stage.panel-page-fullscreen {
                 width: 100vw;
                 height: 100vh;
+                height: 100dvh;
                 border-radius: 0;
                 background: #000;
             }
@@ -164,7 +166,7 @@ const useStyles = createStyles<{compact?: boolean}>(({css, token}, props = {}) =
                 background: linear-gradient(${token.colorBgContainerDisabled}, ${token.colorBgContainerDisabled}), ${token.colorBgContainer};
             }
 
-            .file-preview-stage:fullscreen :is(.file-preview-nav, .file-preview-fullscreen).ant-btn {
+            .file-preview-stage:is(:fullscreen, .panel-page-fullscreen) :is(.file-preview-nav, .file-preview-fullscreen).ant-btn {
                 color: rgba(255, 255, 255, 0.94);
                 border-color: rgba(255, 255, 255, 0.22);
                 background: rgba(24, 24, 24, 0.48);

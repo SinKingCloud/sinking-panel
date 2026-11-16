@@ -56,7 +56,7 @@ export default createStyles(({css, token}, {compact}: {compact: boolean}) => ({
         }
         .mysql-window-header { display: flex; align-items: center; flex: none; min-height: ${token.controlHeight + 20}px; gap: 16px; padding: 0 16px; border-bottom: 1px solid ${token.colorBorderSecondary}; }
         .mysql-window-title { display: flex; align-items: center; gap: 9px; min-width: 0; }
-        .mysql-window-label { white-space: nowrap; font-weight: 500; }
+        .mysql-window-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
         .mysql-catalog-toggle.ant-btn { flex: none; width: 32px; height: 32px; padding: 0; color: ${token.colorTextSecondary}; }
         .mysql-window-actions { display: flex; align-items: center; flex: none; gap: 2px; margin-left: auto; }
         .mysql-window-actions .ant-btn { color: ${token.colorTextSecondary}; }
@@ -96,7 +96,10 @@ export default createStyles(({css, token}, {compact}: {compact: boolean}) => ({
         }
         &.is-fullscreen { margin: 0; }
         &.is-fullscreen .ant-modal-container { border-radius: 0; }
-        &.is-fullscreen .mysql-window { height: 100dvh; min-height: 0; }
+        &.is-fullscreen .mysql-window {
+            height: 100dvh; min-height: 0; box-sizing: border-box;
+            padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+        }
     `,
     mysqlInstance: css`
         flex: none;

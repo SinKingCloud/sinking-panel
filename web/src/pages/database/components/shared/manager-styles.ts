@@ -56,7 +56,7 @@ export default createStyles(({css, token}, {compact}: {compact: boolean}) => ({
         }
         .client-window-header { display: flex; align-items: center; flex: none; min-height: ${token.controlHeight + 20}px; gap: 16px; padding: 0 16px; border-bottom: 1px solid ${token.colorBorderSecondary}; }
         .client-window-title { display: flex; align-items: center; gap: 9px; min-width: 0; }
-        .client-window-label { white-space: nowrap; font-weight: 500; }
+        .client-window-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
         .client-catalog-toggle.ant-btn { flex: none; width: 32px; height: 32px; padding: 0; color: ${token.colorTextSecondary}; }
         .client-window-actions { display: flex; align-items: center; flex: none; gap: 2px; margin-left: auto; }
         .client-window-actions .ant-btn { color: ${token.colorTextSecondary}; }
@@ -97,7 +97,10 @@ export default createStyles(({css, token}, {compact}: {compact: boolean}) => ({
         }
         &.is-fullscreen { margin: 0; }
         &.is-fullscreen .ant-modal-container { border-radius: 0; }
-        &.is-fullscreen .client-window { height: 100dvh; min-height: 0; }
+        &.is-fullscreen .client-window {
+            height: 100dvh; min-height: 0; box-sizing: border-box;
+            padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+        }
     `,
     clientInstance: css`
         flex: none;

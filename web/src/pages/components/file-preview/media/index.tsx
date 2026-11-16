@@ -1,8 +1,9 @@
 import React, {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from "react";
-import {App, Button, Empty, Spin, Tooltip} from "antd";
+import {Button, Empty, Spin, Tooltip} from "antd";
 import {Icon, useTheme} from "sinking-antd";
 import defaultSettings from "@/../config/defaultSettings";
 import {getFileSign} from "@/service/api/file";
+import useFullscreen from "@/utils/fullscreen";
 import useStyles from "../styles";
 
 export type FilePreviewKind = "image" | "video" | "audio";
@@ -65,7 +66,6 @@ const FilePreviewPane = ({
     showFullscreen = true,
     controls,
 }: FilePreviewPaneProps) => {
-    const {message} = App.useApp();
     const theme = useTheme();
     const compact = Boolean(theme?.isCompactTheme?.());
     const {styles} = useStyles({compact});
@@ -79,7 +79,7 @@ const FilePreviewPane = ({
     const [error, setError] = useState("");
     const [loadedKey, setLoadedKey] = useState("");
     const [reload, setReload] = useState(0);
-    const [fullscreen, setFullscreen] = useState(false);
+    const {fullscreen, pageFullscreen, pending: fullscreenPending, toggle: toggleFullscreen} = useFullscreen(stageRef, {active});
     const [controlsVisible, setControlsVisible] = useState(true);
     const kind = getFilePreviewKind(file?.name);
     const path = String(file?.path || "");
@@ -124,23 +124,11 @@ const FilePreviewPane = ({
         return clearControlsTimer;
     }, [clearControlsTimer, fullscreen, scheduleControlsHide]);
 
-    useEffect(() => {
-        const handleFullscreenChange = () => {
-            setFullscreen(document.fullscreenElement === stageRef.current);
-        };
-        document.addEventListener("fullscreenchange", handleFullscreenChange);
-        return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
-    }, []);
-
     useLayoutEffect(() => {
-        const stage = stageRef.current;
         return () => {
             requestRef.current += 1;
             activeUrlRef.current = "";
             clearControlsTimer();
-            if (document.fullscreenElement === stage && typeof document.exitFullscreen === "function") {
-                void document.exitFullscreen().catch(() => undefined);
-            }
         };
     }, [clearControlsTimer]);
 
@@ -206,30 +194,6 @@ const FilePreviewPane = ({
         setMediaLoading(true);
         setReload((value) => value + 1);
     }, []);
-
-    const toggleFullscreen = useCallback(async () => {
-        const stage = stageRef.current;
-        if (!stage) {
-            return;
-        }
-        if (
-            !document.fullscreenEnabled
-            || typeof stage.requestFullscreen !== "function"
-            || typeof document.exitFullscreen !== "function"
-        ) {
-            message.info("当前浏览器不支持全屏");
-            return;
-        }
-        try {
-            if (document.fullscreenElement === stage) {
-                await document.exitFullscreen();
-            } else {
-                await stage.requestFullscreen();
-            }
-        } catch {
-            message.error(fullscreen ? "退出全屏失败" : "进入全屏失败");
-        }
-    }, [fullscreen, message]);
 
     const getPopupContainer = useCallback((trigger: HTMLElement) => (
         stageRef.current || trigger.parentElement || document.body
@@ -300,7 +264,7 @@ const FilePreviewPane = ({
         <div className={styles.root} style={embedded ? {width: "100%", height: "100%"} : undefined}>
             <div
                 ref={stageRef}
-                className={`file-preview-stage ${embedded ? "is-embedded" : ""} ${controlsVisible ? "" : "file-preview-controls-hidden"}`}
+                className={`file-preview-stage ${embedded ? "is-embedded" : ""} ${pageFullscreen ? "panel-page-fullscreen" : ""} ${controlsVisible ? "" : "file-preview-controls-hidden"}`}
                 aria-label={`${file?.name || "文件"}预览`}
                 aria-busy={previewLoading || previewMediaLoading}
                 onPointerMove={(event) => event.pointerType === "mouse" && revealControls()}
@@ -329,6 +293,7 @@ const FilePreviewPane = ({
                             shape="circle"
                             aria-label={fullscreen ? "退出全屏" : "全屏"}
                             aria-pressed={fullscreen}
+                            disabled={fullscreenPending}
                             icon={<Icon type={fullscreen ? "FullscreenExitOutlined" : "FullscreenOutlined"}/>}
                             onClick={() => void toggleFullscreen()}/>
                     </Tooltip>

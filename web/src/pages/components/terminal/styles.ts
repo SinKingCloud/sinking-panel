@@ -172,7 +172,8 @@ export const createTerminalStyles = (
             border-radius: 0;
             background: ${terminalBackground};
 
-            &:fullscreen {
+            &:fullscreen,
+            &.panel-page-fullscreen {
                 width: 100vw;
                 height: 100dvh;
                 min-width: 0;
@@ -180,6 +181,8 @@ export const createTerminalStyles = (
                 border: 0;
                 border-radius: 0;
                 background: ${terminalBackground};
+                padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+                box-sizing: border-box;
             }
 
             &:fullscreen::backdrop {
@@ -189,8 +192,8 @@ export const createTerminalStyles = (
             .fullscreen-actions {
                 position: absolute;
                 z-index: 3;
-                top: 10px;
-                right: 12px;
+                top: calc(10px + env(safe-area-inset-top));
+                right: calc(12px + env(safe-area-inset-right));
                 padding: 3px;
                 display: flex;
                 align-items: center;
@@ -208,7 +211,8 @@ export const createTerminalStyles = (
             }
 
             @supports not (height: 100dvh) {
-                &:fullscreen {
+                &:fullscreen,
+                &.panel-page-fullscreen {
                     height: 100vh;
                 }
             }

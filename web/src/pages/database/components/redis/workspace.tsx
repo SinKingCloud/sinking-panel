@@ -1,6 +1,7 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react";
 import {App, Button, Drawer, Empty, Grid, Input, Modal, Select, Spin, Tooltip, Typography} from "antd";
 import {Icon, useTheme} from "sinking-antd";
+import useFullscreen from "@/utils/fullscreen";
 import Content from "./content";
 import {useRedisClient} from "./context";
 import useStyles from "./workspace-styles";
@@ -42,7 +43,11 @@ export default ({record, open = true, onCancel, onConfigure, refreshKey = 0, ini
     loaded.current = loadedKey;
     const [loading, setLoading] = useState(false);
     const [loadingMore, setLoadingMore] = useState(false);
-    const [fullscreen, setFullscreen] = useState(false);
+    const fullscreenRef = useRef<HTMLElement | null>(typeof document === "undefined" ? null : document.documentElement);
+    const {fullscreen, pending: fullscreenPending, toggle: toggleFullscreen, exit: exitFullscreen} = useFullscreen(fullscreenRef, {
+        active: Boolean(record) && open,
+        pageStyles: false,
+    });
     const [entered, setEntered] = useState(false);
     const [busy, setBusy] = useState(false);
     const [catalogOpen, setCatalogOpen] = useState(false);
@@ -88,11 +93,11 @@ export default ({record, open = true, onCancel, onConfigure, refreshKey = 0, ini
         openedKey.current = recordKey;
         catalogPage.current = {page: 0, pageSize: 20, total: 0}; loaded.current = "";
         setNames([]); setLoadedKey(""); setVersion(undefined); setBusy(false); setCatalogOpen(false);
-        if (!sameInstance) { catalogKeyword.current = ""; setSelected(""); setSearch(""); setFullscreen(false); activeTab.current = undefined; }
+        if (!sameInstance) { catalogKeyword.current = ""; setSelected(""); setSearch(""); void exitFullscreen(); activeTab.current = undefined; }
         editState.current = {dirty: false, busy: false};
         void load();
         return () => { sequence.current++; catalogPending.current = false; clearTimeout(searchTimer.current); searchTimer.current = undefined; confirmation.current?.destroy(); };
-    }, [recordKey, load]);
+    }, [recordKey, load, exitFullscreen]);
     const loadNext = useCallback(() => {
         const {page, pageSize, total} = catalogPage.current;
         if (!catalogPending.current && !busy && page > 0 && page * pageSize < total) void load(page + 1);
@@ -133,7 +138,7 @@ export default ({record, open = true, onCancel, onConfigure, refreshKey = 0, ini
         lastRecord.current = undefined; openedKey.current = ""; activeTab.current = undefined;
         catalogKeyword.current = ""; catalogPage.current = {page: 0, pageSize: 20, total: 0};
         setNames([]); setSelected(""); setSearch(""); setLoadedKey(""); setVersion(undefined); setLoading(false);
-        setLoadingMore(false); setCatalogOpen(false); setFullscreen(false); setEntered(false); editState.current = {dirty: false, busy: false};
+        setLoadingMore(false); setCatalogOpen(false); void exitFullscreen(); setEntered(false); editState.current = {dirty: false, busy: false};
     };
     const footer = version && <footer className="redis-instance-footer">
         <Typography.Text className="redis-instance-name" ellipsis={{tooltip: instance?.name}}>{instance?.name}</Typography.Text>
@@ -160,7 +165,7 @@ export default ({record, open = true, onCancel, onConfigure, refreshKey = 0, ini
     </aside>;
     return <Modal open={Boolean(record) && open} onCancel={() => navigate(onCancel)} footer={null} title="Redis 管理" closable={false} destroyOnHidden={!record}
         afterOpenChange={(visible) => { if (visible) setEntered(true); }} afterClose={clear}
-        mask={{closable: false}} focusable={{focusTriggerAfterClose: false}} className={[styles.modal, fullscreen && "is-fullscreen", className].filter(Boolean).join(" ")}
+        mask={{closable: false}} keyboard={!fullscreen} focusable={{focusTriggerAfterClose: false}} className={[styles.modal, fullscreen && "is-fullscreen", className].filter(Boolean).join(" ")}
         width={fullscreen ? "100vw" : compact ? 1120 : 1200}
         style={{top: fullscreen ? 0 : mobile ? 24 : 100, paddingBottom: fullscreen ? 0 : mobile ? 24 : 100,
             maxWidth: fullscreen ? "100vw" : "calc(100vw - 24px)", ...style}}>
@@ -169,12 +174,12 @@ export default ({record, open = true, onCancel, onConfigure, refreshKey = 0, ini
                 <div className="redis-window-title">
                     {mobile && <Tooltip title="数据库目录"><Button className="redis-catalog-toggle" color="default" variant={catalogOpen ? "filled" : "text"}
                         icon={<Icon type="MenuOutlined"/>} aria-label="数据库目录" disabled={connecting} onClick={() => setCatalogOpen((value) => !value)}/></Tooltip>}
-                    <span className={styles.icon} aria-hidden="true"/><span>Redis 管理</span>
+                    <span className={styles.icon} aria-hidden="true"/><span className="redis-window-label">Redis 管理</span>
                 </div>
                 <div className="redis-window-actions">
                     {onConfigure && <Tooltip title="连接设置"><Button type="text" icon={<Icon type="SettingOutlined"/>} disabled={busy} aria-label="连接设置" onClick={() => navigate(onConfigure)}/></Tooltip>}
-                    {!mobile && <Tooltip title={fullscreen ? "退出全屏" : "全屏"}><Button type="text" icon={<Icon type={fullscreen ? "FullscreenExitOutlined" : "FullscreenOutlined"}/>}
-                        aria-label={fullscreen ? "退出全屏" : "全屏"} onClick={() => setFullscreen((value) => !value)}/></Tooltip>}
+                    <Tooltip title={fullscreen ? "退出全屏" : "全屏"}><Button type="text" icon={<Icon type={fullscreen ? "FullscreenExitOutlined" : "FullscreenOutlined"}/>}
+                        aria-label={fullscreen ? "退出全屏" : "全屏"} aria-pressed={fullscreen} disabled={fullscreenPending} onClick={() => void toggleFullscreen()}/></Tooltip>
                     <Tooltip title="关闭"><Button type="text" icon={<Icon type="CloseOutlined"/>} disabled={busy} aria-label="关闭 Redis 管理" onClick={() => navigate(onCancel)}/></Tooltip>
                 </div>
             </header>

@@ -1,6 +1,7 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react";
 import {App, Button, ConfigProvider, Drawer, Dropdown, Empty, Grid, Input, Modal, Space, Spin, Tooltip, Typography} from "antd";
 import {Icon, useTheme} from "sinking-antd";
+import useFullscreen from "@/utils/fullscreen";
 import type {ComponentType} from "react";
 import DatabasePanel from "./panel";
 import DatabaseForm from "./database-form";
@@ -53,7 +54,11 @@ const Workspace = ({record, requests, components, type, panel: Panel, editForm: 
     const [showCatalog, setShowCatalog] = useState(false);
     const [showSystem, setShowSystem] = useState(false);
     const [order, setOrder] = useState("asc");
-    const [fullscreen, setFullscreen] = useState(false);
+    const fullscreenRef = useRef<HTMLElement | null>(typeof document === "undefined" ? null : document.documentElement);
+    const {fullscreen, pending: fullscreenPending, toggle: toggleFullscreen, exit: exitFullscreen} = useFullscreen(fullscreenRef, {
+        active: Boolean(record) && open,
+        pageStyles: false,
+    });
     const [entered, setEntered] = useState(false);
     const [editor, setEditor] = useState<any>();
     const [detail, setDetail] = useState<any>();
@@ -143,18 +148,18 @@ const Workspace = ({record, requests, components, type, panel: Panel, editForm: 
         connectedKey.current = ""; catalogPending.current = false; catalogFailed.current = false; catalogPage.current = {page: 0, pageSize: 20, total: 0};
         clearTimeout(searchTimer.current); searchTimer.current = undefined; setLoadingMore(false);
         setNames([]); setLoadedKey(""); setVersion(undefined); setEditor(undefined); setDetail(undefined); setShowCatalog(false); setRevision(0); setDeleting(false);
-        if (!sameInstance) { setSelected(""); setSearch(""); catalogKeyword.current = ""; catalogSystem.current = false; setShowSystem(false); catalogOrder.current = "asc"; setOrder("asc"); currentTab.current = undefined; setFullscreen(false); }
+        if (!sameInstance) { setSelected(""); setSearch(""); catalogKeyword.current = ""; catalogSystem.current = false; setShowSystem(false); catalogOrder.current = "asc"; setOrder("asc"); currentTab.current = undefined; void exitFullscreen(); }
         confirmation.current?.destroy(); pendingDelete.current = false;
         void load();
         return () => { live.current = false; sequence.current++; clearTimeout(searchTimer.current); confirmation.current?.destroy(); };
-    }, [recordKey, load]);
+    }, [recordKey, load, exitFullscreen]);
     const clear = () => {
         // 配置连接只临时隐藏；真正关闭后才清理内容和版本，避免退出动画变形。
         if (instanceKey.current) return;
         lastRecord.current = undefined; openedKey.current = ""; connectedKey.current = ""; currentTab.current = undefined;
         setNames([]); setSelected(""); setLoadedKey(""); setSearch(""); setVersion(undefined);
         setLoading(false); setLoadingMore(false);
-        setEditor(undefined); setDetail(undefined); setShowCatalog(false); setFullscreen(false); setEntered(false);
+        setEditor(undefined); setDetail(undefined); setShowCatalog(false); void exitFullscreen(); setEntered(false);
         catalogSystem.current = false; setShowSystem(false);
         catalogOrder.current = "asc"; setOrder("asc");
     };
@@ -271,7 +276,7 @@ const Workspace = ({record, requests, components, type, panel: Panel, editForm: 
             className={[styles.workspace, styles.clientWorkspace, fullscreen && "is-fullscreen", className].filter(Boolean).join(" ")}
             style={{top: fullscreen ? 0 : mobile ? 24 : 100, paddingBottom: fullscreen ? 0 : mobile ? 24 : 100,
                 maxWidth: fullscreen ? "100vw" : "calc(100vw - 24px)", ...style}}
-            focusable={{focusTriggerAfterClose: false}} mask={{closable: false}}>
+            keyboard={!fullscreen} focusable={{focusTriggerAfterClose: false}} mask={{closable: false}}>
             <div className="client-window">
                 <header className="client-window-header">
                     <div className="client-window-title">
@@ -283,8 +288,8 @@ const Workspace = ({record, requests, components, type, panel: Panel, editForm: 
                     </div>
                     <div className="client-window-actions">
                         {onConfigure && <Tooltip title="连接设置"><Button type="text" icon={<Icon type="SettingOutlined"/>} aria-label="连接设置" onClick={onConfigure}/></Tooltip>}
-                        {!mobile && <Tooltip title={fullscreen ? "退出全屏" : "全屏"}><Button type="text" icon={<Icon type={fullscreen ? "FullscreenExitOutlined" : "FullscreenOutlined"}/>}
-                            aria-label={fullscreen ? "退出全屏" : "全屏"} onClick={() => setFullscreen((value) => !value)}/></Tooltip>}
+                        <Tooltip title={fullscreen ? "退出全屏" : "全屏"}><Button type="text" icon={<Icon type={fullscreen ? "FullscreenExitOutlined" : "FullscreenOutlined"}/>}
+                            aria-label={fullscreen ? "退出全屏" : "全屏"} aria-pressed={fullscreen} disabled={fullscreenPending} onClick={() => void toggleFullscreen()}/></Tooltip>
                         <Tooltip title="关闭"><Button type="text" icon={<Icon type="CloseOutlined"/>} aria-label={`关闭 ${engineName} 管理`} onClick={onCancel}/></Tooltip>
                     </div>
                 </header>

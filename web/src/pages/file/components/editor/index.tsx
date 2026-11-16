@@ -86,6 +86,9 @@ const FileEditor = forwardRef(function FileEditor(
     const [fullscreenPending, setFullscreenPending] = useState(false);
     const [minimized, setMinimized] = useState(false);
     const fullscreen = nativeFullscreen || pageFullscreen;
+    const visible = Boolean(active && session && !minimized);
+    const visibleRef = useRef(visible);
+    visibleRef.current = visible;
 
     useEffect(() => {
         onMinimizedChange(Boolean(session && minimized));
@@ -146,6 +149,13 @@ const FileEditor = forwardRef(function FileEditor(
         await document.exitFullscreen();
         return true;
     }, [message]);
+
+    useEffect(() => {
+        if (!visible) {
+            // 切换本地/云端页面时保留编辑会话，但不能保留全屏或继续完成旧请求。
+            void exitWorkspaceFullscreen().catch(() => undefined);
+        }
+    }, [exitWorkspaceFullscreen, visible]);
 
     const destroyDiscardConfirm = useCallback(() => {
         discardConfirmRef.current?.destroy();
@@ -329,8 +339,8 @@ const FileEditor = forwardRef(function FileEditor(
             event.stopPropagation();
             void exitWorkspaceFullscreen().catch(() => message.error("退出全屏失败"));
         };
-        document.addEventListener("keydown", handleEscape);
-        return () => document.removeEventListener("keydown", handleEscape);
+        document.addEventListener("keydown", handleEscape, true);
+        return () => document.removeEventListener("keydown", handleEscape, true);
     }, [exitWorkspaceFullscreen, message, pageFullscreen]);
 
     useEffect(() => {
@@ -656,7 +666,7 @@ const FileEditor = forwardRef(function FileEditor(
 
     const toggleFullscreen = useCallback(async () => {
         const workspace = workspaceRef.current;
-        if (!workspace || fullscreenPending) {
+        if (!visibleRef.current || !workspace || fullscreenPending) {
             return;
         }
         if (pageFullscreen || document.fullscreenElement === workspace) {
@@ -679,12 +689,12 @@ const FileEditor = forwardRef(function FileEditor(
         setFullscreenPending(true);
         try {
             await workspace.requestFullscreen();
-            // 关闭或最小化后，退出延迟完成的原生全屏请求。
-            if (request !== fullscreenRequestRef.current && document.fullscreenElement === workspace) {
+            // 关闭、隐藏或最小化后，退出延迟完成的原生全屏请求。
+            if ((request !== fullscreenRequestRef.current || !visibleRef.current) && document.fullscreenElement === workspace) {
                 await document.exitFullscreen();
             }
         } catch {
-            if (request === fullscreenRequestRef.current && workspaceRef.current === workspace && sessionRef.current) {
+            if (request === fullscreenRequestRef.current && visibleRef.current && workspaceRef.current === workspace && sessionRef.current) {
                 setPageFullscreen(true);
             }
         } finally {
@@ -986,7 +996,7 @@ const FileEditor = forwardRef(function FileEditor(
                 onCancel={() => requestClose()}
                 modalProps={{
                     rootClassName: `${styles.modal} ${pageFullscreen ? "is-page-fullscreen" : ""}`,
-                    open: Boolean(active && session && !minimized),
+                    open: visible,
                     footer: null,
                     closable: false,
                     destroyOnHidden: false,

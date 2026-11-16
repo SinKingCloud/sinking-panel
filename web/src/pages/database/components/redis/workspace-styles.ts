@@ -24,7 +24,10 @@ export default createStyles(({css, token}, {compact}: {compact: boolean}) => ({
         && .ant-modal-body { padding: 0; min-height: 0; max-height: none; overflow: hidden; }
         &.is-fullscreen { margin: 0; }
         &.is-fullscreen .ant-modal-container { border-radius: 0; }
-        &.is-fullscreen > .ant-modal-container > .ant-modal-body > div { height: 100dvh; min-height: 0; }
+        &.is-fullscreen > .ant-modal-container > .ant-modal-body > div {
+            height: 100dvh; min-height: 0; box-sizing: border-box;
+            padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+        }
     `,
     workspace: css`
         height: ${compact ? 680 : 700}px; min-height: ${compact ? 680 : 700}px; min-width: 0; display: flex; flex-direction: column;
@@ -32,7 +35,8 @@ export default createStyles(({css, token}, {compact}: {compact: boolean}) => ({
         .redis-window-header { display: flex; align-items: center; flex: none; min-height: ${token.controlHeight + 20}px; gap: 16px; padding: 0 16px; border-bottom: 1px solid ${token.colorBorderSecondary}; }
         .redis-catalog-toggle.ant-btn { flex: none; width: 32px; height: 32px; padding: 0; color: ${token.colorTextSecondary}; }
         .redis-window-title { display: flex; align-items: center; gap: 9px; min-width: 0; font-weight: 500; white-space: nowrap; }
-        .redis-window-actions { display: flex; align-items: center; gap: 2px; margin-left: auto; }
+        .redis-window-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+        .redis-window-actions { display: flex; flex: none; align-items: center; gap: 2px; margin-left: auto; }
         .redis-window-actions .ant-btn { color: ${token.colorTextSecondary}; }
         .redis-window-body { display: flex; flex: 1; min-width: 0; min-height: 0; position: relative; overflow: hidden; }
         .redis-window-main { display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; padding: 16px 18px; overflow: hidden; }

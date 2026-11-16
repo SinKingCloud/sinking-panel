@@ -6,6 +6,7 @@ import TerminalView, {type TerminalRef as TerminalViewRef} from "./index";
 import useStyles from "./styles";
 import defaultSettings from "@/../config/defaultSettings";
 import {getHeaders} from "@/utils/auth";
+import useFullscreen from "@/utils/fullscreen";
 
 export type ConnectionStatus = "idle" | "connecting" | "connected" | "disconnected" | "error";
 
@@ -77,8 +78,7 @@ const TerminalSession = forwardRef<TerminalRef, TerminalProps>(({
     const [socket, setSocket] = useState<WebSocket>();
     const [status, setStatus] = useState<ConnectionStatus>("idle");
     const [failure, setFailure] = useState<any>(null);
-    const [fullscreen, setFullscreen] = useState(false);
-    const [fullscreenPending, setFullscreenPending] = useState(false);
+    const {fullscreen, pageFullscreen, pending: fullscreenPending, toggle: toggleFullscreen, exit: exitFullscreen} = useFullscreen(screenRef, {active});
     const connectionKey = JSON.stringify([path, params, binaryControl, acknowledge, resetKey]);
     const optionsRef = useRef({path, params, binaryControl, acknowledge, connectionKey, active, loading, disabledReason, onStatusChange});
     optionsRef.current = {path, params, binaryControl, acknowledge, connectionKey, active, loading, disabledReason, onStatusChange};
@@ -241,47 +241,15 @@ const TerminalSession = forwardRef<TerminalRef, TerminalProps>(({
     }, [active, autoConnect, connectionKey, connect, disabledReason, loading]);
 
     useEffect(() => {
-        const screen = screenRef.current;
-        const change = () => {
-            const selected = document.fullscreenElement === screen;
-            setFullscreen(selected);
-            terminalRef.current?.fit(selected);
-        };
-        document.addEventListener("fullscreenchange", change);
-        return () => {
-            document.removeEventListener("fullscreenchange", change);
-            if (screen && document.fullscreenElement === screen) void document.exitFullscreen().catch(() => undefined);
-        };
-    }, []);
-
-    const toggleFullscreen = useCallback(async () => {
-        const screen = screenRef.current;
-        if (!screen || fullscreenPending) return;
-        if (!document.fullscreenEnabled || !screen.requestFullscreen || !document.exitFullscreen) {
-            message.info("当前浏览器不支持全屏");
-            return;
-        }
-        setFullscreenPending(true);
-        try {
-            if (document.fullscreenElement === screen) await document.exitFullscreen();
-            else await screen.requestFullscreen();
-            if (!screen.isConnected && document.fullscreenElement === screen) await document.exitFullscreen();
-        } catch {
-            if (screen.isConnected) message.error("切换全屏失败");
-        } finally {
-            if (screen.isConnected) setFullscreenPending(false);
-        }
-    }, [fullscreenPending, message]);
+        terminalRef.current?.fit(fullscreen);
+    }, [fullscreen]);
 
     const close = async () => {
         // 文件终端关闭后保留会话，需要先退出全屏再隐藏弹窗。
-        if (document.fullscreenElement === screenRef.current && document.exitFullscreen) {
-            try {
-                await document.exitFullscreen();
-            } catch {
-                message.error("退出全屏失败，请重试");
-                return;
-            }
+        await exitFullscreen();
+        if (screenRef.current && document.fullscreenElement === screenRef.current) {
+            message.error("退出全屏失败，请重试");
+            return;
         }
         onClose?.();
     };
@@ -305,7 +273,7 @@ const TerminalSession = forwardRef<TerminalRef, TerminalProps>(({
                 cancelText: "取消",
                 okButtonProps: {danger: true, type: "default"},
                 mask: {closable: true},
-                getContainer: document.fullscreenElement === screenRef.current ? screenRef.current || document.body : document.body,
+                getContainer: fullscreen ? screenRef.current || document.body : document.body,
                 onOk: () => {
                     if (mountedRef.current && generationRef.current === generation) closeSocket("disconnected");
                 },
@@ -316,7 +284,7 @@ const TerminalSession = forwardRef<TerminalRef, TerminalProps>(({
     ].filter((action) => action.visible);
     const toolbar = <>
         {showStatus && <span className={`status-text ${status}`}>{statusText[status]}</span>}
-        {actions.map((action) => <Tooltip key={action.key} title={action.title}>
+        {actions.map((action) => <Tooltip key={action.key} title={action.title} getPopupContainer={() => fullscreen ? screenRef.current || document.body : document.body}>
             <Button type="text" aria-label={action.title} disabled={action.disabled} icon={<Icon type={action.icon}/>} onClick={action.onClick}/>
         </Tooltip>)}
     </>;
@@ -337,7 +305,7 @@ const TerminalSession = forwardRef<TerminalRef, TerminalProps>(({
         {!showHeader && toolbarContainer && createPortal(toolbar, toolbarContainer)}
         <ConfigProvider theme={terminalTheme}>
             <div className={styles.terminalBody}>
-                <div className={styles.terminalScreen} ref={screenRef}>
+                <div className={`${styles.terminalScreen} ${pageFullscreen ? "panel-page-fullscreen" : ""}`} ref={screenRef}>
                     <TerminalView key={`${connectionKey}:${attempt?.number || 0}`} ref={terminalRef} socket={socket} active={active} compact={compact} background={terminalBackground} accentColor={terminalAccent}/>
                     {(loading || blockedReason || status !== "connected") && <div className={`${styles.terminalOverlay} ${status}`}>
                         {loading ? <Button type="text" disabled>{disabledReason || "正在加载连接"}</Button>
@@ -349,8 +317,7 @@ const TerminalSession = forwardRef<TerminalRef, TerminalProps>(({
                                 <div className="terminal-error-actions">
                                     {failure && errorAction?.codes.includes(failure.code) && <Button color="primary" variant="solid" onClick={() => {
                                         const open = () => { if (mountedRef.current) errorAction.onClick(); };
-                                        if (document.fullscreenElement === screenRef.current && document.exitFullscreen) void document.exitFullscreen().then(open).catch(open);
-                                        else open();
+                                        void exitFullscreen().then(open);
                                     }}>{errorAction.label}</Button>}
                                     <Button color="default" variant="filled" style={{borderColor: "transparent"}} onClick={() => connect()}>重新连接</Button>
                                 </div>
