@@ -10,7 +10,7 @@ interface ImageSelectProps extends Omit<ResourceSelectProps, "renderModal"> {
 }
 
 // 镜像管理复用选择模式，表单只保存镜像 ID。
-const ImageSelect = forwardRef<InputRef, ImageSelectProps>(({zIndex = 1150, ...props}, ref) => <ResourceSelect
+const ImageSelect = forwardRef<InputRef, ImageSelectProps>(({zIndex, ...props}, ref) => <ResourceSelect
     ref={ref}
     placeholder="请选择镜像"
     recordLabel={(record) => [...new Set([

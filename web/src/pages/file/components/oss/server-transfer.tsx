@@ -114,14 +114,14 @@ const ServerTransfer = forwardRef<any, any>(({record, active: visible = true, zI
                             names.set(name, comparableFilePath(path));
                         }
                     }},
-                ]}><FileSelect type="file" multiple zIndex={zIndex + 10} maxLength={4096} placeholder="请选择服务器上的文件" buttonProps={{color: "default", variant: "filled"}}/></Form.Item>
+                ]}><FileSelect type="file" multiple maxLength={4096} placeholder="请选择服务器上的文件" buttonProps={{color: "default", variant: "filled"}}/></Form.Item>
             </> : <>
                 <Form.Item name="directory" label="服务器目录"
                     getValueProps={(value) => ({value: value ? [value] : []})}
                     getValueFromEvent={(paths: string[]) => paths[0] || ""} rules={[
                     {required: true, whitespace: true, max: 4096, message: "请选择保存目录"},
                     {validator: async (_, value) => { if (value && !isAbsoluteFilePath(value)) throw new Error("请输入目录的绝对路径"); }},
-                ]}><FileSelect type="directory" zIndex={zIndex + 10} maxLength={4096} placeholder="请选择或输入保存目录" buttonProps={{color: "default", variant: "filled"}}/></Form.Item>
+                ]}><FileSelect type="directory" maxLength={4096} placeholder="请选择或输入保存目录" buttonProps={{color: "default", variant: "filled"}}/></Form.Item>
                 <Form.Item name="name" label="文件名称" rules={[{required: true, whitespace: true, max: 255, message: "请输入文件名称"},
                     {pattern: /^(?!\.{1,2}$)[^/\\\x00]+$/, message: "文件名称不能包含路径"}]}><Input maxLength={255} placeholder="请输入文件名称"/></Form.Item>
             </>}

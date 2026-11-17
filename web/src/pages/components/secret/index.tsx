@@ -1,6 +1,7 @@
 import {forwardRef, memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState} from "react";
 import {App, Button, Empty, Grid, Tooltip} from "antd";
 import type {InputRef} from "antd";
+import {useZIndex} from "antd/es/_util/hooks/useZIndex";
 import {createStyles} from "antd-style";
 import {ModalTable, Title, useTheme} from "sinking-antd";
 import type {ModalTableProps, ModalTableRef} from "sinking-antd";
@@ -64,8 +65,9 @@ const useStyles = createStyles(({css, token}: any) => ({
     `,
 }));
 
-const SecretManager = forwardRef<SecretManagerRef, SecretManagerProps>(({zIndex = 1050, onChange, open: controlledOpen, onCancel, selection}, ref) => {
+const SecretManager = forwardRef<SecretManagerRef, SecretManagerProps>(({zIndex, onChange, open: controlledOpen, onCancel, selection}, ref) => {
     const {message, modal} = App.useApp();
+    const [, contextZIndex] = useZIndex("Modal", zIndex);
     const theme = useTheme();
     const compact = Boolean(theme?.isCompactTheme?.());
     const screens = Grid.useBreakpoint();
@@ -210,7 +212,7 @@ const SecretManager = forwardRef<SecretManagerRef, SecretManagerProps>(({zIndex 
         const confirmation = modal.confirm({
             title: "删除密钥",
             content: `确定删除密钥“${record.name}”吗？被 OSS 或证书引用的密钥不能删除，请先修改相关配置。`,
-            zIndex: zIndex + 30,
+            zIndex: contextZIndex + 30,
             okText: "删除",
             cancelText: "取消",
             okButtonProps: {danger: true},
@@ -245,7 +247,7 @@ const SecretManager = forwardRef<SecretManagerRef, SecretManagerProps>(({zIndex 
         } as any);
         confirmRef.current = confirmation;
         void Promise.resolve(confirmation);
-    }, [changed, message, modal, zIndex]);
+    }, [changed, message, modal, contextZIndex]);
 
     const columns = useMemo<any[]>(() => [
         {
@@ -348,14 +350,14 @@ const SecretManager = forwardRef<SecretManagerRef, SecretManagerProps>(({zIndex 
                 destroyOnHidden: true,
                 style: {top: screens.md ? 100 : 24, paddingBottom: screens.md ? 100 : 24, maxWidth: "calc(100vw - 24px)"},
             }}/>
-        <SecretForm ref={formRef} zIndex={zIndex + 20} onSuccess={changed}/>
+        <SecretForm ref={formRef} zIndex={contextZIndex + 20} onSuccess={changed}/>
     </>;
 });
 
 SecretManager.displayName = "SecretManager";
 
 // 密钥选择与管理共用列表、分页和添加表单。
-export const SecretSelect = forwardRef<InputRef, SecretSelectProps>(({zIndex = 1160, onSecretsChange, refreshKey, ...props}, ref) => {
+export const SecretSelect = forwardRef<InputRef, SecretSelectProps>(({zIndex, onSecretsChange, refreshKey, ...props}, ref) => {
     const [revision, setRevision] = useState(0);
     const changed = useCallback((change: SecretChange) => {
         setRevision((value) => value + 1);

@@ -14,6 +14,7 @@ import {
     Tooltip,
     Typography
 } from "antd";
+import {useZIndex} from "antd/es/_util/hooks/useZIndex";
 import {ModalTable, ProModal, Title, useTheme} from "sinking-antd";
 import type {ModalTableProps, ModalTableRef} from "sinking-antd";
 import ActionDropdown from "@/pages/components/ui/action-dropdown";
@@ -23,8 +24,9 @@ import {containerImages} from "@/service/api/container";
 import {getParams} from "@/utils/page";
 import useStyles from "./styles";
 
-const ImagesManager = memo(forwardRef<any, any>(({onRun, open: controlledOpen, onCancel, selection, zIndex = 1050}, ref): any => {
+const ImagesManager = memo(forwardRef<any, any>(({onRun, open: controlledOpen, onCancel, selection, zIndex}, ref): any => {
     const {message, modal} = App.useApp();
+    const [, contextZIndex] = useZIndex("Modal", zIndex);
     const theme = useTheme();
     const compact = Boolean(theme?.isCompactTheme?.());
     const screens = Grid.useBreakpoint();
@@ -89,7 +91,7 @@ const ImagesManager = memo(forwardRef<any, any>(({onRun, open: controlledOpen, o
             content: targets.length === 1
                 ? `确定删除镜像“${targets[0].name || targets[0].id}”吗？被容器使用的镜像无法删除。`
                 : "确定删除所选镜像吗？被容器使用的镜像会保留，并显示失败原因。",
-            zIndex: zIndex + 100,
+            zIndex: contextZIndex + 100,
             okText: "删除",
             cancelText: "取消",
             okButtonProps: {danger: true},
@@ -124,7 +126,7 @@ const ImagesManager = memo(forwardRef<any, any>(({onRun, open: controlledOpen, o
                             whiteSpace: "pre-wrap",
                             overflowWrap: "anywhere"
                         }}>{reason}</div>,
-                        zIndex: zIndex + 100,
+                        zIndex: contextZIndex + 100,
                         okText: "知道了",
                     });
                 } finally {
@@ -141,7 +143,7 @@ const ImagesManager = memo(forwardRef<any, any>(({onRun, open: controlledOpen, o
             },
         });
         confirmRef.current = confirmation;
-    }, [message, modal, zIndex]);
+    }, [message, modal, contextZIndex]);
 
     const columns = useMemo<ModalTableProps<any>["columns"]>(() => [
         {
@@ -278,7 +280,7 @@ const ImagesManager = memo(forwardRef<any, any>(({onRun, open: controlledOpen, o
                       if (!importingRef.current) setImportOpen(false);
                   }}
                   modalProps={{
-                      open: importOpen, zIndex: zIndex + 50, okText: "导入", cancelText: "取消", confirmLoading: importing,
+                      open: importOpen, zIndex: contextZIndex + 50, okText: "导入", cancelText: "取消", confirmLoading: importing,
                       cancelButtonProps: {disabled: importing}, closable: !importing, keyboard: !importing,
                       mask: {closable: !importing}, destroyOnHidden: true, style: {maxWidth: "calc(100vw - 24px)"},
                   } as any}>
@@ -297,14 +299,14 @@ const ImagesManager = memo(forwardRef<any, any>(({onRun, open: controlledOpen, o
                 </Form>
             </ConfigProvider>
         </ProModal>
-        <ImageDetail ref={detailRef} zIndex={zIndex + 50}/>
+        <ImageDetail ref={detailRef} zIndex={contextZIndex + 50}/>
     </>;
 }));
 
 ImagesManager.displayName = "ImagesManager";
 
 // 详情的加载和分段切换独立更新，避免重新渲染后面的镜像列表。
-const ImageDetail = memo(forwardRef<any, {zIndex?: number}>(({zIndex = 1100}, ref) => {
+const ImageDetail = memo(forwardRef<any, {zIndex?: number}>(({zIndex}, ref) => {
     const theme = useTheme();
     const compact = Boolean(theme?.isCompactTheme?.());
     const screens = Grid.useBreakpoint();

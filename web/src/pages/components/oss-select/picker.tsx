@@ -3,6 +3,7 @@ import {App, Button, Checkbox, ConfigProvider, Empty, Form, Grid, Input, Select,
 import type {ButtonProps, InputProps, InputRef, TableProps, TableRef} from "antd";
 import DisabledContext from "antd/es/config-provider/DisabledContext";
 import useVariant from "antd/es/form/hooks/useVariants";
+import {useZIndex} from "antd/es/_util/hooks/useZIndex";
 import {Icon, ProModal, Title, useTheme} from "sinking-antd";
 import {getOssFiles, ossOperate} from "@/service/api/oss";
 import {systemTask} from "@/service/api/system";
@@ -43,6 +44,8 @@ const OssPathPicker = forwardRef<InputRef, OssPathPickerProps>((props, ref) => {
     } = props;
     const {message, modal} = App.useApp();
     const theme = useTheme();
+    const [, pickerZIndex] = useZIndex("Modal", zIndex);
+    const actionZIndex = pickerZIndex + 100;
     const compact = Boolean(theme?.isCompactTheme?.());
     const screens = Grid.useBreakpoint();
     const {styles, cx} = useStyles({compact});
@@ -249,7 +252,7 @@ const OssPathPicker = forwardRef<InputRef, OssPathPickerProps>((props, ref) => {
         if (closeConfirmation.current) return;
         closeConfirmation.current = modal.confirm({
             title: "关闭选择器？", content: "仍在上传的本机文件将尝试取消，已提交的服务器任务会继续执行。",
-            zIndex: Math.max(2000, (zIndex || 0) + 20), okText: "取消上传并关闭", cancelText: "继续上传",
+            zIndex: actionZIndex + 100, okText: "取消上传并关闭", cancelText: "继续上传",
             onOk: () => { closeConfirmation.current = null; finish(); },
             onCancel: () => { closeConfirmation.current = null; },
         });
@@ -627,13 +630,13 @@ const OssPathPicker = forwardRef<InputRef, OssPathPickerProps>((props, ref) => {
         </ConfigProvider>
         {/* 关闭选择器会卸载上传组件并取消可取消的本机上传；服务器任务继续由系统任务管理。 */}
         {localUpload && <FileUpload key={localUpload.id} ref={uploadRef} path={localUpload.prefix}
-            active={open && !isDisabled && localUpload.ossId === Number(ossId)} zIndex={Math.max(2000, (zIndex || 0) + 10)}
+            active={open && !isDisabled && localUpload.ossId === Number(ossId)} zIndex={actionZIndex}
             request={uploadFile} resumable={false} onUploaded={() => refreshUpload(localUpload)}
             onUploadingChange={(busy: boolean) => {
                 if (uploadScope.current.scope === localUpload.scope) uploading.current = busy;
             }}/>}
         {serverUpload && <ServerTransfer key={serverUpload.id} ref={serverTransferRef} record={{id: serverUpload.ossId}}
-            active={open && !isDisabled && serverUpload.ossId === Number(ossId)} zIndex={Math.max(2000, (zIndex || 0) + 10)}
+            active={open && !isDisabled && serverUpload.ossId === Number(ossId)} zIndex={actionZIndex}
             onSubmitted={(ids: string[]) => trackUploads(serverUpload, ids)}
             onBusyChange={(busy: boolean) => {
                 if (uploadScope.current.scope !== serverUpload.scope) return;
@@ -642,7 +645,7 @@ const OssPathPicker = forwardRef<InputRef, OssPathPickerProps>((props, ref) => {
             }}/>}
         <ProModal title={<Title>新建文件夹</Title>} width="340px" onOk={folderForm.submit} onCancel={() => {
             if (!folderPending.current) { folderRequest.current++; setCreating(false); }
-        }} modalProps={{open: creating && open, zIndex: Math.max(2000, (zIndex || 0) + 10), okText: "创建", cancelText: "取消",
+        }} modalProps={{open: creating && open, zIndex: actionZIndex, okText: "创建", cancelText: "取消",
             style: {top: screens.md ? 100 : 24, paddingBottom: screens.md ? 100 : 24},
             styles: {body: {paddingTop: compact ? 10 : 15}},
             confirmLoading: saving, closable: !saving, keyboard: !saving, mask: {closable: !saving}, cancelButtonProps: {disabled: saving},

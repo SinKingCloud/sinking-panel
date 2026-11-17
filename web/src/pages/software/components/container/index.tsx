@@ -348,7 +348,7 @@ const ContainerManager = forwardRef<any>((_, ref) => {
         {runMounted && <RunContainer ref={runRef} onChange={reload}/>}
         <ContainerDetail ref={detailRef}/>
         {execMounted && <ContainerExec ref={execRef} onChange={reload}/>}
-        <ImagesManager ref={imagesRef} onRun={openRun}/>
+        <ImagesManager ref={imagesRef} onRun={openRun} zIndex={1050}/>
         {terminalMounted && <Suspense fallback={null}>
             <ContainerTerminal id={terminal?.id || ""} open={Boolean(terminal)} onClose={closeTerminal}/>
         </Suspense>}

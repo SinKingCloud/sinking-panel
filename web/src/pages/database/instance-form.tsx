@@ -18,7 +18,6 @@ export default ({open, record, categories = [], onCancel, onSuccess}: any) => {
     const [form] = Form.useForm();
     // useWatch 的通知会延后；订阅字段变化，但布局始终读取本次已写入的配置。
     Form.useWatch("config", {form, preserve: true});
-    const config = form.getFieldValue("config");
     const requestRef = useRef(0);
     const busyRef = useRef(false);
     const testedRef = useRef("");
@@ -27,6 +26,7 @@ export default ({open, record, categories = [], onCancel, onSuccess}: any) => {
     const type = Number(lastType.current) || 0;
     const [loadedId, setLoadedId] = useState<number>();
     const [entered, setEntered] = useState(false);
+    const config = entered ? form.getFieldValue("config") : undefined;
     const [loading, setLoading] = useState(true);
     const [busy, setBusy] = useState("");
     const [advanced, setAdvanced] = useState<string[]>([]);
@@ -45,7 +45,6 @@ export default ({open, record, categories = [], onCancel, onSuccess}: any) => {
         busyRef.current = false;
         testedRef.current = "";
         setBusy("");
-        setAdvanced([]);
         form.resetFields();
         void (async () => {
             try {
@@ -165,6 +164,8 @@ export default ({open, record, categories = [], onCancel, onSuccess}: any) => {
         afterClose={() => setAdvanced([])}
         modalProps={{
             open, width: compact ? 520 : 560, zIndex: 1140, rootClassName: styles.modal,
+            // 关闭动画结束后销毁折叠面板，避免下次打开补播上次的收起动画。
+            destroyOnHidden: true,
             afterOpenChange: setEntered,
             style: {top: screens.md ? 90 : 24, paddingBottom: screens.md ? 90 : 24, maxWidth: "calc(100vw - 24px)"},
             styles: type === 2 ? {body: {maxHeight: "none", overflow: "visible"}} : undefined,

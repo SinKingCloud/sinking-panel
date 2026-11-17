@@ -18,7 +18,7 @@ export interface ResourceSelectModalProps extends ResourceSelectDialogProps {
 
 // 选择弹窗只请求当前页；多选保留跨页记录，确认后再写回表单。
 export default function ResourceSelectModal({open, onCancel, value, onSelect, title, placeholder, columns, request,
-    multiple = false, disabledRecord, toolbarActions, zIndex = 1160}: ResourceSelectModalProps) {
+    multiple = false, disabledRecord, toolbarActions, zIndex}: ResourceSelectModalProps) {
     const {message} = App.useApp();
     const compact = Boolean(useTheme()?.isCompactTheme?.());
     const screens = Grid.useBreakpoint();

@@ -16,7 +16,6 @@ import {
 type FileSelectBrowserProps = {
     className: string;
     compact: boolean;
-    zIndex: number;
     type?: "file" | "directory";
     path: string;
     loadedPath: string;
@@ -53,7 +52,6 @@ type FileSelectBrowserProps = {
 const FileSelectBrowser = ({
     className,
     compact,
-    zIndex,
     type,
     path,
     loadedPath,
@@ -324,7 +322,6 @@ const FileSelectBrowser = ({
                         disabled={actionsDisabled}
                         placement="bottom"
                         arrow={{pointAtCenter: true}}
-                        styles={{root: {zIndex}}}
                         menu={{items: [
                             {key: "directory", label: "新建文件夹", icon: <Icon type="FolderAddOutlined"/>, onClick: () => onCreate("directory")},
                             {key: "file", label: "新建文件", icon: <Icon type="FileAddOutlined"/>, onClick: () => onCreate("file")},

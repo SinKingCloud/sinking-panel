@@ -3,6 +3,7 @@ import {App, Button, ConfigProvider, Form, Grid, Input, Select, Space, Tooltip} 
 import type {ButtonProps, InputProps, InputRef, TableRef} from "antd";
 import DisabledContext from "antd/es/config-provider/DisabledContext";
 import useVariant from "antd/es/form/hooks/useVariants";
+import {useZIndex} from "antd/es/_util/hooks/useZIndex";
 import {Icon, ProModal, Title, useTheme} from "sinking-antd";
 import {createFile, getFileDisks, getFileInfo, getFileList} from "@/service/api/file";
 import {readFileStorage, updateFileStorage} from "@/pages/file/hooks/file-storage";
@@ -43,7 +44,7 @@ const FileSelect = forwardRef<InputRef, FileSelectProps>((props, ref) => {
         defaultValue = [],
         disabled,
         initialPath,
-        zIndex = 1000,
+        zIndex,
         type,
         multiple = false,
         onChange,
@@ -54,6 +55,7 @@ const FileSelect = forwardRef<InputRef, FileSelectProps>((props, ref) => {
         ...inputProps
     } = props;
     const theme = useTheme();
+    const [, pickerZIndex] = useZIndex("Modal", zIndex);
     const {message} = App.useApp();
     const compact = Boolean(theme?.isCompactTheme?.());
     const screens = Grid.useBreakpoint();
@@ -112,7 +114,7 @@ const FileSelect = forwardRef<InputRef, FileSelectProps>((props, ref) => {
     const [creationSubmitting, setCreationSubmitting] = useState(false);
     const [uploadSession, setUploadSession] = useState<{path: string; session: number} | null>(null);
     visiblePathRef.current = path;
-    const actionZIndex = Math.max(2000, zIndex + 10);
+    const actionZIndex = pickerZIndex + 100;
     const creationLabel = creationType === "directory" ? "文件夹" : "文件";
 
     useEffect(() => () => {
@@ -583,7 +585,6 @@ const FileSelect = forwardRef<InputRef, FileSelectProps>((props, ref) => {
                         <FileSelectBrowser
                             className={styles.browser}
                             compact={compact}
-                            zIndex={zIndex + 10}
                             type={type}
                             path={path}
                             loadedPath={loadedPath}
