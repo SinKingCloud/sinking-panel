@@ -75,21 +75,20 @@ func loadMiddleware(s *sinking_web.Engine) {
 
 // loadStaticRoute 静态资源
 func loadStaticRoute(s *sinking_web.Engine) {
-	s.ANY("/", context.HandleFunc(func(c *context.Context) {
-		c.SetHeader("Cache-Control", "no-cache, must-revalidate")
-		c.SetHeader("content-type", "text/html;charset=utf-8;")
-		c.Data(200, public.ReadDistFile("index.html"))
-	}))
-	s.ANY("/*", context.HandleFunc(func(c *context.Context) {
-		switch strings.ToLower(path.Ext(c.Request.URL.Path)) {
+	handler := context.HandleFunc(func(c *context.Context) {
+		// 静态文件只使用实际路径，前端 hash 路由不参与文件查找。
+		requestPath, _, _ := strings.Cut(c.Request.URL.Path, "#")
+		switch strings.ToLower(path.Ext(requestPath)) {
 		case ".js", ".css", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".avif", ".svg", ".ico", ".bmp", ".tif", ".tiff":
 			c.SetHeader("Cache-Control", "public, max-age=86400")
 		case "", ".html", ".htm":
 			c.SetHeader("Cache-Control", "no-cache, must-revalidate")
 		}
-		c.Request.URL.Path = public.Path() + c.Request.URL.Path
+		c.Request.URL.Path = public.Path() + requestPath
 		public.FileServer.ServeHTTP(c.Writer, c.Request)
-	}))
+	})
+	s.ANY("/", handler)
+	s.ANY("/*", handler)
 }
 
 // loadSiteRoute 网站管理路由

@@ -18,11 +18,3 @@ var (
 func Path() string {
 	return "/dist"
 }
-
-func ReadDistFile(file string) []byte {
-	bytes, err := Static.ReadFile("dist/" + file)
-	if err != nil || bytes == nil {
-		return nil
-	}
-	return bytes
-}
