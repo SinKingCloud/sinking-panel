@@ -293,7 +293,7 @@ export default createStyles(({css, token, isDarkMode}: any, props: any = {}) => 
         `,
         formField: css`
             width: 100%;
-            max-width: ${compact ? 300 : 350}px;
+            max-width: ${compact ? 280 : 350}px;
         `,
         formActions: css`
             margin-top: ${token.marginLG}px;
