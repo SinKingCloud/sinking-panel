@@ -42,7 +42,6 @@ import (
 	"server/app/http/controller/task"
 	"server/app/http/controller/types"
 	"server/app/http/middleware"
-	"server/app/service"
 	"server/app/util/context"
 	"server/public"
 
@@ -97,14 +96,6 @@ func loadStaticRoute(s *sinking_web.Engine) {
 func loadSiteRoute(s *sinking_web.Engine) {
 	g := s.Group("/site")
 	g.Use(context.HandleFunc(middleware.CheckLogin))
-	g.Use(context.HandleFunc(func(c *context.Context) {
-		if service.Site == nil {
-			c.Error("网站服务未初始化")
-			c.Abort()
-			return
-		}
-		c.Next()
-	}))
 	g.ANY("/list", context.HandleFunc(site.List))     // 网站列表
 	g.ANY("/info", context.HandleFunc(site.Info))     // 网站详情
 	g.ANY("/create", context.HandleFunc(site.Create)) // 创建网站

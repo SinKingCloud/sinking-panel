@@ -29,10 +29,9 @@ const (
 	ServerWAFLogFile = ServerPath + "/waf.log"     //HTTP 服务 WAF 日志
 	ServerConfigFile = ServerPath + "/config.json" //HTTP 服务配置快照
 
-	MonitorPath = PanelDataPath + "/monitor" //系统监控历史数据目录
-
-	DBFile   = PanelDataPath + "/server.db"       //数据库文件
-	ConfFile = PanelDataPath + "/application.yml" //可选配置文件，不自动创建
+	MonitorPath = PanelDataPath + "/monitor"         //系统监控历史数据目录
+	DBFile      = PanelDataPath + "/server.db"       //数据库文件
+	ConfFile    = PanelDataPath + "/application.yml" //可选配置文件，不自动创建
 
 	ServerMode = "server.mode"
 	ServerHost = "server.host"
