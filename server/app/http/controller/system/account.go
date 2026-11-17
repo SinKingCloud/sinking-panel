@@ -15,7 +15,7 @@ import (
 // Account 账户管理
 func Account(c *context.Context) {
 	var form struct {
-		Action   string `json:"action" default:"account" validate:"required,oneof=account update" label:"操作类型"`
+		Action   string `json:"action" default:"info" validate:"required,oneof=info update" label:"操作类型"`
 		Account  string `json:"account" default:"" validate:"omitempty,alphanum,max=20" label:"登录账号"`
 		Password string `json:"password" default:"" validate:"omitempty,min=6,max=20" label:"登录密码"`
 	}
@@ -24,7 +24,7 @@ func Account(c *context.Context) {
 		return
 	}
 	switch form.Action {
-	case "account":
+	case "info":
 		user := c.GetUserInfo()
 		location := "未知"
 		ipInfo, err := ip2.Query(user.LoginIp)

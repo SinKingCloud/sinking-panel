@@ -23,7 +23,7 @@ export default ({styles}: any): React.ReactNode => {
         const requestId = ++requestRef.current;
         setLoading(true);
         setError("");
-        const response = await systemAccount({body: {action: "account"}});
+        const response = await systemAccount({body: {action: "info"}});
         if (!mountedRef.current || requestId !== requestRef.current) {
             return;
         }

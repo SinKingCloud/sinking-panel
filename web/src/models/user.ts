@@ -8,7 +8,7 @@ export default () => {
      * 获取网站用户信息
      */
     const getWebUser = async () => {
-        const resp = await systemAccount({body: {action: "account"}});
+        const resp = await systemAccount();
         if (resp?.code != 200 || !resp?.data) {
             return undefined;
         }
