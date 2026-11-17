@@ -10,7 +10,7 @@ const mappingTypes = ["text", "keyword", "long", "integer", "short", "byte", "do
 
 export default ({record}: any) => {
     const {message, modal} = App.useApp();
-    const {operate, version, features, ActionDropdown} = useDatabaseClient();
+    const {operate, version, features, onTask, ActionDropdown} = useDatabaseClient();
     const theme = useTheme();
     const {styles} = useStyles({compact: Boolean(theme?.isCompactTheme?.())});
     const [data, setData] = useState<any>();
@@ -142,8 +142,18 @@ export default ({record}: any) => {
                 if (refreshPending.current || !live.current) return;
                 refreshPending.current = true;
                 setRefreshingFields(true);
-                try { await operate(record, "refresh_fields"); if (live.current) message.success("已加入后台任务，可在系统任务中查看进度"); }
-                catch (reason: any) { if (live.current) message.error(reason?.message || "创建任务失败"); }
+                try {
+                    const id = await operate(record, "refresh_fields");
+                    if (!live.current) return;
+                    if (typeof id !== "string" || !id) throw new Error("任务创建结果未确认，请在系统任务中核对后再操作");
+                    if (onTask) { confirmation.current?.destroy(); onTask(id); }
+                    else message.success("已加入后台任务，可在系统任务中查看进度");
+                } catch (reason: any) {
+                    if (live.current) {
+                        message.error(reason?.message || "创建任务失败");
+                        if (!reason?.responseReceived && onTask) { confirmation.current?.destroy(); onTask(); }
+                    }
+                }
                 finally { refreshPending.current = false; if (live.current) setRefreshingFields(false); }
             }});
     };

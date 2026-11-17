@@ -19,8 +19,10 @@ export default function InstallSoftware({open, onCancel, onSuccess}: any) {
         try {
             const response = await installSoftware({body: {path: path.trim()}});
             if (!active.current) return;
-            if (response?.code !== 200 || !response?.data?.task_id) throw new Error(response?.message || "提交安装任务失败");
-            onSuccess(response?.data);
+            if (response?.code !== 200) throw new Error(response?.message || "提交安装任务失败");
+            const taskId = response?.data?.task_id;
+            if (!taskId) throw new Error("服务器未返回任务ID");
+            onSuccess(String(taskId));
         } catch (reason: any) { if (active.current) message.error(reason?.message || "安装软件失败"); }
         finally { pending.current = false; if (active.current) setBusy(false); }
     };

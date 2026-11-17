@@ -12,12 +12,14 @@ const useSiteTable = ({
     categoryData,
     typeData,
     statusData,
+    backupStatusData,
     sort,
     order,
     operating,
     onSortChange,
     onSettings,
     onAction,
+    onBackup,
 }: any): PageTableProps<any> => {
     const [openRowId, setOpenRowId] = useState("");
 
@@ -104,6 +106,21 @@ const useSiteTable = ({
             },
         },
         {
+            title: "备份状态",
+            dataIndex: "backup_status",
+            key: "backup_status",
+            width: 100,
+            className: "status-cell",
+            render: (value: any) => {
+                const enabled = Number(value) === 1;
+                return (
+                    <span className={`site-state ${enabled ? "running" : "stopped"}`}>
+                        <i/>{backupStatusData[String(value)] || (enabled ? "开启" : "关闭")}
+                    </span>
+                );
+            },
+        },
+        {
             title: "更新时间",
             dataIndex: "update_time",
             key: "update_time",
@@ -134,6 +151,12 @@ const useSiteTable = ({
                     {key: "domain", label: "域名管理", onClick: () => onSettings(record, "domain")},
                     {key: "ssl", label: "证书设置", onClick: () => onSettings(record, "ssl")},
                     {key: "log", label: "网站日志", onClick: () => onSettings(record, "log")},
+                    {key: "backup", label: "备份管理", onClick: () => onBackup(record)},
+                    ...(String(record?.root || "").trim() ? [{
+                        key: "backup_status",
+                        label: Number(record?.backup_status) === 1 ? "关闭备份" : "开启备份",
+                        onClick: () => onAction(Number(record?.backup_status) === 1 ? "backup_disable" : "backup_enable", record),
+                    }] : []),
                     {type: "divider" as const},
                     enabled
                         ? {key: "disable", label: "停用网站", onClick: () => onAction("disable", record)}
@@ -150,7 +173,7 @@ const useSiteTable = ({
                 );
             },
         },
-    ], [categoryData, onAction, onSettings, openRowId, operating, order, sort, statusData, typeData]);
+    ], [backupStatusData, categoryData, onAction, onBackup, onSettings, openRowId, operating, order, sort, statusData, typeData]);
 
     return {
         className,

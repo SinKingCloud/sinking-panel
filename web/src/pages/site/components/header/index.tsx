@@ -24,6 +24,7 @@ const useSiteHeader = ({
     onHTTPSettings,
     onManageCert,
     onManageSecret,
+    onManageBackup,
 }: any): Pick<PageTableProps, "hero" | "toolbar"> => {
     const categoryOptions = React.useMemo(() => [
         {label: "全部分类", value: "0"},
@@ -101,6 +102,7 @@ const useSiteHeader = ({
                         items: [
                             {key: "cert", label: "证书管理", icon: <Icon type="SafetyCertificateOutlined"/>, onClick: onManageCert},
                             {key: "secret", label: "密钥管理", icon: <Icon type="KeyOutlined"/>, onClick: onManageSecret},
+                            {key: "backup", label: "备份管理", icon: <Icon type="DatabaseOutlined"/>, onClick: onManageBackup},
                             ...(onHTTPSettings ? [{key: "http", label: "服务设置", icon: <Icon type="SettingOutlined"/>, onClick: onHTTPSettings}] : []),
                         ],
                     },

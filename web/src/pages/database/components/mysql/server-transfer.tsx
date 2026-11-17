@@ -6,7 +6,7 @@ import useStyles from "./component-styles/client";
 
 // SQL 文件由服务器流式处理，浏览器只提交路径并跟踪后台任务。
 export default ({record, schema, table, disabled, onChange}: any) => {
-    const {api, FileSelect, ActionDropdown} = useMysqlClient();
+    const {api, onTask, FileSelect, ActionDropdown} = useMysqlClient();
     const {message, modal} = App.useApp();
     const {styles} = useStyles();
     const {token} = antdTheme.useToken();
@@ -93,7 +93,12 @@ export default ({record, schema, table, disabled, onChange}: any) => {
                 ? {...(current.schema ? {schema: current.schema} : {}), ...(current.table ? {table: current.table} : {})} : {})};
         const taskBody = {...body, action: current.mode};
         const existing = tracked.current.find((item) => (item.status < 2 || item.settling) && JSON.stringify(item.body) === JSON.stringify(taskBody));
-        if (existing) { accepted.current = requestId; setTaskId(existing.id); message.info("该任务正在后台执行"); return; }
+        if (existing) {
+            accepted.current = requestId;
+            if (onTask) { close(); onTask(existing.id); }
+            else { setTaskId(existing.id); message.info("该任务正在后台执行"); }
+            return;
+        }
         pending.current = true; setBusy(true);
         try {
             const id = await (current.mode === "import" ? api.import(current.record, body) : api.export(current.record, body));
@@ -106,13 +111,21 @@ export default ({record, schema, table, disabled, onChange}: any) => {
             accepted.current = requestId;
             const created = {id, status: 0, progress: 0, message: "等待任务开始", body: taskBody};
             tracked.current = [...tracked.current, created]; setTasks(tracked.current);
-            if (sequence.current === requestId) setTaskId(created.id);
-            message.success("已加入后台任务");
+            if (onTask) {
+                if (sequence.current === requestId) {
+                    close();
+                    onTask(created.id);
+                }
+            } else {
+                if (sequence.current === requestId) setTaskId(created.id);
+                message.success("已加入后台任务");
+            }
         } catch (reason: any) {
             if (live.current && sequence.current === requestId) {
-                if (reason.unconfirmed !== false) accepted.current = requestId;
+                if (reason?.unconfirmed !== false) accepted.current = requestId;
                 close();
                 message.error(reason?.message || "任务创建结果未确认，请在系统任务中核对后再操作");
+                if (reason?.unconfirmed !== false) onTask?.();
             }
         } finally { pending.current = false; if (live.current) setBusy(false); }
     };

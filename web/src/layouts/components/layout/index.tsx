@@ -334,7 +334,7 @@ const RightTop = forwardRef<SystemTaskRef>((_, ref) => {
         canceled: 4,
     } as const;
 
-    const taskTerminalStatuses = new Set([
+    const taskTerminalStatuses = new Set<number>([
         taskStatusValues.completed,
         taskStatusValues.failed,
         taskStatusValues.canceled,
@@ -409,35 +409,53 @@ const RightTop = forwardRef<SystemTaskRef>((_, ref) => {
         };
     }, [refreshTasks]);
 
-    // 每次打开都立即刷新，任务进度仍由布局统一轮询。
-    const openTasks = useCallback(() => {
-        setTaskOpen(true);
+    const openTaskLog = useCallback((task: any) => {
+        if (typeof task?.id !== "string" || !task.id.trim()) return;
+        setTaskOpen(false);
+        taskLogRef.current?.open(task);
+    }, []);
+
+    // 单任务直接打开日志，多任务打开列表；不等待请求完成才弹出。
+    const openTasks = useCallback((ids?: string | string[]) => {
+        const selected = [...new Set((Array.isArray(ids) ? ids : [ids])
+            .filter((id): id is string => typeof id === "string")
+            .map((id) => id.trim()).filter(Boolean))];
+        if (selected.length === 1) {
+            openTaskLog({id: selected[0]});
+        } else {
+            taskLogRef.current?.close();
+            setTaskOpen(true);
+        }
         void refreshTasks().catch(() => undefined);
-    }, [refreshTasks]);
+    }, [openTaskLog, refreshTasks]);
 
     useImperativeHandle(ref, () => ({open: openTasks}), [openTasks]);
 
     const cancelTask = useCallback(async (id: string) => {
-        const response = await systemTask({body: {id, action: "cancel"}});
-        if (response?.code !== 200) {
-            message.error(response?.message || "取消任务失败");
-            return;
+        try {
+            const response = await systemTask({body: {id, action: "cancel"}});
+            if (response?.code !== 200) {
+                message.error(response?.message || "取消任务失败");
+                return;
+            }
+            await refreshTasks();
+        } catch (error) {
+            if (mountedRef.current) message.error(error instanceof Error ? error.message : "取消任务失败");
         }
-        await refreshTasks();
     }, [message, refreshTasks]);
 
     const deleteTask = useCallback(async (id: string) => {
-        const response = await systemTask({body: {id, action: "delete"}});
-        if (response?.code !== 200) {
-            message.error(response?.message || "删除任务失败");
-            return;
+        try {
+            const response = await systemTask({body: {id, action: "delete"}});
+            if (response?.code !== 200) {
+                message.error(response?.message || "删除任务失败");
+                return;
+            }
+            await refreshTasks();
+        } catch (error) {
+            if (mountedRef.current) message.error(error instanceof Error ? error.message : "删除任务失败");
         }
-        await refreshTasks();
     }, [message, refreshTasks]);
-
-    const openTaskLog = useCallback((task: any) => {
-        taskLogRef.current?.open(task);
-    }, []);
 
     const requestSystemTaskLog = useCallback((params: API.RequestParams = {}) => systemTask({
         ...params,
@@ -627,7 +645,7 @@ const RightTop = forwardRef<SystemTaskRef>((_, ref) => {
                     type="CloudServerOutlined"
                     className={icon}
                     aria-label="系统任务"
-                    onClick={openTasks}/>
+                    onClick={() => openTasks()}/>
                 {pendingTaskCount > 0 && (
                     <span
                         className={taskBadgeCount}
@@ -699,7 +717,7 @@ const RightTop = forwardRef<SystemTaskRef>((_, ref) => {
             onCancel={() => setTaskOpen(false)}
             modalProps={{
                 open: taskOpen,
-                zIndex: 1150,
+                zIndex: 1250,
                 footer: null,
                 destroyOnHidden: false,
                 mask: {closable: true},
@@ -708,7 +726,7 @@ const RightTop = forwardRef<SystemTaskRef>((_, ref) => {
             }}>
             {taskContent}
         </ProModal>
-        <TaskLog ref={taskLogRef} request={requestSystemTaskLog} showClear={false}/>
+        <TaskLog ref={taskLogRef} request={requestSystemTaskLog} showClear={false} zIndex={1300}/>
     </>
 });
 

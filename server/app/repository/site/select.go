@@ -18,6 +18,13 @@ func (r *Repository) SelectAll(tx ...*gorm.DB) ([]*model.Site, error) {
 	return list, err
 }
 
+// SelectAutoBackup 查询已开启自动备份的网站及其配置。
+func (r *Repository) SelectAutoBackup() ([]*model.Site, error) {
+	list := make([]*model.Site, 0)
+	err := r.Database.Db.Where("backup_status = ?", 1).Order("id ASC").Find(&list).Error
+	return list, err
+}
+
 // Select 分页查询网站。
 func (r *Repository) Select(where *SelectSite, queryPage *page.Query) (*page.Result[*Site], error) {
 	query := r.Database.Db.Model(&model.Site{})
@@ -30,6 +37,9 @@ func (r *Repository) Select(where *SelectSite, queryPage *page.Query) (*page.Res
 		}
 		if where.Status != nil {
 			query = query.Where("status = ?", *where.Status)
+		}
+		if where.BackupStatus != nil {
+			query = query.Where("backup_status = ?", *where.BackupStatus)
 		}
 		if where.CreateTimeStart != nil {
 			query = query.Where("create_time >= ?", *where.CreateTimeStart)

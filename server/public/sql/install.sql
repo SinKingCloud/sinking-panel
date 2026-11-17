@@ -157,6 +157,7 @@ create table if not exists cloud_sites
     name        varchar(100)      not null,
     type        integer default 0 not null,
     status      integer default 0 not null,
+    backup_status integer default 1 not null,
     root        text    default '' not null,
     run_path    text    default '' not null,
     config      text    default '' not null,
@@ -178,6 +179,27 @@ create index if not exists cloud_sites_type_index
 
 create index if not exists cloud_sites_updateTime_index
     on cloud_sites (update_time);
+
+create index if not exists cloud_sites_backupStatus_index
+    on cloud_sites (backup_status);
+
+create table if not exists cloud_site_backups
+(
+    id          integer not null
+        constraint cloud_site_backups_pk_id
+            primary key autoincrement,
+    site_id     bigint not null,
+    name        varchar(255) not null,
+    size        bigint default 0 not null,
+    data        text default '' not null,
+    create_time text not null
+);
+
+create index if not exists cloud_site_backups_siteId_createTime_index
+    on cloud_site_backups (site_id, create_time);
+
+create index if not exists cloud_site_backups_createTime_index
+    on cloud_site_backups (create_time);
 
 create table if not exists cloud_secrets
 (

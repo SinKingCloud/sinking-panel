@@ -21,7 +21,7 @@ const namesByType: Record<number, string> = {3: "Postgres", 4: "MongoDB", 5: "SQ
 const systemDatabases: Record<number, string[]> = {3: ["postgres", "template0", "template1"], 4: ["admin", "local", "config"], 5: ["master", "model", "msdb", "tempdb"]};
 const DefaultActionDropdown = (props: any) => <Dropdown trigger={["click"]} {...props}/>;
 
-const Workspace = ({record, requests, components, type, panel: Panel, editForm: EditForm, engine, open = true, onCancel, onConfigure, refreshKey = 0, initialTab, className, style}: ManagerProps) => {
+const Workspace = ({record, requests, components, type, panel: Panel, editForm: EditForm, engine, open = true, onCancel, onConfigure, onTask, refreshKey = 0, initialTab, className, style}: ManagerProps) => {
     const ActionDropdown = components?.ActionDropdown || DefaultActionDropdown;
     const [version, setVersion] = useState<DatabaseVersion>();
     const engineName = namesByType[type] || "数据库";
@@ -297,7 +297,7 @@ const Workspace = ({record, requests, components, type, panel: Panel, editForm: 
                 {connecting || !entered ? <div className="client-connection-state" role="status" aria-label="正在连接数据库"><Spin/></div> : <div className={`database-browser${hasCatalog ? "" : " is-single-database"}`}>
                     {hasCatalog && !mobile && catalog}
                     <section className="database-browser-content">
-                        {target ? <DatabasePanel type={type} panel={Panel} engine={engine} request={request} version={version} components={components} key={`${instance!.id}:${selected}:${revision}`} record={target}
+                        {target ? <DatabasePanel type={type} panel={Panel} engine={engine} request={request} version={version} components={components} onTask={onTask} key={`${instance!.id}:${selected}:${revision}`} record={target}
                             initialTab={currentTab.current?.database === selected ? currentTab.current.tab : initialTab || instance!.tab}
                             onTabChange={changeTab}/>
                             : <div className="database-browser-empty">{loading ? <Spin/> : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="请选择数据库"/>}</div>}

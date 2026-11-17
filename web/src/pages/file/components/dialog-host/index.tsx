@@ -7,6 +7,8 @@ import React, {
     useRef,
 } from "react";
 import {App} from "antd";
+import {useOutletContext} from "umi";
+import type {LayoutContext} from "@/layouts/context";
 import FilePreview from "@/pages/components/file-preview";
 import {joinFilePath} from "../../utils";
 import FileForm from "../form";
@@ -33,6 +35,7 @@ const FileDialogHost = forwardRef<any, any>(({
     onEditorMinimizedChange,
 }, ref) => {
     const {message} = App.useApp();
+    const {task} = useOutletContext<LayoutContext>();
     const formRef = useRef<any>(null);
     const editorRef = useRef<any>(null);
     const propertiesRef = useRef<any>(null);
@@ -200,7 +203,8 @@ const FileDialogHost = forwardRef<any, any>(({
 
     const trackTask = useCallback((taskId: string, title: string) => {
         taskCenterRef.current?.track(taskId, title);
-    }, []);
+        task?.open(taskId);
+    }, [task]);
 
     useImperativeHandle(ref, () => ({
         openCreate,

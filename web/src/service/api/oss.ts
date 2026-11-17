@@ -17,7 +17,7 @@ export const testOss = (params: API.RequestParams = {}) => post("/oss/test", par
 /** 按系统游标分页读取文件和目录，返回 list、page_size、has_more 和 next_cursor_id。 */
 export const getOssFiles = (params: API.RequestParams = {}) => post("/oss/files", params.body, params.onSuccess, params.onFail, params.onFinally);
 /** 文件信息、目录创建、删除、复制、移动、重命名及元数据操作。 */
-export const ossFile = (params: API.RequestParams = {}) => post("/oss/file", params.body, params.onSuccess, params.onFail, params.onFinally, undefined, ["delete", "copy", "move", "rename", "metadata"].includes(params.body?.action) ? {timeout: 15 * 60 * 1000} : undefined);
+export const ossOperate = (params: API.RequestParams = {}) => post("/oss/operate", params.body, params.onSuccess, params.onFail, params.onFinally, undefined, ["delete", "copy", "move", "rename", "metadata"].includes(params.body?.action) ? {timeout: 15 * 60 * 1000} : undefined);
 /** 管理分片会话或创建服务器上传任务，action 通过查询参数选择。 */
 export const ossUpload = (params: API.RequestParams = {}) => post(`/oss/upload?action=${encodeURIComponent(params.body?.action || "file")}`, params.body, params.onSuccess, params.onFail, params.onFinally, undefined, params.body?.action === "complete" ? {timeout: 15 * 60 * 1000} : undefined);
 /** 创建服务器下载任务，action=server 时返回系统任务编号。 */

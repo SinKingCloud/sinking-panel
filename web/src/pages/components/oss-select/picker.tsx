@@ -4,7 +4,7 @@ import type {ButtonProps, InputProps, InputRef, TableProps, TableRef} from "antd
 import DisabledContext from "antd/es/config-provider/DisabledContext";
 import useVariant from "antd/es/form/hooks/useVariants";
 import {Icon, ProModal, Title, useTheme} from "sinking-antd";
-import {getOssFiles, ossFile} from "@/service/api/oss";
+import {getOssFiles, ossOperate} from "@/service/api/oss";
 import {readFileStorage, updateFileStorage} from "@/pages/file/hooks/file-storage";
 import {formatFileSize, formatFileTime, getFileIconType} from "@/pages/file/utils";
 import useStyles from "@/pages/components/ui/path-select/styles";
@@ -345,7 +345,7 @@ const OssPathPicker = forwardRef<InputRef, OssPathPickerProps>((props, ref) => {
         folderPending.current = true;
         setSaving(true);
         try {
-            const response = await ossFile({body: {id: ossId, action: "mkdir", key: `${prefix}${name}/`}});
+            const response = await ossOperate({body: {id: ossId, action: "mkdir", key: `${prefix}${name}/`}});
             if (folderRequest.current !== current) return;
             if (response?.code !== 200) throw new Error(response?.message || "新建文件夹失败");
             selectionDirectories.current.delete(prefix);

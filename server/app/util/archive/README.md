@@ -22,11 +22,13 @@ CompressFiles(ctx context.Context, srcPaths []string, destPath, format string,
     callback func(current, total int64, currentFile string, totalFiles, currentIndex int64) bool) error
 
 Extract(ctx context.Context, srcPath, destPath string,
-    callback func(current, total int64, currentFile string, totalFiles, currentIndex int64) bool) error
+    callback func(current, total int64, currentFile string, totalFiles, currentIndex int64) bool,
+    preserveMetadata ...bool) error
 ```
 
 - `CompressFiles` 的 srcPaths 为本地源路径，destPath 为完整归档文件名；自动创建目标父目录。format 决定写入格式，文件名后缀不会替代 format。
 - `Extract` 的 srcPath 为归档文件，destPath 为解压目录；按源文件扩展名选择解压器，不检测文件魔数，因此压缩时应使用匹配的后缀。
+- TAR/TGZ 恢复备份时可传 `preserveMetadata=true`，恢复文件和目录的权限、修改时间以及 Unix UID/GID；普通解压默认不恢复这些属性。Windows 跳过 UID/GID，符号链接只恢复自身所有者，不跟随链接更改目标的权限和时间。权限不足会返回错误，调用方应保留原目录。文件属性逐个处理，仅缓存目录属性，待解压结束后由内向外恢复。
 - 必须传非 nil 的 ctx；无需取消时使用 `context.Background()`。callback 可为 nil，返回 false 会中止操作。
 - 压缩目录时保留目录名。例如源 `/srv/data` 中的 `a.txt` 会保存为 `data/a.txt`。多个源使用各自名称，相同名称可能冲突；调用方应组织好目录结构。
 - 压缩目标不能等于源文件，也不能位于源目录内部；检查包含符号链接路径解析，避免把输出文件再次打包进自己。
@@ -94,8 +96,8 @@ func ExtractToTemp(ctx context.Context, archivePath string) (string, error) {
 
 压缩会创建/截断目标文件，失败会尝试删除未完成的归档，不会恢复原有同名文件。解压会覆盖已有文件，失败或取消可能留下已解出的文件；包内对目标目录的清理不是回滚。需要“成功后发布”的流程时，应先使用独立临时路径，成功校验后再移动到最终路径。
 
-ZIP/TAR 解压检查成员路径和符号链接，拒绝逃出目标目录的路径与链接；可以保存符号链接，但指向归档目录之外的链接不能原样解压恢复。普通 GZIP 解压只有较简单的路径前缀检查，没有同等的父路径符号链接解析；应解压到调用方新建、无链接的临时目录。TAR 并非完整的系统备份恢复器，不应假定它会恢复硬链接、设备节点、所有权、扩展属性等全部元数据。Windows 上创建符号链接仍受系统权限限制。
+ZIP/TAR 解压检查成员路径和符号链接，拒绝逃出目标目录的路径与链接；可以保存符号链接，但指向归档目录之外的链接不能原样解压恢复。普通 GZIP 解压只有较简单的路径前缀检查，没有同等的父路径符号链接解析；应解压到调用方新建、无链接的临时目录。TAR 并非完整的系统备份恢复器，不恢复硬链接关系、设备节点、扩展属性等全部元数据。Windows 上创建符号链接仍受系统权限限制。
 
-当前接口没有文件数、总解压大小、单文件大小或压缩比限额。来自外部的归档需要调用方限制资源和磁盘占用。TAR/TGZ 解压会先扫描统计，再重新读取解包，TGZ 会产生额外解压成本。内部延迟执行的压缩 writer.Close 错误没有全部向上传递；严肃备份流程应额外校验归档可读性，并在上传后核验结果。
+当前接口没有文件数、总解压大小、单文件大小或压缩比限额。来自外部的归档需要调用方限制资源和磁盘占用。TAR/TGZ 解压会先扫描统计，再重新读取解包，TGZ 会产生额外解压成本。TAR/TGZ 压缩会返回归档、压缩流和文件的收尾关闭错误；调用方仍应在持久化后校验文件大小及校验值。
 
 源码：[archive.go](archive.go)、[progress.go](progress.go)。相关工具：[file](../file/README.md)、[compress 兼容实现](../compress/README.md)、[oss](../oss/README.md)。

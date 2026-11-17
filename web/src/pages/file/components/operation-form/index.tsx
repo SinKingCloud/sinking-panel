@@ -190,7 +190,7 @@ const FileOperationForm = forwardRef<any, any>(({onTask, onSuccess}, ref) => {
                 message.error(response?.message || `${modeText[mode].action}任务创建失败`);
                 return;
             }
-            const taskId = typeof response?.data === "string" ? response?.data : "";
+            const taskId = response?.data;
             if (!taskId) {
                 message.error("服务器未返回任务ID");
                 return;

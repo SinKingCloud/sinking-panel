@@ -23,6 +23,10 @@ func HTTP(c *context.Context) {
 		c.Error(msg)
 		return
 	}
+	if service.Site == nil {
+		c.Error("网站服务未初始化")
+		return
+	}
 	var err error
 	switch form.Action {
 	case "get":

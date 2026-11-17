@@ -1,8 +1,9 @@
 import {useCallback, useEffect, useRef, useState} from "react";
-import {useModel} from "umi";
+import {useModel, useOutletContext} from "umi";
 import {App, Button, Empty, Form, Grid, Input, Select, Tag} from "antd";
 import {Body, PageTable, ProModal, Title} from "sinking-antd";
 import type {PageTableRef} from "sinking-antd";
+import type {LayoutContext} from "@/layouts/context";
 import ActionDropdown from "@/pages/components/ui/action-dropdown";
 import {uninstallSoftware, getSoftwareList, updateSoftware} from "@/service/api/software";
 import {getParams} from "@/utils/page";
@@ -17,6 +18,7 @@ const processing = (record: any) => [1, 3, 4].includes(Number(record?.state));
 
 export default () => {
     const {message, modal} = App.useApp();
+    const {task} = useOutletContext<LayoutContext>();
     const screens = Grid.useBreakpoint();
     const supportsContainer = useModel("system", (model) => model.info?.container === true);
     const [enumData] = useEnum("software");
@@ -68,9 +70,12 @@ export default () => {
                 try {
                     const response = await uninstallSoftware({body: {id: item.id}});
                     if (!active.current) return;
-                    if (response?.code !== 200) throw new Error(response?.message || "卸载软件失败");
+                    if (response?.code !== 200) throw new Error(response?.message || "提交卸载任务失败");
+                    const taskId = response?.data?.task_id;
+                    if (!taskId) throw new Error("服务器未返回任务ID");
                     if (record?.id === item.id) setWorkspace(false);
                     message.success("卸载任务已提交"); reload();
+                    task?.open(String(taskId));
                 } catch (reason: any) { if (active.current) message.error(reason?.message || "卸载失败"); }
                 finally { setBusy(item.id, false); }
             }});
@@ -137,9 +142,10 @@ export default () => {
             ] : [], refresh: true}}
             hero={{eyebrow: "SOFTWARE MANAGER", title: "软件管理", action: {label: "添加软件", onClick: () => setInstall(true)}}}/>
         {supportsContainer && <ContainerManager ref={containerRef}/>}
-        <InstallSoftware open={install} onCancel={() => setInstall(false)} onSuccess={() => {
+        <InstallSoftware open={install} onCancel={() => setInstall(false)} onSuccess={(taskId: string) => {
             if (!active.current) return;
             setInstall(false); message.success("安装任务已提交"); reload();
+            task?.open(taskId);
         }}/>
         <SoftwareWorkspace open={workspace} software={record} onCancel={() => setWorkspace(false)}/>
         <ProModal title={<Title>修改软件</Title>} onOk={form.submit} onCancel={() => { if (!busy) setEdit(false); }} modalProps={{

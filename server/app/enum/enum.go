@@ -11,6 +11,7 @@ import (
 	"server/app/enum/script_module"
 	"server/app/enum/secret_provider"
 	"server/app/enum/server_auth_type"
+	"server/app/enum/site_backup_status"
 	"server/app/enum/site_kind"
 	"server/app/enum/site_status"
 	"server/app/enum/site_type"
@@ -53,9 +54,10 @@ var Data = map[string]interface{}{
 	},
 	"site": func() interface{} {
 		return map[string]interface{}{
-			"kind":   site_kind.Map(),   //网站类型
-			"type":   site_type.Map(),   //网站分类
-			"status": site_status.Map(), //网站状态
+			"kind":          site_kind.Map(),          //网站类型
+			"type":          site_type.Map(),          //网站分类
+			"status":        site_status.Map(),        //网站状态
+			"backup_status": site_backup_status.Map(), //网站自动备份状态
 		}
 	},
 	"task": func() interface{} {

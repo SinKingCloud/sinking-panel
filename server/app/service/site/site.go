@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -15,10 +16,15 @@ import (
 	repositoryCert "server/app/repository/cert"
 	repositorySecret "server/app/repository/secret"
 	repositorySite "server/app/repository/site"
+	repositorySiteBackup "server/app/repository/site_backup"
 	repositorySiteDomain "server/app/repository/site_domain"
 	serviceConfig "server/app/service/config"
+	serviceFile "server/app/service/file"
+	serviceOss "server/app/service/oss"
 	serviceRecycle "server/app/service/recycle"
+	serviceSystem "server/app/service/system"
 	serviceTask "server/app/service/task"
+	taskBackup "server/app/service/task/backup"
 	serviceTypes "server/app/service/types"
 	"server/app/util/cache"
 	"server/app/util/caddy"
@@ -77,8 +83,6 @@ type Service interface {
 	UpdateProcess(id int64, config *ProcessUpdate) error
 	Process(id int64, action string) (*processManager.Status, error)
 	Delete(id int64, deleteRoot bool) error
-	Enable(id int64) error
-	Disable(id int64) error
 	FindById(id int64) (*Site, error)
 	Select(where *repositorySite.SelectSite, queryPage *page.Query) (*page.Result[*repositorySite.Site], error)
 	ClearCache(id int64) error
@@ -91,9 +95,19 @@ type Service interface {
 	RenewCert(ctx context.Context, id int64, request CertificateRequest) (*Cert, error)
 	ReadCertLog(after, before int64, pageSize int) (map[string]interface{}, error)
 	ClearCertLog() error
-	GetCertSettings() (*CertSettings, error)
-	SetCertSettings(settings CertSettings) error
+	GetCertSettings() (map[string]string, error)
+	SetCertSettings(configs map[string]string) error
 	ManualCert(ctx context.Context, id int64, name string, request CertificateRequest) (interface{}, error)
+	GetBackupSettings() (map[string]string, error)                                                                                        // 获取网站独立备份设置
+	SetBackupSettings(configs map[string]string) error                                                                                    // 保存自动备份开关、周期、重试和副本策略
+	ReadBackupLog(after, before int64, pageSize int) (map[string]interface{}, error)                                                      // 读取网站自动备份任务日志
+	ClearBackupLog() error                                                                                                                // 清理网站自动备份任务日志
+	SelectBackup(where *repositorySiteBackup.SelectSiteBackup, query *page.Query) (*page.Result[*repositorySiteBackup.SiteBackup], error) // 分页查询网站备份
+	CreateBackup(siteIds []int64) (string, error)                                                                                         // 将所选网站提交为一个备份后台任务
+	DeleteBackup(ids []int64) error                                                                                                       // 删除备份及其本地、云端副本
+	DownloadBackup(id int64, storage string) (string, error)                                                                              // 获取备份临时下载地址
+	OpenBackup(ctx context.Context, id int64, storage string) (io.ReadCloser, string, int64, error)                                       // 流式读取备份
+	RestoreBackup(id int64, siteId int64) (string, error)                                                                                 // 提交网站文件恢复后台任务
 }
 
 // service 注入网站、域名、证书仓储和运行时管理器。
@@ -102,10 +116,17 @@ type service struct {
 	repositorySiteDomain repositorySiteDomain.Interface
 	repositoryCert       repositoryCert.Interface
 	repositorySecret     repositorySecret.Interface
+	repositorySiteBackup repositorySiteBackup.Interface
 	typeService          serviceTypes.Service
 	configService        serviceConfig.Service
 	taskService          serviceTask.Service
 	recycleService       serviceRecycle.Service
+	ossService           serviceOss.Service
+	fileService          serviceFile.Service
+	backupTasks          *serviceSystem.TaskGroup
+	backup               *taskBackup.Manager
+	backupPath           string
+	backupGate           chan struct{}
 	cache                cache.Interface
 	database             *database.Database
 	http                 *caddy.Manager
@@ -122,13 +143,14 @@ type service struct {
 	booted               bool
 	closed               bool
 	certTask             bool
+	backupTask           bool
 	closeOnce            sync.Once
 	wait                 sync.WaitGroup
 }
 
 // NewService 创建网站管理服务。
-func NewService(repositorySite repositorySite.Interface, repositorySiteDomain repositorySiteDomain.Interface, repositoryCert repositoryCert.Interface, repositorySecret repositorySecret.Interface, typeService serviceTypes.Service, configService serviceConfig.Service, taskService serviceTask.Service, recycleService serviceRecycle.Service, database *database.Database, cache cache.Interface, options ...Options) (*service, error) {
-	if repositorySite == nil || repositorySiteDomain == nil || repositoryCert == nil || repositorySecret == nil || typeService == nil || configService == nil || taskService == nil || recycleService == nil || database == nil || database.Db == nil || cache == nil {
+func NewService(repositorySite repositorySite.Interface, repositorySiteDomain repositorySiteDomain.Interface, repositoryCert repositoryCert.Interface, repositorySecret repositorySecret.Interface, repositorySiteBackup repositorySiteBackup.Interface, typeService serviceTypes.Service, configService serviceConfig.Service, taskService serviceTask.Service, recycleService serviceRecycle.Service, ossService serviceOss.Service, fileService serviceFile.Service, systemService serviceSystem.Service, database *database.Database, cache cache.Interface, options ...Options) (*service, error) {
+	if repositorySite == nil || repositorySiteDomain == nil || repositoryCert == nil || repositorySecret == nil || repositorySiteBackup == nil || typeService == nil || configService == nil || taskService == nil || recycleService == nil || database == nil || database.Db == nil || cache == nil {
 		return nil, errors.New("网站服务依赖不能为空")
 	}
 	if len(options) > 1 {
@@ -175,10 +197,17 @@ func NewService(repositorySite repositorySite.Interface, repositorySiteDomain re
 		repositorySiteDomain: repositorySiteDomain,
 		repositoryCert:       repositoryCert,
 		repositorySecret:     repositorySecret,
+		repositorySiteBackup: repositorySiteBackup,
 		typeService:          typeService,
 		configService:        configService,
 		taskService:          taskService,
 		recycleService:       recycleService,
+		ossService:           ossService,
+		fileService:          fileService,
+		backupTasks:          serviceSystem.NewTaskGroup(systemService),
+		backup:               taskBackup.NewManager(repositorySite, repositorySiteBackup, ossService, constant.BackupPath, constant.SiteBackupPath),
+		backupPath:           constant.SiteBackupPath,
+		backupGate:           make(chan struct{}, 1),
 		cache:                cache,
 		database:             database,
 		root:                 filepath.Clean(root),

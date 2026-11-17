@@ -65,12 +65,12 @@ func (r *Repository[T]) SelectPage(query *gorm.DB, queryPage *page.Query, custom
 			cursorId, _ := orderField.ValueOf(ctx, modelValue)
 			if desc {
 				query = query.Where(clause.Lt{
-					Column: clause.Column{Name: field},
+					Column: clause.Column{Table: clause.CurrentTable, Name: field},
 					Value:  cursorId,
 				})
 			} else {
 				query = query.Where(clause.Gt{
-					Column: clause.Column{Name: field},
+					Column: clause.Column{Table: clause.CurrentTable, Name: field},
 					Value:  cursorId,
 				})
 			}
@@ -86,16 +86,16 @@ func (r *Repository[T]) SelectPage(query *gorm.DB, queryPage *page.Query, custom
 			if desc {
 				query = query.Where(clause.Or(
 					clause.Lt{
-						Column: clause.Column{Name: field},
+						Column: clause.Column{Table: clause.CurrentTable, Name: field},
 						Value:  cursorId,
 					},
 					clause.And(
 						clause.Eq{
-							Column: clause.Column{Name: field},
+							Column: clause.Column{Table: clause.CurrentTable, Name: field},
 							Value:  cursorId,
 						},
 						clause.Lt{
-							Column: clause.Column{Name: cursorLastFieldName},
+							Column: clause.Column{Table: clause.CurrentTable, Name: cursorLastFieldName},
 							Value:  cursorLastId,
 						},
 					),
@@ -103,16 +103,16 @@ func (r *Repository[T]) SelectPage(query *gorm.DB, queryPage *page.Query, custom
 			} else {
 				query = query.Where(clause.Or(
 					clause.Gt{
-						Column: clause.Column{Name: field},
+						Column: clause.Column{Table: clause.CurrentTable, Name: field},
 						Value:  cursorId,
 					},
 					clause.And(
 						clause.Eq{
-							Column: clause.Column{Name: field},
+							Column: clause.Column{Table: clause.CurrentTable, Name: field},
 							Value:  cursorId,
 						},
 						clause.Gt{
-							Column: clause.Column{Name: cursorLastFieldName},
+							Column: clause.Column{Table: clause.CurrentTable, Name: cursorLastFieldName},
 							Value:  cursorLastId,
 						},
 					),
@@ -138,17 +138,17 @@ func (r *Repository[T]) SelectPage(query *gorm.DB, queryPage *page.Query, custom
 	if field != cursorLastFieldName {
 		query = query.Clauses(clause.OrderBy{Columns: []clause.OrderByColumn{
 			{
-				Column: clause.Column{Name: field},
+				Column: clause.Column{Table: clause.CurrentTable, Name: field},
 				Desc:   desc,
 			},
 			{
-				Column: clause.Column{Name: cursorLastFieldName},
+				Column: clause.Column{Table: clause.CurrentTable, Name: cursorLastFieldName},
 				Desc:   desc,
 			},
 		}})
 	} else {
 		query = query.Order(clause.OrderByColumn{
-			Column: clause.Column{Name: field},
+			Column: clause.Column{Table: clause.CurrentTable, Name: field},
 			Desc:   desc,
 		})
 	}

@@ -20,7 +20,7 @@ func (s *service) Delete(ctx context.Context, id int64, keys []string) ([]utilOs
 			return nil, errors.New("文件名称需为 1..1024 字节的有效 UTF-8 字符串且不含控制换行")
 		}
 	}
-	client, err := s.client(id)
+	client, err := s.Client(id)
 	if err != nil {
 		return nil, err
 	}

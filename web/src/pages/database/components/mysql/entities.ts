@@ -50,6 +50,8 @@ export interface MysqlManagerProps {
     open?: boolean;
     onCancel: () => void;
     onConfigure?: () => void;
+    /** 宿主展示后台任务；不传时使用组件内的进度展示。 */
+    onTask?: (ids?: string | string[]) => void;
     refreshKey?: number;
     initialTab?: string;
     components?: MysqlComponents;
@@ -65,6 +67,7 @@ export type MysqlApi = {
 
 export interface MysqlClientContext {
     ScriptTools?: ComponentType<any>;
+    onTask?: (ids?: string | string[]) => void;
     api: MysqlApi;
     version?: DatabaseVersion;
     features: Record<string, boolean>;

@@ -14,13 +14,14 @@ const (
 	DaemonPath        = RuntimePath + "/daemon" //面板进程本机通信目录
 	PluginCommandPath = RuntimePath + "/plugin" //插件命令本机通信目录
 
-	SiteRootPath  = BasePath + "/data/site"       //网站数据根目录
-	BackupPath    = BasePath + "/data/backup"     //备份数据目录
-	RecyclePath   = BasePath + "/data/recycle"    //回收站数据目录
-	AcmePath      = BasePath + "/data/acme"       //ACME 账户和签发数据目录
-	ContainerPath = BasePath + "/data/containers" //轻量容器数据目录
-	SoftwarePath  = BasePath + "/data/software"   //软件包目录
-	PanelDataPath = BasePath + "/data/server"     //面板配置和数据库目录
+	SiteRootPath   = BasePath + "/data/site"         //网站数据根目录
+	BackupPath     = BasePath + "/data/backup"       //备份数据目录
+	SiteBackupPath = BasePath + "/data/site_backups" //网站独立备份目录
+	RecyclePath    = BasePath + "/data/recycle"      //回收站数据目录
+	AcmePath       = BasePath + "/data/acme"         //ACME 账户和签发数据目录
+	ContainerPath  = BasePath + "/data/containers"   //轻量容器数据目录
+	SoftwarePath   = BasePath + "/data/software"     //软件包目录
+	PanelDataPath  = BasePath + "/data/server"       //面板配置和数据库目录
 
 	ServerDataPath   = ServerPath + "/data"        //HTTP 服务数据目录
 	ServerCachePath  = ServerPath + "/cache"       //HTTP 服务缓存目录

@@ -5,6 +5,7 @@ import (
 	"server/app/constant"
 	"server/app/model"
 	repositorySite "server/app/repository/site"
+	repositorySiteBackup "server/app/repository/site_backup"
 	repositoryTask "server/app/repository/task"
 	serviceOss "server/app/service/oss"
 	"server/app/service/task/backup"
@@ -55,15 +56,15 @@ type service struct {
 	backup         *backup.Manager
 }
 
-// NewService 创建调度服务，网站备份通过仓储读取数据，不依赖网站运行服务。
-func NewService(repositoryTask repositoryTask.Interface, repositorySite repositorySite.Interface, typeService serviceTypes.Service, ossService serviceOss.Service) *service {
+// NewService 创建调度服务，网站备份通过仓储读取和保存，不依赖网站运行服务。
+func NewService(repositoryTask repositoryTask.Interface, repositorySite repositorySite.Interface, repositorySiteBackup repositorySiteBackup.Interface, typeService serviceTypes.Service, ossService serviceOss.Service) *service {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &service{
 		repositoryTask: repositoryTask,
 		typeService:    typeService,
 		script:         script.NewManager(),
 		request:        request.NewManager(),
-		backup:         backup.NewManager(repositorySite, ossService, constant.BackupPath),
+		backup:         backup.NewManager(repositorySite, repositorySiteBackup, ossService, constant.BackupPath, constant.SiteBackupPath),
 		internalTasks:  make(map[int64]*job),
 		jobs:           make(map[*job]struct{}),
 		ctx:            ctx,

@@ -4,6 +4,7 @@ import type {MenuProps} from "antd";
 import {PageTable} from "sinking-antd";
 import type {PageTableProps, PageTableRef} from "sinking-antd";
 import ActionDropdown from "@/pages/components/ui/action-dropdown";
+import SecretManager, {SecretManagerRef} from "@/pages/components/secret";
 import {getOssList} from "@/service/api/oss";
 import useEnum from "@/utils/enum";
 import useStyles from "./styles";
@@ -43,6 +44,7 @@ export default function Storage({active, revision, hero, removing, onOpen, onCre
     const {styles} = useStyles();
     const [enumData] = useEnum("secret");
     const table = useRef<PageTableRef<any>>(null);
+    const secret = useRef<SecretManagerRef | null>(null);
     const previous = useRef({active, revision});
     const [records, setRecords] = useState<any[]>([]);
     const [openMenu, setOpenMenu] = useState<{id: string; source: "button" | "context"}>();
@@ -56,6 +58,7 @@ export default function Storage({active, revision, hero, removing, onOpen, onCre
         if (response?.code !== 200) throw new Error(response?.message || "获取存储列表失败");
         return {data: response?.data?.list || [], total: Number(response?.data?.total || 0), success: true};
     }, []);
+    const reload = useCallback(() => { table.current?.reload(); }, []);
 
     useEffect(() => {
         // 恢复显示时 PageTable 自行加载；仅可见期间的配置变更需要主动刷新。
@@ -101,7 +104,7 @@ export default function Storage({active, revision, hero, removing, onOpen, onCre
             </ActionDropdown>},
     ], [changeMenuOpen, enumData, getMenuItems, isDisabled, onOpen, openMenu, removing]);
 
-    return <PageTable ref={table} hero={hero} ariaLabel="云端存储" className={styles.table}
+    return <><PageTable ref={table} hero={hero} ariaLabel="云端存储" className={styles.table}
         paginationAffix={{offsetBottom: 15}}
         rowKey="id" columns={columns} rowSelection={false} scroll={{x: 820}}
         components={tableComponents} tableRender={(children) => <StorageContextMenu.Provider value={contextMenu}>{children}</StorageContextMenu.Provider>}
@@ -110,6 +113,11 @@ export default function Storage({active, revision, hero, removing, onOpen, onCre
         toolbar={{
             search: {placeholder: "搜索存储名称", debounce: 300},
             refresh: true,
-            actions: [{key: "create", type: "button", label: "添加存储", icon: "PlusOutlined", onClick: onCreate}],
-        }}/>;
+            actions: [
+                {key: "create", type: "button", label: "添加存储", icon: "PlusOutlined", onClick: onCreate},
+                {key: "secret", type: "button", label: "密钥管理", icon: "KeyOutlined", onClick: () => secret.current?.open()},
+            ],
+        }}/>
+        <SecretManager ref={secret} onChange={reload}/>
+    </>;
 }

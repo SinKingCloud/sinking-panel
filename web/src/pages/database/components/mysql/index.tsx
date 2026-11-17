@@ -12,7 +12,7 @@ const FileSelect = ({type, multiple, buttonProps, onSelect, initialPath, default
 const ActionDropdown = (props: any) => <Dropdown trigger={["click"]} {...props}/>;
 
 // 独立使用时只需实例、接口方法及关闭回调，不依赖数据管理页面或 shared 组件。
-export default ({requests, components, ...props}: MysqlManagerProps) => {
+export default ({requests, components, onTask, ...props}: MysqlManagerProps) => {
     const screens = Grid.useBreakpoint();
     const [version, setVersion] = useState<DatabaseVersion>();
     const requestMethods = useRef<Record<string, MysqlRequest>>(requests);
@@ -32,11 +32,11 @@ export default ({requests, components, ...props}: MysqlManagerProps) => {
         ])),
         task: (body: Record<string, any>) => requestMethods.current["system/task"]({body}),
     }) as MysqlApi, [operations]);
-    const context = useMemo(() => ({api, version, features: version?.features || {},
+    const context = useMemo(() => ({api, version, onTask, features: version?.features || {},
         FileSelect: components?.FileSelect || FileSelect,
         ActionDropdown: components?.ActionDropdown || ActionDropdown,
         Editor: components?.Editor, ScriptTools: components?.ScriptTools,
-    }), [api, version, components?.FileSelect, components?.ActionDropdown, components?.Editor, components?.ScriptTools]);
+    }), [api, version, onTask, components?.FileSelect, components?.ActionDropdown, components?.Editor, components?.ScriptTools]);
 
     return <MysqlContext.Provider value={context}><ConfigProvider modal={{style: {top: screens.md ? 100 : 24, paddingBottom: screens.md ? 100 : 24}}}><App>
         <Workspace {...props} version={version} setVersion={setVersion}/>

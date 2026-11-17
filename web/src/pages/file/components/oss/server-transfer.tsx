@@ -19,13 +19,15 @@ const ServerTransfer = forwardRef<any, any>(({record, active: visible = true, on
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState("");
     const [unconfirmed, setUnconfirmed] = useState(false);
-    const [submitted, setSubmitted] = useState(0);
+    const [submitted, setSubmitted] = useState<string[]>([]);
     const live = useRef(true);
+    const visibleRef = useRef(visible);
+    visibleRef.current = visible;
     const pending = useRef(false);
     const modalWidth = useRef(420);
     const busyChanged = useRef(onBusyChange);
     busyChanged.current = onBusyChange;
-    const locked = submitted > 0 || unconfirmed;
+    const locked = submitted.length > 0 || unconfirmed;
 
     useEffect(() => { live.current = true; return () => { live.current = false; busyChanged.current?.(false); }; }, []);
     useEffect(() => { onBusyChange?.(busy); }, [busy, onBusyChange]);
@@ -36,7 +38,7 @@ const ServerTransfer = forwardRef<any, any>(({record, active: visible = true, on
             modalWidth.current = action === "upload" ? 380 : 420;
             form.resetFields();
             if (action === "download") form.setFieldsValue({name: key.split("/").pop()});
-            setSubmitted(0); setError(""); setUnconfirmed(false);
+            setSubmitted([]); setError(""); setUnconfirmed(false);
             setDialog({action, key});
             setOpen(true);
         },
@@ -48,7 +50,7 @@ const ServerTransfer = forwardRef<any, any>(({record, active: visible = true, on
         const paths = uploading
             ? [...new Map((values.paths as string[]).map((path) => [comparableFilePath(path), path])).values()]
             : [joinFilePath(values.directory, values.name)];
-        let created = 0;
+        const created: string[] = [];
         pending.current = true; setBusy(true); setError("");
         try {
             // 顺序入队，出现失败即停止；已创建的任务继续执行，避免重复提交整批文件。
@@ -63,19 +65,27 @@ const ServerTransfer = forwardRef<any, any>(({record, active: visible = true, on
                     }});
                 } catch { /* 无响应时无法确认服务端是否已创建任务，不自动重试。 */ }
                 if (!live.current) return;
-                if (response?.code !== 200 || typeof response.data !== "string" || !response.data) {
+                const taskId = response?.data;
+                if (response?.code !== 200 || !taskId) {
                     const unknown = !response || response.code === 200;
                     setUnconfirmed(unknown);
-                    const reason = unknown ? "任务提交结果未确认，请在系统任务中核对后再操作" : response.message || "任务创建失败";
-                    setError(paths.length > 1 ? `${path}：${reason}。已提交 ${created} 个文件，后续 ${paths.length - index - 1} 个文件未提交。` : reason);
-                    if (created > 0) task?.open();
+                    const reason = unknown ? "任务提交结果未确认，请在系统任务中核对后再操作" : response?.message || "任务创建失败";
+                    setError(paths.length > 1 ? `${path}：${reason}。已提交 ${created.length} 个文件，后续 ${paths.length - index - 1} 个文件未提交。` : reason);
                     return;
                 }
-                setSubmitted(++created);
+                created.push(taskId);
+                setSubmitted([...created]);
             }
             setOpen(false);
-            task?.open();
-        } finally { pending.current = false; if (live.current) setBusy(false); }
+        } catch (reason: any) {
+            if (live.current) setError(reason?.message || "任务提交失败");
+        } finally {
+            pending.current = false;
+            if (live.current) {
+                setBusy(false);
+                if (created.length && visibleRef.current) task?.open(created);
+            }
+        }
     };
 
     return <ProModal title={<Title>{dialog?.action === "upload" ? "从服务器上传" : "下载到服务器"}</Title>}
@@ -86,7 +96,7 @@ const ServerTransfer = forwardRef<any, any>(({record, active: visible = true, on
             closable: !busy, keyboard: !busy, mask: {closable: !busy}, cancelButtonProps: {disabled: busy},
             footer: locked ? <>
                 <Button disabled={busy} onClick={() => setOpen(false)}>关闭</Button>
-                <Button disabled={busy} type="primary" onClick={() => task?.open()}>查看系统任务</Button>
+                <Button disabled={busy} type="primary" onClick={() => task?.open(!unconfirmed && submitted.length ? submitted : undefined)}>查看系统任务</Button>
             </> : undefined}}>
         {visible && <Form form={form} layout="vertical" variant="filled" disabled={busy || locked} onFinish={submit}>
             {dialog?.action === "upload" ? <>

@@ -18,6 +18,7 @@ type Interface interface {
 	FindById(id int64, tx ...*gorm.DB) (*model.Site, error)
 	Select(where *SelectSite, queryPage *page.Query) (*page.Result[*Site], error)
 	SelectAll(tx ...*gorm.DB) ([]*model.Site, error)
+	SelectAutoBackup() ([]*model.Site, error)
 	UpdateById(id int64, data *UpdateSite, tx ...*gorm.DB) error
 }
 

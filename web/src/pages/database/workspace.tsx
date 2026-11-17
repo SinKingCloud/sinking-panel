@@ -1,4 +1,6 @@
-import {useRef} from "react";
+import {useCallback, useRef} from "react";
+import {useOutletContext} from "umi";
+import type {LayoutContext} from "@/layouts/context";
 import {Redis, Mysql, Postgres, Mongo, SqlServer, Sqlite, Elasticsearch} from "./components";
 import ActionDropdown from "@/pages/components/ui/action-dropdown";
 import FileSelect from "@/pages/components/file-select";
@@ -10,9 +12,12 @@ const components = {ActionDropdown, FileSelect, Editor: AceEditor, ScriptTools};
 const managers: Record<number, any> = {1: Redis, 2: Mysql, 3: Postgres, 4: Mongo, 5: SqlServer, 6: Sqlite, 7: Elasticsearch};
 
 export default (props: any) => {
+    const layout = useOutletContext<LayoutContext>();
+    const openTask = useCallback((ids?: string | string[]) => layout?.task?.open(ids), [layout?.task]);
     // 关闭时保留当前管理器，让原窗口完成退场动画再清理自身状态。
     const type = useRef(props.record?.type);
     if (props.record) type.current = props.record.type;
     const Manager = managers[Number(type.current)];
-    return Manager ? <Manager {...props} requests={databaseRequests[Number(type.current)]} components={components}/> : null;
+    return Manager ? <Manager {...props} requests={databaseRequests[Number(type.current)]} components={components}
+        onTask={layout?.task ? openTask : undefined}/> : null;
 };

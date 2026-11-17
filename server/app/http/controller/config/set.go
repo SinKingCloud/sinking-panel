@@ -18,30 +18,27 @@ func Set(c *context.Context) {
 		c.Error(msg)
 		return
 	}
-	configs := make(map[string]string)
+	configs := make(map[string]string, len(form.Configs))
 	for _, v := range form.Configs {
-		if v == nil {
-			continue
-		}
 		group := v.Key
 		if index := strings.IndexByte(group, '.'); index > 0 {
 			group = group[:index]
 		}
-		if policy, ok := constant.SensitiveGroups[group]; ok && policy.Write {
-			continue
+		policy, exists := constant.SensitiveGroups[group]
+		if !exists {
+			c.Error("配置不存在")
+			return
+		}
+		if policy.Write {
+			c.Error("该配置不允许通过通用接口修改")
+			return
 		}
 		configs[v.Key] = v.Value
 	}
-	var err error
-	if len(configs) > 0 {
-		err = service.Config.Sets(configs)
-	}
-	if err != nil {
+	if err := service.Config.Sets(configs); err != nil {
 		c.Error("修改数据失败")
-	} else {
-		if len(configs) > 0 {
-			service.Log.Create(c.GetRequestIp(), log_type.EventUpdate, "修改系统配置", "修改系统配置数据")
-		}
-		c.Success("修改数据成功")
+		return
 	}
+	service.Log.Create(c.GetRequestIp(), log_type.EventUpdate, "修改系统配置", "修改系统配置数据")
+	c.Success("修改数据成功")
 }

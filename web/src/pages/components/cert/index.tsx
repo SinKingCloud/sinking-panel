@@ -37,6 +37,7 @@ import {
     getCertInfo,
     getCertList,
     getCertLog,
+    clearCertLog,
     obtainCert,
     renewCert,
     updateCert,
@@ -48,8 +49,8 @@ import BatchCert, {BatchCertRef} from "./batch";
 import CertSettings, {CertSettingsRef} from "./settings";
 
 const requestCertLog = (params: API.RequestParams) => {
-    const {id: _id, ...body} = params.body || {};
-    return getCertLog({...params, body: {action: "read", ...body}});
+    const {id: _id, action, ...body} = params.body || {};
+    return (action === "clear" ? clearCertLog : getCertLog)({...params, body});
 };
 
 export interface CertManagerRef {

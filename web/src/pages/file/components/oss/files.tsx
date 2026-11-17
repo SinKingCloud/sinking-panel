@@ -4,7 +4,7 @@ import {App, Button, Empty, Form, Grid, Input, Select, Tooltip} from "antd";
 import type {MenuProps, TableColumnsType} from "antd";
 import {Icon, ModalTable, ProModal, Title, useTheme} from "sinking-antd";
 import dayjs from "dayjs";
-import {getOssFiles, getOssInfo, ossFile, ossSign, uploadOssFile} from "@/service/api/oss";
+import {getOssFiles, getOssInfo, ossOperate, ossSign, uploadOssFile} from "@/service/api/oss";
 import {formatSize} from "@/utils/string";
 import ActionDropdown from "@/pages/components/ui/action-dropdown";
 import {getFileIconType} from "../../utils";
@@ -207,7 +207,7 @@ const Files = ({id, active, revision, onCancel, onEdit, onBusyChange}: FilesProp
         setQuery((current) => ({...current, keyword: value, tokens: [""], cursor: 0}));
     }, []);
     const invoke = useCallback(async (body: any) => {
-        const response = await ossFile({body: {id: record.id, ...body}});
+        const response = await ossOperate({body: {id: record.id, ...body}});
         if (response?.code !== 200) throw new Error(response?.message || "操作失败");
         if (body.action === "delete" && Array.isArray(response.data)) {
             const failed = response.data.filter((item: any) => item.error);

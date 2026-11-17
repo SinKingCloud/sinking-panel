@@ -6,7 +6,7 @@ import useStyles from "./styles/client";
 
 // 标准 SQL / BSON 文件只在服务器处理，浏览器仅提交路径和目标对象。
 export default ({record, schema, table, collection, disabled, readOnly, exportOnly = false, dropdown = false, exportDatabase = false, onChange}: any) => {
-    const {request, FileSelect, ActionDropdown} = useDatabaseClient();
+    const {request, onTask, FileSelect, ActionDropdown} = useDatabaseClient();
     const {message, modal} = App.useApp();
     const {styles} = useStyles();
     const {token} = antdTheme.useToken();
@@ -97,7 +97,12 @@ export default ({record, schema, table, collection, disabled, readOnly, exportOn
                 ? {...(current.schema ? {schema: current.schema} : {}), ...(current.table ? {table: current.table} : {})} : {})};
         const taskBody = {...body, type: Number(current.record.type), action: current.mode};
         const existing = tracked.current.find((item) => (item.status < 2 || item.settling) && JSON.stringify(item.body) === JSON.stringify(taskBody));
-        if (existing) { accepted.current = requestId; setTaskId(existing.id); message.info("该任务正在后台执行"); return; }
+        if (existing) {
+            accepted.current = requestId;
+            if (onTask) { close(); onTask(existing.id); }
+            else { setTaskId(existing.id); message.info("该任务正在后台执行"); }
+            return;
+        }
         pending.current = true; setBusy(true); setError(""); setUnconfirmed(false);
         try {
             const response = await request(current.mode, body);
@@ -110,13 +115,22 @@ export default ({record, schema, table, collection, disabled, readOnly, exportOn
             accepted.current = requestId;
             const created = {id: response?.data, status: 0, progress: 0, message: "等待任务开始", body: taskBody};
             tracked.current = [...tracked.current, created]; setTasks(tracked.current);
-            if (sequence.current === requestId) setTaskId(created.id);
-            message.success("已加入后台任务");
+            if (onTask) {
+                if (sequence.current === requestId) {
+                    close();
+                    onTask(created.id);
+                }
+            } else {
+                if (sequence.current === requestId) setTaskId(created.id);
+                message.success("已加入后台任务");
+            }
         } catch (reason: any) {
             if (live.current && sequence.current === requestId) {
-                setError(reason?.message || "任务创建结果未确认，请在系统任务中核对后再操作");
-                setUnconfirmed(reason.unconfirmed !== false);
-                if (reason.unconfirmed !== false) accepted.current = requestId;
+                const text = reason?.message || "任务创建结果未确认，请在系统任务中核对后再操作";
+                const unknown = reason?.unconfirmed !== false;
+                if (unknown) accepted.current = requestId;
+                if (onTask && unknown) { close(); message.error(text); onTask(); }
+                else { setError(text); setUnconfirmed(unknown); }
             }
         } finally { pending.current = false; if (live.current) setBusy(false); }
     };

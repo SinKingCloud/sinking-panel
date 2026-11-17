@@ -1,6 +1,6 @@
 import {useCallback, useEffect, useRef, useState} from "react";
 import {App} from "antd";
-import {ossFile} from "@/service/api/oss";
+import {ossOperate} from "@/service/api/oss";
 
 type ClipboardMode = "copy" | "move";
 type ClipboardItem = {key: string; name: string};
@@ -108,7 +108,7 @@ const useOssClipboard = (props: ClipboardProps) => {
                         while (remaining.length) {
                             if (!live.current || latest.current.id !== id || latest.current.revision !== revision) throw new Error("存储配置已变更，请重新选择文件");
                             const item = remaining[0];
-                            const response = await ossFile({body: {id, action: source.mode, key: item.key, destination: path + item.name}});
+                            const response = await ossOperate({body: {id, action: source.mode, key: item.key, destination: path + item.name}});
                             if (response?.code !== 200) throw new Error(response?.message || `${operationName}失败`);
                             remaining = remaining.slice(1);
                             if (live.current) setClipboard((value) => {

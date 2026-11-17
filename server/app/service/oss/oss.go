@@ -23,6 +23,7 @@ type Service interface {
 	Select(where *repositoryOss.SelectOss, query *page.Query) (*page.Result[*OssListItem], error)
 	Test(ctx context.Context, secretId int64, config string) error
 	Check(id int64) error
+	Client(id int64) (utilOss.Interface, error) // 创建绑定当前存储配置的客户端
 	StatFile(ctx context.Context, id int64, key string) (*utilOss.File, error)
 	CreateDirectory(ctx context.Context, id int64, key string) (*utilOss.File, error)
 	SetMetadata(ctx context.Context, id int64, key string, options utilOss.PutOptions) (*utilOss.File, error)

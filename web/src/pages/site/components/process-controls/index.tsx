@@ -2,7 +2,7 @@ import {memo, useCallback, useEffect, useRef, useState} from "react";
 import {App, Button, Spin} from "antd";
 import {createStyles} from "antd-style";
 import {Icon, useTheme} from "sinking-antd";
-import {siteProcess} from "@/service/api/site";
+import {getSiteProcessStatus, startSiteProcess, stopSiteProcess, restartSiteProcess} from "@/service/api/site";
 
 const processStates: Record<string, { label: string; color: string }> = {
     starting: {label: "正在启动", color: "processing"},
@@ -183,7 +183,7 @@ const ProcessControls = ({siteId, disabled = false}: any) => {
             return;
         }
         try {
-            const response = await siteProcess({body: {action: "status", id: siteRef.current}});
+            const response = await getSiteProcessStatus({body: {id: siteRef.current}});
             if (!isCurrent(version)) {
                 return;
             }
@@ -243,7 +243,7 @@ const ProcessControls = ({siteId, disabled = false}: any) => {
         };
     }, [siteId, action, enqueue, isCurrent, loadStatus]);
 
-    const control = async (nextAction: string) => {
+    const control = async (nextAction: "start" | "stop" | "restart") => {
         if (!siteRef.current || actionRef.current || disabled) {
             return;
         }
@@ -258,7 +258,8 @@ const ProcessControls = ({siteId, disabled = false}: any) => {
                     return;
                 }
                 try {
-                    const response = await siteProcess({body: {id, action: nextAction}});
+                    const request = {start: startSiteProcess, stop: stopSiteProcess, restart: restartSiteProcess}[nextAction];
+                    const response = await request({body: {id}});
                     if (!isCurrent(version)) {
                         return;
                     }

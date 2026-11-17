@@ -171,6 +171,7 @@ const useStyles = createStyles(({css, token}: any) => ({
 
 export interface LogRef {
     open: (record: any, body?: Record<string, any>) => void;
+    close: () => void;
 }
 
 interface LogProps {
@@ -178,13 +179,15 @@ interface LogProps {
     showClear?: boolean;
     title?: React.ReactNode;
     body?: Record<string, any>;
+    zIndex?: number;
 }
 
-const Log = forwardRef<LogRef, LogProps>(({request, showClear = true, title = "任务日志", body = {}}, ref):any => {
+const Log = forwardRef<LogRef, LogProps>(({request, showClear = true, title = "任务日志", body = {}, zIndex = 1200}, ref):any => {
     const {styles} = useStyles();
     const modalRef = useRef<ProModalRef>({} as ProModalRef);
     const panelRef = useRef<HTMLDivElement | null>(null);
     const [open, setOpen] = useState(false);
+    const openRef = useRef(false);
     const {fullscreen, pageFullscreen, pending: fullscreenPending, toggle: toggleFullscreen, exit: exitFullscreen} = useFullscreen(panelRef, {active: open});
     const log = useLog(request, body, panelRef);
 
@@ -200,10 +203,12 @@ const Log = forwardRef<LogRef, LogProps>(({request, showClear = true, title = "�
     useImperativeHandle(ref, () => ({
         open: (record: any, requestBody?: Record<string, any>) => {
             if (log.open(record, requestBody)) {
+                openRef.current = true;
                 setOpen(true);
                 modalRef.current?.show();
             }
         },
+        close: () => modalRef.current?.hide(),
     }), [log.open]);
 
     return (
@@ -212,6 +217,7 @@ const Log = forwardRef<LogRef, LogProps>(({request, showClear = true, title = "�
             title={<Title>{title}</Title>}
             width={900}
             afterOpenChange={(open) => {
+                openRef.current = open;
                 if (!open) {
                     setOpen(false);
                     void exitFullscreen();
@@ -222,13 +228,16 @@ const Log = forwardRef<LogRef, LogProps>(({request, showClear = true, title = "�
                 rootClassName: styles.modal,
                 footer: null,
                 keyboard: !fullscreen,
-                zIndex: 1200,
+                zIndex,
                 style: {top: 100, paddingBottom: 100},
                 mask: {closable: true},
                 afterOpenChange: (open: boolean) => {
                     if (open) log.measureViewport();
                 },
-                afterClose: log.reset,
+                afterClose: () => {
+                    if (openRef.current) return;
+                    log.reset();
+                },
             } as any}>
             <div ref={panelRef} className={`${styles.panel} ${pageFullscreen ? "panel-page-fullscreen" : ""}`}>
                 {log.messageHolder}

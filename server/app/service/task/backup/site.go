@@ -1,20 +1,14 @@
 package backup
 
 import (
-	"archive/tar"
-	"compress/gzip"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"os"
-	"path/filepath"
 	"server/app/model"
 	"sort"
-	"strconv"
 	"strings"
-	"time"
 )
 
 func (s *Manager) parseSiteOptions(content json.RawMessage) (*SiteOptions, error) {
@@ -67,6 +61,9 @@ func (s *Manager) runSites(ctx context.Context, id int64, config Config, writeLo
 	if s.repositorySite == nil {
 		return errors.New("网站仓储未初始化")
 	}
+	if s.repositorySiteBackup == nil {
+		return errors.New("网站备份仓储未初始化")
+	}
 	if err = ctx.Err(); err != nil {
 		return err
 	}
@@ -88,7 +85,7 @@ func (s *Manager) runSites(ctx context.Context, id int64, config Config, writeLo
 		selected[id] = true
 	}
 	sites := make([]*model.Site, 0, len(items))
-	failed, completed := 0, 0
+	failed, completed, skipped := 0, 0, 0
 	for _, site := range items {
 		if err = ctx.Err(); err != nil {
 			return err
@@ -98,10 +95,19 @@ func (s *Manager) runSites(ctx context.Context, id int64, config Config, writeLo
 		}
 		delete(selected, site.Id)
 		if strings.TrimSpace(site.Root) == "" {
-			if !options.AllSites {
-				failed++
-				writeLog(fmt.Sprintf("网站 #%d 未配置根目录", site.Id))
-			}
+			skipped++
+			writeLog(fmt.Sprintf("跳过网站 #%d：未配置根目录", site.Id))
+			continue
+		}
+		info, statErr := os.Stat(site.Root)
+		if os.IsNotExist(statErr) || (statErr == nil && !info.IsDir()) {
+			skipped++
+			writeLog(fmt.Sprintf("跳过网站 #%d：根目录不存在或不是目录", site.Id))
+			continue
+		}
+		if statErr != nil {
+			failed++
+			writeLog(fmt.Sprintf("网站 #%d 检查根目录失败: %v", site.Id, statErr))
 			continue
 		}
 		sites = append(sites, site)
@@ -118,95 +124,49 @@ func (s *Manager) runSites(ctx context.Context, id int64, config Config, writeLo
 			return err
 		}
 		writeLog(fmt.Sprintf("开始备份网站 #%d %s", site.Id, site.Name))
-		file, runErr := s.Save(ctx, Target{
-			Key:         "site",
-			ID:          strconv.FormatInt(site.Id, 10),
-			PlanId:      id,
-			Extension:   ".tar.gz",
-			ContentType: "application/gzip",
-		}, config, func(ctx context.Context, output io.Writer) error {
-			return s.packSiteArchive(ctx, site, output)
+		lastProgress, lastMessage := -1, ""
+		record, runErr := s.SaveSite(ctx, site.Id, id, config, 0, func(progress float64, text string) {
+			percent := int(progress)
+			if percent != lastProgress || text != lastMessage {
+				writeLog(fmt.Sprintf("%d%% %s", percent, text))
+				lastProgress, lastMessage = percent, text
+			}
 		})
+		if record != nil && runErr != nil && ctx.Err() == nil {
+			writeLog("备份已保留：" + runErr.Error())
+			// 存储不可用或清理失败不影响已生成的备份；有效存储上传失败仍计为失败。
+			var data SiteData
+			if config.Storage != "oss" || s.ossService == nil || s.ossService.Check(config.OssId) != nil || json.Unmarshal([]byte(record.Data), &data) == nil && data.OssPath != "" {
+				runErr = nil
+			}
+		}
 		if runErr != nil {
-			if errors.Is(runErr, context.Canceled) || errors.Is(runErr, context.DeadlineExceeded) {
-				return runErr
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
+			if errors.Is(runErr, os.ErrNotExist) {
+				info, statErr := os.Stat(site.Root)
+				if os.IsNotExist(statErr) || (statErr == nil && !info.IsDir()) {
+					skipped++
+					writeLog(fmt.Sprintf("跳过网站 #%d：根目录已不存在或不是目录", site.Id))
+					continue
+				}
 			}
 			failed++
 			writeLog(fmt.Sprintf("网站 #%d 备份失败: %v", site.Id, runErr))
 			continue
 		}
 		completed++
-		writeLog("备份完成: " + file.Name)
-		if file.Warning != "" {
-			writeLog(file.Warning)
-		}
+		writeLog("100% 备份完成：" + record.Name)
 	}
 	if err = ctx.Err(); err != nil {
 		return err
 	}
-	message := fmt.Sprintf("备份结束，成功 %d 个，失败 %d 个", completed, failed)
+	message := fmt.Sprintf("备份结束，成功 %d 个，失败 %d 个，跳过 %d 个", completed, failed, skipped)
 	writeLog(message)
 	if failed > 0 {
 		return errors.New(message)
 	}
 	writeLog("备份计划执行完成")
 	return nil
-}
-
-// packSiteArchive 复用文件归档流程，保留网站清单并在发布前核对根目录。
-func (s *Manager) packSiteArchive(ctx context.Context, site *model.Site, output io.Writer) (err error) {
-	if strings.TrimSpace(site.Root) == "" {
-		return errors.New("网站未配置根目录")
-	}
-	sourcePath, err := filepath.Abs(site.Root)
-	if err != nil {
-		return err
-	}
-	sourcePath, err = s.validateSourcePath(sourcePath)
-	if err != nil {
-		return err
-	}
-	source, err := os.OpenRoot(sourcePath)
-	if err != nil {
-		return err
-	}
-	defer source.Close()
-	compressed := gzip.NewWriter(output)
-	archive := tar.NewWriter(compressed)
-	defer func() {
-		err = errors.Join(err, archive.Close(), compressed.Close(), ctx.Err())
-		if err != nil {
-			return
-		}
-		current, findErr := s.repositorySite.FindById(site.Id)
-		if findErr != nil {
-			err = fmt.Errorf("核对网站信息失败: %w", findErr)
-		} else if current == nil || current.Root != site.Root {
-			err = errors.New("网站已删除或根目录已修改，已取消发布备份")
-		}
-	}()
-	metadata, err := json.Marshal(struct {
-		Version int         `json:"version"`
-		Time    time.Time   `json:"time"`
-		Site    *model.Site `json:"site"`
-	}{
-		Version: 1,
-		Time:    time.Now().UTC(),
-		Site:    site,
-	})
-	if err != nil {
-		return err
-	}
-	if err = archive.WriteHeader(&tar.Header{
-		Name:    "backup.json",
-		Mode:    0600,
-		Size:    int64(len(metadata)),
-		ModTime: time.Now(),
-	}); err != nil {
-		return err
-	}
-	if _, err = archive.Write(metadata); err != nil {
-		return err
-	}
-	return s.writePathEntry(ctx, source, ".", "files", archive, make([]byte, 32*1024))
 }

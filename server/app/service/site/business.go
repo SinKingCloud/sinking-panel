@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"server/app/constant"
+	"server/app/enum/site_backup_status"
 	"server/app/enum/site_kind"
 	"server/app/enum/site_status"
 	"server/app/model"
@@ -149,14 +150,15 @@ func (s *service) Create(data *CreateSite) (*Site, error) {
 	}
 
 	record := &model.Site{
-		Id:      id,
-		TypeId:  data.TypeId,
-		Name:    data.Name,
-		Type:    data.Type,
-		Status:  data.Status,
-		Root:    root,
-		RunPath: data.RunPath,
-		Config:  config,
+		Id:           id,
+		TypeId:       data.TypeId,
+		Name:         data.Name,
+		Type:         data.Type,
+		Status:       data.Status,
+		BackupStatus: site_backup_status.Enabled,
+		Root:         root,
+		RunPath:      data.RunPath,
+		Config:       config,
 	}
 	var domains []*model.SiteDomain
 	err = s.database.Transaction(func(tx *gorm.DB) error {
@@ -265,7 +267,7 @@ func (s *service) Create(data *CreateSite) (*Site, error) {
 	return result, nil
 }
 
-// Update 更新网站基础信息，并同步运行时配置。
+// Update 更新网站信息与状态；仅修改自动备份开关时无需同步运行时。
 func (s *service) Update(id int64, data *UpdateSite) error {
 	s.operationMu.Lock()
 	defer s.operationMu.Unlock()
@@ -273,10 +275,12 @@ func (s *service) Update(id int64, data *UpdateSite) error {
 		return s.updateLocked(id, nil)
 	}
 	return s.updateLocked(id, &siteMutation{
-		Name:    data.Name,
-		TypeId:  data.TypeId,
-		Root:    data.Root,
-		RunPath: data.RunPath,
+		Name:         data.Name,
+		TypeId:       data.TypeId,
+		Status:       data.Status,
+		BackupStatus: data.BackupStatus,
+		Root:         data.Root,
+		RunPath:      data.RunPath,
 	})
 }
 
@@ -296,23 +300,6 @@ func (s *service) updateLocked(id int64, data *siteMutation) error {
 	}
 	previousRecord := *previous
 	previous = &previousRecord
-	if data.Name == nil && data.TypeId == nil && data.Status == nil && data.Root == nil &&
-		data.RunPath == nil && data.Config == nil && data.Domains == nil {
-		return nil
-	}
-	previousDomains, err := s.repositorySiteDomain.SelectBySiteId(id)
-	if err != nil {
-		return fmt.Errorf("查询网站域名失败: %w", err)
-	}
-	domainRecords := previousDomains
-	previousDomains = make([]*model.SiteDomain, 0, len(domainRecords))
-	for _, record := range domainRecords {
-		if record != nil {
-			domain := *record
-			previousDomains = append(previousDomains, &domain)
-		}
-	}
-
 	candidate := *previous
 	if data.Name != nil {
 		candidate.Name = *data.Name
@@ -332,11 +319,43 @@ func (s *service) updateLocked(id int64, data *siteMutation) error {
 	if data.Config != nil {
 		candidate.Config = *data.Config
 	}
+	if data.BackupStatus != nil {
+		if _, ok := site_backup_status.Map()[*data.BackupStatus]; !ok {
+			return errors.New("自动备份状态不合法")
+		}
+		candidate.BackupStatus = *data.BackupStatus
+		if candidate.BackupStatus == site_backup_status.Enabled {
+			root := strings.TrimSpace(candidate.Root)
+			info, err := os.Stat(filepath.Clean(root))
+			if root == "" || err != nil || !info.IsDir() {
+				return errors.New("网站没有可备份的目录")
+			}
+		}
+	}
+	if data.Name == nil && data.TypeId == nil && data.Status == nil && data.Root == nil &&
+		data.RunPath == nil && data.Config == nil && data.Domains == nil {
+		if data.BackupStatus == nil {
+			return nil
+		}
+		return s.repositorySite.UpdateById(id, &repositorySite.UpdateSite{BackupStatus: &candidate.BackupStatus})
+	}
 	if err = s.validateSiteEnums(candidate.Type, candidate.Status); err != nil {
 		return err
 	}
 	if err = s.validateTypeId(candidate.TypeId); err != nil {
 		return err
+	}
+	previousDomains, err := s.repositorySiteDomain.SelectBySiteId(id)
+	if err != nil {
+		return fmt.Errorf("查询网站域名失败: %w", err)
+	}
+	domainRecords := previousDomains
+	previousDomains = make([]*model.SiteDomain, 0, len(domainRecords))
+	for _, record := range domainRecords {
+		if record != nil {
+			domain := *record
+			previousDomains = append(previousDomains, &domain)
+		}
 	}
 	domainsChanged := data.Domains != nil
 	var domainInput []SiteDomain
@@ -363,12 +382,13 @@ func (s *service) updateLocked(id int64, data *siteMutation) error {
 			return prepareErr
 		}
 		if updateErr := s.repositorySite.UpdateById(id, &repositorySite.UpdateSite{
-			Name:    &candidate.Name,
-			TypeId:  &candidate.TypeId,
-			Status:  &candidate.Status,
-			Root:    &candidate.Root,
-			RunPath: &candidate.RunPath,
-			Config:  &candidate.Config,
+			Name:         &candidate.Name,
+			TypeId:       &candidate.TypeId,
+			Status:       &candidate.Status,
+			BackupStatus: &candidate.BackupStatus,
+			Root:         &candidate.Root,
+			RunPath:      &candidate.RunPath,
+			Config:       &candidate.Config,
 		}, tx); updateErr != nil {
 			return fmt.Errorf("更新网站失败: %w", updateErr)
 		}
@@ -685,22 +705,6 @@ func (s *service) Delete(id int64, deleteRoot bool) error {
 	return nil
 }
 
-// Enable 启用网站。
-func (s *service) Enable(id int64) error {
-	s.operationMu.Lock()
-	defer s.operationMu.Unlock()
-	status := site_status.Enabled
-	return s.updateLocked(id, &siteMutation{Status: &status})
-}
-
-// Disable 停用网站。
-func (s *service) Disable(id int64) error {
-	s.operationMu.Lock()
-	defer s.operationMu.Unlock()
-	status := site_status.Disabled
-	return s.updateLocked(id, &siteMutation{Status: &status})
-}
-
 // FindById 查询网站基础详情。
 func (s *service) FindById(id int64) (*Site, error) {
 	s.operationMu.Lock()
@@ -720,15 +724,16 @@ func (s *service) findByIdLocked(id int64) (*Site, error) {
 		return nil, nil
 	}
 	return &Site{
-		Id:         record.Id,
-		TypeId:     record.TypeId,
-		Name:       record.Name,
-		Type:       record.Type,
-		Status:     record.Status,
-		Root:       record.Root,
-		RunPath:    record.RunPath,
-		CreateTime: record.CreateTime,
-		UpdateTime: record.UpdateTime,
+		Id:           record.Id,
+		TypeId:       record.TypeId,
+		Name:         record.Name,
+		Type:         record.Type,
+		Status:       record.Status,
+		BackupStatus: record.BackupStatus,
+		Root:         record.Root,
+		RunPath:      record.RunPath,
+		CreateTime:   record.CreateTime,
+		UpdateTime:   record.UpdateTime,
 	}, nil
 }
 

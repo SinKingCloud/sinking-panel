@@ -1,11 +1,19 @@
 package constant
 
-// SensitiveGroups 按配置组定义读取和修改策略。
+// SensitiveGroups 声明通用配置接口可访问的配置组及读写策略。
 // Read 表示读取时脱敏，Write 表示禁止通过通用接口修改。
 var SensitiveGroups = map[string]struct {
 	Read  bool
 	Write bool
 }{
+	WebGroup: {
+		Read:  false,
+		Write: false,
+	},
+	UiGroup: {
+		Read:  false,
+		Write: false,
+	},
 	LoginGroup: {
 		Read:  true,
 		Write: true,
@@ -23,6 +31,10 @@ var SensitiveGroups = map[string]struct {
 		Write: true,
 	},
 	CertGroup: {
+		Read:  false,
+		Write: true,
+	},
+	SiteBackupGroup: {
 		Read:  false,
 		Write: true,
 	},
@@ -49,6 +61,16 @@ const (
 	CertAutoRenewEnabled = CertGroup + ".renew_enabled" //自动续签开关
 	CertAutoRenewSpec    = CertGroup + ".renew_spec"    //自动续签执行周期
 	CertAutoRenewRetries = CertGroup + ".renew_retries" //自动续签失败后重试次数
+
+	SiteBackupGroup     = "site_backup"                   //网站独立备份配置组
+	SiteBackupEnabled   = SiteBackupGroup + ".enabled"    //自动备份开关
+	SiteBackupSpec      = SiteBackupGroup + ".spec"       //自动备份执行周期
+	SiteBackupRetries   = SiteBackupGroup + ".retries"    //自动备份失败后重试次数
+	SiteBackupLocalKeep = SiteBackupGroup + ".local_keep" //本地保留副本数
+	SiteBackupUploadOss = SiteBackupGroup + ".upload_oss" //是否上传至云端
+	SiteBackupOssId     = SiteBackupGroup + ".oss_id"     //云端存储实例ID
+	SiteBackupOssKeep   = SiteBackupGroup + ".oss_keep"   //云端保留副本数
+	SiteBackupPrefix    = SiteBackupGroup + ".prefix"     //云端备份目录
 
 	LoginGroup    = "login"                  //登录配置组
 	LoginAccount  = LoginGroup + ".account"  //登录账号

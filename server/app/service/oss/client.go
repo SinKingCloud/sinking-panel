@@ -34,8 +34,8 @@ func (s *service) newClient(secretId int64, content string, tx ...*gorm.DB) (uti
 	return client, fields, nil
 }
 
-// client 读取已保存的连接并创建统一客户端，调用者直接使用文件及分片上传 API。
-func (s *service) client(id int64) (utilOss.Interface, error) {
+// Client 一次读取连接配置，连续操作复用同一客户端，避免期间修改存储桶造成错位。
+func (s *service) Client(id int64) (utilOss.Interface, error) {
 	if id <= 0 {
 		return nil, errors.New("存储 ID 不合法")
 	}

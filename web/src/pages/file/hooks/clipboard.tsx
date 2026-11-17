@@ -175,8 +175,9 @@ const useFileClipboard = ({
                     target_path: targetPath,
                 },
             });
-            if (response?.code === 200 && typeof response?.data === "string" && response?.data) {
-                trackTask(response?.data, snapshot.length === 1
+            const taskId = response?.data;
+            if (response?.code === 200 && taskId) {
+                trackTask(taskId, snapshot.length === 1
                     ? `${operationName} ${snapshot[0].name}`
                     : `${operationName} ${snapshot.length} 项`);
                 if (skipped > 0) {
@@ -193,8 +194,10 @@ const useFileClipboard = ({
                     return remaining.length > 0 ? {...current, items: remaining} : undefined;
                 });
             } else if (response) {
-                message.error(response?.message || `创建${operationName}任务失败`);
+                message.error(response?.code === 200 ? "服务器未返回任务ID" : response?.message || `创建${operationName}任务失败`);
             }
+        } catch (reason: any) {
+            message.error(reason?.message || "创建文件任务失败");
         } finally {
             closeConfirm();
             startingRef.current = false;

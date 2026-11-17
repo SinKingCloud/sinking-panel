@@ -10,6 +10,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
+	"slices"
 	"strings"
 )
 
@@ -134,6 +136,7 @@ func (s *Service) CompressFiles(ctx context.Context, srcPaths []string, destPath
 // ctx: 上下文，用于取消操作
 // srcPath: 要解压的源文件路径
 // destPath: 解压目标目录
+// preserveMetadata: 可选，tar 归档恢复所有者、权限和修改时间；默认保留普通文件解压行为。
 // callback: 进度回调函数，参数为：
 //   - current: 已处理字节数
 //   - total: 总字节数
@@ -141,7 +144,7 @@ func (s *Service) CompressFiles(ctx context.Context, srcPaths []string, destPath
 //   - totalFiles: 总文件数量
 //   - currentIndex: 当前文件索引（从0开始）
 //     返回false表示取消操作
-func (s *Service) Extract(ctx context.Context, srcPath, destPath string, callback func(current, total int64, currentFile string, totalFiles, currentIndex int64) bool) error {
+func (s *Service) Extract(ctx context.Context, srcPath, destPath string, callback func(current, total int64, currentFile string, totalFiles, currentIndex int64) bool, preserveMetadata ...bool) error {
 	format := s.GetFormatByExt(srcPath)
 	if !s.IsSupportedFormat(format) {
 		return errors.New("不支持的压缩格式")
@@ -163,20 +166,21 @@ func (s *Service) Extract(ctx context.Context, srcPath, destPath string, callbac
 	}
 
 	var err error
+	preserve := len(preserveMetadata) > 0 && preserveMetadata[0]
 
 	switch format {
 	case FormatZip:
 		err = s.extractZip(ctx, srcPath, destPath, callback)
 	case FormatTar:
-		err = s.extractTar(ctx, srcPath, destPath, false, callback)
+		err = s.extractTar(ctx, srcPath, destPath, false, callback, preserve)
 	case FormatGzip:
 		if strings.HasSuffix(strings.ToLower(srcPath), ".tar.gz") {
-			err = s.extractTar(ctx, srcPath, destPath, true, callback)
+			err = s.extractTar(ctx, srcPath, destPath, true, callback, preserve)
 		} else {
 			err = s.extractGzip(ctx, srcPath, destPath, callback)
 		}
 	case FormatTgz:
-		err = s.extractTar(ctx, srcPath, destPath, true, callback)
+		err = s.extractTar(ctx, srcPath, destPath, true, callback, preserve)
 	default:
 		err = errors.New("不支持的压缩格式")
 	}
@@ -551,7 +555,7 @@ func (s *Service) extractZip(ctx context.Context, srcPath, destPath string, call
 
 // compressTar 将文件/目录压缩为TAR文件
 // 如果useGzip为true，则使用gzip压缩TAR文件
-func (s *Service) compressTar(ctx context.Context, srcPaths []string, destPath string, useGzip bool, callback func(current, total int64, currentFile string, totalFiles, currentIndex int64) bool) error {
+func (s *Service) compressTar(ctx context.Context, srcPaths []string, destPath string, useGzip bool, callback func(current, total int64, currentFile string, totalFiles, currentIndex int64) bool) (err error) {
 	// 检查上下文是否已取消
 	if ctx.Err() != nil {
 		return ctx.Err()
@@ -599,7 +603,7 @@ func (s *Service) compressTar(ctx context.Context, srcPaths []string, destPath s
 	if err != nil {
 		return err
 	}
-	defer tarFile.Close()
+	defer func() { err = errors.Join(err, tarFile.Close()) }()
 
 	var tarWriter *tar.Writer
 	var gzipWriter *gzip.Writer
@@ -607,13 +611,13 @@ func (s *Service) compressTar(ctx context.Context, srcPaths []string, destPath s
 	if useGzip {
 		// 使用gzip压缩
 		gzipWriter = gzip.NewWriter(tarFile)
-		defer gzipWriter.Close()
+		defer func() { err = errors.Join(err, gzipWriter.Close()) }()
 		tarWriter = tar.NewWriter(gzipWriter)
 	} else {
 		// 不使用gzip压缩
 		tarWriter = tar.NewWriter(tarFile)
 	}
-	defer tarWriter.Close()
+	defer func() { err = errors.Join(err, tarWriter.Close()) }()
 
 	var processedSize int64
 	fileIndex := int64(0)
@@ -721,7 +725,7 @@ func (s *Service) compressTar(ctx context.Context, srcPaths []string, destPath s
 
 // extractTar 解压TAR文件到指定目录
 // 如果isGzipped为true，则处理.tar.gz文件
-func (s *Service) extractTar(ctx context.Context, srcPath, destPath string, isGzipped bool, callback func(current, total int64, currentFile string, totalFiles, currentIndex int64) bool) error {
+func (s *Service) extractTar(ctx context.Context, srcPath, destPath string, isGzipped bool, callback func(current, total int64, currentFile string, totalFiles, currentIndex int64) bool, preserveMetadata bool) error {
 	// 检查上下文是否已取消
 	if ctx.Err() != nil {
 		return ctx.Err()
@@ -729,6 +733,40 @@ func (s *Service) extractTar(ctx context.Context, srcPath, destPath string, isGz
 	rootPath, err := s.resolvePath(destPath)
 	if err != nil {
 		return err
+	}
+	var root *os.Root
+	if preserveMetadata {
+		root, err = os.OpenRoot(rootPath)
+		if err != nil {
+			return err
+		}
+		defer root.Close()
+	}
+	// 文件立即恢复属性；目录待写入结束后由内向外恢复，避免只读目录阻止解压。
+	directories := make(map[string]*tar.Header)
+	restoreMetadata := func(name string, header *tar.Header) error {
+		if runtime.GOOS != "windows" {
+			if err := root.Lchown(name, header.Uid, header.Gid); err != nil {
+				return fmt.Errorf("恢复文件所有者失败 %s: %w", name, err)
+			}
+		}
+		if header.Typeflag == tar.TypeSymlink {
+			return nil // 不跟随符号链接修改目标文件的权限和时间。
+		}
+		if err := root.Chmod(name, header.FileInfo().Mode()); err != nil {
+			return fmt.Errorf("恢复文件权限失败 %s: %w", name, err)
+		}
+		if header.ModTime.IsZero() {
+			return nil
+		}
+		accessTime := header.AccessTime
+		if accessTime.IsZero() {
+			accessTime = header.ModTime
+		}
+		if err := root.Chtimes(name, accessTime, header.ModTime); err != nil {
+			return fmt.Errorf("恢复文件时间失败 %s: %w", name, err)
+		}
+		return nil
 	}
 
 	// 打开TAR文件
@@ -761,7 +799,6 @@ func (s *Service) extractTar(ctx context.Context, srcPath, destPath string, isGz
 
 	// 首先计算文件总数
 	fileCount := 0
-	var headers []*tar.Header
 	for {
 		// 每次迭代检查上下文状态
 		if ctx.Err() != nil {
@@ -775,7 +812,6 @@ func (s *Service) extractTar(ctx context.Context, srcPath, destPath string, isGz
 		if err != nil {
 			return err
 		}
-		headers = append(headers, header)
 		fileCount++
 		if header.Typeflag == tar.TypeReg {
 			totalSize += header.Size
@@ -840,7 +876,7 @@ func (s *Service) extractTar(ctx context.Context, srcPath, destPath string, isGz
 		switch header.Typeflag {
 		case tar.TypeDir:
 			if destFilePath == rootPath {
-				continue
+				break
 			}
 			if info, err := os.Lstat(destFilePath); err == nil && info.Mode()&os.ModeSymlink != 0 {
 				if err = os.Remove(destFilePath); err != nil {
@@ -888,7 +924,7 @@ func (s *Service) extractTar(ctx context.Context, srcPath, destPath string, isGz
 				},
 			}
 			_, err = io.Copy(file, progress)
-			file.Close()
+			err = errors.Join(err, file.Close())
 			if err != nil {
 				return err
 			}
@@ -897,11 +933,40 @@ func (s *Service) extractTar(ctx context.Context, srcPath, destPath string, isGz
 				return err
 			}
 		}
+		if preserveMetadata {
+			name, relativeErr := filepath.Rel(rootPath, destFilePath)
+			if relativeErr != nil {
+				return relativeErr
+			}
+			if header.Typeflag == tar.TypeDir {
+				directories[name] = header
+			} else if header.Typeflag == tar.TypeReg || header.Typeflag == tar.TypeSymlink {
+				delete(directories, name)
+				if err = restoreMetadata(name, header); err != nil {
+					return err
+				}
+			}
+		}
 
 		// 最终更新进度
 		if callback != nil {
 			if !callback(processedSize, totalSize, header.Name, int64(fileCount), int64(i)) {
 				return errors.New("操作被取消")
+			}
+		}
+	}
+	if preserveMetadata {
+		names := make([]string, 0, len(directories))
+		for name := range directories {
+			names = append(names, name)
+		}
+		slices.SortFunc(names, func(a, b string) int { return len(b) - len(a) })
+		for _, name := range names {
+			if err = ctx.Err(); err != nil {
+				return err
+			}
+			if err = restoreMetadata(name, directories[name]); err != nil {
+				return err
 			}
 		}
 	}

@@ -12,7 +12,7 @@ const FileSelect = ({type, multiple, buttonProps, onSelect, initialPath, default
 const ActionDropdown = (props: any) => <Dropdown trigger={["click"]} {...props}/>;
 
 // 为每个独立入口提供请求和完整样式，不依赖页面工作区或外部弹窗。
-export default ({record: target, initialTab, onTabChange, request, version: suppliedVersion, components, className, style, type, panel: Panel, engine, panelProps}: DatabasePanelProps & {
+export default ({record: target, initialTab, onTabChange, onTask, request, version: suppliedVersion, components, className, style, type, panel: Panel, engine, panelProps}: DatabasePanelProps & {
     type: number;
     panel: ComponentType<any>;
     engine?: any;
@@ -69,11 +69,11 @@ export default ({record: target, initialTab, onTabChange, request, version: supp
             task: (body: Record<string, any>) => request("system/task", body)}};
     }, [request]);
     const context = useMemo(() => ({
-        ...actions, request, version, features: version?.features || {},
+        ...actions, request, version, onTask, features: version?.features || {},
         FileSelect: components?.FileSelect || FileSelect,
         ActionDropdown: components?.ActionDropdown || ActionDropdown,
         Editor: components?.Editor, ScriptTools: components?.ScriptTools,
-    }), [actions, request, version, components?.FileSelect, components?.ActionDropdown, components?.Editor, components?.ScriptTools]);
+    }), [actions, request, version, onTask, components?.FileSelect, components?.ActionDropdown, components?.Editor, components?.ScriptTools]);
     return <DatabaseContext.Provider value={context}><ConfigProvider theme={{
         token: {fontSize, fontSizeSM: fontSize},
         components: {

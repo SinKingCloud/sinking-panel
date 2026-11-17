@@ -33,6 +33,11 @@ func (s *service) Boot() {
 	} else {
 		s.certTask = true
 	}
+	if err := s.initBackupTask(); err != nil {
+		caddyRuntime.Log().Error("注册网站自动备份任务失败", zap.Error(err))
+	} else {
+		s.backupTask = true
+	}
 	s.operationMu.Lock()
 	var err error
 	if s.active {
@@ -52,11 +57,20 @@ func (s *service) Close() {
 		s.closed = true
 		s.cancel()
 		certTask := s.certTask
+		backupTask := s.backupTask
 		s.lifecycleMu.Unlock()
 		if s.taskService != nil && certTask {
 			if err := s.taskService.Cancel([]int64{constant.TaskCertAutoRenew}); err != nil {
 				caddyRuntime.Log().Error("注销证书自动续签任务失败", zap.Error(err))
 			}
+		}
+		if s.taskService != nil && backupTask {
+			if err := s.taskService.Cancel([]int64{constant.TaskSiteBackup}); err != nil {
+				caddyRuntime.Log().Error("注销网站自动备份任务失败", zap.Error(err))
+			}
+		}
+		if s.backupTasks != nil {
+			s.backupTasks.Close()
 		}
 		s.wait.Wait()
 		s.operationMu.Lock()

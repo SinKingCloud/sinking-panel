@@ -14,14 +14,18 @@ import (
 // Get 获取配置
 func Get(c *context.Context) {
 	var form struct {
-		Group string `form:"group" json:"group" default:"" validate:"required,alphanum,max=100" label:"组ID"`
+		Group string `form:"group" json:"group" default:"" validate:"required,max=100" label:"组ID"`
 		Key   string `form:"key" json:"key" default:"" validate:"omitempty,max=100" label:"配置标识"`
 	}
 	if ok, msg := c.ValidatorAll(&form); !ok {
 		c.Error(msg)
 		return
 	}
-	policy := constant.SensitiveGroups[form.Group]
+	policy, exists := constant.SensitiveGroups[form.Group]
+	if !exists {
+		c.Error("配置不存在")
+		return
+	}
 	mask := func(value string) string {
 		characters := []rune(value)
 		if len(characters) == 0 {

@@ -17,7 +17,7 @@ func (s *service) Download(ctx context.Context, id int64, key string, options Do
 	}
 	switch options.Action {
 	case "", "file":
-		client, err := s.client(id)
+		client, err := s.Client(id)
 		if err != nil {
 			return nil, err
 		}
@@ -67,7 +67,7 @@ func (s *service) Download(ctx context.Context, id int64, key string, options Do
 			if err := check(); err != nil {
 				return 0, err
 			}
-			client, err := s.client(id)
+			client, err := s.Client(id)
 			if err != nil {
 				return 0, err
 			}

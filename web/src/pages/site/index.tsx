@@ -10,11 +10,13 @@ import Settings from "./components/settings";
 import CertManager, {CertManagerRef} from "@/pages/components/cert";
 import SecretManager, {SecretManagerRef} from "@/pages/components/secret";
 import HTTPService from "./components/http-service";
+import BackupManager, {BackupManagerRef} from "./components/backup";
 import useList from "./hooks/list";
 import useStyles from "./styles";
 
 const defaultTypeData = {"0": "静态网站", "1": "反向代理", "2": "通用网站", "3": "PHP网站"};
 const defaultStatusData = {"0": "已启用", "1": "已停用"};
+const defaultBackupStatusData = {"0": "关闭", "1": "开启"};
 
 export default (): React.ReactNode | any => {
     const {styles} = useStyles();
@@ -24,6 +26,7 @@ export default (): React.ReactNode | any => {
     const certRef = useRef<CertManagerRef | null>(null);
     const secretRef = useRef<SecretManagerRef | null>(null);
     const httpRef = useRef<any>({});
+    const backupRef = useRef<BackupManagerRef | null>(null);
     const typeManagerRef = useRef<TypeManagerRef>({} as TypeManagerRef);
     const typeVersionRef = useRef(0);
     const list = useList();
@@ -32,6 +35,7 @@ export default (): React.ReactNode | any => {
     const [typeItems, setTypeItems] = useState<any[] | null>(null);
     const typeData = enumData?.kind || defaultTypeData;
     const statusData = enumData?.status || defaultStatusData;
+    const backupStatusData = enumData?.backup_status || defaultBackupStatusData;
     const categoryData = useMemo(() => typeItems === null
         ? enumData?.type || {}
         : Object.fromEntries(typeItems.map((item) => [String(item.id), String(item.name)])), [enumData?.type, typeItems]);
@@ -52,6 +56,7 @@ export default (): React.ReactNode | any => {
 
     const openSettings = useCallback((record: any, section: string) => settingsRef.current?.open(record, section), []);
     const openCertManager = useCallback(() => certRef.current?.open(), []);
+    const openBackupManager = useCallback((site?: any) => backupRef.current?.open(site), []);
     const obtainCert = useCallback((domain: string | string[], onObtained: (cert: any) => void) => certRef.current?.openObtain(domain, onObtained), []);
     const deployCert = useCallback((domain: string, onSelected: (cert: any) => void) => certRef.current?.openDeploy(domain, onSelected), []);
     const renewCert = useCallback((certificate: any, onRenewed: (cert: any) => void, domain: string) => certRef.current?.openRenew(certificate, onRenewed, domain), []);
@@ -92,6 +97,7 @@ export default (): React.ReactNode | any => {
         onHTTPSettings: () => httpRef.current?.open(),
         onManageCert: openCertManager,
         onManageSecret: () => secretRef.current?.open(),
+        onManageBackup: () => openBackupManager(),
     });
     const table = useSiteTable({
         className: styles.siteTable,
@@ -100,12 +106,14 @@ export default (): React.ReactNode | any => {
         categoryData,
         typeData,
         statusData,
+        backupStatusData,
         sort: list.sort,
         order: list.order,
         operating: list.operating,
         onSortChange: list.changeSort,
         onSettings: openSettings,
         onAction: list.confirmAction,
+        onBackup: openBackupManager,
     });
 
     return (
@@ -136,6 +144,7 @@ export default (): React.ReactNode | any => {
             <CertManager ref={certRef} secretVersion={secretVersion} onChange={handleCertChange}/>
             <SecretManager ref={secretRef} onChange={handleSecretChange}/>
             <HTTPService ref={httpRef}/>
+            <BackupManager ref={backupRef}/>
             <TypeManager
                 ref={typeManagerRef}
                 module="site"

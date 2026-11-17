@@ -19,7 +19,7 @@ func (s *service) Upload(ctx context.Context, id int64, key string, options Uplo
 	}
 	switch options.Action {
 	case "", "file", "init", "part", "complete", "abort", "parts", "uploads":
-		client, err := s.client(id)
+		client, err := s.Client(id)
 		if err != nil {
 			return nil, err
 		}
@@ -76,7 +76,7 @@ func (s *service) Upload(ctx context.Context, id int64, key string, options Uplo
 		if err := check(); err != nil {
 			return 0, err
 		}
-		client, err := s.client(id)
+		client, err := s.Client(id)
 		if err != nil {
 			return 0, err
 		}

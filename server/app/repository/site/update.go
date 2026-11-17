@@ -26,6 +26,9 @@ func (r *Repository) UpdateById(id int64, data *UpdateSite, tx ...*gorm.DB) erro
 	if data.Status != nil {
 		updates["status"] = *data.Status
 	}
+	if data.BackupStatus != nil {
+		updates["backup_status"] = *data.BackupStatus
+	}
 	if data.Root != nil {
 		updates["root"] = *data.Root
 	}

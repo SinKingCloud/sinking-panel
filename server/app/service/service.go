@@ -11,6 +11,7 @@ import (
 	repositorySecret "server/app/repository/secret"
 	repositoryServer "server/app/repository/server"
 	repositorySite "server/app/repository/site"
+	repositorySiteBackup "server/app/repository/site_backup"
 	repositorySiteDomain "server/app/repository/site_domain"
 	repositorySoftware "server/app/repository/software"
 	repositoryTask "server/app/repository/task"
@@ -64,6 +65,7 @@ func Init() {
 	typesRepository := repositoryTypes.NewRepository(global.App.Database)
 	scriptRepository := repositoryScript.NewRepository(global.App.Database)
 	siteRepository := repositorySite.NewRepository(global.App.Database)
+	siteBackupRepository := repositorySiteBackup.NewRepository(global.App.Database)
 	siteDomainRepository := repositorySiteDomain.NewRepository(global.App.Database)
 	certRepository := repositoryCert.NewRepository(global.App.Database)
 	secretRepository := repositorySecret.NewRepository(global.App.Database)
@@ -79,15 +81,13 @@ func Init() {
 	Log = serviceLog.NewService(logRepository)
 	System = serviceSystem.NewService(Config, global.App.Daemon, global.App.Container)
 	Oss = serviceOss.NewService(ossRepository, secretRepository, System, global.App.Database)
-	Task = serviceTask.NewService(taskRepository, siteRepository, Type, Oss)
+	Task = serviceTask.NewService(taskRepository, siteRepository, siteBackupRepository, Type, Oss)
 	Recycle = serviceRecycle.NewService()
 	File = serviceFile.NewService(Recycle, System, global.App.Cache)
 	Database = serviceDatabase.NewService(databaseRepository, scriptRepository, typesRepository, Type, System, global.App.Database, global.App.Cache)
 	Container = serviceContainer.NewManager(global.App.Container)
 	Site = nil
-	if site, err := serviceSite.NewService(siteRepository, siteDomainRepository, certRepository, secretRepository, Type, Config, Task, Recycle, global.App.Database, global.App.Cache); err != nil {
-		panic(err)
-	} else {
+	if site, err := serviceSite.NewService(siteRepository, siteDomainRepository, certRepository, secretRepository, siteBackupRepository, Type, Config, Task, Recycle, Oss, File, System, global.App.Database, global.App.Cache); err == nil {
 		Site = site
 	}
 	services := &sdk.Service{

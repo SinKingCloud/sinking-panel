@@ -14,16 +14,21 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/robfig/cron/v3"
 )
 
 // initCertTask 在业务启动时按保存的设置注册内部续签任务。
 func (s *service) initCertTask() error {
+	if s.taskService == nil {
+		return errors.New("任务服务未初始化")
+	}
 	settings, err := s.GetCertSettings()
 	if err != nil {
 		return err
 	}
 	status := task_status.Stop
-	if settings.Enabled {
+	if settings[constant.CertAutoRenewEnabled] == "true" {
 		status = task_status.Running
 	}
 	content, err := json.Marshal(settings)
@@ -33,86 +38,113 @@ func (s *service) initCertTask() error {
 	return s.taskService.Add(&model.Task{
 		Id:     constant.TaskCertAutoRenew,
 		Name:   "证书自动续签",
-		Spec:   settings.Spec,
+		Spec:   settings[constant.CertAutoRenewSpec],
 		Script: string(content),
 		Status: status,
 	}, s.autoRenewCerts)
 }
 
 // GetCertSettings 读取续签设置，未配置时每天凌晨三点执行且不重试。
-func (s *service) GetCertSettings() (*CertSettings, error) {
+func (s *service) GetCertSettings() (map[string]string, error) {
+	if s.configService == nil {
+		return nil, errors.New("配置服务未初始化")
+	}
+	settings := map[string]string{
+		constant.CertAutoRenewEnabled: "true",
+		constant.CertAutoRenewSpec:    "0 0 3 * * *",
+		constant.CertAutoRenewRetries: "0",
+	}
 	configs := s.configService.Group(constant.CertGroup)
-	var err error
-	settings := &CertSettings{
-		Enabled: true,
-		Spec:    "0 0 3 * * *",
-	}
-	if value, exists := configs[constant.CertAutoRenewEnabled]; exists {
-		settings.Enabled, err = strconv.ParseBool(value)
-		if err != nil {
-			return nil, errors.New("自动续签开关配置不合法")
+	for key := range settings {
+		if value, exists := configs[key]; exists {
+			settings[key] = value
 		}
 	}
-	if value, exists := configs[constant.CertAutoRenewSpec]; exists {
-		settings.Spec = value
-	}
-	if value, exists := configs[constant.CertAutoRenewRetries]; exists {
-		settings.Retries, err = strconv.Atoi(value)
-		if err != nil || settings.Retries < 0 || settings.Retries > 10 {
-			return nil, errors.New("自动续签重试次数必须为 0–10")
-		}
+	if err := s.validateCertSettings(settings); err != nil {
+		return nil, err
 	}
 	return settings, nil
 }
 
-// SetCertSettings 更新内部任务及配置，配置写入失败时恢复原调度。
-func (s *service) SetCertSettings(settings CertSettings) error {
-	if settings.Retries < 0 || settings.Retries > 10 {
+// validateCertSettings 校验并规范化独立配置项，供保存和任务快照复用。
+func (s *service) validateCertSettings(settings map[string]string) error {
+	enabled, err := strconv.ParseBool(settings[constant.CertAutoRenewEnabled])
+	if err != nil {
+		return errors.New("自动续签开关配置不合法")
+	}
+	retries, err := strconv.Atoi(settings[constant.CertAutoRenewRetries])
+	if err != nil || retries < 0 || retries > 10 {
 		return errors.New("自动续签重试次数必须为 0–10")
 	}
-	settings.Spec = strings.TrimSpace(settings.Spec)
-	s.operationMu.Lock()
-	defer s.operationMu.Unlock()
+	spec := strings.TrimSpace(settings[constant.CertAutoRenewSpec])
+	parser := cron.NewParser(cron.Second | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor)
+	if _, err := parser.Parse(spec); err != nil {
+		return errors.New("自动续签执行周期不合法")
+	}
+	settings[constant.CertAutoRenewEnabled] = strconv.FormatBool(enabled)
+	settings[constant.CertAutoRenewRetries] = strconv.Itoa(retries)
+	settings[constant.CertAutoRenewSpec] = spec
+	return nil
+}
+
+// SetCertSettings 更新内部任务及配置，配置写入失败时恢复原调度。
+func (s *service) SetCertSettings(configs map[string]string) error {
+	if s.configService == nil || s.taskService == nil {
+		return errors.New("配置或任务服务未初始化")
+	}
+	settings := map[string]string{
+		constant.CertAutoRenewEnabled: configs[constant.CertAutoRenewEnabled],
+		constant.CertAutoRenewSpec:    configs[constant.CertAutoRenewSpec],
+		constant.CertAutoRenewRetries: configs[constant.CertAutoRenewRetries],
+	}
+	if err := s.validateCertSettings(settings); err != nil {
+		return err
+	}
+	s.lifecycleMu.Lock()
+	defer s.lifecycleMu.Unlock()
+	if s.closed {
+		return errors.New("网站服务已关闭")
+	}
 	previous, err := s.GetCertSettings()
 	if err != nil {
 		return err
 	}
 	status := task_status.Stop
-	if settings.Enabled {
+	if settings[constant.CertAutoRenewEnabled] == "true" {
 		status = task_status.Running
 	}
 	content, err := json.Marshal(settings)
 	if err != nil {
 		return err
 	}
-	previousContent, err := json.Marshal(previous)
-	if err != nil {
-		return err
-	}
 	script := string(content)
-	previousScript := string(previousContent)
+	spec := settings[constant.CertAutoRenewSpec]
 	// 周期和执行参数一起更新，已经开始的任务继续使用本次配置快照。
-	if err = s.taskService.UpdateByIds([]int64{constant.TaskCertAutoRenew}, &repositoryTask.UpdateTask{
-		Spec:   &settings.Spec,
-		Script: &script,
-		Status: &status,
-	}); err != nil {
-		return err
-	}
-	if err = s.configService.Sets(map[string]string{
-		constant.CertAutoRenewEnabled: strconv.FormatBool(settings.Enabled),
-		constant.CertAutoRenewSpec:    settings.Spec,
-		constant.CertAutoRenewRetries: strconv.Itoa(settings.Retries),
-	}); err != nil {
-		status = task_status.Stop
-		if previous.Enabled {
-			status = task_status.Running
-		}
-		return errors.Join(err, s.taskService.UpdateByIds([]int64{constant.TaskCertAutoRenew}, &repositoryTask.UpdateTask{
-			Spec:   &previous.Spec,
-			Script: &previousScript,
+	if s.certTask {
+		if err = s.taskService.UpdateByIds([]int64{constant.TaskCertAutoRenew}, &repositoryTask.UpdateTask{
+			Spec:   &spec,
+			Script: &script,
 			Status: &status,
-		}))
+		}); err != nil {
+			return err
+		}
+	}
+	if err = s.configService.Sets(settings); err != nil {
+		if s.certTask {
+			previousContent, _ := json.Marshal(previous)
+			previousScript := string(previousContent)
+			previousSpec := previous[constant.CertAutoRenewSpec]
+			status = task_status.Stop
+			if previous[constant.CertAutoRenewEnabled] == "true" {
+				status = task_status.Running
+			}
+			err = errors.Join(err, s.taskService.UpdateByIds([]int64{constant.TaskCertAutoRenew}, &repositoryTask.UpdateTask{
+				Spec:   &previousSpec,
+				Script: &previousScript,
+				Status: &status,
+			}))
+		}
+		return err
 	}
 	return nil
 }
@@ -131,18 +163,19 @@ func (s *service) autoRenewCerts(ctx context.Context, _ int64, content string, w
 		writeLog = func(string) {}
 	}
 	log := func(format string, args ...interface{}) { writeLog(fmt.Sprintf(format, args...)) }
-	var settings *CertSettings
+	var settings map[string]string
 	if err = json.Unmarshal([]byte(content), &settings); err != nil || settings == nil {
 		return errors.New("自动续签任务配置不合法")
 	}
-	if settings.Retries < 0 || settings.Retries > 10 {
-		return errors.New("自动续签重试次数必须为 0–10")
+	if err := s.validateCertSettings(settings); err != nil {
+		return err
 	}
-	if !settings.Enabled {
+	if settings[constant.CertAutoRenewEnabled] != "true" {
 		return nil
 	}
+	retries, _ := strconv.Atoi(settings[constant.CertAutoRenewRetries])
 	before := time.Now().Add(72 * time.Hour)
-	log("开始检查自动续签证书：剩余有效期不超过 3 天，失败最多重试 %d 次，单次申请最多 30 秒", settings.Retries)
+	log("开始检查自动续签证书：剩余有效期不超过 3 天，失败最多重试 %d 次，单次申请最多 30 秒", retries)
 	certificates, err := s.repositoryCert.SelectAutoRenewTask(before)
 	if err != nil {
 		return fmt.Errorf("查询待续签证书失败：%w", err)
@@ -154,7 +187,7 @@ func (s *service) autoRenewCerts(ctx context.Context, _ int64, content string, w
 certificatesLoop:
 	for _, item := range certificates {
 		previousCertificate := ""
-		for attempt := 0; attempt <= settings.Retries; attempt++ {
+		for attempt := 0; attempt <= retries; attempt++ {
 			if ctx.Err() != nil {
 				log("任务已停止，取消剩余续签")
 				return nil
@@ -163,7 +196,7 @@ certificatesLoop:
 			if err != nil {
 				return fmt.Errorf("读取自动续签设置失败：%w", err)
 			}
-			if !current.Enabled {
+			if current[constant.CertAutoRenewEnabled] != "true" {
 				log("自动续签已关闭，取消剩余续签")
 				return nil
 			}
@@ -199,14 +232,14 @@ certificatesLoop:
 				log("证书 #%d 为多域名证书，需要手动更新，本次跳过", certificate.Id)
 				continue certificatesLoop
 			}
-			log("开始续签证书 #%d [%s]，第 %d/%d 次，原到期时间：%s", certificate.Id, strings.Join(domains, ", "), attempt+1, settings.Retries+1, time.Time(certificate.ExpireTime).Format("2006-01-02 15:04:05"))
+			log("开始续签证书 #%d [%s]，第 %d/%d 次，原到期时间：%s", certificate.Id, strings.Join(domains, ", "), attempt+1, retries+1, time.Time(certificate.ExpireTime).Format("2006-01-02 15:04:05"))
 			// 复用续签业务，继承验证方式、关联密钥和原 CA，保存后更新已部署的网站。
 			renewContext, cancel := context.WithTimeout(ctx, CertificateOperationTimeout)
 			result, renewErr := s.RenewCert(renewContext, certificate.Id, CertificateRequest{Domain: domains[0]})
 			cancel()
 			if renewErr != nil {
 				log("证书 #%d [%s] 续签失败：%v", certificate.Id, strings.Join(domains, ", "), renewErr)
-				if attempt == settings.Retries {
+				if attempt == retries {
 					failed++
 				}
 				continue

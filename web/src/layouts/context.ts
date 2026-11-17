@@ -1,6 +1,6 @@
 export interface SystemTaskRef {
-    /** 打开系统任务弹窗，并立即刷新任务列表。 */
-    open: () => void;
+    /** 单个任务打开日志；多个任务或不传 ID 时打开系统任务列表。 */
+    open: (ids?: string | string[]) => void;
 }
 
 /** 通过 Umi Outlet 向页面提供布局内的公共组件。 */

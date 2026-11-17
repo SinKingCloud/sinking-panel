@@ -25,13 +25,6 @@ type CertListItem struct {
 	ExpireTime time.Time `json:"expire_time"`
 }
 
-// CertSettings 内部证书续签任务配置，重试次数不包含首次申请。
-type CertSettings struct {
-	Enabled bool   `json:"enabled"` // 是否启用自动续签任务
-	Spec    string `json:"spec"`    // 执行周期，使用服务器时区
-	Retries int    `json:"retries"` // 每张证书失败后的额外重试次数
-}
-
 // CertificateRequest 证书申请设置，HTTP 和 DNS 验证均支持手动操作。
 type CertificateRequest struct {
 	Action    string                     `json:"action"`     // 请求步骤：start、submit、cancel
@@ -368,23 +361,26 @@ type CreateSite struct {
 
 // UpdateSite 更新网站参数，nil 字段保持原值。
 type UpdateSite struct {
-	Name    *string `json:"name"`     // 网站名称
-	TypeId  *int64  `json:"type_id"`  // 网站分类 ID，0 表示取消分类
-	Root    *string `json:"root"`     // 网站根目录，代理网站可清空
-	RunPath *string `json:"run_path"` // 相对运行目录，空字符串表示使用根目录
+	Name         *string `json:"name"`          // 网站名称
+	TypeId       *int64  `json:"type_id"`       // 网站分类 ID，0 表示取消分类
+	Status       *int    `json:"status"`        // 网站启停状态
+	BackupStatus *int    `json:"backup_status"` // 自动备份状态
+	Root         *string `json:"root"`          // 网站根目录，代理网站可清空
+	RunPath      *string `json:"run_path"`      // 相对运行目录，空字符串表示使用根目录
 }
 
 // Site 网站基础详情，独立设置通过对应 Get 方法读取。
 type Site struct {
-	Id         int64        `json:"id"`          // 网站 ID
-	TypeId     int64        `json:"type_id"`     // 网站分类 ID
-	Name       string       `json:"name"`        // 网站名称
-	Type       int          `json:"type"`        // 网站类型
-	Status     int          `json:"status"`      // 网站状态
-	Root       string       `json:"root"`        // 网站根目录
-	RunPath    string       `json:"run_path"`    // 网站运行目录
-	CreateTime str.DateTime `json:"create_time"` // 创建时间
-	UpdateTime str.DateTime `json:"update_time"` // 更新时间
+	Id           int64        `json:"id"`            // 网站 ID
+	TypeId       int64        `json:"type_id"`       // 网站分类 ID
+	Name         string       `json:"name"`          // 网站名称
+	Type         int          `json:"type"`          // 网站类型
+	Status       int          `json:"status"`        // 网站状态
+	BackupStatus int          `json:"backup_status"` // 自动备份状态
+	Root         string       `json:"root"`          // 网站根目录
+	RunPath      string       `json:"run_path"`      // 网站运行目录
+	CreateTime   str.DateTime `json:"create_time"`   // 创建时间
+	UpdateTime   str.DateTime `json:"update_time"`   // 更新时间
 }
 
 // Options 配置网站 HTTP 运行目录和全局监听参数。
@@ -431,11 +427,12 @@ type HTTPUpdate struct {
 }
 
 type siteMutation struct {
-	Name    *string
-	TypeId  *int64
-	Status  *int
-	Root    *string
-	RunPath *string
-	Config  *string
-	Domains *[]SiteDomain
+	Name         *string
+	TypeId       *int64
+	Status       *int
+	BackupStatus *int
+	Root         *string
+	RunPath      *string
+	Config       *string
+	Domains      *[]SiteDomain
 }

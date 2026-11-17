@@ -7,7 +7,7 @@ import (
 
 // Rename 只修改文件名称，保留原目录前缀。
 func (s *service) Rename(ctx context.Context, id int64, key, name string) (*utilOss.File, error) {
-	client, err := s.client(id)
+	client, err := s.Client(id)
 	if err != nil {
 		return nil, err
 	}

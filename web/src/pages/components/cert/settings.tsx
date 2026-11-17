@@ -1,7 +1,7 @@
 import {forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState} from "react";
 import {App, Col, Form, Grid, Row, Select, Spin} from "antd";
 import {ProModal, Title} from "sinking-antd";
-import {certSettings} from "@/service/api/cert";
+import {getCertSettingsInfo, updateCertSettings} from "@/service/api/cert";
 import Schedule from "@/pages/task/components/schedule";
 
 export interface CertSettingsRef {
@@ -51,7 +51,7 @@ const CertSettings = forwardRef<CertSettingsRef>((_, ref) => {
         savingRef.current = true;
         setSaving(true);
         try {
-            const response = await certSettings({body: {...values, spec: values.spec.trim(), action: "set"}});
+            const response = await updateCertSettings({body: {...values, spec: values.spec.trim()}});
             if (request !== requestRef.current) return;
             if (response?.code !== 200) throw new Error(response?.message || "保存续签设置失败");
             savingRef.current = false;
@@ -76,7 +76,7 @@ const CertSettings = forwardRef<CertSettingsRef>((_, ref) => {
                              if (!visible || !open) return;
                              const request = requestRef.current;
                              try {
-                                 const response = await certSettings({body: {action: "get"}});
+                                 const response = await getCertSettingsInfo();
                                  if (request !== requestRef.current) return;
                                  if (response?.code !== 200 || !response?.data) {
                                      throw new Error(response?.message || "读取续签设置失败");

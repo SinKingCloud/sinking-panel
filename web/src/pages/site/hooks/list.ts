@@ -1,11 +1,30 @@
 import {createElement, useCallback, useEffect, useRef, useState} from "react";
 import {App, Checkbox} from "antd";
-import {deleteSite, disableSite, enableSite, getSiteList} from "@/service/api/site";
+import {deleteSite, getSiteList, updateSite} from "@/service/api/site";
 import {clearEnumCache} from "@/utils/enum";
 
 const actions: any = {
+    backup_enable: {
+        request: updateSite,
+        body: {backup_status: 1},
+        title: "开启自动备份",
+        content: (name: string) => `开启“${name}”的自动备份吗？执行周期与副本数可在备份管理的设置中修改。`,
+        okText: "开启",
+        success: "自动备份已开启",
+        filter: (record: any) => Boolean(String(record?.root || "").trim()) && Number(record?.backup_status) !== 1,
+    },
+    backup_disable: {
+        request: updateSite,
+        body: {backup_status: 0},
+        title: "关闭自动备份",
+        content: (name: string) => `关闭“${name}”的自动备份吗？已有备份会保留，仍可手动备份。`,
+        okText: "关闭",
+        success: "自动备份已关闭",
+        filter: (record: any) => Number(record?.backup_status) === 1,
+    },
     enable: {
-        request: enableSite,
+        request: updateSite,
+        body: {status: 0},
         title: "启用网站",
         content: (name: string) => `确定启用网站“${name}”吗？`,
         okText: "启用",
@@ -13,7 +32,8 @@ const actions: any = {
         filter: (record: any) => Number(record?.status) !== 0,
     },
     disable: {
-        request: disableSite,
+        request: updateSite,
+        body: {status: 1},
         title: "停用网站",
         content: (name: string) => `确定停用网站“${name}”吗？停用后将无法继续访问。`,
         okText: "停用",
@@ -165,7 +185,7 @@ const useList = () => {
         operatingRef.current.add(rowKey);
         setOperating(new Set(operatingRef.current));
         try {
-            const response = await option.request({body: {id, ...body}});
+            const response = await option.request({body: {id, ...option.body, ...body}});
             if (response?.code !== 200) {
                 message.error(response?.message || "操作失败");
                 if (action === "delete") {

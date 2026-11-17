@@ -12,6 +12,17 @@ type SiteOptions struct {
 	SiteIds  []int64 `json:"site_ids"`
 }
 
+// SiteData 保存生成时的网站信息及副本位置，以 JSON 字符串存入备份表。
+type SiteData struct {
+	SiteName  string `json:"site_name"`  // 网站名称快照
+	TaskId    int64  `json:"task_id"`    // 来源计划任务ID，0 表示网站手动或自动备份
+	Root      string `json:"root"`       // 归档来源，恢复时核对目录名称
+	LocalPath string `json:"local_path"` // 相对于网站备份根目录的文件路径
+	OssId     int64  `json:"oss_id"`     // 云端存储实例ID
+	OssPath   string `json:"oss_path"`   // 云端对象键
+	Checksum  string `json:"checksum"`   // SHA-256 校验值
+}
+
 // PathOptions 保存自定义备份的文件和目录路径。
 type PathOptions struct {
 	Paths []string `json:"paths"`

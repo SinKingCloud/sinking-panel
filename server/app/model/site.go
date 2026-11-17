@@ -9,16 +9,17 @@ import (
 
 // Site 网站表
 type Site struct {
-	Id         int64        `gorm:"column:id;PRIMARY_KEY" json:"id"`       // 网站ID
-	TypeId     int64        `gorm:"column:type_id" json:"type_id"`         // 网站分类ID
-	Name       string       `gorm:"column:name" json:"name"`               // 网站名称
-	Type       int          `gorm:"column:type" json:"type"`               // 网站类型，参见 site_kind
-	Status     int          `gorm:"column:status" json:"status"`           // 网站状态
-	Root       string       `gorm:"column:root" json:"root"`               // 网站根目录
-	RunPath    string       `gorm:"column:run_path" json:"run_path"`       // 网站运行目录
-	Config     string       `gorm:"column:config" json:"config"`           // 网站配置
-	CreateTime str.DateTime `gorm:"column:create_time" json:"create_time"` // 创建时间
-	UpdateTime str.DateTime `gorm:"column:update_time" json:"update_time"` // 更新时间
+	Id           int64        `gorm:"column:id;PRIMARY_KEY" json:"id"`           // 网站ID
+	TypeId       int64        `gorm:"column:type_id" json:"type_id"`             // 网站分类ID
+	Name         string       `gorm:"column:name" json:"name"`                   // 网站名称
+	Type         int          `gorm:"column:type" json:"type"`                   // 网站类型，参见 site_kind
+	Status       int          `gorm:"column:status" json:"status"`               // 网站状态
+	BackupStatus int          `gorm:"column:backup_status" json:"backup_status"` // 自动备份状态，0 关闭，1 开启
+	Root         string       `gorm:"column:root" json:"root"`                   // 网站根目录
+	RunPath      string       `gorm:"column:run_path" json:"run_path"`           // 网站运行目录
+	Config       string       `gorm:"column:config" json:"config"`               // 网站配置
+	CreateTime   str.DateTime `gorm:"column:create_time" json:"create_time"`     // 创建时间
+	UpdateTime   str.DateTime `gorm:"column:update_time" json:"update_time"`     // 更新时间
 }
 
 // TableName 获取表名

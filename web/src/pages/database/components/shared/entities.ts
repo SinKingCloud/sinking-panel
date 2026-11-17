@@ -30,6 +30,8 @@ export interface DatabasePanelProps {
     record: DatabasePanelRecord;
     initialTab?: string;
     onTabChange?: (tab: string) => void;
+    /** 宿主展示后台任务；未提供时保留组件内的进度展示。 */
+    onTask?: (ids?: string | string[]) => void;
     request: DatabasePanelRequest;
     // 宿主已获取版本时直接复用，独立使用组件时仍会自动读取。
     version?: DatabaseVersion;
@@ -47,6 +49,8 @@ export interface DatabaseManagerProps {
     open?: boolean;
     onCancel: () => void;
     onConfigure?: () => void;
+    /** 单任务展示日志，多任务展示任务列表；省略 ID 时核对提交结果。 */
+    onTask?: (ids?: string | string[]) => void;
     refreshKey?: number;
     initialTab?: string;
     components?: DatabasePanelComponents;
@@ -76,6 +80,7 @@ export interface DatabasePanelComponents {
 
 export interface DatabaseClientContext {
     ScriptTools?: ComponentType<any>;
+    onTask?: (ids?: string | string[]) => void;
     request: DatabasePanelRequest;
     version?: DatabaseVersion;
     features: Record<string, boolean>;
