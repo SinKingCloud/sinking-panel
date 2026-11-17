@@ -538,7 +538,6 @@ const OssPathPicker = forwardRef<InputRef, OssPathPickerProps>((props, ref) => {
                                 </ol>}
                             <div className="path-select-actions">
                                 <ActionDropdown placement="bottom" arrow={{pointAtCenter: true}}
-                                    styles={{root: {zIndex: (zIndex ?? 1000) + 10}}}
                                     disabled={!loaded || saving || selecting || serverBusy}
                                     menu={{items: [
                                         {key: "local", label: "从本机上传", icon: <Icon type="UploadOutlined"/>, onClick: () => openUpload("local")},
