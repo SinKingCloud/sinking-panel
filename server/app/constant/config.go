@@ -25,17 +25,14 @@ const (
 
 	ServerDataPath   = ServerPath + "/data"        //HTTP 服务数据目录
 	ServerCachePath  = ServerPath + "/cache"       //HTTP 服务缓存目录
-	ServerLogPath    = ServerPath + "/server.log"  //HTTP 服务运行日志
-	ServerWAFLogPath = ServerPath + "/waf.log"     //HTTP 服务 WAF 日志
-	ServerConfigPath = ServerPath + "/config.json" //HTTP 服务配置快照
+	ServerLogFile    = ServerPath + "/server.log"  //HTTP 服务运行日志
+	ServerWAFLogFile = ServerPath + "/waf.log"     //HTTP 服务 WAF 日志
+	ServerConfigFile = ServerPath + "/config.json" //HTTP 服务配置快照
 
 	MonitorPath = PanelDataPath + "/monitor" //系统监控历史数据目录
 
-	DBPath = PanelDataPath //数据库文件目录
-	DBFile = "server.db"   //数据库文件
-
-	ConfPath = PanelDataPath     //配置文件目录
-	ConfFile = "application.yml" //可选配置文件，不自动创建
+	DBFile   = PanelDataPath + "/server.db"       //数据库文件
+	ConfFile = PanelDataPath + "/application.yml" //可选配置文件，不自动创建
 
 	ServerMode = "server.mode"
 	ServerHost = "server.host"

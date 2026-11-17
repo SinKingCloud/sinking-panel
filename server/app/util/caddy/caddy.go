@@ -70,13 +70,13 @@ func NewManager(root string, options ...Options) (*Manager, error) {
 	if err != nil {
 		return nil, err
 	}
-	if m.configPath != "" {
-		stored, readErr := os.ReadFile(m.configPath)
+	if m.configFile != "" {
+		stored, readErr := os.ReadFile(m.configFile)
 		if readErr == nil {
 			if err = m.validateConfig(stored, true); err != nil {
 				return nil, fmt.Errorf("读取已有 http 配置失败: %w", err)
 			}
-			if err = os.Chmod(m.configPath, 0600); err != nil {
+			if err = os.Chmod(m.configFile, 0600); err != nil {
 				return nil, fmt.Errorf("设置 http 配置权限失败: %w", err)
 			}
 			m.config = append([]byte(nil), stored...)
@@ -309,10 +309,10 @@ func (m *Manager) LogPath(id string, logType LogType) (string, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	if logType == LogServer {
-		if m.logPath == "" || m.logPath == "-" {
+		if m.logFile == "" || m.logFile == "-" {
 			return "", errors.New("HTTP 服务运行日志未启用")
 		}
-		return m.logPath, nil
+		return m.logFile, nil
 	}
 	return m.siteLogPath(id, logType)
 }

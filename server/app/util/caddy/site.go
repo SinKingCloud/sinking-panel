@@ -1457,7 +1457,7 @@ func (m *Manager) validateSiteSet(sites map[string]*Site) error {
 		return err == nil && (relative == "." || (relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator))))
 	}
 	managedFiles := make([]string, 0, 3)
-	for _, file := range []string{m.logPath, m.wafLogPath, m.configPath} {
+	for _, file := range []string{m.logFile, m.wafLogFile, m.configFile} {
 		if file != "" && file != "-" {
 			managedFiles = append(managedFiles, canonicalPath(file))
 		}

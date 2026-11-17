@@ -9,7 +9,7 @@ import (
 )
 
 // Options 控制 HTTP 服务的监听地址、数据文件和运行参数。
-// 路径为空时使用 root 下的默认目录，ConfigPath 为空表示不保存配置快照。
+// 目录和日志文件为空时使用 root 下的默认位置，ConfigFile 为空表示不保存配置快照。
 type Options struct {
 	HTTPListen           []string        `json:"http_listen"`            // HTTP 监听地址，nil 默认 :80，空切片关闭监听
 	HTTPSListen          []string        `json:"https_listen"`           // HTTPS 监听地址，nil 默认 :443，空切片关闭监听
@@ -22,9 +22,9 @@ type Options struct {
 	DataPath             string          `json:"data_path"`              // HTTP 运行数据目录，默认 root/data
 	ACMEPath             string          `json:"-"`                      // ACME 账户和签发数据目录，默认 root/acme
 	CachePath            string          `json:"cache_path"`             // 站点响应缓存根目录，默认 root/cache
-	LogPath              string          `json:"log_path"`               // HTTP 运行日志文件，- 表示不保存运行日志
-	WAFLogPath           string          `json:"waf_log_path"`           // 全局 WAF 模块日志文件
-	ConfigPath           string          `json:"config_path"`            // 配置快照文件，为空时不保存
+	LogFile              string          `json:"log_file"`               // HTTP 运行日志文件，- 表示不保存运行日志
+	WAFLogFile           string          `json:"waf_log_file"`           // 全局 WAF 模块日志文件
+	ConfigFile           string          `json:"config_file"`            // 配置快照文件，为空时不保存
 	LogLevel             string          `json:"log_level"`              // HTTP 日志级别，默认 INFO
 	TrustedProxies       []string        `json:"trusted_proxies"`        // 可信代理 IP 或 CIDR
 	ClientIPHeaders      []string        `json:"client_ip_headers"`      // 从可信代理读取客户端 IP 的请求头
@@ -324,9 +324,9 @@ type Manager struct {
 	dataPath    string
 	acmePath    string
 	cachePath   string
-	logPath     string
-	wafLogPath  string
-	configPath  string
+	logFile     string
+	wafLogFile  string
+	configFile  string
 	options     Options
 	acmeStorage *certmagic.FileStorage
 

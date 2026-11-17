@@ -105,14 +105,14 @@ func (s *service) updateHTTPLocked(config *HTTPUpdate) error {
 	if config.CachePath != nil {
 		candidate.CachePath = strings.TrimSpace(*config.CachePath)
 	}
-	if config.LogPath != nil {
-		candidate.LogPath = strings.TrimSpace(*config.LogPath)
+	if config.LogFile != nil {
+		candidate.LogFile = strings.TrimSpace(*config.LogFile)
 	}
-	if config.WAFLogPath != nil {
-		candidate.WAFLogPath = strings.TrimSpace(*config.WAFLogPath)
+	if config.WAFLogFile != nil {
+		candidate.WAFLogFile = strings.TrimSpace(*config.WAFLogFile)
 	}
-	if config.ConfigPath != nil {
-		candidate.ConfigPath = strings.TrimSpace(*config.ConfigPath)
+	if config.ConfigFile != nil {
+		candidate.ConfigFile = strings.TrimSpace(*config.ConfigFile)
 	}
 	if config.LogLevel != nil {
 		candidate.LogLevel = *config.LogLevel
@@ -169,9 +169,9 @@ func (s *service) updateHTTPLocked(config *HTTPUpdate) error {
 		{constant.SiteHTTPSiteDisabledPage, config.SiteDisabledPage != nil, candidate.SiteDisabledPage},
 		{constant.SiteHTTPDataPath, config.DataPath != nil, candidate.DataPath},
 		{constant.SiteHTTPCachePath, config.CachePath != nil, candidate.CachePath},
-		{constant.SiteHTTPLogPath, config.LogPath != nil, candidate.LogPath},
-		{constant.SiteHTTPWAFLogPath, config.WAFLogPath != nil, candidate.WAFLogPath},
-		{constant.SiteHTTPConfigPath, config.ConfigPath != nil, candidate.ConfigPath},
+		{constant.SiteHTTPLogFile, config.LogFile != nil, candidate.LogFile},
+		{constant.SiteHTTPWAFLogFile, config.WAFLogFile != nil, candidate.WAFLogFile},
+		{constant.SiteHTTPConfigFile, config.ConfigFile != nil, candidate.ConfigFile},
 		{constant.SiteHTTPLogLevel, config.LogLevel != nil, candidate.LogLevel},
 		{constant.SiteHTTPTrustedProxies, config.TrustedProxies != nil, candidate.TrustedProxies},
 		{constant.SiteHTTPClientIPHeaders, config.ClientIPHeaders != nil, candidate.ClientIPHeaders},
@@ -206,9 +206,9 @@ func (s *service) updateHTTPLocked(config *HTTPUpdate) error {
 		{&effective.DataPath, constant.ServerDataPath},
 		{&effective.ACMEPath, s.acmePath},
 		{&effective.CachePath, constant.ServerCachePath},
-		{&effective.LogPath, constant.ServerLogPath},
-		{&effective.WAFLogPath, constant.ServerWAFLogPath},
-		{&effective.ConfigPath, constant.ServerConfigPath},
+		{&effective.LogFile, constant.ServerLogFile},
+		{&effective.WAFLogFile, constant.ServerWAFLogFile},
+		{&effective.ConfigFile, constant.ServerConfigFile},
 	} {
 		if *item.target != "" {
 			continue
@@ -268,9 +268,9 @@ func (s *service) loadHTTP() (caddy.Options, bool, error) {
 		{constant.SiteHTTPSiteDisabledPage, &config.SiteDisabledPage},
 		{constant.SiteHTTPDataPath, &config.DataPath},
 		{constant.SiteHTTPCachePath, &config.CachePath},
-		{constant.SiteHTTPLogPath, &config.LogPath},
-		{constant.SiteHTTPWAFLogPath, &config.WAFLogPath},
-		{constant.SiteHTTPConfigPath, &config.ConfigPath},
+		{constant.SiteHTTPLogFile, &config.LogFile},
+		{constant.SiteHTTPWAFLogFile, &config.WAFLogFile},
+		{constant.SiteHTTPConfigFile, &config.ConfigFile},
 		{constant.SiteHTTPLogLevel, &config.LogLevel},
 		{constant.SiteHTTPTrustedProxies, &config.TrustedProxies},
 		{constant.SiteHTTPClientIPHeaders, &config.ClientIPHeaders},

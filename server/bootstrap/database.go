@@ -3,7 +3,6 @@ package bootstrap
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"server/app/constant"
 	"server/app/util/database"
 	"server/global"
@@ -15,10 +14,10 @@ func LoadDatabase() {
 	if global.App.Database != nil {
 		return
 	}
-	if err := os.MkdirAll(constant.DBPath, 0755); err != nil {
+	if err := os.MkdirAll(constant.PanelDataPath, 0755); err != nil {
 		panic(fmt.Errorf("创建数据库目录失败: %w", err))
 	}
-	global.App.SetDataBase(database.NewSqlite(filepath.Join(constant.DBPath, constant.DBFile)))
+	global.App.SetDataBase(database.NewSqlite(constant.DBFile))
 	if global.App.Database.DbError != nil {
 		panic(global.App.Database.DbError)
 	}

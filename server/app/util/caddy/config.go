@@ -220,9 +220,9 @@ func (m *Manager) setOptions(options Options) error {
 	options.DataPath = strings.TrimSpace(options.DataPath)
 	options.ACMEPath = strings.TrimSpace(options.ACMEPath)
 	options.CachePath = strings.TrimSpace(options.CachePath)
-	options.LogPath = strings.TrimSpace(options.LogPath)
-	options.WAFLogPath = strings.TrimSpace(options.WAFLogPath)
-	options.ConfigPath = strings.TrimSpace(options.ConfigPath)
+	options.LogFile = strings.TrimSpace(options.LogFile)
+	options.WAFLogFile = strings.TrimSpace(options.WAFLogFile)
+	options.ConfigFile = strings.TrimSpace(options.ConfigFile)
 	if options.DataPath == "" {
 		options.DataPath = filepath.Join(m.root, "data")
 	}
@@ -232,31 +232,31 @@ func (m *Manager) setOptions(options Options) error {
 	if options.CachePath == "" {
 		options.CachePath = filepath.Join(m.root, "cache")
 	}
-	if options.LogPath == "" {
-		options.LogPath = filepath.Join(m.root, "logs", "http.log")
+	if options.LogFile == "" {
+		options.LogFile = filepath.Join(m.root, "logs", "http.log")
 	}
-	if options.WAFLogPath == "" {
-		options.WAFLogPath = filepath.Join(m.root, "logs", "waf.log")
+	if options.WAFLogFile == "" {
+		options.WAFLogFile = filepath.Join(m.root, "logs", "waf.log")
 	}
 	for target, destination := range map[*string]string{
 		&options.DataPath:   options.DataPath,
 		&options.ACMEPath:   options.ACMEPath,
 		&options.CachePath:  options.CachePath,
-		&options.WAFLogPath: options.WAFLogPath,
+		&options.WAFLogFile: options.WAFLogFile,
 	} {
 		*target, err = m.resolvePath(destination)
 		if err != nil {
 			return err
 		}
 	}
-	if options.LogPath != "-" {
-		options.LogPath, err = m.resolvePath(options.LogPath)
+	if options.LogFile != "-" {
+		options.LogFile, err = m.resolvePath(options.LogFile)
 		if err != nil {
 			return err
 		}
 	}
-	if options.ConfigPath != "" {
-		options.ConfigPath, err = m.resolvePath(options.ConfigPath)
+	if options.ConfigFile != "" {
+		options.ConfigFile, err = m.resolvePath(options.ConfigFile)
 		if err != nil {
 			return err
 		}
@@ -265,18 +265,18 @@ func (m *Manager) setOptions(options Options) error {
 		relative, relativeErr := filepath.Rel(parent, child)
 		return relativeErr == nil && (relative == "." || (relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator))))
 	}
-	for _, directory := range []string{m.root, options.DataPath, options.ACMEPath, options.CachePath, filepath.Dir(options.WAFLogPath)} {
+	for _, directory := range []string{m.root, options.DataPath, options.ACMEPath, options.CachePath, filepath.Dir(options.WAFLogFile)} {
 		if err = os.MkdirAll(directory, 0700); err != nil {
 			return fmt.Errorf("创建 http 目录失败: %w", err)
 		}
 	}
-	if options.LogPath != "-" {
-		if err = os.MkdirAll(filepath.Dir(options.LogPath), 0700); err != nil {
+	if options.LogFile != "-" {
+		if err = os.MkdirAll(filepath.Dir(options.LogFile), 0700); err != nil {
 			return fmt.Errorf("创建 http 日志目录失败: %w", err)
 		}
 	}
-	if options.ConfigPath != "" {
-		if err = os.MkdirAll(filepath.Dir(options.ConfigPath), 0700); err != nil {
+	if options.ConfigFile != "" {
+		if err = os.MkdirAll(filepath.Dir(options.ConfigFile), 0700); err != nil {
 			return fmt.Errorf("创建 http 配置目录失败: %w", err)
 		}
 	}
@@ -287,7 +287,7 @@ func (m *Manager) setOptions(options Options) error {
 		}
 		*target = filepath.Clean(*target)
 	}
-	for _, target := range []*string{&options.WAFLogPath, &options.LogPath, &options.ConfigPath} {
+	for _, target := range []*string{&options.WAFLogFile, &options.LogFile, &options.ConfigFile} {
 		if *target == "" || *target == "-" {
 			continue
 		}
@@ -299,9 +299,9 @@ func (m *Manager) setOptions(options Options) error {
 	}
 	files := map[string]string{}
 	for name, path := range map[string]string{
-		"http 日志": options.LogPath,
-		"WAF 日志":  options.WAFLogPath,
-		"配置文件":    options.ConfigPath,
+		"http 日志": options.LogFile,
+		"WAF 日志":  options.WAFLogFile,
+		"配置文件":    options.ConfigFile,
 	} {
 		if path == "" || path == "-" {
 			continue
@@ -329,7 +329,7 @@ func (m *Manager) setOptions(options Options) error {
 	if pathInside(options.DataPath, options.ACMEPath) || pathInside(options.ACMEPath, options.DataPath) {
 		return errors.New("DataPath 不能与 ACMEPath 重叠")
 	}
-	for _, file := range []string{options.LogPath, options.WAFLogPath, options.ConfigPath} {
+	for _, file := range []string{options.LogFile, options.WAFLogFile, options.ConfigFile} {
 		if file == "" || file == "-" {
 			continue
 		}
@@ -343,7 +343,7 @@ func (m *Manager) setOptions(options Options) error {
 			return errors.New("日志或配置文件不能位于 ACMEPath 内")
 		}
 	}
-	wafLog, err := os.OpenFile(options.WAFLogPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
+	wafLog, err := os.OpenFile(options.WAFLogFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
 	if err != nil {
 		return fmt.Errorf("创建 WAF 审计日志失败: %w", err)
 	}
@@ -358,9 +358,9 @@ func (m *Manager) setOptions(options Options) error {
 	m.dataPath = options.DataPath
 	m.acmePath = options.ACMEPath
 	m.cachePath = options.CachePath
-	m.logPath = options.LogPath
-	m.wafLogPath = options.WAFLogPath
-	m.configPath = options.ConfigPath
+	m.logFile = options.LogFile
+	m.wafLogFile = options.WAFLogFile
+	m.configFile = options.ConfigFile
 	m.acmeStorage = &certmagic.FileStorage{Path: m.acmePath}
 	return nil
 }
@@ -413,9 +413,9 @@ func (m *Manager) updateOptions(options Options) error {
 		m.dataPath = candidate.dataPath
 		m.acmePath = candidate.acmePath
 		m.cachePath = candidate.cachePath
-		m.logPath = candidate.logPath
-		m.wafLogPath = candidate.wafLogPath
-		m.configPath = candidate.configPath
+		m.logFile = candidate.logFile
+		m.wafLogFile = candidate.wafLogFile
+		m.configFile = candidate.configFile
 		m.acmeStorage = candidate.acmeStorage
 		m.sites = prepared
 		m.config = append([]byte(nil), config...)
@@ -993,10 +993,10 @@ func (m *Manager) buildConfig(sites map[string]*Site) ([]byte, error) {
 		"encoder": logEncoder,
 	}
 	logConfig["exclude"] = excludedLogNamespaces
-	if m.logPath != "-" {
+	if m.logFile != "-" {
 		logConfig["writer"] = map[string]interface{}{
 			"output":           "file",
-			"filename":         m.logPath,
+			"filename":         m.logFile,
 			"mode":             "0600",
 			"dir_mode":         "0700",
 			"roll_size_mb":     50,
@@ -1015,7 +1015,7 @@ func (m *Manager) buildConfig(sites map[string]*Site) ([]byte, error) {
 			"encoder": logEncoder,
 			"writer": map[string]interface{}{
 				"output":           "file",
-				"filename":         m.wafLogPath,
+				"filename":         m.wafLogFile,
 				"mode":             "0600",
 				"dir_mode":         "0700",
 				"roll_size_mb":     50,
@@ -1167,10 +1167,10 @@ func (m *Manager) validateConfig(config []byte, provision bool) error {
 }
 
 func (m *Manager) persistConfig(config []byte) error {
-	if m.configPath == "" {
+	if m.configFile == "" {
 		return nil
 	}
-	temporary, err := os.CreateTemp(filepath.Dir(m.configPath), ".http-*.json")
+	temporary, err := os.CreateTemp(filepath.Dir(m.configFile), ".http-*.json")
 	if err != nil {
 		return err
 	}
@@ -1189,5 +1189,5 @@ func (m *Manager) persistConfig(config []byte) error {
 	if closeErr != nil {
 		return closeErr
 	}
-	return os.Rename(temporaryPath, m.configPath)
+	return os.Rename(temporaryPath, m.configFile)
 }

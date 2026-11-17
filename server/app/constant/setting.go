@@ -99,9 +99,9 @@ const (
 	SiteHTTPSiteDisabledPage     = SiteHTTPGroup + ".site_disabled_page"     //网站停用页面
 	SiteHTTPDataPath             = SiteHTTPGroup + ".data_path"              //HTTP 运行数据目录
 	SiteHTTPCachePath            = SiteHTTPGroup + ".cache_path"             //HTTP 缓存目录
-	SiteHTTPLogPath              = SiteHTTPGroup + ".log_path"               //HTTP 运行日志
-	SiteHTTPWAFLogPath           = SiteHTTPGroup + ".waf_log_path"           //WAF 审计日志
-	SiteHTTPConfigPath           = SiteHTTPGroup + ".config_path"            //HTTP 配置快照
+	SiteHTTPLogFile              = SiteHTTPGroup + ".log_file"               //HTTP 运行日志
+	SiteHTTPWAFLogFile           = SiteHTTPGroup + ".waf_log_file"           //WAF 审计日志
+	SiteHTTPConfigFile           = SiteHTTPGroup + ".config_file"            //HTTP 配置快照
 	SiteHTTPLogLevel             = SiteHTTPGroup + ".log_level"              //HTTP 日志级别
 	SiteHTTPTrustedProxies       = SiteHTTPGroup + ".trusted_proxies"        //可信代理地址
 	SiteHTTPClientIPHeaders      = SiteHTTPGroup + ".client_ip_headers"      //客户端 IP 请求头

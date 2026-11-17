@@ -408,9 +408,9 @@ type HTTPUpdate struct {
 	SiteDisabledPage     *HTTPPageUpdate `json:"site_disabled_page"`     // 请求域名所属网站已停用时显示的页面
 	DataPath             *string         `json:"data_path"`              // HTTP 运行数据目录
 	CachePath            *string         `json:"cache_path"`             // 站点响应缓存根目录
-	LogPath              *string         `json:"log_path"`               // HTTP 运行日志文件
-	WAFLogPath           *string         `json:"waf_log_path"`           // WAF 审计日志文件
-	ConfigPath           *string         `json:"config_path"`            // 配置快照文件
+	LogFile              *string         `json:"log_file"`               // HTTP 运行日志文件
+	WAFLogFile           *string         `json:"waf_log_file"`           // WAF 审计日志文件
+	ConfigFile           *string         `json:"config_file"`            // 配置快照文件
 	LogLevel             *string         `json:"log_level"`              // HTTP 日志级别
 	TrustedProxies       *[]string       `json:"trusted_proxies"`        // 可信代理 IP 或 CIDR
 	ClientIPHeaders      *[]string       `json:"client_ip_headers"`      // 客户端 IP 请求头

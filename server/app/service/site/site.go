@@ -182,9 +182,9 @@ func NewService(repositorySite repositorySite.Interface, repositorySiteDomain re
 		{&defaultHTTP.DataPath, constant.ServerDataPath},
 		{&defaultHTTP.ACMEPath, constant.AcmePath},
 		{&defaultHTTP.CachePath, constant.ServerCachePath},
-		{&defaultHTTP.LogPath, constant.ServerLogPath},
-		{&defaultHTTP.WAFLogPath, constant.ServerWAFLogPath},
-		{&defaultHTTP.ConfigPath, constant.ServerConfigPath},
+		{&defaultHTTP.LogFile, constant.ServerLogFile},
+		{&defaultHTTP.WAFLogFile, constant.ServerWAFLogFile},
+		{&defaultHTTP.ConfigFile, constant.ServerConfigFile},
 	} {
 		*item.target, err = filepath.Abs(item.path)
 		if err != nil {
@@ -237,9 +237,9 @@ func NewService(repositorySite repositorySite.Interface, repositorySiteDomain re
 	for target, value := range map[*string]string{
 		&effectiveHTTP.DataPath:   defaultHTTP.DataPath,
 		&effectiveHTTP.CachePath:  defaultHTTP.CachePath,
-		&effectiveHTTP.LogPath:    defaultHTTP.LogPath,
-		&effectiveHTTP.WAFLogPath: defaultHTTP.WAFLogPath,
-		&effectiveHTTP.ConfigPath: defaultHTTP.ConfigPath,
+		&effectiveHTTP.LogFile:    defaultHTTP.LogFile,
+		&effectiveHTTP.WAFLogFile: defaultHTTP.WAFLogFile,
+		&effectiveHTTP.ConfigFile: defaultHTTP.ConfigFile,
 	} {
 		if strings.TrimSpace(*target) == "" {
 			*target = value
@@ -249,7 +249,7 @@ func NewService(repositorySite repositorySite.Interface, repositorySiteDomain re
 	if err != nil {
 		caddyRuntime.Log().Warn("网站 HTTP 配置无法加载，已使用默认配置启动", zap.Error(err))
 		fallbackHTTP := defaultHTTP
-		fallbackHTTP.ConfigPath = ""
+		fallbackHTTP.ConfigFile = ""
 		httpManager, err = caddy.NewManager(root, fallbackHTTP)
 	}
 	if err != nil {

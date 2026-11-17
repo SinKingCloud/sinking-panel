@@ -48,7 +48,7 @@ SecAuditLogFileMode 0600
 SecAuditLog "/path/to/root/site-id/waf.log"
 ```
 
-审计采用 RelevantOnly，并非每个普通请求都记录；一般访问记录查看站点 access 日志。关闭 AuditLog 时生成 SecAuditEngine Off。全局 Options.WAFLogPath 是 WAF 模块日志路径，不等同于这里的单站点审计日志。
+审计采用 RelevantOnly，并非每个普通请求都记录；一般访问记录查看站点 access 日志。关闭 AuditLog 时生成 SecAuditEngine Off。全局 Options.WAFLogFile 是 WAF 模块日志路径，不等同于这里的单站点审计日志。
 
 ## 写入器生命周期
 

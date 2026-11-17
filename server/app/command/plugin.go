@@ -147,7 +147,7 @@ func (s *Server) executePlugin(args []string) error {
 		defer guard.Close()
 	}
 
-	path, err := filepath.Abs(filepath.Join(constant.DBPath, constant.DBFile))
+	path, err := filepath.Abs(constant.DBFile)
 	if err != nil {
 		return err
 	}

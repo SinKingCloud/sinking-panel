@@ -13,9 +13,9 @@ func NewManager(root string, options ...Options) (*Manager, error)
 `root` 必填，会转为绝对路径、解析符号链接并创建目录；最多传一个 Options。初始化只准备配置，不开始监听。一个进程同一时间只能有一个运行中的 Manager，因为底层 Caddy 运行时为进程全局实例。
 
 - **结构化站点模式**：使用 `Site`、`SyncSites`、`AddSite` 等管理；适合面板数据库与网站配置联动。
-- **原始 JSON 模式**：`SaveConfig` 接收完整的 Caddy JSON。`ConfigPath` 已有配置文件时，NewManager 也会进入此模式。原始 JSON 不会反向解析成 Site，不能继续直接增删改站点；用 `SyncSites` 明确切回结构化模式。
+- **原始 JSON 模式**：`SaveConfig` 接收完整的 Caddy JSON。`ConfigFile` 已有配置文件时，NewManager 也会进入此模式。原始 JSON 不会反向解析成 Site，不能继续直接增删改站点；用 `SyncSites` 明确切回结构化模式。
 
-`ConfigPath` 保存的是 Caddy 配置快照，不是站点数据库。应用重启后，如果希望继续通过 Site 管理，应从业务数据库读取完整站点集合并调用 `SyncSites`，再 `Start`。不要仅凭磁盘快照重建业务配置。
+`ConfigFile` 保存的是 Caddy 配置快照，不是站点数据库。应用重启后，如果希望继续通过 Site 管理，应从业务数据库读取完整站点集合并调用 `SyncSites`，再 `Start`。不要仅凭磁盘快照重建业务配置。
 
 ## 全局配置
 
@@ -25,8 +25,8 @@ func NewManager(root string, options ...Options) (*Manager, error)
 | `Protocols` | nil 使用 h1、h2、h3；h2/h2c 需同时启用 h1，h3 用于 TLS。 |
 | `DefaultSite` | 未匹配域名时使用的站点 ID；空时显示网站不存在页。 |
 | `DataPath` / `ACMEPath` / `CachePath` | 默认 `root/data`、`root/acme`、`root/cache`。 |
-| `LogPath` / `WAFLogPath` | 默认 `root/logs/http.log`、`root/logs/waf.log`；前者为 `-` 时不保存 HTTP 运行日志。 |
-| `ConfigPath` | 空值不保存快照；设置后写入完整 Caddy JSON，文件权限为 `0600`。 |
+| `LogFile` / `WAFLogFile` | 默认 `root/logs/http.log`、`root/logs/waf.log`；前者为 `-` 时不保存 HTTP 运行日志。 |
+| `ConfigFile` | 空值不保存快照；设置后写入完整 Caddy JSON，文件权限为 `0600`。 |
 | `LogLevel` | 默认 INFO；支持 DEBUG、INFO、WARN、ERROR、PANIC、FATAL。 |
 | `ReadTimeout` / `WriteTimeout` | 0 表示不限制完整请求读取/响应写入时间。 |
 | `ReadHeaderTimeout` / `IdleTimeout` / `GracePeriod` | 默认 10 秒、5 分钟、10 秒。 |
