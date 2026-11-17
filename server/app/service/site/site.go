@@ -179,12 +179,12 @@ func NewService(repositorySite repositorySite.Interface, repositorySiteDomain re
 		target *string
 		path   string
 	}{
-		{&defaultHTTP.DataPath, constant.ServerDataPath},
+		{&defaultHTTP.DataPath, constant.CaddyServerDataPath},
 		{&defaultHTTP.ACMEPath, constant.AcmePath},
-		{&defaultHTTP.CachePath, constant.ServerCachePath},
-		{&defaultHTTP.LogFile, constant.ServerLogFile},
-		{&defaultHTTP.WAFLogFile, constant.ServerWAFLogFile},
-		{&defaultHTTP.ConfigFile, constant.ServerConfigFile},
+		{&defaultHTTP.CachePath, constant.CaddyServerCachePath},
+		{&defaultHTTP.LogFile, constant.CaddyServerLogFile},
+		{&defaultHTTP.WAFLogFile, constant.CaddyServerWAFLogFile},
+		{&defaultHTTP.ConfigFile, constant.CaddyServerConfigFile},
 	} {
 		*item.target, err = filepath.Abs(item.path)
 		if err != nil {

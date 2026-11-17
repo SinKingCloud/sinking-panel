@@ -36,11 +36,11 @@ const durationFields: any[] = [
 ];
 
 const pathFields: any[] = [
-    ["data_path", "运行数据目录", "directory", "保存 HTTP 内核运行数据，留空使用 runtime/server/data。"],
-    ["cache_path", "响应缓存目录", "directory", "保存网站响应缓存，留空使用 runtime/server/cache。"],
-    ["log_file", "HTTP 运行日志", "file", "记录服务启动和运行异常；留空使用 runtime/server/server.log，填写 - 可关闭。"],
-    ["waf_log_file", "WAF 日志", "file", "汇总防火墙检测与拦截事件，留空使用 runtime/server/waf.log。"],
-    ["config_file", "配置快照文件", "file", "保存实际运行配置用于排障，留空使用 runtime/server/config.json。"],
+    ["data_path", "运行数据目录", "directory", "保存 HTTP 内核运行数据，留空使用 runtime/caddy/data。"],
+    ["cache_path", "响应缓存目录", "directory", "保存网站响应缓存，留空使用 runtime/caddy/cache。"],
+    ["log_file", "HTTP 运行日志", "file", "记录服务启动和运行异常；留空使用 runtime/caddy/server.log，填写 - 可关闭。"],
+    ["waf_log_file", "WAF 日志", "file", "汇总防火墙检测与拦截事件，留空使用 runtime/caddy/waf.log。"],
+    ["config_file", "配置快照文件", "file", "保存实际运行配置用于排障，留空使用 runtime/caddy/config.json。"],
 ];
 
 const navigationItems = [

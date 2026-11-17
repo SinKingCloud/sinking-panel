@@ -203,12 +203,12 @@ func (s *service) updateHTTPLocked(config *HTTPUpdate) error {
 		target *string
 		path   string
 	}{
-		{&effective.DataPath, constant.ServerDataPath},
+		{&effective.DataPath, constant.CaddyServerDataPath},
 		{&effective.ACMEPath, s.acmePath},
-		{&effective.CachePath, constant.ServerCachePath},
-		{&effective.LogFile, constant.ServerLogFile},
-		{&effective.WAFLogFile, constant.ServerWAFLogFile},
-		{&effective.ConfigFile, constant.ServerConfigFile},
+		{&effective.CachePath, constant.CaddyServerCachePath},
+		{&effective.LogFile, constant.CaddyServerLogFile},
+		{&effective.WAFLogFile, constant.CaddyServerWAFLogFile},
+		{&effective.ConfigFile, constant.CaddyServerConfigFile},
 	} {
 		if *item.target != "" {
 			continue
