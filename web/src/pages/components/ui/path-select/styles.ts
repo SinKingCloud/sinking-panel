@@ -91,7 +91,8 @@ const useStyles = createStyles<{compact: boolean}>(({css, token}, props) => ({
         }
 
         .path-select-up.ant-btn:disabled {
-            border: 0;
+            /* 保持边框尺寸和颜色，避免刷新切换禁用状态时闪边。 */
+            border: 1px solid transparent;
             background: ${token.colorBgContainer};
             color: ${token.colorTextDisabled};
             box-shadow: none;

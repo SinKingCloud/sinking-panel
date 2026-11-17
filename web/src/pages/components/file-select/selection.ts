@@ -22,6 +22,7 @@ export default function useFileSelection({type, multiple, disabled, onError}: Se
     const currentPaths = useRef<string[]>([]);
     const request = useRef(0);
     const busy = useRef(false);
+    const activeDirectories = useRef(new Set<string>());
     const directories = useRef(new Map<string, {path: string; children: string[]}>());
     const errorHandler = useRef(onError);
     errorHandler.current = onError;
@@ -49,6 +50,7 @@ export default function useFileSelection({type, multiple, disabled, onError}: Se
     const cancel = useCallback(() => {
         request.current++;
         busy.current = false;
+        activeDirectories.current.clear();
         directories.current.clear();
         setPending(false);
     }, []);
@@ -66,7 +68,15 @@ export default function useFileSelection({type, multiple, disabled, onError}: Se
     }, [commit, compact, tree, type]);
 
     const forget = useCallback((path: string) => {
-        directories.current.delete(comparablePath(path));
+        const key = comparablePath(path);
+        directories.current.delete(key);
+        // 仅作废已访问变更目录的选择请求，其他目录的后台上传不打断当前选择。
+        if (busy.current && activeDirectories.current.has(key)) {
+            request.current++;
+            busy.current = false;
+            activeDirectories.current.clear();
+            setPending(false);
+        }
     }, []);
 
     const select = useCallback(async (targets: string[], checked: boolean) => {
@@ -86,6 +96,7 @@ export default function useFileSelection({type, multiple, disabled, onError}: Se
         }
         const id = ++request.current;
         busy.current = true;
+        activeDirectories.current.clear();
         setPending(true);
         // 请求失败或弹窗关闭时不提交部分选择，也不缓存未完成的目录。
         const loaded = new Map<string, {path: string; children: string[]}>();
@@ -94,6 +105,7 @@ export default function useFileSelection({type, multiple, disabled, onError}: Se
                 if (request.current !== id) return;
                 const path = branches[index];
                 const key = comparablePath(path);
+                activeDirectories.current.add(key);
                 let directory = loaded.get(key) || directories.current.get(key);
                 if (!directory) {
                     const children: string[] = [];
@@ -136,6 +148,7 @@ export default function useFileSelection({type, multiple, disabled, onError}: Se
         } finally {
             if (request.current === id) {
                 busy.current = false;
+                activeDirectories.current.clear();
                 setPending(false);
             }
         }
@@ -147,6 +160,7 @@ export default function useFileSelection({type, multiple, disabled, onError}: Se
         return () => {
             request.current++;
             busy.current = false;
+            activeDirectories.current.clear();
             directories.current.clear();
         };
     }, [cancel, commit, compact, disabled, type]);

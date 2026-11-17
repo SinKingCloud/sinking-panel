@@ -4,14 +4,14 @@ import {App, Button, Empty, Form, Grid, Input, Select, Tooltip} from "antd";
 import type {MenuProps, TableColumnsType} from "antd";
 import {Icon, ModalTable, ProModal, Title, useTheme} from "sinking-antd";
 import dayjs from "dayjs";
-import {getOssFiles, getOssInfo, ossOperate, ossSign, uploadOssFile} from "@/service/api/oss";
+import {getOssFiles, getOssInfo, ossOperate, ossSign} from "@/service/api/oss";
 import {formatSize} from "@/utils/string";
 import ActionDropdown from "@/pages/components/ui/action-dropdown";
 import {getFileIconType} from "../../utils";
 import useTableStyles from "../table/styles";
 import FileUpload from "../upload";
 import {copyTextToClipboard} from "../properties/utils";
-import {scheduleFileUpload} from "../upload/transfer";
+import {uploadOssFileTransfer} from "../upload/transfer";
 import OssPathBar from "./path-bar";
 import ServerTransfer from "./server-transfer";
 import FileInfo from "./info";
@@ -310,20 +310,7 @@ const Files = ({id, active, revision, onCancel, onEdit, onBusyChange}: FilesProp
         finally { pending.current = false; if (alive.current) setBusy(false); }
     }, [editor, invoke, message, reload, closeEditor]);
     // 复用文件管理的上传列表与并发队列，每个文件保留选择时的目标目录。
-    const uploadFile = useCallback(({path, file, onProgress}: any) => {
-        const controller = new AbortController();
-        let finalizing = false;
-        const promise = scheduleFileUpload(async () => {
-            onProgress({percent: 0, phase: "uploading"});
-            const data = await uploadOssFile(id, path + file.name, file, controller.signal, (bytes, completing) => {
-                finalizing = Boolean(completing);
-                onProgress({percent: file.size ? bytes / file.size * 100 : 0,
-                    phase: finalizing ? "merging" : "uploading", cancelable: !finalizing});
-            });
-            return {code: 200, data};
-        }, controller.signal);
-        return {promise, abort: () => { if (!finalizing) controller.abort(); }};
-    }, [id]);
+    const uploadFile = useCallback((options: any) => uploadOssFileTransfer({...options, id}), [id]);
     const changeUploading = useCallback((value: boolean) => {
         uploading.current = value;
         if (alive.current) setUploadingFiles(value);

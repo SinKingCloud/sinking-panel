@@ -5,8 +5,13 @@ import DisabledContext from "antd/es/config-provider/DisabledContext";
 import useVariant from "antd/es/form/hooks/useVariants";
 import {Icon, ProModal, Title, useTheme} from "sinking-antd";
 import {getOssFiles, ossOperate} from "@/service/api/oss";
+import {systemTask} from "@/service/api/system";
 import {readFileStorage, updateFileStorage} from "@/pages/file/hooks/file-storage";
 import {formatFileSize, formatFileTime, getFileIconType} from "@/pages/file/utils";
+import FileUpload from "@/pages/file/components/upload";
+import {uploadOssFileTransfer} from "@/pages/file/components/upload/transfer";
+import ServerTransfer from "@/pages/file/components/oss/server-transfer";
+import ActionDropdown from "@/pages/components/ui/action-dropdown";
 import useStyles from "@/pages/components/ui/path-select/styles";
 
 /** 单选、多选均使用对象键数组；目录模式下空字符串表示桶根目录。 */
@@ -27,6 +32,8 @@ export interface OssPathPickerProps extends Omit<InputProps, "value" | "defaultV
 const directoryPrefix = (key: string) => key && !key.endsWith("/") ? `${key}/` : key;
 const parentPrefix = (key: string) => key.slice(0, key.lastIndexOf("/", key.endsWith("/") ? key.length - 2 : key.length) + 1);
 const displayPath = (key: string) => `/${key}`;
+type UploadSession = {id: number; scope: number; ossId: number; prefix: string};
+type UploadTask = {id: string; session: UploadSession};
 
 /** 对象路径保留原始字符；分页只取当前游标，不读取整个桶来统计数量。 */
 const OssPathPicker = forwardRef<InputRef, OssPathPickerProps>((props, ref) => {
@@ -34,7 +41,7 @@ const OssPathPicker = forwardRef<InputRef, OssPathPickerProps>((props, ref) => {
         mode, ossId, value, defaultValue, multiple, onChange, onSelect, initialPath, zIndex, buttonProps,
         disabled, size, className, style, placeholder, ...inputProps
     } = props;
-    const {message} = App.useApp();
+    const {message, modal} = App.useApp();
     const theme = useTheme();
     const compact = Boolean(theme?.isCompactTheme?.());
     const screens = Grid.useBreakpoint();
@@ -90,7 +97,19 @@ const OssPathPicker = forwardRef<InputRef, OssPathPickerProps>((props, ref) => {
     const [draft, setDraft] = useState("");
     const [creating, setCreating] = useState(false);
     const [saving, setSaving] = useState(false);
+    const [localUpload, setLocalUpload] = useState<UploadSession>();
+    const [serverUpload, setServerUpload] = useState<UploadSession>();
+    const [uploadTasks, setUploadTasks] = useState<UploadTask[]>([]);
+    const [serverBusy, setServerBusy] = useState(false);
     const [folderForm] = Form.useForm();
+    const uploadRef = useRef<any>(null);
+    const serverTransferRef = useRef<any>(null);
+    const uploading = useRef(false);
+    const submitting = useRef(false);
+    const uploadSequence = useRef(0);
+    const uploadScope = useRef({scope: 0, open: false, ossId: Number(ossId), prefix: ""});
+    const pendingUploadRefresh = useRef<UploadSession | undefined>(undefined);
+    const closeConfirmation = useRef<ReturnType<typeof modal.confirm> | null>(null);
     const request = useRef(0);
     const folderRequest = useRef(0);
     const folderPending = useRef(false);
@@ -102,6 +121,8 @@ const OssPathPicker = forwardRef<InputRef, OssPathPickerProps>((props, ref) => {
     const pathInput = useRef<InputRef>(null);
     const table = useRef<TableRef>(null);
     const {prefix, cursor, tokens} = query;
+    uploadScope.current.ossId = Number(ossId);
+    uploadScope.current.prefix = prefix;
     const directoryCovered = multi && mode === "directory" && [...selectedKeys].some((key) => prefix.startsWith(key));
     const loaded = loadedPath !== undefined && loadedPath === prefix && !loading && !error;
     const breadcrumbs = useMemo(() => {
@@ -202,6 +223,17 @@ const OssPathPicker = forwardRef<InputRef, OssPathPickerProps>((props, ref) => {
         else setSelected(item);
     };
     const close = useCallback(() => {
+        uploadScope.current.scope++;
+        uploadScope.current.open = false;
+        pendingUploadRefresh.current = undefined;
+        closeConfirmation.current?.destroy();
+        closeConfirmation.current = null;
+        uploading.current = false;
+        submitting.current = false;
+        setLocalUpload(undefined);
+        setServerUpload(undefined);
+        setUploadTasks([]);
+        setServerBusy(false);
         request.current++;
         folderRequest.current++;
         selectionRequest.current++;
@@ -212,6 +244,16 @@ const OssPathPicker = forwardRef<InputRef, OssPathPickerProps>((props, ref) => {
         setCreating(false);
         setEditing(false);
     }, []);
+    const requestClose = (finish = close) => {
+        if (!uploading.current) { finish(); return; }
+        if (closeConfirmation.current) return;
+        closeConfirmation.current = modal.confirm({
+            title: "关闭选择器？", content: "仍在上传的本机文件将尝试取消，已提交的服务器任务会继续执行。",
+            zIndex: Math.max(2000, (zIndex || 0) + 20), okText: "取消上传并关闭", cancelText: "继续上传",
+            onOk: () => { closeConfirmation.current = null; finish(); },
+            onCancel: () => { closeConfirmation.current = null; },
+        });
+    };
     useEffect(() => {
         const previous = selectionScope.current;
         const next = {ossId: String(ossId ?? ""), mode, multi};
@@ -222,12 +264,20 @@ const OssPathPicker = forwardRef<InputRef, OssPathPickerProps>((props, ref) => {
         selectionScope.current = next;
         close();
         setSelectedItems([]);
-        return () => { request.current++; folderRequest.current++; selectionRequest.current++; };
+        return () => {
+            request.current++; folderRequest.current++; selectionRequest.current++;
+            uploadScope.current.scope++;
+            uploadScope.current.open = false;
+            closeConfirmation.current?.destroy();
+            closeConfirmation.current = null;
+        };
     }, [ossId, mode, multi, close]);
     useEffect(() => { if (isDisabled) close(); }, [isDisabled, close]);
 
     const navigate = useCallback((key: string) => {
         if (selectionPending.current) return;
+        const nextPrefix = directoryPrefix(key);
+        uploadScope.current.prefix = nextPrefix;
         request.current++;
         setLoading(true);
         setLoadedPath(undefined);
@@ -235,10 +285,12 @@ const OssPathPicker = forwardRef<InputRef, OssPathPickerProps>((props, ref) => {
         setError("");
         setSelected(undefined);
         setEditing(false);
-        setQuery({prefix: directoryPrefix(key), cursor: 0, tokens: [""]});
+        setQuery({prefix: nextPrefix, cursor: 0, tokens: [""]});
     }, []);
     const show = () => {
         if (isDisabled || !validId) return;
+        uploadScope.current.scope++;
+        uploadScope.current.open = true;
         let directory = initialPath;
         const firstValue = values[0];
         if (directory === undefined && firstValue !== undefined) {
@@ -302,20 +354,90 @@ const OssPathPicker = forwardRef<InputRef, OssPathPickerProps>((props, ref) => {
         setQuery((current) => ({...current, cursor: 0, tokens: [""]}));
         setReload((current) => current + 1);
     };
+    const refreshUpload = useCallback((session: UploadSession) => {
+        const current = uploadScope.current;
+        if (!current.open || current.scope !== session.scope || current.ossId !== session.ossId) return;
+        selectionDirectories.current.delete(session.prefix);
+        if (current.prefix !== session.prefix) return;
+        if (selectionPending.current) { pendingUploadRefresh.current = session; return; }
+        request.current++;
+        setLoading(true);
+        setQuery((current) => ({...current, cursor: 0, tokens: [""]}));
+        setReload((current) => current + 1);
+    }, []);
+    useEffect(() => {
+        if (selecting || !pendingUploadRefresh.current) return;
+        const session = pendingUploadRefresh.current;
+        pendingUploadRefresh.current = undefined;
+        refreshUpload(session);
+    }, [selecting, refreshUpload]);
+    const uploadFile = useCallback((options: any) => uploadOssFileTransfer({...options, id: localUpload!.ossId}), [localUpload?.ossId]);
+    const openUpload = (source: "local" | "server") => {
+        if (!loaded || saving || selectionPending.current || submitting.current) return;
+        if (source === "local" && localUpload && (uploading.current || localUpload.prefix === prefix)) {
+            if (localUpload.prefix !== prefix) message.info(`当前上传仍保存到 ${displayPath(localUpload.prefix)}`);
+            uploadRef.current?.open();
+            return;
+        }
+        const session = {id: ++uploadSequence.current, scope: uploadScope.current.scope, ossId: Number(ossId), prefix};
+        if (source === "local") setLocalUpload(session);
+        else setServerUpload(session);
+    };
+    useEffect(() => { if (localUpload) uploadRef.current?.open(); }, [localUpload]);
+    useEffect(() => { if (serverUpload) serverTransferRef.current?.open("upload", serverUpload.prefix); }, [serverUpload]);
+    const trackUploads = (session: UploadSession, ids: string[]) => {
+        const current = uploadScope.current;
+        if (!current.open || current.scope !== session.scope || current.ossId !== session.ossId) return;
+        setUploadTasks((tasks) => [...tasks, ...[...new Set(ids)].filter((id) => !tasks.some((task) => task.id === id)).map((id) => ({id, session}))]);
+    };
+    // 每轮只读取一次任务列表；关闭后停止查询，旧任务不能刷新新会话。
+    useEffect(() => {
+        if (!open || !uploadTasks.length) return;
+        let stopped = false;
+        let timer: ReturnType<typeof setTimeout>;
+        const poll = async () => {
+            const completed = new Set<string>();
+            try {
+                const response = await systemTask({body: {action: "list"}, onFail: () => {}});
+                if (stopped || !uploadScope.current.open) return;
+                if (response?.code === 200 && Array.isArray(response.data)) {
+                    const statuses = new Map<string, number>(response.data.map((task: any) => [String(task.id), Number(task.status)]));
+                    const refreshed = new Set<string>();
+                    for (const task of uploadTasks) {
+                        const status = statuses.get(task.id);
+                        if (status !== undefined && ![2, 3, 4].includes(status)) continue;
+                        completed.add(task.id);
+                        if (!refreshed.has(task.session.prefix)) {
+                            refreshed.add(task.session.prefix);
+                            refreshUpload(task.session);
+                        }
+                    }
+                }
+            } catch { /* 临时请求失败不影响上传，下轮继续读取任务状态。 */ }
+            if (stopped || !uploadScope.current.open) return;
+            if (completed.size) setUploadTasks((tasks) => tasks.filter((task) => !completed.has(task.id)));
+            else timer = setTimeout(() => { void poll(); }, 1500);
+        };
+        void poll();
+        return () => { stopped = true; clearTimeout(timer); };
+    }, [open, uploadTasks, refreshUpload]);
+
     const confirm = (record = selected) => {
         if (isDisabled || !validId || selectionPending.current) return;
-        if (multi) {
-            const items = selectionItems(selectedItems);
-            const keys = items.map((item) => item.key);
-            if (onSelect?.(keys, items) === false) return;
-            change(keys);
-        } else {
-            if (!loaded || (mode === "file" && !record?.key)) return;
-            const key = mode === "directory" ? prefix : record.key;
-            if (onSelect?.([key], [mode === "directory" ? {key, directory: true} : record]) === false) return;
-            change([key]);
-        }
-        close();
+        if (!multi && (!loaded || (mode === "file" && !record?.key))) return;
+        requestClose(() => {
+            if (multi) {
+                const items = selectionItems(selectedItems);
+                const keys = items.map((item) => item.key);
+                if (onSelect?.(keys, items) === false) return;
+                change(keys);
+            } else {
+                const key = mode === "directory" ? prefix : record.key;
+                if (onSelect?.([key], [mode === "directory" ? {key, directory: true} : record]) === false) return;
+                change([key]);
+            }
+            close();
+        });
     };
     const columns = useMemo<TableProps<any>["columns"]>(() => [
         {title: "名称", dataIndex: "key", render: (key: string, record: any) => {
@@ -384,7 +506,7 @@ const OssPathPicker = forwardRef<InputRef, OssPathPickerProps>((props, ref) => {
                 icon={<Icon type={mode === "directory" ? "FolderOpenOutlined" : "FileSearchOutlined"}/>} onClick={show}/></Tooltip>
         </Space.Compact>
         <ConfigProvider componentSize="middle" variant="outlined">
-            <ProModal title={<Title>{title}</Title>} width="640px" okText="选择" onOk={() => confirm()} onCancel={close}
+            <ProModal title={<Title>{title}</Title>} width="640px" okText="选择" onOk={() => confirm()} onCancel={() => requestClose()}
                 modalProps={{open: open && !isDisabled, zIndex, rootClassName: styles.modal, cancelText: "取消",
                     style: {top: screens.md ? 100 : 24, paddingBottom: screens.md ? 100 : 24},
                     okButtonProps: {loading: selecting, disabled: selecting || (!multi && (!loaded || (mode === "file" && !selected?.key)))},
@@ -415,6 +537,16 @@ const OssPathPicker = forwardRef<InputRef, OssPathPickerProps>((props, ref) => {
                                     </li>)}
                                 </ol>}
                             <div className="path-select-actions">
+                                <ActionDropdown placement="bottom" arrow={{pointAtCenter: true}}
+                                    styles={{root: {zIndex: (zIndex ?? 1000) + 10}}}
+                                    disabled={!loaded || saving || selecting || serverBusy}
+                                    menu={{items: [
+                                        {key: "local", label: "从本机上传", icon: <Icon type="UploadOutlined"/>, onClick: () => openUpload("local")},
+                                        {key: "server", label: "从服务器上传", icon: <Icon type="CloudUploadOutlined"/>, onClick: () => openUpload("server")},
+                                    ]}}>
+                                    <Button type="text" className="path-select-up" aria-label="上传文件"
+                                        disabled={!loaded || saving || selecting || serverBusy} icon={<Icon type="UploadOutlined"/>}/>
+                                </ActionDropdown>
                                 <Button type="text" className="path-select-up" aria-label="新建文件夹"
                                     disabled={!loaded || saving || selecting} icon={<Icon type="PlusOutlined"/>} onClick={openFolder}/>
                                 <Button type="text" className="path-select-up" aria-label="刷新"
@@ -494,6 +626,21 @@ const OssPathPicker = forwardRef<InputRef, OssPathPickerProps>((props, ref) => {
                 </Form>
             </ProModal>
         </ConfigProvider>
+        {/* 关闭选择器会卸载上传组件并取消可取消的本机上传；服务器任务继续由系统任务管理。 */}
+        {localUpload && <FileUpload key={localUpload.id} ref={uploadRef} path={localUpload.prefix}
+            active={open && !isDisabled && localUpload.ossId === Number(ossId)} zIndex={Math.max(2000, (zIndex || 0) + 10)}
+            request={uploadFile} resumable={false} onUploaded={() => refreshUpload(localUpload)}
+            onUploadingChange={(busy: boolean) => {
+                if (uploadScope.current.scope === localUpload.scope) uploading.current = busy;
+            }}/>}
+        {serverUpload && <ServerTransfer key={serverUpload.id} ref={serverTransferRef} record={{id: serverUpload.ossId}}
+            active={open && !isDisabled && serverUpload.ossId === Number(ossId)} zIndex={Math.max(2000, (zIndex || 0) + 10)}
+            onSubmitted={(ids: string[]) => trackUploads(serverUpload, ids)}
+            onBusyChange={(busy: boolean) => {
+                if (uploadScope.current.scope !== serverUpload.scope) return;
+                submitting.current = busy;
+                setServerBusy(busy);
+            }}/>}
         <ProModal title={<Title>新建文件夹</Title>} width="340px" onOk={folderForm.submit} onCancel={() => {
             if (!folderPending.current) { folderRequest.current++; setCreating(false); }
         }} modalProps={{open: creating && open, zIndex: Math.max(2000, (zIndex || 0) + 10), okText: "创建", cancelText: "取消",

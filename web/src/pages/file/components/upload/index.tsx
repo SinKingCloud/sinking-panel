@@ -129,7 +129,7 @@ const FileUpload = forwardRef<any, any>(({
             }
             callbacks?.onSuccess?.(response);
             update(id, {status: "done", percent: 100});
-            if (mountedRef.current) onUploaded();
+            if (mountedRef.current) onUploaded?.(targetPath);
         }).catch((error: unknown) => {
             const uploadError = error instanceof Error ? error : new Error("上传失败");
             callbacks?.onError?.(uploadError);

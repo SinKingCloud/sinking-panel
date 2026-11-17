@@ -9,8 +9,8 @@ import {ossDownload, ossUpload} from "@/service/api/oss";
 import useStyles from "./styles";
 
 // ServerTransfer 只提交服务器文件路径，传输和取消由系统任务管理。
-const ServerTransfer = forwardRef<any, any>(({record, active: visible = true, onBusyChange}, ref) => {
-    const {task} = useOutletContext<LayoutContext>();
+const ServerTransfer = forwardRef<any, any>(({record, active: visible = true, zIndex = 1140, onBusyChange, onSubmitted}, ref) => {
+    const task = useOutletContext<LayoutContext>()?.task;
     const theme = useTheme();
     const {styles} = useStyles({compact: Boolean(theme?.isCompactTheme?.())});
     const [form] = Form.useForm();
@@ -83,14 +83,17 @@ const ServerTransfer = forwardRef<any, any>(({record, active: visible = true, on
             pending.current = false;
             if (live.current) {
                 setBusy(false);
-                if (created.length && visibleRef.current) task?.open(created);
+                if (created.length) {
+                    if (onSubmitted) onSubmitted(created);
+                    else if (visibleRef.current) task?.open(created);
+                }
             }
         }
     };
 
     return <ProModal title={<Title>{dialog?.action === "upload" ? "从服务器上传" : "下载到服务器"}</Title>}
         onCancel={() => { if (!pending.current) setOpen(false); }} onOk={form.submit}
-        modalProps={{open: visible && open, width: modalWidth.current, zIndex: 1140,
+        modalProps={{open: visible && open, width: modalWidth.current, zIndex,
             style: {maxWidth: "calc(100vw - 24px)"}, forceRender: true,
             okText: dialog?.action === "upload" ? "上传" : "下载", cancelText: "取消", confirmLoading: busy,
             closable: !busy, keyboard: !busy, mask: {closable: !busy}, cancelButtonProps: {disabled: busy},
@@ -111,14 +114,14 @@ const ServerTransfer = forwardRef<any, any>(({record, active: visible = true, on
                             names.set(name, comparableFilePath(path));
                         }
                     }},
-                ]}><FileSelect type="file" multiple maxLength={4096} placeholder="请选择服务器上的文件" buttonProps={{color: "default", variant: "filled"}}/></Form.Item>
+                ]}><FileSelect type="file" multiple zIndex={zIndex + 10} maxLength={4096} placeholder="请选择服务器上的文件" buttonProps={{color: "default", variant: "filled"}}/></Form.Item>
             </> : <>
                 <Form.Item name="directory" label="服务器目录"
                     getValueProps={(value) => ({value: value ? [value] : []})}
                     getValueFromEvent={(paths: string[]) => paths[0] || ""} rules={[
                     {required: true, whitespace: true, max: 4096, message: "请选择保存目录"},
                     {validator: async (_, value) => { if (value && !isAbsoluteFilePath(value)) throw new Error("请输入目录的绝对路径"); }},
-                ]}><FileSelect type="directory" maxLength={4096} placeholder="请选择或输入保存目录" buttonProps={{color: "default", variant: "filled"}}/></Form.Item>
+                ]}><FileSelect type="directory" zIndex={zIndex + 10} maxLength={4096} placeholder="请选择或输入保存目录" buttonProps={{color: "default", variant: "filled"}}/></Form.Item>
                 <Form.Item name="name" label="文件名称" rules={[{required: true, whitespace: true, max: 255, message: "请输入文件名称"},
                     {pattern: /^(?!\.{1,2}$)[^/\\\x00]+$/, message: "文件名称不能包含路径"}]}><Input maxLength={255} placeholder="请输入文件名称"/></Form.Item>
             </>}

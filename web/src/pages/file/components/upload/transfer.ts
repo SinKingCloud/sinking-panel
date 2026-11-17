@@ -2,6 +2,7 @@ import defaultSettings from "@/../config/defaultSettings";
 import {
     requestFileUpload as requestFileUploadApi,
 } from "@/service/api/file";
+import {uploadOssFile} from "@/service/api/oss";
 import {getFileMd5} from "./hash";
 
 const isUploadError = (error: unknown, name: string) => (
@@ -90,6 +91,22 @@ export const scheduleFileUpload = <T, >(run: () => Promise<T>, signal: AbortSign
     pendingFileUploads.push(item);
     runPendingFileUploads();
 });
+
+/** OSS 浏览器上传复用文件队列，分片合并期间保留服务端完成流程。 */
+export const uploadOssFileTransfer = ({id, path, file, onProgress}: any) => {
+    const controller = new AbortController();
+    let finalizing = false;
+    const promise = scheduleFileUpload(async () => {
+        onProgress({percent: 0, phase: "uploading"});
+        const data = await uploadOssFile(id, path + file.name, file, controller.signal, (bytes, completing) => {
+            finalizing = Boolean(completing);
+            onProgress({percent: file.size ? bytes / file.size * 100 : 0,
+                phase: finalizing ? "merging" : "uploading", cancelable: !finalizing});
+        });
+        return {code: 200, data};
+    }, controller.signal);
+    return {promise, abort: () => { if (!finalizing) controller.abort(); }};
+};
 
 class FileUploadBusinessError extends Error {
     response: API.Response<unknown>;

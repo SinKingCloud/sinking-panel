@@ -2,6 +2,7 @@ import React, {memo, useCallback, useMemo} from "react";
 import {Button, Checkbox, Empty, Input, Pagination, Table, Tooltip, Typography} from "antd";
 import type {InputRef, TableProps, TableRef} from "antd";
 import {Icon} from "sinking-antd";
+import ActionDropdown from "@/pages/components/ui/action-dropdown";
 import {
     buildFileBreadcrumbs,
     comparableFilePath as comparablePath,
@@ -15,6 +16,7 @@ import {
 type FileSelectBrowserProps = {
     className: string;
     compact: boolean;
+    zIndex: number;
     type?: "file" | "directory";
     path: string;
     loadedPath: string;
@@ -43,13 +45,15 @@ type FileSelectBrowserProps = {
     onSelectionChange: (paths: string[], checked: boolean) => void;
     onConfirm: (path: string) => void;
     onPageChange: (page: number) => void;
-    onCreateDirectory: () => void;
+    onCreate: (type: "directory" | "file") => void;
+    onUpload: () => void;
     onReload: () => void;
 };
 
 const FileSelectBrowser = ({
     className,
     compact,
+    zIndex,
     type,
     path,
     loadedPath,
@@ -78,7 +82,8 @@ const FileSelectBrowser = ({
     onSelectionChange,
     onConfirm,
     onPageChange,
-    onCreateDirectory,
+    onCreate,
+    onUpload,
     onReload,
 }: FileSelectBrowserProps) => {
     const allowFiles = type !== "directory";
@@ -228,6 +233,8 @@ const FileSelectBrowser = ({
     const countText = loading && !loadedPath
         ? "加载中"
         : !showingDisks && total > pageSize ? `${rangeStart}-${rangeEnd} / ${total} 项` : `${total} 项`;
+    const actionsDisabled = showingDisks || loading || Boolean(error) || !loadedPath
+        || comparablePath(loadedPath) !== comparablePath(path);
 
     return (
         <div className={className}>
@@ -309,10 +316,26 @@ const FileSelectBrowser = ({
                     <Button
                         type="text"
                         className="path-select-up"
-                        disabled={showingDisks || loading || Boolean(error) || !loadedPath || comparablePath(loadedPath) !== comparablePath(path)}
-                        aria-label="新建文件夹"
-                        icon={<Icon type="PlusOutlined"/>}
-                        onClick={onCreateDirectory}/>
+                        disabled={actionsDisabled}
+                        aria-label="上传文件"
+                        icon={<Icon type="UploadOutlined"/>}
+                        onClick={onUpload}/>
+                    <ActionDropdown
+                        disabled={actionsDisabled}
+                        placement="bottom"
+                        arrow={{pointAtCenter: true}}
+                        styles={{root: {zIndex}}}
+                        menu={{items: [
+                            {key: "directory", label: "新建文件夹", icon: <Icon type="FolderAddOutlined"/>, onClick: () => onCreate("directory")},
+                            {key: "file", label: "新建文件", icon: <Icon type="FileAddOutlined"/>, onClick: () => onCreate("file")},
+                        ]}}>
+                        <Button
+                            type="text"
+                            className="path-select-up"
+                            disabled={actionsDisabled}
+                            aria-label="新建"
+                            icon={<Icon type="PlusOutlined"/>}/>
+                    </ActionDropdown>
                     <Button
                         type="text"
                         className="path-select-up"
