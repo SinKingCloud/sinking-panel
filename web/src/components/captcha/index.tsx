@@ -177,7 +177,7 @@ const Captcha = forwardRef<CaptchaRef>((_, ref): any => {
                 open: visible,
                 destroyOnHidden: true,
                 footer: null,
-                closable: true,
+                closable: false,
                 mask: {closable: true},
                 keyboard: true,
                 rootClassName: styles?.modal,
