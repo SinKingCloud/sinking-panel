@@ -11,7 +11,8 @@ var (
 	//go:embed sql/install.sql
 	Sql string
 	//go:embed all:plugin
-	Plugin     embed.FS
+	Plugin embed.FS
+
 	FileServer = http.FileServer(http.FS(Static))
 )
 

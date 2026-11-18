@@ -76,7 +76,6 @@ func loadMiddleware(s *sinking_web.Engine) {
 // loadStaticRoute 静态资源
 func loadStaticRoute(s *sinking_web.Engine) {
 	handler := context.HandleFunc(func(c *context.Context) {
-		// 静态文件只使用实际路径，前端 hash 路由不参与文件查找。
 		requestPath, _, _ := strings.Cut(c.Request.URL.Path, "#")
 		switch strings.ToLower(path.Ext(requestPath)) {
 		case ".js", ".css", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".avif", ".svg", ".ico", ".bmp", ".tif", ".tiff":
