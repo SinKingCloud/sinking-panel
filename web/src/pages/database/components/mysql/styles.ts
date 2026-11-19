@@ -9,18 +9,18 @@ export default createStyles(({css, token}, {compact}: {compact: boolean}) => ({
         min-height: 0;
         container: mysql-content / inline-size;
         color: ${token.colorText};
-        font-size: ${token.fontSize}px;
+        font-size: ${compact ? 12 : 13}px;
 
-        /* 共享工作区有固定字号，保持这里的文字与原生组件主题一致。 */
         &&& .ant-input, &&& .ant-input-affix-wrapper, &&& .ant-select {
-            font-size: ${token.fontSize}px;
+            font-size: ${compact ? 12 : 13}px;
         }
+        .client-toolbar > .ant-select { height: ${compact ? 24 : 28}px; }
         /* 仅调整工作区按钮，避免主题配置传递到弹窗底部。 */
         &&& .ant-btn {
             height: ${compact ? 24 : 28}px;
             padding-inline: ${compact ? 7 : 9}px;
             gap: ${compact ? 4 : 6}px;
-            border-radius: ${token.borderRadiusSM}px;
+            border-radius: ${token.borderRadius}px;
             font-size: ${compact ? 11 : 12}px;
         }
         &&& .ant-btn-icon-only { width: ${compact ? 24 : 28}px; padding-inline: 0; }
@@ -44,10 +44,12 @@ export default createStyles(({css, token}, {compact}: {compact: boolean}) => ({
 
         .mysql-header { display: grid; flex: none; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 16px; min-width: 0; margin-bottom: 16px; }
         .mysql-navigation { grid-column: 2; justify-self: center; min-width: 0; max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+        .mysql-navigation.ant-segmented { border-radius: ${token.borderRadius}px; color: ${token.colorTextSecondary}; font-size: inherit; }
+        .mysql-navigation.ant-segmented .ant-segmented-group > :is(.ant-segmented-item, .ant-segmented-thumb) { border-radius: ${token.borderRadius}px; }
         .mysql-navigation::-webkit-scrollbar { display: none; }
         .mysql-navigation .ant-segmented-group { display: flex; width: max-content; min-width: 100%; }
         .mysql-navigation .ant-segmented-item { flex: 1 0 auto; }
-        .mysql-navigation .ant-segmented-item-label { padding-inline: 12px; }
+        .mysql-navigation .ant-segmented-item-label { min-height: 0; line-height: ${compact ? 24 : 28}px; padding-inline: 12px; }
 
         .sql-workbench { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; }
         .sql-workbench > .sql-stage {
@@ -132,7 +134,7 @@ export default createStyles(({css, token}, {compact}: {compact: boolean}) => ({
             min-width: ${compact ? 44 : 50}px;
             height: ${compact ? 26 : 30}px;
             padding: 0 ${compact ? 10 : 12}px;
-            border-radius: ${token.borderRadiusSM}px;
+            border-radius: ${token.borderRadius}px;
             color: ${token.colorTextSecondary};
             font-size: ${compact ? 11 : 12}px;
             font-weight: 400;
@@ -144,7 +146,7 @@ export default createStyles(({css, token}, {compact}: {compact: boolean}) => ({
         &&& .sql-detail-tabs .ant-tabs-tab-active { background: ${token.colorPrimaryBg}; }
         &&& .sql-detail-tabs .ant-tabs-tab-active .ant-tabs-tab-btn { color: ${token.colorPrimary}; font-weight: 400; text-shadow: none; }
         &&& .sql-detail-tabs .ant-tabs-tab-disabled { color: ${token.colorTextDisabled}; }
-        .sql-workbench .sql-detail-tabs .ant-tabs-tab-btn:focus-visible { border-radius: 2px; outline-offset: -2px; }
+        .sql-workbench .sql-detail-tabs .ant-tabs-tab-btn:focus-visible { border-radius: ${token.borderRadiusXS}px; outline-offset: -2px; }
         .sql-workbench .sql-detail-tabs .ant-tabs-nav::before { border: 0; }
         .sql-workbench .sql-detail-tabs .ant-tabs-ink-bar { display: none; }
         .mysql-detail-actions { display: flex; flex: 0 1 auto; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 8px; min-width: 0; max-width: 100%; margin-left: auto; }
@@ -178,7 +180,7 @@ export default createStyles(({css, token}, {compact}: {compact: boolean}) => ({
             max-width: 100%;
             height: ${compact ? 24 : 28}px;
             padding-inline: ${compact ? 8 : 10}px;
-            border-radius: ${token.borderRadiusSM}px;
+            border-radius: ${token.borderRadius}px;
             font-size: ${compact ? 11 : 12}px;
         }
         &&& .sql-object-search .ant-input { color: ${token.colorTextSecondary}; font-size: inherit; }
@@ -197,7 +199,7 @@ export default createStyles(({css, token}, {compact}: {compact: boolean}) => ({
             height: ${compact ? 22 : 26}px;
             margin: 0;
             border: 0;
-            border-radius: ${token.borderRadiusSM}px;
+            border-radius: ${token.borderRadius}px;
             background: transparent;
             font-size: inherit;
             line-height: ${compact ? 22 : 26}px;
@@ -214,16 +216,17 @@ export default createStyles(({css, token}, {compact}: {compact: boolean}) => ({
         }
         &&& .client-pagination .ant-pagination-disabled .ant-pagination-item-link { color: ${token.colorTextDisabled}; }
         &&& .client-pagination .ant-pagination-options { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-inline-start: 6px; }
-        &&& .client-pagination .ant-select { height: ${compact ? 22 : 26}px; color: ${token.colorTextSecondary}; font-size: inherit; }
+        &&& .client-pagination .ant-select { height: ${compact ? 22 : 26}px; border-radius: ${token.borderRadius}px; color: ${token.colorTextSecondary}; font-size: inherit; }
         /* 加载时会禁用分页，填充式容量选择仍保持透明边框。 */
         &&& .client-pagination .ant-select-filled.ant-select-disabled { border-color: transparent; }
         .client-pagination .ant-select-suffix { color: ${token.colorTextQuaternary}; font-size: ${compact ? 9 : 10}px; }
         &&& .client-pagination .ant-pagination-options-quick-jumper { height: auto; margin: 0; color: ${token.colorTextSecondary}; font-size: inherit; line-height: ${compact ? 22 : 26}px; }
-        &&& .client-pagination .ant-pagination-options-quick-jumper input { width: ${compact ? 38 : 42}px; height: ${compact ? 22 : 26}px; margin-inline: 4px; border-radius: ${token.borderRadiusSM}px; font-size: inherit; }
+        &&& .client-pagination .ant-pagination-options-quick-jumper input { width: ${compact ? 38 : 42}px; height: ${compact ? 22 : 26}px; margin-inline: 4px; border-radius: ${token.borderRadius}px; font-size: inherit; }
         .sql-workbench .client-footer .ant-typography, .sql-workbench .client-hint { font-size: ${token.fontSizeSM}px; }
         .sql-workbench .client-empty { flex: 1; min-height: 280px; }
         .sql-workbench .client-hint { margin-top: 8px; }
-        &&& .ant-table { font-size: ${compact ? 11 : 12}px; }
+        &&& .ant-table { color: ${token.colorTextSecondary}; font-size: ${compact ? 11 : 12}px; }
+        &&& .ant-table .ant-table-cell { padding: ${compact ? 6 : 8}px ${compact ? 8 : 10}px; }
         &&& .ant-table:not(.ant-table-bordered) > .ant-table-container {
             overflow: hidden;
             border-inline: 1px solid ${token.colorBorderSecondary};
@@ -235,7 +238,7 @@ export default createStyles(({css, token}, {compact}: {compact: boolean}) => ({
         &&& .ant-table .client-cell, &&& .ant-table .client-row-number { font-size: inherit; }
         .sql-workbench .client-result-status .ant-typography { font-size: ${token.fontSizeSM}px; }
         .sql-workbench .ant-table-cell { white-space: nowrap; }
-        &&& .ant-table-thead > tr > th { font-size: ${compact ? 12 : 13}px; font-weight: 500; }
+        &&& .ant-table-thead > tr > th { color: ${token.colorTextSecondary}; font-size: ${compact ? 12 : 13}px; font-weight: 500; }
 
         /* 小窗口保留两区最低空间，超出时由工作区滚动，避免压没编辑内容或结果。 */
         .sql-workbench .client-query { flex: 1; height: auto; min-height: ${compact ? 440 : 460}px; gap: 0; }
@@ -361,7 +364,7 @@ export default createStyles(({css, token}, {compact}: {compact: boolean}) => ({
             }
             &&& .client-pagination .ant-pagination-simple-pager input {
                 width: ${compact ? 34 : 38}px; height: 100%; margin: 0; padding: 0 4px;
-                border: 1px solid transparent; border-radius: ${token.borderRadiusSM}px;
+                border: 1px solid transparent; border-radius: ${token.borderRadius}px;
                 background: ${token.colorFillTertiary}; color: inherit; font: inherit; text-align: center;
             }
             &&& .client-pagination .ant-pagination-simple-pager input:focus { border-color: ${token.colorPrimaryBorder}; }

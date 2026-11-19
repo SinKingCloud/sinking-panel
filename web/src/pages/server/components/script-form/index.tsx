@@ -36,10 +36,6 @@ const useStyles = createStyles(({css, token}: any) => ({
         overflow: hidden;
         border: 1px solid ${token.colorBorderSecondary};
         border-radius: ${token.borderRadius}px;
-
-        .ace_editor {
-            border-radius: ${token.borderRadius}px !important;
-        }
     `,
     loading: css`
         height: min(320px, 46dvh);

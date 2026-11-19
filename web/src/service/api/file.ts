@@ -1,3 +1,4 @@
+import defaultSettings from "@/../config/defaultSettings";
 import {getHeaders} from "@/utils/auth";
 import {get, post} from "@/utils/request";
 
@@ -25,6 +26,15 @@ export async function getFileInfo(params: API.RequestParams = {}) {
 /** 获取文件访问签名 GET /file/sign */
 export async function getFileSign(params: API.RequestParams = {}) {
     return get("/file/sign", params?.body, params?.onSuccess, params?.onFail, params?.onFinally);
+}
+
+/** 根据访问签名生成预览或下载地址。 */
+export function filePreviewUrl(key: string) {
+    const url = new URL(defaultSettings.gateway || "/", window.location.origin);
+    url.pathname = url.pathname.replace(/\/+$/, "") + "/preview";
+    url.search = new URLSearchParams({key}).toString();
+    url.hash = "";
+    return url.toString();
 }
 
 /** 创建文件或目录 POST /file/create */

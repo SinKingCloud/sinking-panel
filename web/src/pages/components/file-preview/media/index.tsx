@@ -1,8 +1,7 @@
 import React, {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from "react";
 import {Button, Empty, Spin, Tooltip} from "antd";
 import {Icon, useTheme} from "sinking-antd";
-import defaultSettings from "@/../config/defaultSettings";
-import {getFileSign} from "@/service/api/file";
+import {filePreviewUrl, getFileSign} from "@/service/api/file";
 import useFullscreen from "@/utils/fullscreen";
 import useStyles from "../styles";
 
@@ -31,22 +30,6 @@ const getExtension = (name?: string) => {
 export const getFilePreviewKind = (name?: string) => previewKinds.get(getExtension(name));
 
 export const isFilePreviewable = (name?: string) => Boolean(getFilePreviewKind(name));
-
-const apiUrl = (path: string) => {
-    const origin = window.location.origin;
-    const gateway = new URL(defaultSettings?.gateway || "/", origin);
-    const gatewayPath = gateway.pathname.replace(/\/+$/, "");
-    gateway.pathname = `${gatewayPath}/${path.replace(/^\/+/, "")}`.replace(/\/{2,}/g, "/");
-    gateway.search = "";
-    gateway.hash = "";
-    return gateway.toString();
-};
-
-const buildPreviewUrl = (key: string) => {
-    const url = new URL(apiUrl("/preview"));
-    url.searchParams.set("key", key);
-    return url.toString();
-};
 
 interface FilePreviewPaneProps {
     file: {
@@ -161,7 +144,7 @@ const FilePreviewPane = ({
                 return;
             }
             try {
-                const nextUrl = buildPreviewUrl(key);
+                const nextUrl = filePreviewUrl(key);
                 activeUrlRef.current = nextUrl;
                 setUrl(nextUrl);
             } catch {

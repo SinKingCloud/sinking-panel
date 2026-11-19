@@ -28,6 +28,9 @@ export interface FileSelectProps extends Omit<InputProps, "value" | "defaultValu
     zIndex?: number;
     /** 不传时允许选择文件和目录。 */
     type?: "file" | "directory";
+    /** 设置后仅允许选择指定后缀的文件，如 ["png", ".tar.gz"]。 */
+    extensions?: readonly string[];
+    renderTrigger?: (open: () => void) => React.ReactNode;
     /** 文件、目录及混选均支持多选。 */
     multiple?: boolean;
     value?: string[];
@@ -45,7 +48,9 @@ const FileSelect = forwardRef<InputRef, FileSelectProps>((props, ref) => {
         disabled,
         initialPath,
         zIndex,
-        type,
+        type: selectionType,
+        extensions,
+        renderTrigger,
         multiple = false,
         onChange,
         onSelect,
@@ -54,6 +59,15 @@ const FileSelect = forwardRef<InputRef, FileSelectProps>((props, ref) => {
         value,
         ...inputProps
     } = props;
+    const suffixes = useMemo(() => selectionType === "directory" ? [] : [...new Set(
+        (extensions || []).map((ext) => ext.trim().toLowerCase().replace(/^\.+/, "")).filter(Boolean).map((ext) => "." + ext),
+    )], [extensions, selectionType]);
+    const type = selectionType ?? (suffixes.length ? "file" : undefined);
+    const acceptsFile = useCallback((path: string) => {
+        if (!suffixes.length) return true;
+        const name = path.slice(Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\")) + 1).toLowerCase();
+        return suffixes.some((suffix) => name.length > suffix.length && name.endsWith(suffix));
+    }, [suffixes]);
     const theme = useTheme();
     const [, pickerZIndex] = useZIndex("Modal", zIndex);
     const {message} = App.useApp();
@@ -96,6 +110,7 @@ const FileSelect = forwardRef<InputRef, FileSelectProps>((props, ref) => {
         forget: forgetDirectory,
     } = useFileSelection({type, multiple, disabled: isDisabled, onError: (error) => message.error(error)});
     const [searchValue, setSearchValue] = useState("");
+    const [inputDraft, setInputDraft] = useState<string | null>(null);
     const [disks, setDisks] = useState<string[]>([]);
     const [disksLoading, setDisksLoading] = useState(false);
     const [disksError, setDisksError] = useState("");
@@ -182,7 +197,7 @@ const FileSelect = forwardRef<InputRef, FileSelectProps>((props, ref) => {
         visiblePathRef.current = initialDirectory;
         setPath(initialDirectory);
         setLoadedPath("");
-        resetSelection(multiple ? values : []);
+        resetSelection(multiple ? values.filter(acceptsFile) : []);
         setDisks([]);
         setDisksLoading(true);
         setDisksError("");
@@ -197,13 +212,14 @@ const FileSelect = forwardRef<InputRef, FileSelectProps>((props, ref) => {
         if (!multiple && type !== "directory" && absolute && initialName) {
             void getFileInfo({body: {path: absolute}}).then((response) => {
                 if (selectionRequestRef.current === selectionRequest
-                    && response?.code === 200 && response?.data && (type === undefined || !response?.data?.is_dir)) {
+                    && response?.code === 200 && response?.data && (type === undefined || !response?.data?.is_dir)
+                    && (response.data.is_dir || acceptsFile(absolute))) {
                     if (response.data.is_dir && !preferredPath) navigate(absolute);
                     void selectPaths([absolute], true);
                 }
             }).catch(() => undefined);
         }
-    }, [initialPath, isDisabled, type, multiple, navigate, resetSelection, selectPaths, storageKey, values]);
+    }, [acceptsFile, initialPath, isDisabled, type, multiple, navigate, resetSelection, selectPaths, storageKey, values]);
 
     const close = useCallback(() => {
         requestRef.current += 1;
@@ -222,6 +238,12 @@ const FileSelect = forwardRef<InputRef, FileSelectProps>((props, ref) => {
         setOpen(false);
     }, [cancelSelection]);
 
+    const validExtensions = useCallback((paths: string[]) => {
+        if (!suffixes.length || paths.every(acceptsFile)) return true;
+        message.warning(`请选择以下格式的文件：${suffixes.join("、")}`);
+        return false;
+    }, [acceptsFile, message, suffixes]);
+
     const confirm = useCallback((filePath?: string) => {
         if (isDisabled || selectionPending) return;
         if (!multiple && (showingDisks || loading || error || !loadedPath || comparablePath(loadedPath) !== comparablePath(path))) return;
@@ -233,11 +255,11 @@ const FileSelect = forwardRef<InputRef, FileSelectProps>((props, ref) => {
             return;
         }
         const normalized = compactPaths(paths).map(normalizeFilePath);
-        if (onSelect?.(normalized) === false) return;
+        if (!validExtensions(normalized) || onSelect?.(normalized) === false) return;
         onChange?.(normalized);
         if (!controlled) setLocalValue(normalized);
         close();
-    }, [close, compactPaths, controlled, error, isDisabled, loadedPath, loading, message, type, multiple, onChange, onSelect, path, selectedPaths, selectionLabel, selectionPending, showingDisks]);
+    }, [close, compactPaths, controlled, error, isDisabled, loadedPath, loading, message, type, multiple, onChange, onSelect, path, selectedPaths, selectionLabel, selectionPending, showingDisks, validExtensions]);
 
     useEffect(() => { close(); }, [close, isDisabled, multiple, type]);
 
@@ -249,12 +271,18 @@ const FileSelect = forwardRef<InputRef, FileSelectProps>((props, ref) => {
     // 手输路径按原样加入，避免 tags 模式自动删去文件名末尾的空格。
     const changePaths = (paths: string[]) => {
         const nextValue = compactPaths(paths);
+        if (!validExtensions(nextValue)) return;
         if (!controlled) setLocalValue(nextValue);
         onChange?.(nextValue);
     };
     const addPath = () => {
         if (searchValue) changePaths([...values, searchValue]);
         setSearchValue("");
+    };
+    const commitInput = () => {
+        if (inputDraft === null) return;
+        changePaths(inputDraft ? [inputDraft] : []);
+        setInputDraft(null);
     };
 
     const changePage = useCallback((nextPage: number) => {
@@ -516,7 +544,7 @@ const FileSelect = forwardRef<InputRef, FileSelectProps>((props, ref) => {
 
     return (
         <>
-            <Space.Compact className={styles.field} block>
+            {renderTrigger ? renderTrigger(show) : <Space.Compact className={styles.field} block>
                 {multiple ? <Select
                     {...inputProps as any}
                     ref={ref as any}
@@ -543,10 +571,19 @@ const FileSelect = forwardRef<InputRef, FileSelectProps>((props, ref) => {
                     ref={ref}
                     {...inputProps}
                     size={size}
-                    value={values[0] || ""}
+                    value={inputDraft ?? (values[0] || "")}
                     disabled={isDisabled}
                     placeholder={placeholder || `请输入或选择${selectionLabel}`}
-                    onChange={(event) => changePaths(event.target.value ? [event.target.value] : [])}/>}
+                    onChange={(event) => {
+                        const next = event.target.value;
+                        if (suffixes.length && next) setInputDraft(next);
+                        else {
+                            setInputDraft(null);
+                            changePaths(next ? [next] : []);
+                        }
+                    }}
+                    onBlur={(event) => { commitInput(); inputProps.onBlur?.(event); }}
+                    onPressEnter={(event) => { if (!event.nativeEvent.isComposing) commitInput(); inputProps.onPressEnter?.(event); }}/>}
                 <Tooltip title={title}>
                     <Button
                         color={buttonProps?.type || buttonProps?.danger ? undefined : "default"}
@@ -558,7 +595,7 @@ const FileSelect = forwardRef<InputRef, FileSelectProps>((props, ref) => {
                         icon={<Icon type={type === "directory" ? "FolderOpenOutlined" : "FileSearchOutlined"}/>}
                         onClick={show}/>
                 </Tooltip>
-            </Space.Compact>
+            </Space.Compact>}
 
             <ConfigProvider componentSize="middle" variant="outlined">
                 <ProModal
@@ -589,6 +626,7 @@ const FileSelect = forwardRef<InputRef, FileSelectProps>((props, ref) => {
                             path={path}
                             loadedPath={loadedPath}
                             multiple={multiple}
+                            acceptsFile={acceptsFile}
                             selectedPaths={selectedPaths}
                             showingDisks={showingDisks}
                             pathBreadcrumbs={pathBreadcrumbs}

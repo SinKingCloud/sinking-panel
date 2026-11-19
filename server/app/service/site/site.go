@@ -105,7 +105,7 @@ type Service interface {
 	SelectBackup(where *repositorySiteBackup.SelectSiteBackup, query *page.Query) (*page.Result[*repositorySiteBackup.SiteBackup], error) // 分页查询网站备份
 	CreateBackup(siteIds []int64) (string, error)                                                                                         // 将所选网站提交为一个备份后台任务
 	DeleteBackup(ids []int64) error                                                                                                       // 删除备份及其本地、云端副本
-	DownloadBackup(id int64, storage string) (string, error)                                                                              // 获取备份临时下载地址
+	DownloadBackup(id int64, storage string) (string, error)                                                                              // 获取本地下载签名或云端签名 URL
 	OpenBackup(ctx context.Context, id int64, storage string) (io.ReadCloser, string, int64, error)                                       // 流式读取备份
 	RestoreBackup(id int64, siteId int64) (string, error)                                                                                 // 提交网站文件恢复后台任务
 }

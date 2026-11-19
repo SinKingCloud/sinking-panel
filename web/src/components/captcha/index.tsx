@@ -37,6 +37,10 @@ const useStyles: any = createStyles(({isDarkMode, token}) => {
                 backgroundColor: "transparent !important",
                 boxShadow: "none !important",
             },
+            // go-captcha uses CSS Modules and does not expose radius variables.
+            "[class*='gocaptcha-module_theme__'], [class*='gocaptcha-module_body__']": {
+                borderRadius: token.borderRadius,
+            },
             ".ant-modal-body> div": isDarkMode ? {
                 "--go-captcha-theme-text-color": "#8f94a7 !important",
                 "--go-captcha-theme-bg-color": "#18181a !important",

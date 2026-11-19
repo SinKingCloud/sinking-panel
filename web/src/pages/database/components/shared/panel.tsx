@@ -1,6 +1,6 @@
 import {useEffect, useMemo, useState} from "react";
 import type {ComponentType} from "react";
-import {App, Button, ConfigProvider, Dropdown, Input, Spin, theme, Tooltip, Typography} from "antd";
+import {App, Button, Dropdown, Input, Spin, Tooltip, Typography} from "antd";
 import {useTheme} from "sinking-antd";
 import {DatabaseContext} from "./context";
 import type {DatabasePanelProps, DatabaseVersion, FileSelectProps} from "./entities";
@@ -19,12 +19,8 @@ export default ({record: target, initialTab, onTabChange, onTask, request, versi
     panelProps?: Record<string, any>;
 }) => {
     const {styles} = useStyles();
-    const {token} = theme.useToken();
     const appearance = useTheme();
     const compact = Boolean(appearance?.isCompactTheme?.());
-    const fontSize = compact ? 12 : 13;
-    const buttonFontSize = compact ? 11 : 12;
-    const controlHeight = compact ? 24 : 28;
     const record = useMemo(() => ({...target, type}), [target, type]);
     const key = JSON.stringify([type, target.id, target.database_name || target.name]);
     const [retry, setRetry] = useState(0);
@@ -74,20 +70,7 @@ export default ({record: target, initialTab, onTabChange, onTask, request, versi
         ActionDropdown: components?.ActionDropdown || ActionDropdown,
         Editor: components?.Editor, ScriptTools: components?.ScriptTools,
     }), [actions, request, version, onTask, components?.FileSelect, components?.ActionDropdown, components?.Editor, components?.ScriptTools]);
-    return <DatabaseContext.Provider value={context}><ConfigProvider theme={{
-        token: {fontSize, fontSizeSM: fontSize},
-        components: {
-            Button: {contentFontSize: token.fontSize, contentFontSizeSM: token.fontSize},
-            Modal: {titleFontSize: token.fontSizeHeading5, titleLineHeight: token.lineHeightHeading5},
-            Input: {controlHeight, inputFontSize: fontSize, inputFontSizeSM: fontSize},
-            Select: {controlHeight, optionFontSize: fontSize},
-            Table: {fontFamily: token.fontFamily, lineHeight: token.lineHeight, colorText: token.colorTextSecondary, headerColor: token.colorTextSecondary,
-                cellFontSize: buttonFontSize, cellFontSizeMD: buttonFontSize, cellFontSizeSM: buttonFontSize,
-                cellPaddingBlock: compact ? 6 : 8, cellPaddingBlockMD: compact ? 6 : 8, cellPaddingBlockSM: compact ? 6 : 8,
-                cellPaddingInline: compact ? 8 : 10, cellPaddingInlineMD: compact ? 8 : 10, cellPaddingInlineSM: compact ? 8 : 10},
-            Segmented: {controlHeight: compact ? 28 : 32, ...(!compact && {controlHeightSM: 28}), itemColor: token.colorTextSecondary},
-        },
-    }}>
+    return <DatabaseContext.Provider value={context}>
         <App className={[styles.panel, type !== 1 && styles.workspace, className].filter(Boolean).join(" ")} style={style}>
             {!current?.ready ? <div className={styles.loading}><Spin/></div> : <>
                 {current.error && <div className={styles.version}>
@@ -97,5 +80,5 @@ export default ({record: target, initialTab, onTabChange, onTask, request, versi
                 <Panel {...panelProps} key={key} record={record} initialTab={initialTab} onTabChange={onTabChange} engine={engine} compact={compact}/>
             </>}
         </App>
-    </ConfigProvider></DatabaseContext.Provider>;
+    </DatabaseContext.Provider>;
 };

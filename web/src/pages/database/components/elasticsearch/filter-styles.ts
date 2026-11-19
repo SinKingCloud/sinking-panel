@@ -13,7 +13,8 @@ export default createStyles(({css, token}, {compact = false}: {compact?: boolean
     form: css`
         min-width: 0;
         .es-filter-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: ${token.margin}px; }
-        .es-filter-heading .ant-segmented { min-width: 0; }
+        .es-filter-heading .ant-segmented { min-width: 0; border-radius: ${token.borderRadius}px; }
+        .es-filter-heading .ant-segmented .ant-segmented-group > :is(.ant-segmented-item, .ant-segmented-thumb) { border-radius: ${token.borderRadius}px; }
         .es-filter-heading .ant-btn { flex: none; height: ${token.controlHeight - 4}px; padding-inline: ${token.paddingSM}px; font-size: ${token.fontSize - 1}px; }
         .es-filter-logic { width: 100%; margin-bottom: 14px; }
         .es-filter-labels, .es-filter-row { display: grid; grid-template-columns: minmax(0, 1fr) 112px minmax(0, 1.1fr) ${compact ? 28 : 32}px; gap: 8px; }
@@ -31,7 +32,7 @@ export default createStyles(({css, token}, {compact = false}: {compact?: boolean
         .es-filter-hint { margin-top: 10px; color: ${token.colorTextTertiary}; font-size: ${token.fontSizeSM}px; }
         .es-filter-preview { margin-top: ${token.margin}px; border: 1px solid ${token.colorBorderSecondary}; border-radius: ${token.borderRadius}px; overflow: hidden; }
         .es-filter-preview-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 7px 10px; background: ${token.colorFillQuaternary}; }
-        .es-filter-preview-toggle { padding: 0; border: 0; background: transparent; color: ${token.colorTextSecondary}; font-size: ${token.fontSizeSM}px; cursor: pointer; }
+        .es-filter-preview-toggle { padding: 0; border: 0; border-radius: ${token.borderRadius}px; background: transparent; color: ${token.colorTextSecondary}; font-size: ${token.fontSizeSM}px; cursor: pointer; }
         .es-filter-preview-heading .ant-btn { height: 24px; font-size: ${token.fontSizeSM}px; }
         .es-filter-preview pre { margin: 0; padding: 12px; white-space: pre-wrap; overflow-wrap: anywhere; color: ${token.colorTextSecondary}; font-size: ${compact ? 11 : 12}px; line-height: 1.7; }
         .es-filter-preview-error { padding: 12px; color: ${token.colorTextTertiary}; font-size: ${token.fontSizeSM}px; }

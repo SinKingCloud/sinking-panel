@@ -20,6 +20,7 @@ type FileSelectBrowserProps = {
     path: string;
     loadedPath: string;
     multiple: boolean;
+    acceptsFile: (name: string) => boolean;
     selectedPaths: string[];
     showingDisks: boolean;
     pathBreadcrumbs: any[];
@@ -56,6 +57,7 @@ const FileSelectBrowser = ({
     path,
     loadedPath,
     multiple,
+    acceptsFile,
     selectedPaths,
     showingDisks,
     pathBreadcrumbs,
@@ -86,6 +88,8 @@ const FileSelectBrowser = ({
 }: FileSelectBrowserProps) => {
     const allowFiles = type !== "directory";
     const allowDirectories = type !== "file";
+    const canSelect = useCallback((item: any) => (showingDisks || item.is_dir)
+        ? allowDirectories : allowFiles && acceptsFile(item.name), [acceptsFile, allowDirectories, allowFiles, showingDisks]);
     const selectedKeys = useMemo(() => new Set(selectedPaths.filter(isAbsoluteFilePath).map(comparablePath)), [selectedPaths]);
     const coveredKeys = useMemo(() => {
         const result = new Set<string>();
@@ -111,8 +115,8 @@ const FileSelectBrowser = ({
         return result;
     }, [allowDirectories, multiple, selectedKeys]);
     const selectablePaths = useMemo(() => items
-        .filter((item) => showingDisks || item.is_dir ? allowDirectories : allowFiles)
-        .map((item) => showingDisks ? item.path : joinFilePath(path, item.name)), [allowDirectories, allowFiles, items, path, showingDisks]);
+        .filter(canSelect)
+        .map((item) => showingDisks ? item.path : joinFilePath(path, item.name)), [canSelect, items, path, showingDisks]);
     const allChecked = selectablePaths.length > 0 && selectablePaths.every((value) => checkedKeys.has(comparablePath(value)));
     const someChecked = selectablePaths.some((value) => checkedKeys.has(comparablePath(value)) || partialKeys.has(comparablePath(value)));
     const columns = useMemo<TableProps<any>["columns"]>(() => [
@@ -121,13 +125,13 @@ const FileSelectBrowser = ({
             dataIndex: "name",
             render: (name: string, record) => {
                 const recordPath = showingDisks ? record.path : joinFilePath(path, name);
-                const selected = ((showingDisks || record.is_dir) ? allowDirectories : allowFiles)
-                    && selectedKeys.has(comparablePath(recordPath));
+                const selectable = canSelect(record);
+                const selected = selectable && selectedKeys.has(comparablePath(recordPath));
                 return (
                     <div className="path-select-name-cell">
                         <Icon type={getFileIconType(name, showingDisks || record.is_dir)} className="path-select-icon"/>
                         <span className="path-select-name" title={name}>{name}</span>
-                        {!multiple && ((showingDisks || record.is_dir) ? allowDirectories : allowFiles) ? (
+                        {!multiple && selectable ? (
                             <span className="path-select-row-action">
                                 {selected && <Icon type="CheckOutlined"/>}
                             </span>
@@ -152,23 +156,22 @@ const FileSelectBrowser = ({
             width: compact ? 132 : 154,
             render: formatFileTime,
         }]),
-    ], [allowDirectories, allowFiles, compact, multiple, path, selectedKeys, showingDisks]);
+    ], [canSelect, compact, multiple, path, selectedKeys, showingDisks]);
 
     const getRowClassName = useCallback((record: any) => {
         if (loading) {
             return "path-select-passive";
         }
         const recordPath = showingDisks ? record.path : joinFilePath(path, record.name);
-        const selected = ((showingDisks || record.is_dir) ? allowDirectories : allowFiles)
-            && checkedKeys.has(comparablePath(recordPath));
+        const selected = canSelect(record) && checkedKeys.has(comparablePath(recordPath));
         if (selected) {
             return "path-select-selectable path-select-selected";
         }
         if (showingDisks || record.is_dir) {
             return "path-select-directory";
         }
-        return allowFiles ? "path-select-selectable" : "path-select-passive";
-    }, [allowDirectories, allowFiles, checkedKeys, loading, path, showingDisks]);
+        return canSelect(record) ? "path-select-selectable" : allowFiles ? "path-select-rejected" : "path-select-passive";
+    }, [allowFiles, canSelect, checkedKeys, loading, path, showingDisks]);
 
     const getRowProps = useCallback<NonNullable<TableProps<any>["onRow"]>>((record) => {
         if (loading) {
@@ -190,8 +193,8 @@ const FileSelectBrowser = ({
                 },
             };
         }
-        if (!allowFiles) {
-            return {title: record.name};
+        if (!canSelect(record)) {
+            return {title: record.name, "aria-disabled": true};
         }
         const selected = checkedKeys.has(comparablePath(recordPath));
         return {
@@ -209,7 +212,7 @@ const FileSelectBrowser = ({
                 }
             },
         };
-    }, [allowFiles, checkedKeys, loading, multiple, onConfirm, onNavigate, onSelectionChange, path, showingDisks]);
+    }, [canSelect, checkedKeys, loading, multiple, onConfirm, onNavigate, onSelectionChange, path, showingDisks]);
 
     const emptyText = error ? (
         <div className="path-select-error">
@@ -369,13 +372,13 @@ const FileSelectBrowser = ({
                         indeterminate={!allChecked && someChecked} disabled={loading || !selectablePaths.length}
                         onChange={(event) => onSelectionChange(selectablePaths, event.target.checked)}/>,
                     getCheckboxProps: (record) => ({
-                        disabled: loading || ((showingDisks || record.is_dir) ? !allowDirectories : !allowFiles),
+                        disabled: loading || !canSelect(record),
                         indeterminate: !checkedKeys.has(comparablePath(showingDisks ? record.path : joinFilePath(path, record.name)))
                             && partialKeys.has(comparablePath(showingDisks ? record.path : joinFilePath(path, record.name))),
                         "aria-label": `选择${record.is_dir ? "目录" : "文件"} ${record.name}`,
                     }),
                     onSelect: (record, checked) => onSelectionChange([showingDisks ? record.path : joinFilePath(path, record.name)], checked),
-                    onSelectMultiple: (checked, _, records) => onSelectionChange(records.map((record) => showingDisks ? record.path : joinFilePath(path, record.name)), checked),
+                    onSelectMultiple: (checked, _, records) => onSelectionChange(records.filter(canSelect).map((record) => showingDisks ? record.path : joinFilePath(path, record.name)), checked),
                     onCell: () => ({onClick: (event) => event.stopPropagation(), onKeyDown: (event) => event.stopPropagation()}),
                 } : undefined}
                 rowClassName={getRowClassName}

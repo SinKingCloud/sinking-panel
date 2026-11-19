@@ -25,6 +25,8 @@ export default createStyles(({css, token}) => ({
     `,
     modal: css`
         .mongo-filter-mode { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: ${token.margin}px; }
+        .mongo-filter-mode > .ant-segmented { border-radius: ${token.borderRadius}px; }
+        .mongo-filter-mode > .ant-segmented .ant-segmented-group > :is(.ant-segmented-item, .ant-segmented-thumb) { border-radius: ${token.borderRadius}px; }
         .mongo-filter-mode > div:last-child { display: flex; align-items: center; gap: 6px; margin-left: auto; }
         .mongo-filter-mode .ant-btn { flex: none; height: ${token.controlHeight - 4}px; padding-inline: ${token.paddingSM}px; font-size: ${token.fontSize - 1}px; }
         .mongo-filter-shell { min-width: 0; border: 1px solid ${token.colorBorder}; border-radius: ${token.borderRadius}px; overflow: hidden; }

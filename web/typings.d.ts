@@ -21,6 +21,7 @@ namespace API {
     type LoginDevice = 'web' | 'pc' | 'mobile' | 'android';
 
     type Ui = {
+        logo: string;
         layout: string;
         watermark: boolean;
         theme: string;

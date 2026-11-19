@@ -1,6 +1,7 @@
 package file
 
 import (
+	"server/app/constant"
 	"server/app/enum/log_type"
 	"server/app/service"
 	"server/app/util/context"
@@ -16,7 +17,7 @@ func Sign(c *context.Context) {
 		c.Error(msg)
 		return
 	}
-	key, err := service.File.CreatePreviewSign(form.Path, form.Download)
+	key, err := service.File.CreatePreviewSign(form.Path, form.Download, constant.CacheTimeWithFilePreview)
 	if err != nil {
 		c.Error(err.Error())
 	} else {

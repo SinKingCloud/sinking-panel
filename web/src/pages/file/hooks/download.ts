@@ -1,18 +1,7 @@
 import {useCallback} from "react";
 import {App} from "antd";
-import defaultSettings from "@/../config/defaultSettings";
-import {getFileSign} from "@/service/api/file";
+import {filePreviewUrl, getFileSign} from "@/service/api/file";
 import {joinFilePath} from "../utils";
-
-const apiUrl = (path: string) => {
-    const origin = window.location.origin;
-    const gateway = new URL(defaultSettings?.gateway || "/", origin);
-    const gatewayPath = gateway.pathname.replace(/\/+$/, "");
-    gateway.pathname = `${gatewayPath}/${path.replace(/^\/+/, "")}`.replace(/\/{2,}/g, "/");
-    gateway.search = "";
-    gateway.hash = "";
-    return gateway.toString();
-};
 
 const useFileDownload = (path: string) => {
     const {message} = App.useApp();
@@ -29,10 +18,8 @@ const useFileDownload = (path: string) => {
             return;
         }
         try {
-            const url = new URL(apiUrl("/preview"));
-            url.searchParams.set("key", response?.data);
             const anchor = document.createElement("a");
-            anchor.href = url.toString();
+            anchor.href = filePreviewUrl(response.data);
             anchor.download = record.name;
             anchor.rel = "noopener noreferrer";
             anchor.referrerPolicy = "no-referrer";

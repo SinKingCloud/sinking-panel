@@ -1,7 +1,6 @@
 package file
 
 import (
-	"crypto/md5"
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
@@ -14,8 +13,8 @@ import (
 	"time"
 )
 
-// CreatePreviewSign 检查文件并生成预览签名，符号链接解析为实际文件路径。
-func (s *service) CreatePreviewSign(path string, download bool) (string, error) {
+// CreatePreviewSign 生成文件签名；有效期至少一分钟，非正数表示不过期。
+func (s *service) CreatePreviewSign(path string, download bool, expires time.Duration) (string, error) {
 	f := file.NewDisk("")
 	if !f.Exists(path) {
 		return "", errors.New("文件不存在")
@@ -36,19 +35,27 @@ func (s *service) CreatePreviewSign(path string, download bool) (string, error) 
 	if !info.Mode().IsRegular() {
 		return "", errors.New("不支持访问该文件类型")
 	}
-	random := make([]byte, 32)
-	if _, err := rand.Read(random); err != nil {
+	var random [16]byte
+	if _, err := rand.Read(random[:]); err != nil {
 		return "", errors.New("生成预览签名失败")
 	}
-	hash := md5.Sum(random)
-	key := hex.EncodeToString(hash[:])
+	key := hex.EncodeToString(random[:])
 	value := PreviewSign{
-		Path:      path,
-		FileName:  fileName,
-		Download:  download,
-		ExpiresAt: time.Now().Add(constant.CacheTimeWithFilePreview),
+		Path:     path,
+		FileName: fileName,
+		Download: download,
 	}
-	s.cache.SetWithExpire(constant.CacheNameWithFilePreview+key, value, constant.CacheTimeWithFilePreview)
+	if expires > 0 {
+		expires = max(expires, time.Minute)
+		value.TTL = expires
+		value.ExpiresAt = time.Now().Add(expires)
+		if value.ExpiresAt.UnixNano() <= 0 {
+			return "", errors.New("预览签名有效期过长")
+		}
+	} else {
+		expires = -1
+	}
+	s.cache.SetWithExpire(constant.CacheNameWithFilePreview+key, value, expires)
 	return key, nil
 }
 
@@ -57,20 +64,20 @@ func (s *service) CheckPreviewSign(key string) (PreviewSign, error) {
 	if len(key) != 32 {
 		return PreviewSign{}, errors.New("预览签名无效或已过期")
 	}
-	decoded, err := hex.DecodeString(key)
-	if err != nil || len(decoded) != md5.Size {
+	if _, err := hex.DecodeString(key); err != nil {
 		return PreviewSign{}, errors.New("预览签名无效或已过期")
 	}
 	cacheKey := constant.CacheNameWithFilePreview + key
 	value := s.cache.Get(cacheKey)
 	sign, ok := value.(PreviewSign)
-	if !ok || sign.Path == "" || !sign.ExpiresAt.After(time.Now()) {
-		s.cache.Delete(cacheKey)
+	if !ok || sign.Path == "" || (!sign.ExpiresAt.IsZero() && !sign.ExpiresAt.After(time.Now())) {
 		return PreviewSign{}, errors.New("预览签名无效或已过期")
 	}
-	if time.Until(sign.ExpiresAt) < constant.CacheTimeWithFilePreviewRenewBefore {
-		sign.ExpiresAt = time.Now().Add(constant.CacheTimeWithFilePreviewRenew)
-		s.cache.SetWithExpire(cacheKey, sign, constant.CacheTimeWithFilePreviewRenew)
+	// 保留临期续签，短签名按签发时长缩短续期窗口。
+	if sign.TTL > 0 && time.Until(sign.ExpiresAt) < min(10*time.Minute, sign.TTL/6) {
+		ttl := min(30*time.Minute, sign.TTL)
+		sign.ExpiresAt = time.Now().Add(ttl)
+		s.cache.SetWithExpire(cacheKey, sign, ttl)
 	}
 	return sign, nil
 }
@@ -112,33 +119,26 @@ func (s *service) OpenPreview(key string) (*PreviewFile, error) {
 	if name == "." || name == string(filepath.Separator) {
 		name = filepath.Base(sign.Path)
 	}
-	return &PreviewFile{File: handle, Name: name, ModTime: info.ModTime(), Download: sign.Download}, nil
+	return &PreviewFile{
+		File:      handle,
+		Name:      name,
+		Size:      info.Size(),
+		ModTime:   info.ModTime(),
+		Download:  sign.Download,
+		ExpiresAt: sign.ExpiresAt,
+	}, nil
 }
 
 // IsViewableInBrowser 判断是否能在浏览器预览
 func (s *service) IsViewableInBrowser(contentType string) bool {
-	viewableTypes := map[string]bool{
-		"text/html":              true,
-		"text/plain":             true,
-		"text/css":               true,
-		"text/markdown":          true,
-		"text/csv":               true,
-		"application/javascript": true,
-		"application/json":       true,
-		"application/xml":        true,
-		"application/pdf":        true,
-		"image/png":              true,
-		"image/jpeg":             true,
-		"image/gif":              true,
-		"image/bmp":              true,
-		"image/svg+xml":          true,
-		"image/webp":             true,
-		"audio/mpeg":             true,
-		"video/mp4":              true,
-		"video/quicktime":        true,
-		"video/webm":             true,
+	switch contentType {
+	case "text/plain", "text/css", "text/markdown", "text/csv",
+		"application/javascript", "application/json", "application/pdf",
+		"image/png", "image/jpeg", "image/gif", "image/bmp", "image/webp",
+		"audio/mpeg", "video/mp4", "video/quicktime", "video/webm":
+		return true
 	}
-	return viewableTypes[contentType]
+	return false
 }
 
 // GetContentType 获取文件的 Content-Type

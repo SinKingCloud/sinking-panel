@@ -138,6 +138,14 @@ const useStyles = createStyles<{compact?: boolean; dark?: boolean}>(({css, token
                 width: 100%;
             }
 
+            .file-editor-setting-row .ant-segmented {
+                border-radius: ${token.borderRadius}px;
+            }
+
+            .file-editor-setting-row .ant-segmented .ant-segmented-group > :is(.ant-segmented-item, .ant-segmented-thumb) {
+                border-radius: ${token.borderRadius}px;
+            }
+
             .file-editor-setting-row .ant-switch {
                 justify-self: end;
             }
@@ -639,7 +647,6 @@ const useStyles = createStyles<{compact?: boolean; dark?: boolean}>(({css, token
             }
 
             .file-editor-tab {
-                position: relative;
                 height: ${compact ? 30 : 34}px;
                 min-width: ${compact ? 108 : 120}px;
                 max-width: ${compact ? 172 : 196}px;
@@ -656,24 +663,10 @@ const useStyles = createStyles<{compact?: boolean; dark?: boolean}>(({css, token
                 background: ${token.colorFillQuaternary};
             }
 
-            .file-editor-tab::after {
-                position: absolute;
-                right: 0;
-                bottom: 0;
-                left: 0;
-                height: 2px;
-                border-radius: 2px 2px 0 0;
-                background: transparent;
-                content: "";
-            }
-
             .file-editor-tab.is-active {
                 background: ${token.colorFillSecondary};
                 color: ${token.colorText};
-            }
-
-            .file-editor-tab.is-active::after {
-                background: ${token.colorPrimary};
+                box-shadow: inset 0 -2px 0 ${token.colorPrimary};
             }
 
             .file-editor-tab.has-error .file-editor-tab-main > .anticon {
@@ -699,6 +692,8 @@ const useStyles = createStyles<{compact?: boolean; dark?: boolean}>(({css, token
             }
 
             .file-editor-tab-main:focus-visible {
+                border-start-start-radius: inherit;
+                border-end-start-radius: inherit;
                 box-shadow: inset 0 0 0 2px ${token.colorPrimaryBorder};
             }
 

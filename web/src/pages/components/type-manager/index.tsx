@@ -416,7 +416,7 @@ const useStyles = createStyles(({css, token}: any, props: { compact: boolean }) 
         grid-template-columns: ${props.compact ? 32 : 36}px minmax(0, 1fr) auto;
         align-items: center;
         padding: ${props.compact ? "3px 6px 3px 4px" : "4px 8px 4px 5px"};
-        border-radius: ${token.borderRadiusSM}px;
+        border-radius: ${token.borderRadius}px;
         background: ${token.colorFillQuaternary};
         transition: transform ${dragAnimationDuration}ms ${dragAnimationEasing},
         background-color 120ms ease,
@@ -449,7 +449,7 @@ const useStyles = createStyles(({css, token}: any, props: { compact: boolean }) 
             right: 8px;
             left: 8px;
             height: 2px;
-            border-radius: 1px;
+            border-radius: inherit;
             background: ${token.colorPrimary};
             content: "";
             pointer-events: none;
@@ -463,7 +463,7 @@ const useStyles = createStyles(({css, token}: any, props: { compact: boolean }) 
             bottom: 0;
             left: 8px;
             height: 2px;
-            border-radius: 1px;
+            border-radius: inherit;
             background: ${token.colorPrimary};
             content: "";
             pointer-events: none;
@@ -477,7 +477,7 @@ const useStyles = createStyles(({css, token}: any, props: { compact: boolean }) 
         justify-content: center;
         padding: 0;
         border: 0;
-        border-radius: ${token.borderRadiusSM}px;
+        border-radius: inherit;
         outline: none;
         background: transparent;
         color: ${token.colorTextQuaternary};

@@ -170,8 +170,8 @@ export default createStyles(({css, token, isDarkMode}: any, props: any = {}) => 
                 top: 19%;
                 right: 6px;
                 height: 60%;
-                border-top-left-radius: 15px;
-                border-bottom-left-radius: 15px;
+                border-top-left-radius: ${token.borderRadius}px;
+                border-bottom-left-radius: ${token.borderRadius}px;
             }
 
             @container setting-workspace (max-width: 760px) {
@@ -294,6 +294,80 @@ export default createStyles(({css, token, isDarkMode}: any, props: any = {}) => 
         formField: css`
             width: 100%;
             max-width: ${compact ? 280 : 350}px;
+        `,
+        colorTrigger: css`
+            flex: 1;
+            min-width: 0;
+            cursor: pointer;
+            input { cursor: pointer; text-align: start; }
+            .color-swatch {
+                display: block;
+                width: 1em;
+                height: 1em;
+                border: 1px solid ${token.colorBorderSecondary};
+                border-radius: ${token.borderRadiusSM}px;
+            }
+        `,
+        logoTile: css`
+            position: relative;
+            box-sizing: border-box;
+            width: ${compact ? 68 : 80}px;
+            height: ${compact ? 68 : 80}px;
+            flex: none;
+            display: inline-flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            border: 1px dashed ${token.colorBorder};
+            border-radius: ${token.borderRadius}px;
+            background: ${token.colorFillAlter};
+            color: ${token.colorTextSecondary};
+            font-size: ${token.fontSizeSM}px;
+
+            &[data-preview] {
+                padding: 0;
+                border: 1px solid ${token.colorBorderSecondary};
+                background: ${token.colorBgContainer};
+            }
+
+            .logo-actions {
+                position: absolute;
+                inset: auto 0 0;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                pointer-events: none;
+                background: rgba(0, 0, 0, ${dark ? 0.66 : 0.58});
+                color: ${token.colorWhite};
+                button {
+                    display: grid;
+                    place-items: center;
+                    width: 30px;
+                    height: 30px;
+                    padding: 0;
+                    border: 0;
+                    border-radius: ${token.borderRadiusSM}px;
+                    background: transparent;
+                    color: inherit;
+                    font-size: ${token.fontSize}px;
+                    cursor: pointer;
+                    pointer-events: auto;
+                    &:hover, &:focus-visible { background: rgba(255, 255, 255, 0.14); }
+                    &:focus-visible { outline: 1px solid currentColor; outline-offset: -2px; }
+                }
+            }
+
+            @media (hover: hover) and (pointer: fine) {
+                .logo-actions {
+                    inset: 0;
+                    opacity: 0;
+                    transition: opacity ${token.motionDurationFast};
+                }
+                &:hover .logo-actions, &:focus-within .logo-actions {
+                    opacity: 1;
+                }
+            }
         `,
         formActions: css`
             margin-top: ${token.marginLG}px;

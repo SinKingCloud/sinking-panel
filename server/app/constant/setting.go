@@ -46,6 +46,7 @@ const (
 	WebName  = WebGroup + ".name"  //网站名称
 
 	UiGroup     = "ui"                   //界面配置组
+	UiLogo      = UiGroup + ".logo"      //面板 Logo 文件路径
 	UiLayout    = UiGroup + ".layout"    //界面布局
 	UiWaterMark = UiGroup + ".watermark" //水印内容
 	UiTheme     = UiGroup + ".theme"     //主题

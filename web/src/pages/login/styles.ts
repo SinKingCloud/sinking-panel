@@ -140,8 +140,11 @@ export default createStyles(({css, token, isDarkMode}: any, props: any = {}) => 
                 justify-content: center;
                 gap: ${compact ? 10 : 12}px;
 
-                > .anticon {
+                > .brand-logo {
                     flex: none;
+                    width: 1em;
+                    height: 1em;
+                    object-fit: contain;
                     color: ${token.colorPrimary};
                     font-size: ${compact ? 29 : 34}px;
                 }
@@ -172,7 +175,7 @@ export default createStyles(({css, token, isDarkMode}: any, props: any = {}) => 
                 max-width: ${compact ? 340 : 360}px;
                 padding: ${compact ? "22px 20px 24px" : "24px 20px 26px"};
 
-                .brand > .anticon {
+                .brand > .brand-logo {
                     font-size: ${compact ? 26 : 30}px;
                 }
 

@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"io"
 	"mime"
-	"net/url"
 	"os"
 	"path"
 	"path/filepath"
@@ -465,7 +464,7 @@ func (s *service) OpenBackup(ctx context.Context, id int64, storage string) (io.
 	return result.Body, record.Name, record.Size, nil
 }
 
-// DownloadBackup 复用已有签名下载，浏览器不需要携带登录令牌或缓冲整个文件。
+// DownloadBackup 本地副本返回文件签名，云端副本返回存储厂商的签名 URL。
 func (s *service) DownloadBackup(id int64, storage string) (string, error) {
 	if storage != "" && storage != "local" && storage != "oss" {
 		return "", errors.New("备份存储类型不合法")
@@ -481,11 +480,7 @@ func (s *service) DownloadBackup(id int64, storage string) (string, error) {
 			if s.fileService == nil {
 				return "", errors.New("文件服务未初始化")
 			}
-			key, err := s.fileService.CreatePreviewSign(filepath.Join(s.backupPath, filepath.FromSlash(data.LocalPath)), true)
-			if err != nil {
-				return "", err
-			}
-			return "/preview?key=" + url.QueryEscape(key), nil
+			return s.fileService.CreatePreviewSign(filepath.Join(s.backupPath, filepath.FromSlash(data.LocalPath)), true, constant.CacheTimeWithFilePreview)
 		}
 		if storage == "local" || data.OssPath == "" {
 			return "", openErr

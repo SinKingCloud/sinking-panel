@@ -52,6 +52,10 @@ const useStyles = createStyles(({css, token}: any, {compact}: {compact: boolean}
             align-items: center;
             justify-content: space-between;
             gap: 12px;
+
+            > button, .ant-btn {
+                border-radius: ${token.borderRadius}px;
+            }
         `,
         title: css`
             flex: 1;
@@ -111,7 +115,6 @@ const useStyles = createStyles(({css, token}: any, {compact}: {compact: boolean}
             align-items: center;
             justify-content: center;
             border: 0;
-            border-radius: ${token.borderRadiusSM}px;
             background: transparent;
             color: ${token.colorTextTertiary};
             cursor: pointer;

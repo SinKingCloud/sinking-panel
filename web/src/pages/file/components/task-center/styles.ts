@@ -12,7 +12,7 @@ const useStyles = createStyles<{compact?: boolean}>(({css, token}, props = {}) =
             max-height: min(520px, calc(100dvh - 32px));
             overflow: hidden;
             border: 1px solid ${token.colorBorderSecondary};
-            border-radius: ${token.borderRadiusLG + 2}px;
+            border-radius: ${token.borderRadiusLG}px;
             background: ${token.colorBgContainer};
             box-shadow: ${token.boxShadowSecondary};
             color: ${token.colorText};

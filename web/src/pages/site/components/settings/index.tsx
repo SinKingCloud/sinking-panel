@@ -434,7 +434,7 @@ const useStyles = createStyles(({css, token}: any, props: any = {}) => ({
             min-height: 0;
             padding: ${props?.compact ? "4px 0" : "5px 0"} !important;
             align-items: center !important;
-            border-radius: ${token.borderRadiusSM}px !important;
+            border-radius: ${token.borderRadius}px !important;
             outline: 0 !important;
             background: transparent !important;
             color: ${token.colorTextSecondary} !important;
@@ -458,7 +458,7 @@ const useStyles = createStyles(({css, token}: any, props: any = {}) => ({
         .ant-collapse-ghost .ant-collapse-body {
             margin: 1px 0 ${props?.compact ? 3 : 4}px;
             padding: ${props?.compact ? "5px 8px" : "7px 10px"} !important;
-            border-radius: ${token.borderRadiusSM}px;
+            border-radius: ${token.borderRadius}px;
             background: ${token.colorFillQuaternary};
         }
 
@@ -472,6 +472,14 @@ const useStyles = createStyles(({css, token}: any, props: any = {}) => ({
         width: 100%;
         max-width: 800px;
         margin: 0 auto;
+
+        .ant-segmented:not(.ant-segmented-shape-round) {
+            border-radius: ${token.borderRadius}px;
+
+            .ant-segmented-group > :is(.ant-segmented-item, .ant-segmented-thumb) {
+                border-radius: ${token.borderRadius}px;
+            }
+        }
     `,
     sectionHeader: css`
         margin-bottom: ${props?.compact ? 10 : 13}px;
@@ -764,7 +772,7 @@ const useStyles = createStyles(({css, token}: any, props: any = {}) => ({
         .domain-toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 4px 12px; margin-bottom: 8px; }
         .domain-list-title { display: inline-flex; align-items: baseline; flex-wrap: wrap; gap: 8px; color: ${token.colorText}; font-size: 13px; font-weight: 500; line-height: 20px; }
 
-        .domain-list-container { width: 100%; min-width: 0; box-sizing: border-box; overflow: hidden; border: 1px solid ${token.colorBorderSecondary}; border-radius: ${token.borderRadiusSM}px; }
+        .domain-list-container { width: 100%; min-width: 0; box-sizing: border-box; overflow: hidden; border: 1px solid ${token.colorBorderSecondary}; border-radius: ${token.borderRadius}px; }
         .domain-list { width: 100%; min-width: 0; border-top: 1px solid ${token.colorBorderSecondary}; }
         .domain-list-heading, .domain-row {
             box-sizing: border-box;
@@ -813,6 +821,7 @@ const useStyles = createStyles(({css, token}: any, props: any = {}) => ({
 
         .redirect-card {
             min-width: 0;
+            overflow: clip;
             border: 1px solid ${token.colorBorderSecondary};
             border-radius: ${token.borderRadius}px;
         }
@@ -822,7 +831,6 @@ const useStyles = createStyles(({css, token}: any, props: any = {}) => ({
             align-items: center;
             gap: 8px;
             padding: ${props?.compact ? "8px 9px" : "10px 12px"};
-            border-radius: ${token.borderRadius}px;
             background: ${token.colorFillQuaternary};
         }
 
@@ -853,7 +861,7 @@ const useStyles = createStyles(({css, token}: any, props: any = {}) => ({
         .redirect-body[hidden] { display: none; }
         .redirect-scope { max-width: 300px; }
         .redirect-scope .ant-segmented-item-label { min-height: 28px; padding: 0 10px; font-size: 12px; line-height: 28px; }
-        .redirect-example { margin: 8px 0; padding: 9px 11px; border-radius: ${token.borderRadiusSM}px; background: ${token.colorFillQuaternary}; }
+        .redirect-example { margin: 8px 0; padding: 9px 11px; border-radius: ${token.borderRadius}px; background: ${token.colorFillQuaternary}; }
         .redirect-example-title { margin-bottom: 5px; color: ${token.colorTextSecondary}; font-size: 12px; font-weight: 500; }
         .redirect-example-row { display: grid; grid-template-columns: 38px minmax(0, 1fr); align-items: baseline; gap: 6px; color: ${token.colorTextTertiary}; font-size: 11px; line-height: 19px; }
         .redirect-example-row code { color: ${token.colorTextSecondary}; font: inherit; overflow-wrap: anywhere; }
@@ -873,8 +881,8 @@ const useStyles = createStyles(({css, token}: any, props: any = {}) => ({
         gap: ${props?.compact ? 9 : 11}px;
 
         .route-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: ${token.colorTextTertiary}; font-size: 12px; }
-        .route-card { min-width: 0; border: 1px solid ${token.colorBorderSecondary}; border-radius: ${token.borderRadius}px; scroll-margin-block: 8px; }
-        .route-heading { display: flex; align-items: center; gap: 8px; padding: ${props?.compact ? "8px 9px" : "10px 12px"}; border-radius: ${token.borderRadius}px; background: ${token.colorFillQuaternary}; }
+        .route-card { min-width: 0; overflow: clip; border: 1px solid ${token.colorBorderSecondary}; border-radius: ${token.borderRadius}px; scroll-margin-block: 8px; }
+        .route-heading { display: flex; align-items: center; gap: 8px; padding: ${props?.compact ? "8px 9px" : "10px 12px"}; background: ${token.colorFillQuaternary}; }
         .route-summary { min-width: 0; flex: 1; display: flex; align-items: center; gap: 8px; padding: 0; border: 0; background: transparent; color: ${token.colorText}; font: inherit; text-align: left; cursor: pointer; }
         .route-summary:focus-visible { outline: 2px solid ${token.colorPrimary}; outline-offset: 3px; }
         .route-summary > .anticon { flex: none; color: ${token.colorTextTertiary}; font-size: 11px; }
@@ -901,10 +909,6 @@ const useStyles = createStyles(({css, token}: any, props: any = {}) => ({
         overflow: hidden;
         border: 1px solid ${token.colorBorderSecondary};
         border-radius: ${token.borderRadius}px;
-
-        .ace_editor {
-            border-radius: ${token.borderRadius}px !important;
-        }
     `,
     wafMode: css`
         max-width: min(100%, 300px);
@@ -923,7 +927,7 @@ const useStyles = createStyles(({css, token}: any, props: any = {}) => ({
         padding: ${props?.compact ? "8px 9px" : "9px 10px"};
         display: grid;
         gap: 5px;
-        border-radius: ${token.borderRadiusSM}px;
+        border-radius: ${token.borderRadius}px;
         background: ${token.colorFillQuaternary};
 
         .variable-guide-title {
@@ -981,6 +985,7 @@ const useStyles = createStyles(({css, token}: any, props: any = {}) => ({
 
         .waf-rule-entry {
             min-width: 0;
+            overflow: clip;
             border: 1px solid ${token.colorBorderSecondary};
             border-radius: ${token.borderRadius}px;
             scroll-margin-block: 8px;
@@ -995,7 +1000,6 @@ const useStyles = createStyles(({css, token}: any, props: any = {}) => ({
             align-items: center;
             gap: 10px;
             background: ${token.colorFillQuaternary};
-            border-radius: ${token.borderRadius}px;
         }
 
         .waf-rule-select {
@@ -1016,7 +1020,7 @@ const useStyles = createStyles(({css, token}: any, props: any = {}) => ({
         }
 
         .waf-rule-select:focus-visible {
-            border-radius: ${token.borderRadiusSM}px;
+            border-radius: ${token.borderRadius}px;
             box-shadow: 0 0 0 2px ${token.colorPrimaryBorder};
         }
 
@@ -1494,7 +1498,7 @@ const useStyles = createStyles(({css, token}: any, props: any = {}) => ({
             flex: none;
             align-items: center;
             justify-content: center;
-            border-radius: ${token.borderRadiusSM}px;
+            border-radius: ${token.borderRadius}px;
             background: ${token.colorFillTertiary};
             color: ${token.colorTextSecondary};
             font-size: 14px;

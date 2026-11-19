@@ -4,12 +4,12 @@ import {ModalTable, ProModal, Title, useTheme} from "sinking-antd";
 import type {ModalTableProps, ModalTableRef} from "sinking-antd";
 import {useOutletContext} from "umi";
 import type {LayoutContext} from "@/layouts/context";
-import defaultSettings from "@/../config/defaultSettings";
 import ActionDropdown from "@/pages/components/ui/action-dropdown";
 import SiteSelect from "@/pages/components/site-select";
 import Log, {LogRef} from "@/pages/components/task-log";
 import {formatFileSize} from "@/pages/file/utils";
 import {getParams} from "@/utils/page";
+import {filePreviewUrl} from "@/service/api/file";
 import {
     createSiteBackup,
     deleteSiteBackups,
@@ -204,17 +204,10 @@ const BackupManager = forwardRef<BackupManagerRef>((_, ref) => {
                         tableRef.current?.reload();
                         message.success(response?.message || "备份已删除");
                     } else {
-                        const address = response?.data?.url;
-                        if (!address || typeof address !== "string") throw new Error("获取下载地址失败");
-                        const gateway = new URL(defaultSettings?.gateway || "/", window.location.origin);
-                        gateway.search = "";
-                        gateway.hash = "";
-                        gateway.pathname = `${gateway.pathname.replace(/\/+$/, "")}/`;
-                        const url = /^https?:\/\//i.test(address) ? new URL(address)
-                            : new URL(address.replace(/^\/+/, ""), gateway);
-                        if (!["http:", "https:"].includes(url.protocol)) throw new Error("下载地址无效");
+                        const sign = response?.data;
+                        if (typeof sign !== "string" || !sign) throw new Error("获取下载签名失败");
                         const anchor = document.createElement("a");
-                        anchor.href = url.toString();
+                        anchor.href = /^https?:\/\//i.test(sign) ? sign : filePreviewUrl(sign);
                         anchor.download = records[0]?.name || "backup.tar.gz";
                         anchor.rel = "noopener noreferrer";
                         anchor.referrerPolicy = "no-referrer";

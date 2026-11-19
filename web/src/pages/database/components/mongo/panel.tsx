@@ -359,7 +359,6 @@ export default ({record, initialTab, onTabChange}: any) => {
                 </> : displayAction?.operation !== "create_collection" && <ConfigProvider componentSize="middle" theme={{components: {
                     Input: {controlHeight: token.controlHeight}, Select: {controlHeight: token.controlHeight},
                     InputNumber: {controlHeight: token.controlHeight}, DatePicker: {controlHeight: token.controlHeight},
-                    Segmented: {borderRadiusSM: token.borderRadius, borderRadiusXS: token.borderRadiusSM},
                 }}}>
                     <div className="mongo-document-toolbar">
                         <Segmented size="small" shape="default" value={documentMode} disabled={saving} options={[{value: "fields", label: "字段编辑"}, {value: "json", label: "JSON 编辑"}]} onChange={(value) => changeDocumentMode(String(value))}/>

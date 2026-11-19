@@ -59,7 +59,7 @@ export default createStyles(({css, token, isDarkMode}) => ({
         .database-name, .database-instance { padding: 0; border: 0; background: transparent; color: ${token.colorText}; font: inherit; text-align: left; cursor: pointer; }
         .database-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 400; }
         .database-name:hover, .database-instance:hover { color: ${token.colorPrimary}; }
-        .database-name:focus-visible, .database-instance:focus-visible { outline: 2px solid ${token.colorPrimaryBorder}; outline-offset: 3px; border-radius: 2px; }
+        .database-name:focus-visible, .database-instance:focus-visible { outline: 2px solid ${token.colorPrimaryBorder}; outline-offset: 3px; border-radius: ${token.borderRadius}px; }
         .database-muted, .database-time { color: ${token.colorTextSecondary}; }
         .database-time { white-space: nowrap; font-variant-numeric: tabular-nums; }
         .database-system { flex: none; color: ${token.colorTextTertiary}; font-size: ${token.fontSizeSM}px; }
@@ -125,7 +125,7 @@ export default createStyles(({css, token, isDarkMode}) => ({
         .client-column-title { display: flex; align-items: center; gap: 6px; min-width: 0; max-width: 100%; }
         .client-column-title > .ant-typography { flex: 0 1 auto; min-width: 0; max-width: 100%; font: inherit; color: inherit; }
         .client-column-comment { display: inline-flex; flex: none; color: ${token.colorTextTertiary}; cursor: help; }
-        .client-column-comment:focus-visible { outline: 2px solid ${token.colorPrimaryBorder}; outline-offset: 2px; border-radius: 2px; }
+        .client-column-comment:focus-visible { outline: 2px solid ${token.colorPrimaryBorder}; outline-offset: 2px; border-radius: ${token.borderRadiusXS}px; }
         .client-row-number { color: ${token.colorTextTertiary}; font-size: ${token.fontSizeSM}px; font-variant-numeric: tabular-nums; }
         .client-null { color: ${token.colorTextTertiary}; font-style: italic; }
         .client-footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; padding-top: 12px; font-size: ${token.fontSizeSM}px; }
@@ -158,7 +158,6 @@ export default createStyles(({css, token, isDarkMode}) => ({
         border-radius: ${token.borderRadius}px;
 
         &:not(textarea) { overflow: hidden; }
-        .ace_editor { border-radius: ${token.borderRadius}px !important; }
     `,
     objectDefinition: css`
         display: flex; flex-direction: column; gap: ${token.marginSM}px; min-width: 0;

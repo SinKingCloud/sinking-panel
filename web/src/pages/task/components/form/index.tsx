@@ -29,10 +29,6 @@ const useStyles = createStyles<{compact: boolean}>(({css, token}, {compact}) => 
         overflow: hidden;
         border: 1px solid ${token.colorBorderSecondary};
         border-radius: ${token.borderRadius}px;
-
-        .ace_editor {
-            border-radius: ${token.borderRadius}px !important;
-        }
     `,
     loading: css`
         height: 380px;

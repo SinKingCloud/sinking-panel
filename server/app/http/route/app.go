@@ -1,10 +1,6 @@
 package route
 
 import (
-	"path"
-	"server/app/util/platform"
-	"strings"
-
 	"server/app/http/controller/auth"
 	"server/app/http/controller/config"
 	"server/app/http/controller/container"
@@ -43,6 +39,7 @@ import (
 	"server/app/http/controller/types"
 	"server/app/http/middleware"
 	"server/app/util/context"
+	"server/app/util/platform"
 	"server/public"
 
 	"github.com/SinKingCloud/sinking-go/sinking-web"
@@ -75,19 +72,8 @@ func loadMiddleware(s *sinking_web.Engine) {
 
 // loadStaticRoute 静态资源
 func loadStaticRoute(s *sinking_web.Engine) {
-	handler := context.HandleFunc(func(c *context.Context) {
-		requestPath, _, _ := strings.Cut(c.Request.URL.Path, "#")
-		switch strings.ToLower(path.Ext(requestPath)) {
-		case ".js", ".css", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".avif", ".svg", ".ico", ".bmp", ".tif", ".tiff":
-			c.SetHeader("Cache-Control", "public, max-age=86400")
-		case "", ".html", ".htm":
-			c.SetHeader("Cache-Control", "no-cache, must-revalidate")
-		}
-		c.Request.URL.Path = public.Path() + requestPath
-		public.FileServer.ServeHTTP(c.Writer, c.Request)
-	})
-	s.ANY("/", handler)
-	s.ANY("/*", handler)
+	s.ANY("/", context.HandleFunc(public.Static))
+	s.ANY("/*", context.HandleFunc(public.Static))
 }
 
 // loadSiteRoute 网站管理路由

@@ -72,15 +72,18 @@ type PreviewSign struct {
 	Path      string
 	FileName  string
 	Download  bool
+	TTL       time.Duration
 	ExpiresAt time.Time
 }
 
 // PreviewFile 已校验的预览文件，调用方负责关闭 File。
 type PreviewFile struct {
-	File     *os.File
-	Name     string
-	ModTime  time.Time
-	Download bool
+	File      *os.File
+	Name      string
+	Size      int64
+	ModTime   time.Time
+	Download  bool
+	ExpiresAt time.Time
 }
 
 type uploadState struct {

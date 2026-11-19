@@ -15,8 +15,6 @@ const (
 	CacheNameWithCertOrder = "CertOrder_"     //手动证书验证订单
 	CacheTimeWithCertOrder = 20 * time.Minute //手动证书验证订单有效期
 
-	CacheNameWithFilePreview = "FilePreview_"     //文件预览签名
-	CacheTimeWithFilePreview = 3600 * time.Second //文件预览签名储存时间
-	CacheTimeWithFilePreviewRenewBefore = 600 * time.Second  //文件预览签名续期阈值
-	CacheTimeWithFilePreviewRenew       = 1800 * time.Second //文件预览签名续期时间
+	CacheNameWithFilePreview = "FilePreview_" //文件预览签名
+	CacheTimeWithFilePreview = 24 * time.Hour //文件预览签名和浏览器缓存的默认时长
 )

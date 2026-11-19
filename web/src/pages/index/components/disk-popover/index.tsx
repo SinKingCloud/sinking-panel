@@ -81,7 +81,7 @@ const useStyles = createStyles(({css, token, isDarkMode}: any) => ({
         .disk-overview-track,
         .disk-track {
             overflow: hidden;
-            border-radius: 999px;
+            border-radius: ${token.borderRadius}px;
             background: color-mix(in srgb, var(--disk-color) 10%, ${token.colorFillSecondary});
         }
 

@@ -445,7 +445,7 @@ const useStyles = createStyles(({css, token, isDarkMode}: any, {compact}: {compa
         && .ant-dropdown-menu-item {
             min-height: ${compact ? 28 : 30}px;
             padding: 0 ${compact ? 7 : 8}px !important;
-            border-radius: ${token.borderRadiusSM}px !important;
+            border-radius: ${token.borderRadius}px !important;
             color: ${token.colorTextSecondary};
             font-size: ${compact ? 11 : 12}px;
         }

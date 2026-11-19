@@ -23,7 +23,8 @@ const useStyles = createStyles(({css, token}, {compact}: {compact: boolean}) => 
         textarea.ant-input { font-family: ${token.fontFamilyCode}; resize: none; }
         .exec-mode { display: flex; width: fit-content; max-width: 100%; margin: 0 auto ${token.marginSM}px; font-size: 12px; }
         .exec-mode .ant-form-item { margin: 0; }
-        .exec-mode .ant-segmented { font-size: 12px; }
+        .exec-mode .ant-segmented { border-radius: ${token.borderRadius}px; font-size: 12px; }
+        .exec-mode .ant-segmented .ant-segmented-group > :is(.ant-segmented-item, .ant-segmented-thumb) { border-radius: ${token.borderRadius}px; }
         .exec-input-panel .ant-form-item:last-child { margin-bottom: 0; }
         .exec-advanced-fields { display: grid; gap: ${compact ? 8 : 12}px; }
         .exec-advanced-fields .ant-form-item { margin-bottom: 0; }
@@ -42,7 +43,7 @@ const useStyles = createStyles(({css, token}, {compact}: {compact: boolean}) => 
         && > .ant-collapse-item > .ant-collapse-header {
             color: ${token.colorTextSecondary};
             background: ${token.colorFillTertiary};
-            border-radius: ${token.borderRadiusLG - 1}px;
+            border-radius: ${Math.max(0, token.borderRadiusLG - 1)}px;
         }
         && > .ant-collapse-item-active > .ant-collapse-header { border-end-start-radius: 0; border-end-end-radius: 0; }
         .ant-collapse-title { min-width: 0; }

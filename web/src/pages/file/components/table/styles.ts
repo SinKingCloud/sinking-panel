@@ -126,7 +126,7 @@ const useStyles = createStyles(({css, token}: any) => {
             }
 
             &.calculate:focus-visible {
-                border-radius: 2px;
+                border-radius: ${token.borderRadiusSM}px;
                 box-shadow: 0 0 0 2px ${token.colorPrimaryBg};
             }
 

@@ -290,7 +290,7 @@ const useStyles = createStyles(({css, token}, {compact}: { compact: boolean }) =
             border: 0;
         }
 
-        && > .ant-collapse-item {
+        &&.ant-collapse > .ant-collapse-item {
             overflow: hidden;
             margin-bottom: 8px;
             border: 1px solid ${token.colorBorderSecondary};
@@ -299,6 +299,10 @@ const useStyles = createStyles(({css, token}, {compact}: { compact: boolean }) =
 
         && > .ant-collapse-item:last-child {
             margin-bottom: 0;
+        }
+
+        &&.ant-collapse > .ant-collapse-item > :is(.ant-collapse-header, .ant-collapse-panel) {
+            border-radius: 0;
         }
 
         && > .ant-collapse-item > .ant-collapse-header {

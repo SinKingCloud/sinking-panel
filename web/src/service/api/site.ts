@@ -235,7 +235,7 @@ export async function deleteSiteBackups(params: API.RequestParams = {}) {
     return post("/site/backup/delete", params?.body, params?.onSuccess, params?.onFail, params?.onFinally);
 }
 
-/** 获取备份的临时下载地址 POST /site/backup/download */
+/** 获取本地文件签名或云端签名 URL POST /site/backup/download */
 export async function downloadSiteBackup(params: API.RequestParams = {}) {
     return post("/site/backup/download", params?.body, params?.onSuccess, params?.onFail, params?.onFinally);
 }

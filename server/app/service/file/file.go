@@ -7,6 +7,7 @@ import (
 	serviceSystem "server/app/service/system"
 	"server/app/util/cache"
 	"server/app/util/page"
+	"time"
 )
 
 // Service service接口
@@ -40,7 +41,7 @@ type Service interface {
 	CheckUpload(meta UploadMeta) ([]int, *UploadedFile, error)
 	MergeUpload(ctx context.Context, meta UploadMeta) (*UploadedFile, bool, error)
 	ClearUpload(uploadID string) error
-	CreatePreviewSign(path string, download bool) (string, error)
+	CreatePreviewSign(path string, download bool, expires time.Duration) (string, error)
 	CheckPreviewSign(key string) (PreviewSign, error)
 	OpenPreview(key string) (*PreviewFile, error)
 }

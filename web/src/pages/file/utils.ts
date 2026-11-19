@@ -61,9 +61,11 @@ export const getFileDiskName = (value: string) => {
 // isWindowsFilePath 识别盘符和网络共享，避免把 UNC 路径当作 Unix 根目录。
 export const isWindowsFilePath = (value: string) => parsePath(value).root !== "/";
 
+export const imageExtensions = ["avif", "bmp", "gif", "ico", "jpeg", "jpg", "png", "svg", "webp"] as const;
+
 const categoryExtensions: Partial<Record<string, Set<string>>> = {
     archive: new Set(["7z", "bz", "bz2", "gz", "rar", "tar", "tgz", "xz", "zip"]),
-    image: new Set(["avif", "bmp", "gif", "ico", "jpeg", "jpg", "png", "svg", "webp"]),
+    image: new Set(imageExtensions),
     video: new Set(["avi", "flv", "m4v", "mkv", "mov", "mp4", "mpeg", "mpg", "webm", "wmv"]),
     audio: new Set(["aac", "flac", "m4a", "mp3", "ogg", "wav", "wma"]),
     pdf: new Set(["pdf"]),

@@ -7,10 +7,10 @@ import {App, Button, Empty, Popover, Progress, Spin, Tooltip} from "antd";
 import {createStyles} from "antd-style";
 import Settings from "@/../config/defaultSettings";
 import {logout} from "@/service/auth/login";
+import {filePreviewUrl} from "@/service/api/file";
 import {systemTask} from "@/service/api/system";
 import type {LayoutContext, SystemTaskRef} from "@/layouts/context";
 import TaskLog, {LogRef as TaskLogRef} from "@/pages/components/task-log";
-import defaultSettings from "@/../config/defaultSettings";
 import Title from "../title";
 
 /**
@@ -733,10 +733,18 @@ const RightTop = forwardRef<SystemTaskRef>((_, ref) => {
 /**
  * 样式信息
  */
-const useSKLayoutStyles = createStyles((): any => {
+const useSKLayoutStyles = createStyles(({token}): any => {
     return {
-        collapsedLogo: {
+        logo: {
+            color: token.colorPrimary,
+            display: "block",
             fontSize: "27px",
+            width: "1em",
+            height: "1em",
+            lineHeight: 1,
+            objectFit: "contain",
+            flexShrink: 0,
+            ">svg": {display: "block"},
         },
         content: {
             width: "100%",
@@ -745,23 +753,22 @@ const useSKLayoutStyles = createStyles((): any => {
             margin: "0 auto",
         },
         unCollapsed: {
+            display: "flex",
+            alignItems: "center",
+            gap: "5px",
+            minWidth: 0,
+            maxWidth: "100%",
+        },
+        brandName: {
+            color: token.colorPrimary,
             overflow: "hidden",
-            position: "absolute",
-            display: "inline-flex",
-            ">span": {
-                fontSize: "27px",
-            },
-            ">div": {
-                fontSize: "25px",
-                marginLeft: "5px",
-                fontWeight: "bolder",
-                float: "left",
-                lineHeight: "30px",
-                whiteSpace: "nowrap",
-            }
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+            fontSize: "25px",
+            fontWeight: "bolder",
+            lineHeight: 1.2,
         },
         horizontalLogo: {
-            position: "static",
             paddingInline: "20px",
         },
     };
@@ -784,7 +791,10 @@ const SKLayout: React.FC = () => {
     const menus = useMemo(() => getAllMenuItems(true), []);
     const menusWithHidden = useMemo(() => getAllMenuItems(false), []);
     const isTopLayout = web?.info?.ui?.layout != "left";
-    const {styles: {collapsedLogo, content, unCollapsed, horizontalLogo}, cx} = useSKLayoutStyles();
+    const {styles, cx} = useSKLayoutStyles();
+    const logo = web?.info?.ui?.logo
+        ? <img className={styles.logo} src={filePreviewUrl(web.info.ui.logo)} alt=""/>
+        : <Icon type="icon-logo" className={styles.logo}/>;
 
     /**
      * 计算面包屑数据
@@ -837,21 +847,12 @@ const SKLayout: React.FC = () => {
                 headerRight={<RightTop ref={setTask}/>}
                 menuCollapsedWidth={60}
                 menuUnCollapsedWidth={210}
-                collapsedLogo={() => {
-                    return <Icon type={"icon-logo"} style={{color: web?.info?.ui?.color || defaultSettings?.color}}
-                                 className={collapsedLogo}/>;
-                }}
-                unCollapsedLogo={() => {
-                    return (
-                        <div className={cx(unCollapsed, isTopLayout && horizontalLogo)}>
-                            <Icon type={"icon-logo"}
-                                  style={{color: web?.info?.ui?.color || defaultSettings?.color}}/>
-                            <div style={{color: web?.info?.ui?.color || defaultSettings?.color}}>
-                                {web?.info?.name || Settings?.title}
-                            </div>
-                        </div>)
-                }}>
-                <div className={content}>
+                collapsedLogo={() => logo}
+                unCollapsedLogo={() => <div className={cx(styles.unCollapsed, isTopLayout && styles.horizontalLogo)}>
+                    {logo}
+                    <span className={styles.brandName}>{web?.info?.name || Settings?.title}</span>
+                </div>}>
+                <div className={styles.content}>
                     <Outlet context={context}/>
                 </div>
             </Layout>

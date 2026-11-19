@@ -51,10 +51,6 @@ const useStyles = createStyles<{compact: boolean}>(({css, token}, props) => ({
         border-radius: ${token.borderRadius}px;
         background: ${token.colorBgContainer};
 
-        .ant-checkbox {
-            border-radius: 2px;
-        }
-
         .path-select-toolbar {
             display: grid;
             min-width: 0;
@@ -73,14 +69,19 @@ const useStyles = createStyles<{compact: boolean}>(({css, token}, props) => ({
             gap: ${props.compact ? 6 : 8}px;
         }
 
+        .path-select-up,
+        .path-select-path,
+        .path-select-path-input.ant-input {
+            border: 1px solid transparent;
+            border-radius: ${token.borderRadius}px;
+            background: ${token.colorBgContainer};
+        }
+
         .path-select-up {
             width: ${props.compact ? 28 : 30}px;
             min-width: ${props.compact ? 28 : 30}px;
             height: ${props.compact ? 28 : 30}px;
             padding: 0;
-            border: 1px solid transparent;
-            border-radius: ${token.borderRadiusSM}px;
-            background: ${token.colorBgContainer};
             color: ${token.colorTextSecondary};
         }
 
@@ -108,9 +109,6 @@ const useStyles = createStyles<{compact: boolean}>(({css, token}, props) => ({
             align-items: center;
             overflow-x: auto;
             overflow-y: hidden;
-            border: 1px solid ${token.colorBorderSecondary};
-            border-radius: ${token.borderRadiusSM}px;
-            background: ${token.colorBgContainer};
             list-style: none;
             scrollbar-width: none;
 
@@ -161,7 +159,7 @@ const useStyles = createStyles<{compact: boolean}>(({css, token}, props) => ({
             white-space: nowrap;
         }
 
-        .path-select-path-button:hover {
+        .path-select-path-button:not(:disabled):hover {
             background: ${token.colorFillTertiary};
             color: ${token.colorText};
         }
@@ -198,17 +196,29 @@ const useStyles = createStyles<{compact: boolean}>(({css, token}, props) => ({
 
         .path-select-path-input.ant-input {
             width: min(100%, ${props.compact ? 420 : 480}px);
+            border-width: 0.5px;
             min-width: 40px;
             max-width: 100%;
             height: ${props.compact ? 30 : 32}px;
             padding: 0 ${props.compact ? 6 : 8}px;
             justify-self: start;
-            border-color: ${token.colorPrimaryBorder};
-            border-radius: ${token.borderRadiusSM}px;
-            background: ${token.colorBgContainer};
             color: ${token.colorText};
-            box-shadow: 0 0 0 2px ${token.colorPrimaryBg};
+            box-shadow: none;
             font-size: ${props.compact ? 11 : 12}px;
+        }
+
+        .path-select-path-input.ant-input:hover {
+            border-color: transparent;
+        }
+
+        .path-select-path-input.ant-input:focus {
+            border-color: ${token.colorBorder};
+            outline: none;
+            box-shadow: none;
+        }
+
+        .path-select-table.ant-table-wrapper {
+            --ant-table-header-border-radius: 0px;
         }
 
         .path-select-table .ant-table,
@@ -293,6 +303,13 @@ const useStyles = createStyles<{compact: boolean}>(({css, token}, props) => ({
         .path-select-directory,
         .path-select-selectable {
             cursor: pointer;
+        }
+
+        .path-select-rejected {
+            cursor: not-allowed;
+            .path-select-name, .path-select-icon {
+                color: ${token.colorTextDisabled};
+            }
         }
 
         .path-select-directory:hover > td,
@@ -417,7 +434,7 @@ const useStyles = createStyles<{compact: boolean}>(({css, token}, props) => ({
         }
 
         .path-select-pagination .ant-pagination-item-link {
-            border-radius: ${token.borderRadiusSM}px;
+            border-radius: ${token.borderRadius}px;
             color: ${token.colorTextSecondary};
         }
 
@@ -439,7 +456,7 @@ const useStyles = createStyles<{compact: boolean}>(({css, token}, props) => ({
             height: ${props.compact ? 24 : 26}px;
             padding: 0;
             border: 0;
-            border-radius: ${token.borderRadiusSM}px;
+            border-radius: ${token.borderRadius}px;
             color: ${token.colorTextSecondary};
             font-size: 12px;
         }

@@ -61,7 +61,7 @@ const useStyles = createStyles(({css, token}, {compact}: {compact: boolean}) => 
             align-items: center;
             margin: 0;
             padding: ${compact ? "10px 12px" : "12px 14px"};
-            border-radius: ${token.borderRadiusLG}px;
+            border-radius: ${token.borderRadius}px;
             background: ${token.colorFillQuaternary};
             transition: background-color ${token.motionDurationMid};
         }
@@ -77,7 +77,7 @@ const useStyles = createStyles(({css, token}, {compact}: {compact: boolean}) => 
     review: css`
         margin-bottom: ${compact ? 16 : 20}px;
         padding: ${compact ? "12px 14px" : "14px 16px"};
-        border-radius: ${token.borderRadiusLG}px;
+        border-radius: ${token.borderRadius}px;
         background: ${token.colorFillQuaternary};
         .ant-descriptions-item-label { white-space: nowrap; }
         .ant-descriptions-item-content { min-width: 0; overflow-wrap: anywhere; }

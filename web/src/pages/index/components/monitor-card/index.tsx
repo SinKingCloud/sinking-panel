@@ -63,7 +63,7 @@ const useStyles = createStyles(({css, token, isDarkMode}: any) => ({
         && .ant-select-item {
             min-height: 30px;
             padding: 5px 9px;
-            border-radius: ${token.borderRadiusSM}px;
+            border-radius: ${token.borderRadius}px;
             color: ${token.colorTextSecondary};
             font-size: 12px;
             line-height: 20px;

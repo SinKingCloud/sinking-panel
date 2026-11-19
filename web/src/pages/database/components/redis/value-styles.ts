@@ -45,7 +45,7 @@ export default createStyles(({css, token}, {compact}: {compact: boolean}) => ({
         .redis-value-toolbar { display: flex; align-items: center; flex: none; gap: 8px; min-width: 0; margin-bottom: 10px; }
         .redis-value-label { color: ${token.colorTextSecondary}; font-size: ${compact ? 11 : 12}px; }
         .redis-value-tools { display: flex; align-items: center; flex: none; gap: 6px; margin-left: auto; }
-        && .redis-value-search { flex: 0 1 220px; width: 220px; min-width: 0; height: ${compact ? 24 : 28}px; font-size: ${compact ? 11 : 12}px; border-radius: ${token.borderRadiusSM}px; }
+        && .redis-value-search { flex: 0 1 220px; width: 220px; min-width: 0; height: ${compact ? 24 : 28}px; font-size: ${compact ? 11 : 12}px; border-radius: ${token.borderRadius}px; }
         .redis-value-search .ant-input { font-size: inherit; }
         .redis-value-search .ant-input-prefix { margin-inline-end: 6px; color: ${token.colorTextQuaternary}; }
         .redis-value-table-area { flex: 1; min-height: 0; min-width: 0; overflow: hidden; }
@@ -56,18 +56,18 @@ export default createStyles(({css, token}, {compact}: {compact: boolean}) => ({
         .redis-value-table .ant-table-body, .redis-value-table .ant-table-tbody-virtual-holder { scrollbar-width: thin; }
         .redis-value-number { color: ${token.colorTextTertiary}; font-variant-numeric: tabular-nums; }
         .redis-value-inline { display: flex; align-items: center; height: ${compact ? 34 : 38}px; min-width: 0; }
-        .redis-value-display { display: flex; align-items: center; width: 100%; min-width: 0; height: 100%; box-sizing: border-box; padding: 0 8px; border: 1px solid transparent; border-radius: ${token.borderRadiusSM}px; background: transparent; color: ${token.colorTextSecondary}; font: inherit; font-family: ${token.fontFamilyCode}; text-align: left; cursor: pointer; }
+        .redis-value-display { display: flex; align-items: center; width: 100%; min-width: 0; height: 100%; box-sizing: border-box; padding: 0 8px; border: 1px solid transparent; border-radius: ${token.borderRadius}px; background: transparent; color: ${token.colorTextSecondary}; font: inherit; font-family: ${token.fontFamilyCode}; text-align: left; cursor: pointer; }
         .redis-value-display > span { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; white-space: pre-wrap; overflow-wrap: anywhere; line-height: ${compact ? 16 : 18}px; }
         .redis-value-display em { font-style: normal; color: ${token.colorTextQuaternary}; }
         .redis-value-display:hover:not(:disabled) { background: ${token.colorFillQuaternary}; }
         .redis-value-display:focus-visible { outline: 1px solid ${token.colorPrimaryBorder}; outline-offset: 2px; }
         .redis-value-display:disabled { cursor: default; }
         .redis-value-inline.is-number .redis-value-display { justify-content: flex-end; font-variant-numeric: tabular-nums; }
-        && .redis-value-inline > .ant-input, && .redis-value-inline > .ant-input-number { width: 100%; height: ${compact ? 26 : 28}px; min-height: 0; box-sizing: border-box; padding: 4px 8px; border-radius: ${token.borderRadiusSM}px; font: inherit; font-family: ${token.fontFamilyCode}; line-height: ${compact ? 16 : 18}px; }
+        && .redis-value-inline > .ant-input, && .redis-value-inline > .ant-input-number { width: 100%; height: ${compact ? 26 : 28}px; min-height: 0; box-sizing: border-box; padding: 4px 8px; border-radius: ${token.borderRadius}px; font: inherit; font-family: ${token.fontFamilyCode}; line-height: ${compact ? 16 : 18}px; }
         && .redis-value-inline > textarea.ant-input { resize: none; }
         && .redis-value-inline > .ant-input-number { padding-block: 0; }
         && .redis-value-inline .ant-input-number-input { height: ${compact ? 24 : 26}px; padding: 0; font: inherit; text-align: right; }
-        && .redis-value-table .ant-btn { height: ${compact ? 24 : 28}px; padding-inline: ${compact ? 7 : 9}px; gap: 4px; font-size: ${compact ? 11 : 12}px; border-radius: ${token.borderRadiusSM}px; }
+        && .redis-value-table .ant-btn { height: ${compact ? 24 : 28}px; padding-inline: ${compact ? 7 : 9}px; gap: 4px; font-size: ${compact ? 11 : 12}px; border-radius: ${token.borderRadius}px; }
         .redis-value-code { display: flex; flex-direction: column; flex: 1; min-height: 0; min-width: 0; overflow: hidden; border: 1px solid ${token.colorBorderSecondary}; border-radius: ${token.borderRadius}px; }
         && .redis-value-code > .redis-value-text { height: 100%; min-height: 0; max-height: none; resize: none; border: 0; border-radius: 0; box-shadow: none; background: ${token.colorBgContainer}; font-size: 12px; }
         @media (max-width: 575px) {

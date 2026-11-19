@@ -587,7 +587,7 @@ const useStyles = createStyles(({css, token}: any, props: any = {}) => ({
             padding: ${props?.compact ? "4px 0" : "5px 0"} !important;
             align-items: center !important;
             color: ${token.colorTextSecondary} !important;
-            border-radius: ${token.borderRadiusSM}px !important;
+            border-radius: ${token.borderRadius}px !important;
             transition: color .16s ease, background-color .16s ease !important;
         }
 
@@ -614,7 +614,7 @@ const useStyles = createStyles(({css, token}: any, props: any = {}) => ({
         .ant-collapse-body {
             margin: 1px 0 ${props?.compact ? 3 : 4}px;
             padding: ${props?.compact ? "4px 7px" : "6px 9px"} !important;
-            border-radius: ${token.borderRadiusSM}px;
+            border-radius: ${token.borderRadius}px;
             background: ${token.colorFillQuaternary};
         }
 
@@ -796,7 +796,7 @@ const useStyles = createStyles(({css, token}: any, props: any = {}) => ({
             padding: 0 ${props?.compact ? 8 : 10}px;
             display: inline-flex;
             align-items: center;
-            border-radius: ${token.borderRadiusSM}px;
+            border-radius: ${token.borderRadius}px;
             background: ${token.colorFillQuaternary};
             color: ${token.colorTextSecondary};
             font-size: 12px;
@@ -820,6 +820,14 @@ const useStyles = createStyles(({css, token}: any, props: any = {}) => ({
     pageSwitcher: css`
         width: 100%;
         margin-bottom: ${props?.compact ? 10 : 12}px;
+
+        &.ant-segmented:not(.ant-segmented-shape-round) {
+            border-radius: ${token.borderRadius}px;
+
+            .ant-segmented-group > :is(.ant-segmented-item, .ant-segmented-thumb) {
+                border-radius: ${token.borderRadius}px;
+            }
+        }
 
         .ant-segmented-item-label {
             padding-inline: ${props?.compact ? 8 : 10}px;
@@ -929,10 +937,6 @@ const useStyles = createStyles(({css, token}: any, props: any = {}) => ({
         overflow: hidden;
         border: 1px solid ${token.colorBorderSecondary};
         border-radius: ${token.borderRadius}px;
-
-        .ace_editor {
-            border-radius: ${token.borderRadius}px !important;
-        }
     `,
 }));
 

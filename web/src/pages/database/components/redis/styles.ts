@@ -3,28 +3,29 @@ import {createStyles} from "antd-style";
 export default createStyles(({css, token}, {compact}: {compact: boolean}) => ({
     panel: css`
         display: flex; flex-direction: column; flex: 1; height: 100%; min-height: 0; min-width: 0; position: relative;
-        color: ${token.colorText}; font-size: ${token.fontSize}px; line-height: 1.6;
+        color: ${token.colorText}; font-size: ${compact ? 12 : 13}px; line-height: 1.6;
         .redis-navigation { display: flex; justify-content: center; flex: none; min-width: 0; margin-bottom: 16px; }
-        .redis-navigation > .ant-segmented { min-width: 0; max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+        .redis-navigation > .ant-segmented { min-width: 0; max-width: 100%; overflow-x: auto; scrollbar-width: none; border-radius: ${token.borderRadius}px; color: ${token.colorTextSecondary}; font-size: inherit; }
+        .redis-navigation > .ant-segmented .ant-segmented-group > :is(.ant-segmented-item, .ant-segmented-thumb) { border-radius: ${token.borderRadius}px; }
         .redis-navigation .ant-segmented-group { display: flex; width: max-content; min-width: 100%; }
         .redis-navigation .ant-segmented-item { flex: 1 0 auto; }
-        .redis-navigation .ant-segmented-item-label { padding-inline: 12px; }
+        .redis-navigation .ant-segmented-item-label { min-height: 0; line-height: ${compact ? 24 : 28}px; padding-inline: 12px; }
         .redis-tab-body { flex: 1; min-width: 0; min-height: 0; overflow: hidden; }
         .redis-tab-body .ant-input, .redis-tab-body .ant-select { font-size: inherit; }
-        .redis-tab-body .ant-btn { height: ${compact ? 24 : 28}px; padding-inline: ${compact ? 7 : 9}px; gap: ${compact ? 4 : 6}px; border-radius: ${token.borderRadiusSM}px; font-size: ${compact ? 11 : 12}px; }
+        .redis-tab-body .ant-btn { height: ${compact ? 24 : 28}px; padding-inline: ${compact ? 7 : 9}px; gap: ${compact ? 4 : 6}px; border-radius: ${token.borderRadius}px; font-size: ${compact ? 11 : 12}px; }
         .redis-tab-body .ant-btn-icon-only { width: ${compact ? 24 : 28}px; padding-inline: 0; }
         .redis-tab-body .ant-btn-color-default:not(:disabled) { color: ${token.colorTextSecondary}; }
         .redis-tab-body .ant-btn .anticon { font-size: inherit; }
         &&& .redis-toolbar .ant-btn {
             height: ${compact ? 24 : 28}px; padding-inline: ${compact ? 7 : 9}px; gap: ${compact ? 4 : 6}px;
-            border-radius: ${token.borderRadiusSM}px; font-size: ${compact ? 11 : 12}px;
+            border-radius: ${token.borderRadius}px; font-size: ${compact ? 11 : 12}px;
         }
         &&& .redis-toolbar .ant-btn-icon-only { width: ${compact ? 24 : 28}px; padding-inline: 0; }
         &&& .redis-toolbar .ant-btn-color-default:not(:disabled) { color: ${token.colorTextSecondary}; }
         &&& .redis-toolbar .ant-btn:disabled { border-color: transparent; background: ${token.colorFillTertiary}; }
         && .redis-toolbar .ant-btn .anticon { font-size: inherit; }
         &&& :is(.redis-browser-toolbar, .redis-account-toolbar) .ant-input-affix-wrapper {
-            height: ${compact ? 24 : 28}px; padding-inline: ${compact ? 8 : 10}px; border-radius: ${token.borderRadiusSM}px;
+            height: ${compact ? 24 : 28}px; padding-inline: ${compact ? 8 : 10}px; border-radius: ${token.borderRadius}px;
             font-size: ${compact ? 11 : 12}px; color: ${token.colorTextSecondary};
         }
         &&& :is(.redis-browser-toolbar, .redis-account-toolbar) .ant-input { font-size: inherit; color: inherit; }
@@ -43,7 +44,7 @@ export default createStyles(({css, token}, {compact}: {compact: boolean}) => ({
         .redis-catalog { display: flex; flex-direction: column; min-height: 0; min-width: 0; border-right: 1px solid ${token.colorBorderSecondary}; background: ${token.colorFillQuaternary}; }
         .redis-catalog-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 10px 8px; flex: none; }
         .redis-browser-toolbar { display: flex; align-items: center; padding: 10px 10px 8px; min-width: 0; flex: none; }
-        .redis-search { display: flex; align-items: center; width: 100%; min-width: 0; height: ${compact ? 24 : 28}px; border: 1px solid transparent; border-radius: ${token.borderRadiusSM}px; background: ${token.colorFillTertiary}; transition: background-color .16s ease; }
+        .redis-search { display: flex; align-items: center; width: 100%; min-width: 0; height: ${compact ? 24 : 28}px; border: 1px solid transparent; border-radius: ${token.borderRadius}px; background: ${token.colorFillTertiary}; transition: background-color .16s ease; }
         .redis-search:hover { background: ${token.colorFillSecondary}; }
         .redis-search:focus-within { background: ${token.colorFillSecondary}; }
         &&& .redis-browser-toolbar .redis-search > .redis-search-mode { flex: none; height: 100%; padding-inline: ${compact ? 8 : 10}px; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
@@ -53,7 +54,7 @@ export default createStyles(({css, token}, {compact}: {compact: boolean}) => ({
         .redis-catalog-heading .ant-checkbox-wrapper { flex: none; }
         .redis-catalog-scroll { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; scrollbar-width: thin; padding: 0 6px 8px; }
         .redis-catalog-loading, .redis-catalog-items { min-height: 100%; }
-        .redis-key-row { display: flex; align-items: center; gap: 6px; min-height: ${compact ? 30 : 34}px; padding-inline: 7px 2px; border-radius: ${token.borderRadiusSM}px; }
+        .redis-key-row { display: flex; align-items: center; gap: 6px; min-height: ${compact ? 30 : 34}px; padding-inline: 7px 2px; border-radius: ${token.borderRadius}px; }
         .redis-key-row + .redis-key-row { margin-top: 2px; }
         .redis-key-row:hover { background: ${token.colorFillTertiary}; }
         .redis-key-row.is-selected { background: ${token.colorPrimaryBg}; }
@@ -62,8 +63,8 @@ export default createStyles(({css, token}, {compact}: {compact: boolean}) => ({
         .redis-key-item > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .redis-key-item > small { flex: none; width: 42px; color: ${token.colorTextSecondary}; font-size: ${compact ? 10 : 11}px; text-transform: uppercase; }
         .redis-key-row.is-selected .redis-key-item > span { color: ${token.colorPrimary}; }
-        .redis-key-item:focus-visible { outline: 2px solid ${token.colorPrimaryBorder}; outline-offset: 1px; border-radius: 2px; }
-        && .redis-key-menu.ant-btn { flex: none; width: ${compact ? 24 : 28}px; height: ${compact ? 24 : 28}px; padding: 0; border-radius: ${token.borderRadiusSM}px; color: ${token.colorTextSecondary}; font-size: ${compact ? 11 : 12}px; }
+        .redis-key-item:focus-visible { outline: 2px solid ${token.colorPrimaryBorder}; outline-offset: 1px; border-radius: ${token.borderRadius}px; }
+        && .redis-key-menu.ant-btn { flex: none; width: ${compact ? 24 : 28}px; height: ${compact ? 24 : 28}px; padding: 0; border-radius: ${token.borderRadius}px; color: ${token.colorTextSecondary}; font-size: ${compact ? 11 : 12}px; }
         .redis-key-menu .anticon { font-size: inherit; }
         .redis-catalog-footer { display: flex; align-items: center; justify-content: space-between; min-height: ${compact ? 38 : 42}px; gap: 8px; padding-inline: 10px; border-top: 1px solid ${token.colorBorderSecondary}; color: ${token.colorTextSecondary}; font-size: ${compact ? 11 : 12}px; flex: none; }
         .redis-catalog-pager { display: flex; align-items: center; gap: 1px; }

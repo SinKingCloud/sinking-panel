@@ -95,6 +95,8 @@ const useStyles = createStyles(({css, token, isDarkMode}: any) => ({
         .ant-typography-copy { position: absolute; inset-inline-end: 0; top: 0; color: ${token.colorTextTertiary}; }
         .ant-typography-copy:hover { color: ${token.colorPrimary}; }
         .detail-switch { display: flex; flex-shrink: 0; width: fit-content; max-width: 100%; margin: 0 auto ${token.marginSM}px; font-family: inherit; font-size: ${Math.max(token.fontSizeSM, 12)}px; font-weight: 400; }
+        .detail-switch.ant-segmented { border-radius: ${token.borderRadius}px; }
+        .detail-switch.ant-segmented .ant-segmented-group > :is(.ant-segmented-item, .ant-segmented-thumb) { border-radius: ${token.borderRadius}px; }
         .detail-content { display: flex; flex-direction: column; flex: 1 1 auto; min-width: 0; min-height: ${token.controlHeight * 9}px; font-size: 12px; line-height: 18px; }
 
         .detail-config { display: grid; gap: ${token.marginXS}px; margin: 0; }

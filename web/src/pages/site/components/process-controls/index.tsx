@@ -18,7 +18,7 @@ const useStyles = createStyles(({css, token}: any, {compact}: { compact: boolean
         min-width: 0;
         margin-bottom: ${compact ? 14 : 18}px;
         padding: ${compact ? "10px 12px" : "12px 14px"};
-        border-radius: ${token.borderRadiusLG}px;
+        border-radius: ${token.borderRadius}px;
         background: ${token.colorFillQuaternary};
     `,
     row: css`

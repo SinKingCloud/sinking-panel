@@ -3,6 +3,7 @@ import {App, Button, Form, Input} from "antd";
 import {Body, Icon, useTheme} from "sinking-antd";
 import {useModel} from "umi";
 import Captcha, {CaptchaRef} from "@/components/captcha";
+import {filePreviewUrl} from "@/service/api/file";
 import Settings from "@/../config/defaultSettings";
 import {login} from "@/service/auth/login";
 import {deleteHeader, loginDevice, setLoginToken} from "@/utils/auth";
@@ -21,6 +22,7 @@ export default (): React.ReactNode => {
     const isDarkMode = Boolean(theme?.isDarkMode?.() || theme?.isDarkTheme?.());
     const {styles} = useStyles({isCompactMode, isDarkMode});
     const name = web?.info?.name || Settings?.name || Settings?.title;
+    const logo = web?.info?.ui?.logo;
 
     const finish = () => {
         submitting.current = false;
@@ -76,7 +78,9 @@ export default (): React.ReactNode => {
                 <div className={styles.backdrop} aria-hidden="true"/>
                 <section className={styles.loginPanel}>
                     <div className="brand">
-                        <Icon type="icon-logo"/>
+                        {logo
+                            ? <img className="brand-logo" src={filePreviewUrl(logo)} alt=""/>
+                            : <Icon type="icon-logo" className="brand-logo"/>}
                         <h1 title={name}>{name}</h1>
                     </div>
                     <p className="product">服务器管理面板</p>

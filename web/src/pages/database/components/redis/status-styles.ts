@@ -9,7 +9,7 @@ export default createStyles(({css, token}, {compact}: {compact: boolean}) => ({
         .redis-status-tools > * { flex: none; }
         .redis-status-search {
             display: flex; align-items: center; flex: 0 1 240px; width: 240px; max-width: 100%; min-width: 0;
-            height: ${compact ? 24 : 28}px; border: 1px solid transparent; border-radius: ${token.borderRadiusSM}px;
+            height: ${compact ? 24 : 28}px; border: 1px solid transparent; border-radius: ${token.borderRadius}px;
             background: ${token.colorFillTertiary}; transition: background-color .16s ease, border-color .16s ease;
         }
         .redis-status-search:hover { background: ${token.colorFillSecondary}; }
@@ -37,9 +37,9 @@ export default createStyles(({css, token}, {compact}: {compact: boolean}) => ({
         .redis-status-summary strong { font-size: ${compact ? 15 : 17}px; font-weight: 500; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
         .redis-status-note { flex: none; margin-bottom: 12px; color: ${token.colorTextTertiary}; font-size: ${compact ? 11 : 12}px; overflow-wrap: anywhere; }
         .redis-status-table { flex: 1; min-height: 140px; min-width: 0; }
-        .redis-status-table .ant-table { font-size: ${compact ? 11 : 12}px; color: ${token.colorTextSecondary}; }
+        && .redis-status-table .ant-table { font-size: ${compact ? 11 : 12}px; color: ${token.colorTextSecondary}; }
         .redis-status-table .ant-table-thead > tr > th { font-size: ${compact ? 12 : 13}px; font-weight: 500; color: ${token.colorTextSecondary}; }
-        .redis-status-table .ant-table-cell { padding: ${compact ? 6 : 8}px ${compact ? 8 : 10}px; white-space: nowrap; }
+        && .redis-status-table .ant-table .ant-table-cell { padding: ${compact ? 6 : 8}px ${compact ? 8 : 10}px; white-space: nowrap; }
         .redis-status-table .ant-table-container { border-inline: 1px solid ${token.colorBorderSecondary}; border-bottom: 1px solid ${token.colorBorderSecondary}; border-radius: ${token.borderRadiusLG}px; overflow: hidden; }
         && .redis-status-table .ant-table-tbody > tr:last-child > td,
         && .redis-status-table .ant-table-tbody-virtual-holder-inner > .client-last-row > .ant-table-cell { border-bottom: 0; }

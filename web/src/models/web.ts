@@ -7,6 +7,7 @@ export default () => {
         title: defaultSettings.title,
         name: defaultSettings.name,
         ui: {
+            logo: "",
             layout: "left",
             watermark: false,
             theme: "dark",

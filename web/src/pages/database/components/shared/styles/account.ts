@@ -13,7 +13,7 @@ export default createStyles(({css, token}, {compact = false}: {compact?: boolean
         &&& .account-search.ant-input-affix-wrapper {
             height: ${compact ? 24 : 28}px;
             padding-inline: ${compact ? 8 : 10}px;
-            border-radius: ${token.borderRadiusSM}px;
+            border-radius: ${token.borderRadius}px;
             color: ${token.colorTextSecondary};
             font-size: ${compact ? 11 : 12}px;
         }
@@ -21,7 +21,7 @@ export default createStyles(({css, token}, {compact = false}: {compact?: boolean
         .account-search .ant-input::placeholder { color: ${token.colorTextQuaternary}; }
         .account-search .ant-input-prefix { margin-inline-end: 8px; color: ${token.colorTextTertiary}; font-size: ${compact ? 12 : 14}px; }
         .account-database { min-width: 145px; max-width: 240px; }
-        &&& .account-database.ant-select { height: ${compact ? 24 : 28}px; border-radius: ${token.borderRadiusSM}px; color: ${token.colorTextSecondary}; font-size: ${compact ? 11 : 12}px; }
+        &&& .account-database.ant-select { height: ${compact ? 24 : 28}px; border-radius: ${token.borderRadius}px; color: ${token.colorTextSecondary}; font-size: ${compact ? 11 : 12}px; }
         .account-database .ant-select-suffix { color: ${token.colorTextQuaternary}; font-size: ${compact ? 9 : 10}px; }
         .account-tools { display: flex; flex: none; flex-wrap: wrap; align-items: center; gap: 6px; max-width: 100%; margin-left: auto; }
         .account-tools > * { flex: none; }

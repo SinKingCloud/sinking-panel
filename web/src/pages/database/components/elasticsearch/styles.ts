@@ -12,10 +12,12 @@ export default createStyles(({css, token}, {compact = false}: {compact?: boolean
         }
         .manager-header { display: flex; flex: none; justify-content: center; margin-bottom: 16px; min-width: 0; }
         .manager-navigation { min-width: 0; max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+        .manager-navigation.ant-segmented { border-radius: ${token.borderRadius}px; color: ${token.colorTextSecondary}; font-size: inherit; }
+        .manager-navigation.ant-segmented .ant-segmented-group > :is(.ant-segmented-item, .ant-segmented-thumb) { border-radius: ${token.borderRadius}px; }
         .manager-navigation::-webkit-scrollbar { display: none; }
         .manager-navigation .ant-segmented-group { display: flex; width: max-content; min-width: 100%; }
         .manager-navigation .ant-segmented-item { flex: 1 0 auto; }
-        .manager-navigation .ant-segmented-item-label { padding-inline: 12px; }
+        .manager-navigation .ant-segmented-item-label { min-height: ${compact ? 24 : 28}px; line-height: ${compact ? 24 : 28}px; padding-inline: 12px; }
         .manager-body, .manager-stage { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; }
         .manager-toolbar { display: flex; flex: none; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; min-width: 0; }
         .manager-tools { display: flex; align-items: center; gap: 6px; min-width: 0; margin-left: 0; }
@@ -23,7 +25,7 @@ export default createStyles(({css, token}, {compact = false}: {compact?: boolean
         .manager-toolbar .manager-picker, .manager-search { width: 240px; min-width: 0; max-width: 100%; }
         /* 工具栏与 MySQL 工作区共用同一套尺寸与主题色，不影响弹窗表单。 */
         &&& .manager-toolbar :is(.ant-select, .ant-input-affix-wrapper, .ant-input:not(textarea)) {
-            height: ${compact ? 24 : 28}px; border-radius: ${token.borderRadiusSM}px;
+            height: ${compact ? 24 : 28}px; border-radius: ${token.borderRadius}px;
             color: ${token.colorTextSecondary}; font-size: ${compact ? 11 : 12}px;
         }
         &&& .manager-toolbar :is(.ant-input-affix-wrapper, .ant-input:not(textarea)) { padding-inline: ${compact ? 8 : 10}px; }
@@ -33,7 +35,7 @@ export default createStyles(({css, token}, {compact = false}: {compact?: boolean
         .manager-toolbar .ant-select-suffix { color: ${token.colorTextQuaternary}; font-size: ${compact ? 9 : 10}px; }
         &&& .manager-toolbar .manager-picker.ant-select {
             align-items: center; height: ${compact ? 30 : 34}px; padding: 0 ${compact ? 7 : 10}px;
-            border-color: transparent; background: ${token.colorFillQuaternary}; box-shadow: none;
+            border-color: transparent; border-radius: ${token.borderRadiusSM}px; background: ${token.colorFillQuaternary}; box-shadow: none;
             transition: background-color .16s ease, border-color .16s ease;
         }
         &&& .manager-toolbar .manager-picker:not(.ant-select-disabled):hover,
@@ -48,7 +50,7 @@ export default createStyles(({css, token}, {compact = false}: {compact?: boolean
         &&& :is(.manager-toolbar, .manager-tabs, .manager-query-actions, .manager-result-heading, .maintenance-row) .ant-btn,
         &&& .manager-stage > .ant-btn {
             height: ${compact ? 24 : 28}px; padding-inline: ${compact ? 7 : 9}px; gap: ${compact ? 4 : 6}px;
-            border-radius: ${token.borderRadiusSM}px; font-size: ${compact ? 11 : 12}px;
+            border-radius: ${token.borderRadius}px; font-size: ${compact ? 11 : 12}px;
         }
         &&& :is(.manager-toolbar, .manager-tabs, .manager-query-actions, .manager-result-heading, .maintenance-row) .ant-btn-color-default:not(:disabled) { color: ${token.colorTextSecondary}; }
         &&& :is(.manager-toolbar, .manager-tabs, .manager-query-actions, .manager-result-heading, .maintenance-row) .ant-btn:disabled { border-color: transparent; background: ${token.colorFillTertiary}; }
@@ -73,8 +75,9 @@ export default createStyles(({css, token}, {compact = false}: {compact?: boolean
         .manager-statistics { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: ${token.colorTextTertiary}; font-size: ${compact ? 11 : 12}px; }
         .manager-refresh { margin-left: auto; flex: none; }
         .manager-output pre { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
-        .manager-table .ant-table { font-size: ${compact ? 11 : 12}px; color: ${token.colorTextSecondary}; }
+        && .manager-table .ant-table { font-family: ${token.fontFamily}; font-size: ${compact ? 11 : 12}px; line-height: ${token.lineHeight}; color: ${token.colorTextSecondary}; }
         .manager-table .ant-table-thead > tr > th { font-size: ${compact ? 12 : 13}px; font-weight: 500; color: ${token.colorTextSecondary}; }
+        .manager-table .ant-table-thead .ant-typography { font-size: inherit; }
         .manager-table .ant-table-cell { padding: ${compact ? 6 : 8}px ${compact ? 8 : 10}px !important; white-space: nowrap; }
         .manager-table .ant-table-cell .ant-btn { height: ${compact ? 22 : 24}px; padding-inline: 7px; color: ${token.colorTextSecondary}; font-size: ${compact ? 11 : 12}px; }
         .manager-table .ant-table-container { border-inline: 1px solid ${token.colorBorderSecondary}; border-bottom: 1px solid ${token.colorBorderSecondary}; border-radius: ${token.borderRadiusLG}px; overflow: hidden; }
@@ -89,10 +92,10 @@ export default createStyles(({css, token}, {compact = false}: {compact?: boolean
         .manager-footer .ant-pagination-item-active { background: ${token.colorBgContainer}; box-shadow: inset 0 0 0 1px ${token.colorPrimaryBorder}; }
         .manager-footer .ant-pagination-item:not(.ant-pagination-item-active) a, .manager-footer .ant-pagination-item-link { color: ${token.colorTextTertiary}; }
         .manager-footer .ant-pagination-options { display: flex; flex-wrap: nowrap; gap: 8px; margin-left: 4px; }
-        .manager-footer .ant-select { height: ${compact ? 22 : 26}px; font-size: inherit; }
+        .manager-footer .ant-select { height: ${compact ? 22 : 26}px; border-radius: ${token.borderRadius}px; font-size: inherit; }
         .manager-footer .ant-select-filled.ant-select-disabled { border-color: transparent; }
         .manager-footer .ant-pagination-options-quick-jumper { height: ${compact ? 22 : 26}px; line-height: ${compact ? 22 : 26}px; }
-        .manager-footer .ant-pagination-options-quick-jumper input { height: 100%; width: 42px; font-size: inherit; }
+        .manager-footer .ant-pagination-options-quick-jumper input { height: 100%; width: 42px; border-radius: ${token.borderRadius}px; font-size: inherit; }
         .es-cursor-pagination { display: flex; flex: none; align-items: center; gap: 4px; margin-left: auto; color: ${token.colorTextTertiary}; font-size: ${compact ? 11 : 12}px; white-space: nowrap; }
         .es-cursor-pagination > .ant-btn { height: ${compact ? 22 : 26}px; width: ${compact ? 22 : 26}px; padding: 0; color: inherit; font-size: inherit; }
         .es-cursor-pagination > .ant-btn:disabled { color: ${token.colorTextDisabled}; }
@@ -123,13 +126,13 @@ export default createStyles(({css, token}, {compact = false}: {compact?: boolean
             .manager-footer .ant-pagination { gap: 2px; }
             .manager-footer .ant-pagination-options { order: -1; margin-inline: 0 4px; }
             .manager-footer .ant-pagination-simple-pager { margin: 0; display: flex; align-items: center; gap: 4px; height: 26px; }
-            .manager-footer .ant-pagination-simple-pager input { width: 34px; height: 24px; padding: 0 4px; margin: 0; border-color: transparent; border-radius: ${token.borderRadiusSM}px; background: ${token.colorFillTertiary}; }
+            .manager-footer .ant-pagination-simple-pager input { width: 34px; height: 24px; padding: 0 4px; margin: 0; border-color: transparent; border-radius: ${token.borderRadius}px; background: ${token.colorFillTertiary}; }
             .manager-footer .ant-pagination-slash { margin: 0; }
         }
 
         .es-search {
             display: flex; align-items: center; flex: 0 1 240px; width: 240px; max-width: 100%; min-width: 0;
-            height: ${compact ? 24 : 28}px; border: 1px solid transparent; border-radius: ${token.borderRadiusSM}px;
+            height: ${compact ? 24 : 28}px; border: 1px solid transparent; border-radius: ${token.borderRadius}px;
             background: ${token.colorFillTertiary}; transition: background-color .16s ease, border-color .16s ease;
         }
         .es-search:hover { background: ${token.colorFillSecondary}; }
@@ -152,7 +155,7 @@ export default createStyles(({css, token}, {compact = false}: {compact?: boolean
             .es-status-toolbar .manager-refresh { margin-left: 0; }
         }
         .es-mapping-toolbar > .es-mapping-actions { flex: none; width: auto; margin-left: auto; overflow: visible; }
-        .es-document-key { border: 0; background: transparent; padding: 0; color: ${token.colorPrimary}; font: inherit; cursor: pointer; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .es-document-key { border: 0; border-radius: ${token.borderRadius}px; background: transparent; padding: 0; color: ${token.colorPrimary}; font: inherit; cursor: pointer; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .es-code { margin: 0; padding: 12px; max-height: 360px; overflow: auto; border-radius: ${token.borderRadius}px; background: ${token.colorFillQuaternary}; color: ${token.colorText}; font: ${compact ? 11 : 12}px/1.65 ${token.fontFamilyCode}; white-space: pre-wrap; overflow-wrap: anywhere; }
         .es-status-field { display: grid; min-width: 0; gap: 2px; }
         .es-status-field > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -183,7 +186,8 @@ export default createStyles(({css, token}, {compact = false}: {compact?: boolean
         .ant-form-item-explain, .ant-form-item-extra { font-size: ${token.fontSizeSM}px; }
         .es-document-mode { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: ${token.marginSM}px; }
         .es-document-mode > span { flex: none; color: ${token.colorText}; }
-        .es-document-mode .ant-segmented { font-size: ${token.fontSizeSM}px; }
+        .es-document-mode .ant-segmented { border-radius: ${token.borderRadius}px; font-size: ${token.fontSizeSM}px; }
+        .es-document-mode .ant-segmented .ant-segmented-group > :is(.ant-segmented-item, .ant-segmented-thumb) { border-radius: ${token.borderRadius}px; }
         .es-document-fields { min-width: 0; display: grid; gap: ${token.marginSM}px; margin-bottom: ${token.marginSM}px; }
         .es-field { min-width: 0; padding: ${compact ? 10 : 12}px; border: 1px solid ${token.colorBorderSecondary}; border-radius: ${token.borderRadiusLG}px; }
         .es-field-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: ${token.marginXS}px; color: ${token.colorTextSecondary}; font-size: ${token.fontSizeSM}px; }

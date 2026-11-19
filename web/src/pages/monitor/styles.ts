@@ -16,7 +16,11 @@ export default createStyles(({css, token}) => ({
         align-items: center;
         max-width: 100%;
 
-        .ant-segmented { font-size: 12px; }
+        .ant-segmented {
+            border-radius: ${token.borderRadius}px;
+            font-size: 12px;
+        }
+        .ant-segmented .ant-segmented-group > :is(.ant-segmented-item, .ant-segmented-thumb) { border-radius: ${token.borderRadius}px; }
         .ant-segmented-item-label { padding-inline: 12px; }
 
         @container data-table-workspace (max-width: 380px) {

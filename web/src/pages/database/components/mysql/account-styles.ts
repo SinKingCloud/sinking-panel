@@ -21,7 +21,7 @@ export default createStyles(({css, token}, {compact}: {compact: boolean}) => ({
         &&& .mysql-account-search.ant-input-affix-wrapper {
             height: ${compact ? 24 : 28}px;
             padding-inline: ${compact ? 8 : 10}px;
-            border-radius: ${token.borderRadiusSM}px;
+            border-radius: ${token.borderRadius}px;
             color: ${token.colorTextSecondary};
             font-size: ${compact ? 11 : 12}px;
         }
@@ -51,7 +51,7 @@ export default createStyles(({css, token}, {compact}: {compact: boolean}) => ({
             border: 0; padding: 0; background: transparent; font: inherit; color: inherit; text-align: left; cursor: pointer;
         }
         .mysql-account-grants:hover { color: ${token.colorPrimary}; }
-        .mysql-account-grants:focus-visible { outline: 2px solid ${token.colorPrimaryBorder}; outline-offset: 2px; border-radius: 3px; }
+        .mysql-account-grants:focus-visible { outline: 2px solid ${token.colorPrimaryBorder}; outline-offset: 2px; border-radius: ${token.borderRadius}px; }
         .mysql-account-no-grant { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: ${token.colorTextTertiary}; }
         .mysql-account-table .action-menu-open > .ant-table-cell { background: ${token.colorFillQuaternary}; }
         .client-footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
