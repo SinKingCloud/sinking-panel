@@ -6,7 +6,7 @@ import {formatFileMode, formatFileSize, formatFileTime, getFileIconType} from ".
 import useStyles from "./styles";
 import {copyTextToClipboard} from "./utils";
 
-const FileProperties = forwardRef<any, any>(({onRename, onPermissions}, ref) => {
+const FileProperties = forwardRef<any, any>(({onRename, onPermissions, zIndex}, ref) => {
     const theme = useTheme();
     const compact = Boolean(theme?.isCompactTheme?.());
     const screens = Grid.useBreakpoint();
@@ -119,6 +119,7 @@ const FileProperties = forwardRef<any, any>(({onRename, onPermissions}, ref) => 
             onCancel={close}
             modalProps={{
                 open,
+                zIndex,
                 afterClose: () => {
                     if (stateRef.current) return;
                     setState(undefined);

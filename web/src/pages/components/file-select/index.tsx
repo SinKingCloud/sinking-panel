@@ -1,13 +1,16 @@
 import React, {forwardRef, memo, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState} from "react";
-import {App, Button, ConfigProvider, Form, Grid, Input, Select, Space, Tooltip} from "antd";
+import {App, Button, Checkbox, ConfigProvider, Form, Grid, Input, Select, Space, Tooltip} from "antd";
 import type {ButtonProps, InputProps, InputRef, TableRef} from "antd";
 import DisabledContext from "antd/es/config-provider/DisabledContext";
 import useVariant from "antd/es/form/hooks/useVariants";
 import {useZIndex} from "antd/es/_util/hooks/useZIndex";
 import {Icon, ProModal, Title, useTheme} from "sinking-antd";
-import {createFile, getFileDisks, getFileInfo, getFileList} from "@/service/api/file";
+import {deleteFile, getFileDisks, getFileInfo, getFileList} from "@/service/api/file";
 import {readFileStorage, updateFileStorage} from "@/pages/file/hooks/file-storage";
 import FileUpload from "@/pages/file/components/upload";
+import FileForm from "@/pages/file/components/form";
+import FileProperties from "@/pages/file/components/properties";
+import FilePermissions from "@/pages/file/components/permissions";
 import {
     buildFileBreadcrumbs,
     comparableFilePath as comparablePath,
@@ -20,7 +23,7 @@ import {
 } from "@/pages/file/utils";
 import FileSelectBrowser from "./browser";
 import useFileSelection from "./selection";
-import useStyles from "@/pages/components/ui/path-select/styles";
+import useStyles from "./styles";
 
 export interface FileSelectProps extends Omit<InputProps, "value" | "defaultValue" | "onChange" | "onSelect" | "multiple" | "type"> {
     buttonProps?: ButtonProps;
@@ -70,7 +73,7 @@ const FileSelect = forwardRef<InputRef, FileSelectProps>((props, ref) => {
     }, [suffixes]);
     const theme = useTheme();
     const [, pickerZIndex] = useZIndex("Modal", zIndex);
-    const {message} = App.useApp();
+    const {message, modal} = App.useApp();
     const compact = Boolean(theme?.isCompactTheme?.());
     const screens = Grid.useBreakpoint();
     const {styles} = useStyles({compact});
@@ -85,12 +88,11 @@ const FileSelect = forwardRef<InputRef, FileSelectProps>((props, ref) => {
     const pickerSessionRef = useRef(0);
     const visiblePathRef = useRef("");
     const uploadRef = useRef<{open: () => void}>(null);
+    const deleteConfirmRef = useRef<{destroy: () => void} | null>(null);
     const selectionRequestRef = useRef(0);
-    const creationRequestRef = useRef(0);
-    const creationOpenRef = useRef(false);
-    const creationSubmittingRef = useRef(false);
-    const creationFormRef = useRef<React.ComponentRef<typeof Form>>(null);
-    const [creationForm] = Form.useForm();
+    const formRef = useRef<React.ComponentRef<typeof FileForm>>(null);
+    const propertiesRef = useRef<React.ComponentRef<typeof FileProperties>>(null);
+    const permissionsRef = useRef<React.ComponentRef<typeof FilePermissions>>(null);
     const restoredPathRef = useRef("");
     const pathRef = useRef<HTMLOListElement>(null);
     const pathInputRef = useRef<InputRef>(null);
@@ -105,6 +107,7 @@ const FileSelect = forwardRef<InputRef, FileSelectProps>((props, ref) => {
         select: selectPaths,
         compact: compactPaths,
         reset: resetSelection,
+        replacePath,
         cancel: cancelSelection,
         remember: rememberDirectory,
         forget: forgetDirectory,
@@ -123,21 +126,14 @@ const FileSelect = forwardRef<InputRef, FileSelectProps>((props, ref) => {
     const [reload, setReload] = useState(0);
     const [editingPath, setEditingPath] = useState(false);
     const [pathDraft, setPathDraft] = useState("");
-    const [creationOpen, setCreationOpen] = useState(false);
-    const [creationPath, setCreationPath] = useState("");
-    const [creationType, setCreationType] = useState<"directory" | "file">("directory");
-    const [creationSubmitting, setCreationSubmitting] = useState(false);
     const [uploadSession, setUploadSession] = useState<{path: string; session: number} | null>(null);
     visiblePathRef.current = path;
     const actionZIndex = pickerZIndex + 100;
-    const creationLabel = creationType === "directory" ? "文件夹" : "文件";
 
     useEffect(() => () => {
         requestRef.current += 1;
         pickerSessionRef.current += 1;
         selectionRequestRef.current += 1;
-        creationRequestRef.current += 1;
-        creationOpenRef.current = false;
     }, []);
 
     const selectionLabel = type === "directory" ? "目录" : type === "file" ? "文件" : "文件或目录";
@@ -226,11 +222,6 @@ const FileSelect = forwardRef<InputRef, FileSelectProps>((props, ref) => {
         pickerSessionRef.current += 1;
         selectionRequestRef.current += 1;
         cancelSelection();
-        creationRequestRef.current += 1;
-        creationOpenRef.current = false;
-        creationSubmittingRef.current = false;
-        setCreationOpen(false);
-        setCreationSubmitting(false);
         // 卸载上传队列会中止当前传输；下一次打开选择器使用新的会话。
         setUploadSession(null);
         setLoading(false);
@@ -344,6 +335,49 @@ const FileSelect = forwardRef<InputRef, FileSelectProps>((props, ref) => {
         setReload((current) => current + 1);
     }, [forgetDirectory]);
 
+    useEffect(() => () => { deleteConfirmRef.current?.destroy(); }, [isDisabled, open, path]);
+
+    const confirmDelete = useCallback((target: string) => {
+        if (isDisabled || showingDisks || browserLoading || browserError) return;
+        const directory = parentFilePath(target);
+        const session = pickerSessionRef.current;
+        let permanent = false;
+        deleteConfirmRef.current?.destroy();
+        const dialog = modal.confirm({
+            title: "删除",
+            content: <Space orientation="vertical">
+                <span style={{overflowWrap: "anywhere"}}>确定删除“{target}”吗？</span>
+                <Checkbox onChange={(event) => { permanent = event.target.checked; }}>彻底删除</Checkbox>
+            </Space>,
+            zIndex: actionZIndex,
+            okText: "确认",
+            cancelText: "取消",
+            okButtonProps: {danger: true, type: "default"},
+            mask: {closable: true},
+            afterClose: () => {
+                if (deleteConfirmRef.current === dialog) deleteConfirmRef.current = null;
+            },
+            onOk: async () => {
+                if (pickerSessionRef.current !== session || comparablePath(visiblePathRef.current) !== comparablePath(directory)) return;
+                try {
+                    const response = await deleteFile({body: {paths: [target], recycle: !permanent}});
+                    if (pickerSessionRef.current !== session) return;
+                    if (response?.code !== 200) {
+                        message.error(response?.message || "删除失败");
+                        return;
+                    }
+                    message.success(response?.message || (permanent ? "已彻底删除" : "已移至回收站"));
+                    selectionRequestRef.current++;
+                    replacePath(target);
+                    refreshDirectory(directory);
+                } catch (error: any) {
+                    if (pickerSessionRef.current === session) message.error(error?.message || "删除失败");
+                }
+            },
+        });
+        deleteConfirmRef.current = dialog;
+    }, [actionZIndex, browserError, browserLoading, isDisabled, message, modal, refreshDirectory, replacePath, showingDisks]);
+
     const openUpload = useCallback(() => {
         if (isDisabled || showingDisks || browserLoading || browserError || !loadedPath
             || comparablePath(loadedPath) !== comparablePath(path)) return;
@@ -361,49 +395,23 @@ const FileSelect = forwardRef<InputRef, FileSelectProps>((props, ref) => {
     const openCreationForm = useCallback((type: "directory" | "file") => {
         if (isDisabled || showingDisks || browserLoading || browserError || !loadedPath
             || comparablePath(loadedPath) !== comparablePath(path)) return;
-        creationRequestRef.current += 1;
-        creationOpenRef.current = true;
-        creationFormRef.current?.resetFields();
-        setCreationType(type);
-        setCreationPath(loadedPath);
-        setCreationOpen(true);
+        formRef.current?.open(type, loadedPath, undefined, true);
     }, [browserError, browserLoading, isDisabled, loadedPath, path, showingDisks]);
 
-    const closeCreationForm = useCallback(() => {
-        creationRequestRef.current += 1;
-        creationOpenRef.current = false;
-        creationSubmittingRef.current = false;
-        setCreationOpen(false);
-        setCreationSubmitting(false);
+    const openRename = useCallback((target: string, record: any) => {
+        formRef.current?.openRename(target, record, true);
     }, []);
-
-    const createEntry = async ({name}: {name: string}) => {
-        if (isDisabled || !creationOpenRef.current || creationSubmittingRef.current || !creationPath) return;
-        const request = creationRequestRef.current;
-        creationSubmittingRef.current = true;
-        setCreationSubmitting(true);
-        try {
-            const response = await createFile({body: {
-                path: creationPath,
-                name: `${name.trim()}${creationType === "directory" ? "/" : ""}`,
-            }});
-            if (creationRequestRef.current !== request) return;
-            if (response?.code !== 200) {
-                message.error(response?.message || `新建${creationLabel}失败`);
-                return;
-            }
-            message.success(response?.message || "创建成功");
-            closeCreationForm();
-            refreshDirectory(creationPath);
-        } catch (error: any) {
-            if (creationRequestRef.current === request) message.error(error?.message || `新建${creationLabel}失败`);
-        } finally {
-            if (creationRequestRef.current === request) {
-                creationSubmittingRef.current = false;
-                setCreationSubmitting(false);
-            }
+    const openProperties = useCallback((target: string, record: any) => {
+        propertiesRef.current?.open(target, record);
+    }, []);
+    const handleFormSuccess = useCallback(({sourcePath, targetPath, name}: {sourcePath?: string; targetPath: string; name: string}) => {
+        if (sourcePath) {
+            selectionRequestRef.current++;
+            replacePath(sourcePath, targetPath, acceptsFile);
+            propertiesRef.current?.updateRename(sourcePath, targetPath, name);
         }
-    };
+        refreshDirectory(parentFilePath(targetPath));
+    }, [acceptsFile, refreshDirectory, replacePath]);
 
     useEffect(() => {
         if (!open) {
@@ -610,6 +618,7 @@ const FileSelect = forwardRef<InputRef, FileSelectProps>((props, ref) => {
                         rootClassName: styles.modal,
                         style: {top: screens.md ? 100 : 24, paddingBottom: screens.md ? 100 : 24},
                         cancelText: "取消",
+                        cancelButtonProps: {type: "default"},
                         okButtonProps: {
                             disabled: selectionPending || !multiple && (showingDisks || loading || Boolean(error) || !loadedPath
                                 || comparablePath(loadedPath) !== comparablePath(path) || (type === "file" && !selectedPaths.length)),
@@ -652,47 +661,23 @@ const FileSelect = forwardRef<InputRef, FileSelectProps>((props, ref) => {
                             onConfirm={confirm}
                             onPageChange={changePage}
                             onCreate={openCreationForm}
+                            onRename={openRename}
+                            onProperties={openProperties}
+                            onDelete={confirmDelete}
                             onUpload={openUpload}
                             onReload={reloadList}/>
                     </Form>
                 </ProModal>
             </ConfigProvider>
-            <ProModal
-                title={<Title>新建{creationLabel}</Title>}
-                width="340px"
-                okText="创建"
-                onOk={creationForm.submit}
-                onCancel={closeCreationForm}
-                modalProps={{
-                    open: creationOpen && open && !isDisabled,
-                    zIndex: actionZIndex,
-                    style: {top: screens.md ? 100 : 24, paddingBottom: screens.md ? 100 : 24},
-                    cancelText: "取消",
-                    confirmLoading: creationSubmitting,
-                    focusable: {focusTriggerAfterClose: true},
-                    mask: {closable: true},
-                    styles: {body: {paddingTop: compact ? 10 : 15}},
-                    afterClose: () => {
-                        if (creationOpenRef.current) return;
-                        creationForm.resetFields();
-                        setCreationPath("");
-                    },
-                }}>
-                <Form ref={creationFormRef} form={creationForm} layout="vertical" variant="filled" preserve={false} requiredMark={false} onFinish={createEntry}>
-                    <Form.Item name="name" rules={[
-                        {required: true, whitespace: true, message: `请输入${creationLabel}名称`},
-                        {max: 255, message: "名称不能超过255个字符"},
-                        {validator: async (_, value) => {
-                            const name = String(value || "").trim();
-                            if (name === "." || name === ".." || /[\\/\0]/.test(name)) {
-                                throw new Error("名称不能包含路径分隔符");
-                            }
-                        }},
-                    ]}>
-                        <Input aria-label={`请输入${creationLabel}名称`} placeholder={`请输入${creationLabel}名称`} maxLength={255} disabled={creationSubmitting}/>
-                    </Form.Item>
-                </Form>
-            </ProModal>
+            {open && !isDisabled && <>
+                <FileForm ref={formRef} zIndex={actionZIndex + 100} onSuccess={handleFormSuccess}/>
+                <FileProperties ref={propertiesRef} zIndex={actionZIndex} onRename={openRename}
+                    onPermissions={(target: string, record: any) => permissionsRef.current?.open(target, record, true)}/>
+                <FilePermissions ref={permissionsRef} zIndex={actionZIndex + 100} onSuccess={(target: string, permissions: string) => {
+                    propertiesRef.current?.updatePermissions(target, permissions);
+                    refreshDirectory(parentFilePath(target));
+                }}/>
+            </>}
             {uploadSession && open && !isDisabled && <FileUpload
                 key={uploadSession.session}
                 ref={uploadRef}

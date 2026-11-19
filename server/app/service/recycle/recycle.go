@@ -9,7 +9,7 @@ import (
 // Service service接口
 type Service interface {
 	Count() (totalSize int64, fileCount int64, dirCount int64, err error)
-	Create(name string) error
+	Create(names ...string) error
 	Delete(name string) error
 	Clear() error
 	Restore(name string, path string) error

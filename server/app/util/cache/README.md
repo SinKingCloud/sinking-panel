@@ -18,6 +18,7 @@
 | `Get(key)` | 返回缓存值，未命中返回 `nil`；需要类型断言 |
 | `Set(key, value)` | 使用默认过期时间写入 |
 | `SetWithExpire(key, value, duration)` | 指定条目过期时间 |
+| `ReplaceWithExpire(key, value, duration)` | 仅更新有效条目和过期时间；条目不存在或已过期时返回 false |
 | `Delete(key)` | 删除普通缓存，不影响同名锁 |
 | `Remember(key, loader, duration)` | 命中直接返回，否则执行 loader 并缓存其返回值 |
 | `Lock(key, duration) bool` | 已有未过期锁时返回 false，否则设置新锁 |

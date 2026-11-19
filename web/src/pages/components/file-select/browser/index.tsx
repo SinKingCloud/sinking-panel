@@ -1,8 +1,9 @@
 import React, {memo, useCallback, useMemo} from "react";
-import {Button, Checkbox, Empty, Input, Pagination, Table, Tooltip, Typography} from "antd";
+import {App, Button, Checkbox, Empty, Input, Pagination, Table, Tooltip, Typography} from "antd";
 import type {InputRef, TableProps, TableRef} from "antd";
 import {Icon} from "sinking-antd";
 import ActionDropdown from "@/pages/components/ui/action-dropdown";
+import {copyFileText} from "@/pages/file/components/properties/utils";
 import {
     buildFileBreadcrumbs,
     comparableFilePath as comparablePath,
@@ -46,6 +47,9 @@ type FileSelectBrowserProps = {
     onConfirm: (path: string) => void;
     onPageChange: (page: number) => void;
     onCreate: (type: "directory" | "file") => void;
+    onDelete: (path: string) => void;
+    onRename: (path: string, record: any) => void;
+    onProperties: (path: string, record: any) => void;
     onUpload: () => void;
     onReload: () => void;
 };
@@ -83,9 +87,13 @@ const FileSelectBrowser = ({
     onConfirm,
     onPageChange,
     onCreate,
+    onDelete,
+    onRename,
+    onProperties,
     onUpload,
     onReload,
 }: FileSelectBrowserProps) => {
+    const {message} = App.useApp();
     const allowFiles = type !== "directory";
     const allowDirectories = type !== "file";
     const canSelect = useCallback((item: any) => (showingDisks || item.is_dir)
@@ -148,15 +156,37 @@ const FileSelectBrowser = ({
             title: "大小",
             dataIndex: "size",
             width: compact ? 80 : 96,
-            render: (size: number, record) => record.is_dir ? "-" : formatFileSize(size),
+            render: (size: number, record: {is_dir: boolean}) => record.is_dir ? "-" : formatFileSize(size),
         },
         {
             title: "修改时间",
             dataIndex: "update_time",
             width: compact ? 132 : 154,
             render: formatFileTime,
+        }, {
+            key: "action", title: "操作", width: 80, align: "center" as const, className: "path-select-action-cell",
+            onCell: () => ({
+                onClick: (event: React.MouseEvent) => event.stopPropagation(),
+                onDoubleClick: (event: React.MouseEvent) => event.stopPropagation(),
+                onKeyDown: (event: React.KeyboardEvent) => { if (event.key === "Enter" || event.key === " ") event.stopPropagation(); },
+            }),
+            render: (_: unknown, record: any) => {
+                const target = joinFilePath(loadedPath, record.name);
+                const disabled = loading || !loadedPath;
+                return <ActionDropdown closeOnScroll disabled={disabled} menu={{
+                    items: [
+                        {key: "rename", label: "重命名", onClick: () => onRename(target, record)},
+                        {key: "copy-path", label: "复制路径", onClick: () => void copyFileText(target, "路径", message)},
+                        {key: "copy-name", label: "复制名称", onClick: () => void copyFileText(record.name, "名称", message)},
+                        {key: "properties", label: "属性", onClick: () => onProperties(target, record)},
+                        {type: "divider"},
+                        {key: "delete", label: "删除", danger: true, onClick: () => onDelete(target)},
+                    ],
+                    onClick: ({domEvent}) => domEvent.stopPropagation(),
+                }}><Button type="default" size="small" autoInsertSpace={false} disabled={disabled}>操作</Button></ActionDropdown>;
+            },
         }]),
-    ], [canSelect, compact, multiple, path, selectedKeys, showingDisks]);
+    ], [canSelect, compact, loadedPath, loading, message, multiple, onDelete, onProperties, onRename, path, selectedKeys, showingDisks]);
 
     const getRowClassName = useCallback((record: any) => {
         if (loading) {

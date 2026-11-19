@@ -10,8 +10,11 @@ func (s *service) Delete(paths []string, recycle bool) error {
 	if len(paths) == 0 {
 		return errors.New("文件路径列表不能为空")
 	}
-	if recycle && s.recycleService == nil {
-		return errors.New("回收站服务不可用")
+	if recycle {
+		if s.recycleService == nil {
+			return errors.New("回收站服务不可用")
+		}
+		return s.recycleService.Create(paths...)
 	}
 	f := file.NewDisk("")
 	for _, path := range paths {
@@ -20,11 +23,7 @@ func (s *service) Delete(paths []string, recycle bool) error {
 		}
 	}
 	for _, path := range paths {
-		if recycle {
-			if err := s.recycleService.Create(path); err != nil {
-				return errors.New("移动至回收站失败")
-			}
-		} else if err := f.Delete(path); err != nil {
+		if err := f.Delete(path); err != nil {
 			return errors.New("删除失败")
 		}
 	}

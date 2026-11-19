@@ -248,8 +248,20 @@ const useStyles = createStyles<{compact: boolean}>(({css, token}, props) => ({
             border-block: 0 !important;
         }
 
+        .path-select-action-cell .ant-btn {
+            height: 25px;
+            padding-inline: 10px;
+            border-radius: ${token.borderRadius}px;
+            font-size: ${token.fontSizeSM}px;
+        }
+
         .path-select-table .ant-table-tbody > tr:last-child > td {
             border-bottom: 0;
+        }
+
+        /* 短列表补末行分隔线；列表填满时由滚动区裁掉，避免与状态栏双线。 */
+        .path-select-table .ant-table:not(.ant-table-empty) .ant-table-body > table {
+            box-shadow: 0 1px 0 ${token.colorSplit};
         }
 
         .path-select-table .ant-table-body {

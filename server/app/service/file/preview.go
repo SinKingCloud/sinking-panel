@@ -77,7 +77,9 @@ func (s *service) CheckPreviewSign(key string) (PreviewSign, error) {
 	if sign.TTL > 0 && time.Until(sign.ExpiresAt) < min(10*time.Minute, sign.TTL/6) {
 		ttl := min(30*time.Minute, sign.TTL)
 		sign.ExpiresAt = time.Now().Add(ttl)
-		s.cache.SetWithExpire(cacheKey, sign, ttl)
+		if !s.cache.ReplaceWithExpire(cacheKey, sign, ttl) {
+			return PreviewSign{}, errors.New("预览签名无效或已过期")
+		}
 	}
 	return sign, nil
 }

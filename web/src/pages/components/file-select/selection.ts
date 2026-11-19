@@ -6,6 +6,7 @@ import {
     isAbsoluteFilePath,
     isFilePathWithin,
     joinFilePath,
+    normalizeFilePath,
 } from "@/pages/file/utils";
 
 type SelectionOptions = {
@@ -59,6 +60,16 @@ export default function useFileSelection({type, multiple, disabled, onError}: Se
         cancel();
         commit(compact(values));
     }, [cancel, commit, compact]);
+
+    const replacePath = useCallback((path: string, target?: string, accepts?: (value: string) => boolean) => {
+        const source = normalizeFilePath(path);
+        reset(currentPaths.current.flatMap((value) => {
+            if (!isAbsoluteFilePath(value) || !isFilePathWithin(value, source)) return [value];
+            if (!target) return [];
+            const next = target + normalizeFilePath(value).slice(source.length);
+            return !accepts || accepts(next) ? [next] : [];
+        }));
+    }, [reset]);
 
     const remember = useCallback((path: string, items: {name: string; is_dir?: boolean}[]) => {
         if (!tree || !isAbsoluteFilePath(path)) return;
@@ -165,5 +176,5 @@ export default function useFileSelection({type, multiple, disabled, onError}: Se
         };
     }, [cancel, commit, compact, disabled, type]);
 
-    return {paths, pending, select, reset, cancel, compact, remember, forget};
+    return {paths, pending, select, reset, replacePath, cancel, compact, remember, forget};
 }

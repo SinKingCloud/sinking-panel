@@ -46,6 +46,10 @@ func (c *Cache) SetWithExpire(key string, value interface{}, expiration time.Dur
 	c.memory.Set(key, value, expiration)
 }
 
+func (c *Cache) ReplaceWithExpire(key string, value interface{}, expiration time.Duration) bool {
+	return c.memory.Replace(key, value, expiration) == nil
+}
+
 func (c *Cache) Delete(key string) {
 	c.memory.Delete(key)
 }

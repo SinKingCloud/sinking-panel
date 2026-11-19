@@ -1,3 +1,5 @@
+import type {MessageInstance} from "antd/es/message/interface";
+
 const fallbackCopyText = (value: string) => {
     if (typeof document === "undefined") {
         return false;
@@ -41,4 +43,9 @@ export const copyTextToClipboard = async (value: string) => {
         }
     }
     return fallbackCopyText(value);
+};
+
+export const copyFileText = async (value: string, label: string, message: Pick<MessageInstance, "success" | "error">) => {
+    if (await copyTextToClipboard(value)) message.success(`${label}已复制`);
+    else message.error(`${label}复制失败`);
 };

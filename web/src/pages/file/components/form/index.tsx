@@ -4,7 +4,7 @@ import {ProModal, Title, useTheme} from "sinking-antd";
 import {createFile, updateFile} from "@/service/api/file";
 import {joinFilePath, parentFilePath} from "../../utils";
 
-const FileForm = forwardRef<any, any>(({onSuccess}, ref) => {
+const FileForm = forwardRef<any, any>(({onSuccess, zIndex}, ref) => {
     const {message} = App.useApp();
     const theme = useTheme();
     const compact = Boolean(theme?.isCompactTheme?.());
@@ -99,7 +99,7 @@ const FileForm = forwardRef<any, any>(({onSuccess}, ref) => {
                 mode: editor.mode,
                 name: value,
                 sourcePath,
-                targetPath: sourcePath ? joinFilePath(parentFilePath(sourcePath), value) : undefined,
+                targetPath: joinFilePath(sourcePath ? parentFilePath(sourcePath) : editor.path, value),
             });
             if (generationRef.current === generation) {
                 close();
@@ -125,7 +125,7 @@ const FileForm = forwardRef<any, any>(({onSuccess}, ref) => {
             width="340px"
             okText={editor?.mode === "rename" ? "保存" : "创建"}
             onOk={() => form.submit()}
-            onCancel={() => close()}
+            onCancel={() => { if (!submittingRef.current) close(); }}
             modalProps={{
                 open,
                 afterClose: () => {
@@ -133,15 +133,15 @@ const FileForm = forwardRef<any, any>(({onSuccess}, ref) => {
                     setEditor(undefined);
                     form.resetFields();
                 },
-                zIndex: layered ? 2000 : undefined,
-                closable: true,
-                keyboard: true,
+                zIndex: zIndex ?? (layered ? 2000 : undefined),
+                closable: !submitting,
+                keyboard: !submitting,
                 style: {top: screens.md ? 100 : 24, paddingBottom: screens.md ? 100 : 24},
                 cancelText: "取消",
                 confirmLoading: submitting,
                 focusable: {focusTriggerAfterClose: layered},
-                mask: {closable: true},
-                cancelButtonProps: {disabled: false},
+                mask: {closable: !submitting},
+                cancelButtonProps: {disabled: submitting},
                 styles: {body: {paddingTop: compact ? 10 : 15}},
             }}>
             <AntForm<any>
@@ -150,6 +150,7 @@ const FileForm = forwardRef<any, any>(({onSuccess}, ref) => {
                 variant="filled"
                 preserve={false}
                 requiredMark={false}
+                disabled={submitting}
                 onFinish={submit}>
                 <AntForm.Item
                     name="name"

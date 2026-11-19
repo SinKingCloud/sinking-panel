@@ -12,8 +12,10 @@ import {formatFileSize, formatFileTime, getFileIconType} from "@/pages/file/util
 import FileUpload from "@/pages/file/components/upload";
 import {uploadOssFileTransfer} from "@/pages/file/components/upload/transfer";
 import ServerTransfer from "@/pages/file/components/oss/server-transfer";
+import FileInfo from "@/pages/file/components/oss/info";
+import {copyFileText} from "@/pages/file/components/properties/utils";
 import ActionDropdown from "@/pages/components/ui/action-dropdown";
-import useStyles from "@/pages/components/ui/path-select/styles";
+import useStyles from "@/pages/components/file-select/styles";
 
 /** 单选、多选均使用对象键数组；目录模式下空字符串表示桶根目录。 */
 export interface OssPathPickerProps extends Omit<InputProps, "value" | "defaultValue" | "onChange" | "onSelect"> {
@@ -33,6 +35,7 @@ export interface OssPathPickerProps extends Omit<InputProps, "value" | "defaultV
 const directoryPrefix = (key: string) => key && !key.endsWith("/") ? `${key}/` : key;
 const parentPrefix = (key: string) => key.slice(0, key.lastIndexOf("/", key.endsWith("/") ? key.length - 2 : key.length) + 1);
 const displayPath = (key: string) => `/${key}`;
+const objectName = (key: string) => key.replace(/\/$/, "").split("/").pop() || "/";
 type UploadSession = {id: number; scope: number; ossId: number; prefix: string};
 type UploadTask = {id: string; session: UploadSession};
 
@@ -98,7 +101,9 @@ const OssPathPicker = forwardRef<InputRef, OssPathPickerProps>((props, ref) => {
     const [reload, setReload] = useState(0);
     const [editing, setEditing] = useState(false);
     const [draft, setDraft] = useState("");
-    const [creating, setCreating] = useState(false);
+    const [editingKey, setEditingKey] = useState<string>();
+    const [info, setInfo] = useState<any>();
+    const namePlaceholder = editingKey ? "请输入新名称" : "请输入文件夹名称";
     const [saving, setSaving] = useState(false);
     const [localUpload, setLocalUpload] = useState<UploadSession>();
     const [serverUpload, setServerUpload] = useState<UploadSession>();
@@ -112,7 +117,7 @@ const OssPathPicker = forwardRef<InputRef, OssPathPickerProps>((props, ref) => {
     const uploadSequence = useRef(0);
     const uploadScope = useRef({scope: 0, open: false, ossId: Number(ossId), prefix: ""});
     const pendingUploadRefresh = useRef<UploadSession | undefined>(undefined);
-    const closeConfirmation = useRef<ReturnType<typeof modal.confirm> | null>(null);
+    const confirmation = useRef<ReturnType<typeof modal.confirm> | null>(null);
     const request = useRef(0);
     const folderRequest = useRef(0);
     const folderPending = useRef(false);
@@ -229,8 +234,8 @@ const OssPathPicker = forwardRef<InputRef, OssPathPickerProps>((props, ref) => {
         uploadScope.current.scope++;
         uploadScope.current.open = false;
         pendingUploadRefresh.current = undefined;
-        closeConfirmation.current?.destroy();
-        closeConfirmation.current = null;
+        confirmation.current?.destroy();
+        confirmation.current = null;
         uploading.current = false;
         submitting.current = false;
         setLocalUpload(undefined);
@@ -239,22 +244,25 @@ const OssPathPicker = forwardRef<InputRef, OssPathPickerProps>((props, ref) => {
         setServerBusy(false);
         request.current++;
         folderRequest.current++;
+        folderPending.current = false;
+        setSaving(false);
         selectionRequest.current++;
         selectionPending.current = false;
         selectionDirectories.current.clear();
         setSelecting(false);
         setOpen(false);
-        setCreating(false);
+        setEditingKey(undefined);
+        setInfo(undefined);
         setEditing(false);
     }, []);
     const requestClose = (finish = close) => {
+        if (confirmation.current || folderPending.current) return;
         if (!uploading.current) { finish(); return; }
-        if (closeConfirmation.current) return;
-        closeConfirmation.current = modal.confirm({
+        confirmation.current = modal.confirm({
             title: "关闭选择器？", content: "仍在上传的本机文件将尝试取消，已提交的服务器任务会继续执行。",
             zIndex: actionZIndex + 100, okText: "取消上传并关闭", cancelText: "继续上传",
-            onOk: () => { closeConfirmation.current = null; finish(); },
-            onCancel: () => { closeConfirmation.current = null; },
+            onOk: () => { confirmation.current = null; finish(); },
+            onCancel: () => { confirmation.current = null; },
         });
     };
     useEffect(() => {
@@ -271,8 +279,8 @@ const OssPathPicker = forwardRef<InputRef, OssPathPickerProps>((props, ref) => {
             request.current++; folderRequest.current++; selectionRequest.current++;
             uploadScope.current.scope++;
             uploadScope.current.open = false;
-            closeConfirmation.current?.destroy();
-            closeConfirmation.current = null;
+            confirmation.current?.destroy();
+            confirmation.current = null;
         };
     }, [ossId, mode, multi, close]);
     useEffect(() => { if (isDisabled) close(); }, [isDisabled, close]);
@@ -347,7 +355,7 @@ const OssPathPicker = forwardRef<InputRef, OssPathPickerProps>((props, ref) => {
         else if (breadcrumbRef.current) breadcrumbRef.current.scrollLeft = breadcrumbRef.current.scrollWidth;
     }, [editing, breadcrumbs, open]);
 
-    const refresh = () => {
+    const refresh = useCallback(() => {
         if (selectionPending.current) return;
         for (const directory of selectionDirectories.current.keys()) {
             if (directory.startsWith(prefix)) selectionDirectories.current.delete(directory);
@@ -356,7 +364,7 @@ const OssPathPicker = forwardRef<InputRef, OssPathPickerProps>((props, ref) => {
         setLoading(true);
         setQuery((current) => ({...current, cursor: 0, tokens: [""]}));
         setReload((current) => current + 1);
-    };
+    }, [prefix]);
     const refreshUpload = useCallback((session: UploadSession) => {
         const current = uploadScope.current;
         if (!current.open || current.scope !== session.scope || current.ossId !== session.ossId) return;
@@ -442,6 +450,49 @@ const OssPathPicker = forwardRef<InputRef, OssPathPickerProps>((props, ref) => {
             close();
         });
     };
+    const remove = useCallback((item: any) => {
+        const key = item.key;
+        if (!key || key === prefix || !key.startsWith(prefix) || confirmation.current || selectionPending.current) return;
+        const {scope, ossId} = uploadScope.current;
+        const active = () => uploadScope.current.open && uploadScope.current.scope === scope &&
+            uploadScope.current.ossId === ossId && uploadScope.current.prefix === prefix;
+        const dialog = modal.confirm({
+            title: item.directory ? "删除目录" : "删除文件",
+            content: `确定删除“${displayPath(key)}”${item.directory ? "及其所有内容" : ""}吗？无法从面板回收站恢复。`,
+            okText: "删除", cancelText: "取消", okButtonProps: {danger: true}, zIndex: actionZIndex,
+            mask: {closable: true},
+            afterClose: () => { if (confirmation.current === dialog) confirmation.current = null; },
+            onOk: async () => {
+                if (!active()) return;
+                dialog.update({keyboard: false, mask: {closable: false}, cancelButtonProps: {disabled: true}});
+                try {
+                    const response = await ossOperate({body: {id: ossId, action: "delete", keys: [key]}});
+                    if (!active()) return;
+                    const failed = response?.data?.find?.((result: any) => result?.error);
+                    if (response?.code !== 200 || failed) throw new Error(failed?.error || response?.message || "删除失败");
+                    const removed = (path: string) => path === key || (item.directory && path.startsWith(directoryPrefix(key)));
+                    setSelected((current: any) => current && removed(current.key) ? undefined : current);
+                    setSelectedItems((items) => items.filter((entry) => !removed(entry.key)));
+                    message.success("删除成功");
+                } catch (reason: any) {
+                    if (active()) message.error(reason?.message || "删除失败");
+                } finally {
+                    // 目录删除可能只完成了部分对象，失败后也重新读取实际列表。
+                    if (active()) refresh();
+                }
+            },
+        });
+        confirmation.current = dialog;
+    }, [actionZIndex, message, modal, prefix, refresh]);
+
+    const openEditor = useCallback((key: string) => {
+        if (!loaded || saving || selectionPending.current || key.endsWith("/")) return;
+        folderRequest.current++;
+        folderForm.resetFields();
+        if (key) folderForm.setFieldValue("name", objectName(key));
+        setEditingKey(key);
+    }, [folderForm, loaded, saving]);
+    const closeInfo = useCallback(() => setInfo(undefined), []);
     const columns = useMemo<TableProps<any>["columns"]>(() => [
         {title: "名称", dataIndex: "key", render: (key: string, record: any) => {
             const name = key.slice(prefix.length).replace(/\/$/, "") || "/";
@@ -456,33 +507,53 @@ const OssPathPicker = forwardRef<InputRef, OssPathPickerProps>((props, ref) => {
         {title: "大小", dataIndex: "size", width: compact ? 80 : 96, render: (size: number, record: any) => record?.directory ? "-" : formatFileSize(size)},
         {title: "修改时间", dataIndex: "last_modified", width: compact ? 132 : 154,
             render: (value: string) => value?.startsWith("0001-") ? "-" : formatFileTime(value)},
-    ], [compact, mode, multi, prefix, selected]);
+        {key: "action", title: "操作", width: 80, align: "center", className: "path-select-action-cell",
+            onCell: () => ({
+                onClick: (event) => event.stopPropagation(),
+                onDoubleClick: (event) => event.stopPropagation(),
+                onKeyDown: (event) => { if (event.key === "Enter" || event.key === " ") event.stopPropagation(); },
+            }),
+            render: (_, item) => <ActionDropdown closeOnScroll disabled={loading || selecting} menu={{
+                items: [
+                    ...(!item.directory ? [{key: "rename", label: "重命名", onClick: () => openEditor(item.key)}] : []),
+                    {key: "copy-path", label: "复制路径", onClick: () => void copyFileText(displayPath(item.key), "路径", message)},
+                    {key: "copy-name", label: "复制名称", onClick: () => void copyFileText(objectName(item.key), "名称", message)},
+                    {key: "properties", label: "属性", onClick: () => setInfo(item)},
+                    {type: "divider"},
+                    {key: "delete", label: "删除", danger: true, onClick: () => remove(item)},
+                ],
+                onClick: ({domEvent}) => domEvent.stopPropagation(),
+            }}><Button type="default" size="small" autoInsertSpace={false} disabled={loading || selecting}>操作</Button></ActionDropdown>},
+    ], [compact, loading, message, mode, multi, openEditor, prefix, remove, selected, selecting]);
 
-    const openFolder = () => {
-        if (!loaded || saving || selectionPending.current) return;
-        folderRequest.current++;
-        folderForm.resetFields();
-        setCreating(true);
-    };
-    const createFolder = async ({name}: {name: string}) => {
-        if (!open || !creating || folderPending.current || selectionPending.current || isDisabled || !validId) return;
+    const saveName = async ({name}: {name: string}) => {
+        if (!open || editingKey === undefined || folderPending.current || selectionPending.current || isDisabled || !validId) return;
+        const destination = prefix + name;
+        if (editingKey === destination) { setEditingKey(undefined); return; }
         const current = ++folderRequest.current;
         folderPending.current = true;
         setSaving(true);
         try {
-            const response = await ossOperate({body: {id: ossId, action: "mkdir", key: `${prefix}${name}/`}});
+            const response = await ossOperate({body: editingKey
+                ? {id: ossId, action: "rename", key: editingKey, name}
+                : {id: ossId, action: "mkdir", key: directoryPrefix(destination)}});
             if (folderRequest.current !== current) return;
-            if (response?.code !== 200) throw new Error(response?.message || "新建文件夹失败");
-            selectionDirectories.current.delete(prefix);
-            setCreating(false);
-            message.success("新建成功");
-            setQuery((current) => ({...current, cursor: 0, tokens: [""]}));
-            setReload((current) => current + 1);
+            if (response?.code !== 200) throw new Error(response?.message || (editingKey ? "重命名失败" : "新建文件夹失败"));
+            if (editingKey) {
+                const renamed = (item: any) => item?.key === editingKey ? {...item, key: destination} : item;
+                setSelected(renamed);
+                setSelectedItems((items) => selectionItems(items.map(renamed)));
+            }
+            setEditingKey(undefined);
+            message.success(editingKey ? "重命名成功" : "新建成功");
+            refresh();
         } catch (reason: any) {
-            if (folderRequest.current === current) message.error(reason?.message || "新建文件夹失败");
+            if (folderRequest.current === current) message.error(reason?.message || (editingKey ? "重命名失败" : "新建文件夹失败"));
         } finally {
-            folderPending.current = false;
-            setSaving(false);
+            if (folderRequest.current === current) {
+                folderPending.current = false;
+                setSaving(false);
+            }
         }
     };
 
@@ -511,6 +582,7 @@ const OssPathPicker = forwardRef<InputRef, OssPathPickerProps>((props, ref) => {
         <ConfigProvider componentSize="middle" variant="outlined">
             <ProModal title={<Title>{title}</Title>} width="640px" okText="选择" onOk={() => confirm()} onCancel={() => requestClose()}
                 modalProps={{open: open && !isDisabled, zIndex, rootClassName: styles.modal, cancelText: "取消",
+                    cancelButtonProps: {type: "default"},
                     style: {top: screens.md ? 100 : 24, paddingBottom: screens.md ? 100 : 24},
                     okButtonProps: {loading: selecting, disabled: selecting || (!multi && (!loaded || (mode === "file" && !selected?.key)))},
                     focusable: {focusTriggerAfterClose: false}, mask: {closable: true},
@@ -550,7 +622,7 @@ const OssPathPicker = forwardRef<InputRef, OssPathPickerProps>((props, ref) => {
                                         disabled={!loaded || saving || selecting || serverBusy} icon={<Icon type="UploadOutlined"/>}/>
                                 </ActionDropdown>
                                 <Button type="text" className="path-select-up" aria-label="新建文件夹"
-                                    disabled={!loaded || saving || selecting} icon={<Icon type="PlusOutlined"/>} onClick={openFolder}/>
+                                    disabled={!loaded || saving || selecting} icon={<Icon type="PlusOutlined"/>} onClick={() => openEditor("")}/>
                                 <Button type="text" className="path-select-up" aria-label="刷新"
                                     loading={loading} disabled={selecting} icon={<Icon type="ReloadOutlined"/>} onClick={refresh}/>
                             </div>
@@ -643,18 +715,19 @@ const OssPathPicker = forwardRef<InputRef, OssPathPickerProps>((props, ref) => {
                 submitting.current = busy;
                 setServerBusy(busy);
             }}/>}
-        <ProModal title={<Title>新建文件夹</Title>} width="340px" onOk={folderForm.submit} onCancel={() => {
-            if (!folderPending.current) { folderRequest.current++; setCreating(false); }
-        }} modalProps={{open: creating && open, zIndex: actionZIndex, okText: "创建", cancelText: "取消",
+        <FileInfo active={open} id={Number(ossId)} item={info} zIndex={actionZIndex} onCancel={closeInfo}/>
+        <ProModal title={<Title>{editingKey ? "重命名" : "新建文件夹"}</Title>} width="340px" onOk={folderForm.submit} onCancel={() => {
+            if (!folderPending.current) { folderRequest.current++; setEditingKey(undefined); }
+        }} modalProps={{open: editingKey !== undefined && open, zIndex: actionZIndex, okText: editingKey ? "保存" : "创建", cancelText: "取消",
             style: {top: screens.md ? 100 : 24, paddingBottom: screens.md ? 100 : 24},
             styles: {body: {paddingTop: compact ? 10 : 15}},
             confirmLoading: saving, closable: !saving, keyboard: !saving, mask: {closable: !saving}, cancelButtonProps: {disabled: saving},
             forceRender: true, focusable: {focusTriggerAfterClose: true}}}>
-            <Form form={folderForm} layout="vertical" variant="filled" preserve={false} requiredMark={false} onFinish={createFolder} disabled={saving}>
-                <Form.Item name="name" rules={[{required: true, whitespace: true, message: "请输入文件夹名称"},
+            <Form form={folderForm} layout="vertical" variant="filled" preserve={false} requiredMark={false} onFinish={saveName} disabled={saving}>
+                <Form.Item name="name" rules={[{required: true, whitespace: true, message: namePlaceholder},
                     {max: 255, message: "名称不能超过255个字符"}, {validator: async (_, name) => {
-                        if (name === "." || name === ".." || /[\\/\0\r\n]/.test(String(name || ""))) throw new Error("请输入单个文件夹名称");
-                    }}]}><Input aria-label="请输入文件夹名称" placeholder="请输入文件夹名称" maxLength={255}/></Form.Item>
+                        if (name === "." || name === ".." || /[\\/\0\r\n]/.test(String(name || ""))) throw new Error("请输入有效的名称，不要包含路径");
+                    }}]}><Input aria-label={namePlaceholder} placeholder={namePlaceholder} maxLength={255}/></Form.Item>
             </Form>
         </ProModal>
     </>;

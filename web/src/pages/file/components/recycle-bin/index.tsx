@@ -30,12 +30,12 @@ const normalizeNames = (names: string[]) => Array.from(new Set((names || []).fil
 
 const RecycleRowActions = memo(({
     id,
-    name,
+    path,
     onDelete,
     onRestore,
 }: any) => {
-    const restore = useCallback(() => onRestore([id], name), [id, name, onRestore]);
-    const remove = useCallback(() => onDelete([id], name), [id, name, onDelete]);
+    const restore = useCallback(() => onRestore([id], path), [id, path, onRestore]);
+    const remove = useCallback(() => onDelete([id], path), [id, path, onDelete]);
     const menu = useMemo(() => ({
         items: [
             {key: "restore", label: "恢复", onClick: restore},
@@ -122,7 +122,7 @@ const FileRecycleBin = memo(forwardRef<any, any>(({onMutation}, ref) => {
         });
     }, [message, refreshAfterMutation]);
 
-    const confirmRestore = useCallback((names: string[], name = "") => {
+    const confirmRestore = useCallback((names: string[], path = "") => {
         const nextNames = normalizeNames(names);
         if (nextNames.length === 0) {
             message.warning("请选择回收站文件");
@@ -130,8 +130,8 @@ const FileRecycleBin = memo(forwardRef<any, any>(({onMutation}, ref) => {
         }
         confirmRef.current = modal.confirm({
             title: "恢复文件",
-            content: nextNames.length === 1 && name
-                ? `确定恢复“${name}”吗？`
+            content: nextNames.length === 1 && path
+                ? `确定恢复“${path}”吗？`
                 : `确定恢复选中的 ${nextNames.length} 项吗？`,
             okText: "恢复",
             cancelText: "取消",
@@ -140,7 +140,7 @@ const FileRecycleBin = memo(forwardRef<any, any>(({onMutation}, ref) => {
         });
     }, [message, modal, mutate]);
 
-    const confirmDelete = useCallback((names: string[], name = "") => {
+    const confirmDelete = useCallback((names: string[], path = "") => {
         const nextNames = normalizeNames(names);
         if (nextNames.length === 0) {
             message.warning("请选择回收站文件");
@@ -148,8 +148,8 @@ const FileRecycleBin = memo(forwardRef<any, any>(({onMutation}, ref) => {
         }
         confirmRef.current = modal.confirm({
             title: "彻底删除",
-            content: nextNames.length === 1 && name
-                ? `确定彻底删除“${name}”吗？此操作无法恢复。`
+            content: nextNames.length === 1 && path
+                ? `确定彻底删除“${path}”吗？此操作无法恢复。`
                 : `确定彻底删除选中的 ${nextNames.length} 项吗？此操作无法恢复。`,
             okText: "删除",
             cancelText: "取消",
@@ -232,7 +232,7 @@ const FileRecycleBin = memo(forwardRef<any, any>(({onMutation}, ref) => {
             render: (_: unknown, record: any) => (
                 <RecycleRowActions
                     id={record.id}
-                    name={record.name}
+                    path={record.path}
                     onDelete={confirmDelete}
                     onRestore={confirmRestore}/>
             ),
@@ -300,9 +300,9 @@ const FileRecycleBin = memo(forwardRef<any, any>(({onMutation}, ref) => {
             }}
             rowSelection={{
                 columnWidth: 48,
-                actions: (keys) => [
-                    {key: "restore", type: "button", label: "恢复", icon: "RollbackOutlined", onClick: () => confirmRestore(keys.map(String))},
-                    {key: "delete", type: "button", label: "删除", icon: "DeleteOutlined", danger: true, onClick: () => confirmDelete(keys.map(String))},
+                actions: (keys, rows) => [
+                    {key: "restore", type: "button", label: "恢复", icon: "RollbackOutlined", onClick: () => confirmRestore(keys.map(String), rows[0]?.path)},
+                    {key: "delete", type: "button", label: "删除", icon: "DeleteOutlined", danger: true, onClick: () => confirmDelete(keys.map(String), rows[0]?.path)},
                 ],
             }}/>
     );

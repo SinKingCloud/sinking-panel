@@ -4,7 +4,7 @@ import {ProModal, Title, useTheme} from "sinking-antd";
 import {updateFile} from "@/service/api/file";
 import {formatFileMode} from "../../utils";
 
-const FilePermissions = forwardRef<any, any>(({onSuccess}, ref) => {
+const FilePermissions = forwardRef<any, any>(({onSuccess, zIndex}, ref) => {
     const {message} = App.useApp();
     const theme = useTheme();
     const compact = Boolean(theme?.isCompactTheme?.());
@@ -84,7 +84,7 @@ const FilePermissions = forwardRef<any, any>(({onSuccess}, ref) => {
                     setState(undefined);
                     form.resetFields();
                 },
-                zIndex: layered ? 2000 : undefined,
+                zIndex: zIndex ?? (layered ? 2000 : undefined),
                 style: {top: screens.md ? 100 : 24, paddingBottom: screens.md ? 100 : 24},
                 cancelText: "取消",
                 confirmLoading: submitting,

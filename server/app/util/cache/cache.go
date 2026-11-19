@@ -7,6 +7,7 @@ type Interface interface {
 	Get(key string) interface{}
 	Set(key string, value interface{})
 	SetWithExpire(key string, value interface{}, expiration time.Duration)
+	ReplaceWithExpire(key string, value interface{}, expiration time.Duration) bool
 	Delete(key string)
 	Remember(key string, fn func() interface{}, expiration time.Duration) interface{}
 	Lock(key string, expiration time.Duration) bool

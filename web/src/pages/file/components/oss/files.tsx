@@ -59,7 +59,6 @@ const Files = ({id, active, revision, onCancel, onEdit, onBusyChange}: FilesProp
     const alive = useRef(true);
     const visible = useRef(active);
     const request = useRef(0);
-    const infoRequest = useRef(0);
     const loaded = useRef("");
     const listPrefix = useRef("");
     const configuration = useRef<number>();
@@ -88,7 +87,6 @@ const Files = ({id, active, revision, onCancel, onEdit, onBusyChange}: FilesProp
     const [editor, setEditor] = useState<{action: "mkdir" | "rename"; key?: string; prefix: string; title: string}>();
     const [editorOpen, setEditorOpen] = useState(false);
     const [info, setInfo] = useState<any>();
-    const [infoLoading, setInfoLoading] = useState(false);
     const creatingDirectory = editor?.action === "mkdir";
     const renaming = editor?.action === "rename";
     const namePlaceholder = renaming ? "请输入新名称" : "请输入文件夹名称";
@@ -111,10 +109,7 @@ const Files = ({id, active, revision, onCancel, onEdit, onBusyChange}: FilesProp
         editorVisible.current = false;
         setEditorOpen(false);
     }, []);
-    const closeInfo = useCallback(() => {
-        infoRequest.current++;
-        setInfo(undefined); setInfoLoading(false);
-    }, []);
+    const closeInfo = useCallback(() => setInfo(undefined), []);
 
     useEffect(() => {
         setOpenMenu((current) => active && !disabled && current && recordsByKey.has(current.key) ? current : undefined);
@@ -174,7 +169,6 @@ const Files = ({id, active, revision, onCancel, onEdit, onBusyChange}: FilesProp
         return () => {
             alive.current = false;
             request.current++;
-            infoRequest.current++;
             confirmation.current?.destroy();
             busyChanged.current(id, false);
         };
@@ -215,24 +209,9 @@ const Files = ({id, active, revision, onCancel, onEdit, onBusyChange}: FilesProp
         }
         return response.data;
     }, [record.id]);
-    // 先打开详情弹窗再读取内容，独立校验请求，关闭后忽略旧响应。
-    const details = useCallback(async (item: any) => {
-        if (pending.current || uploading.current) return;
-        const current = ++infoRequest.current;
-        setInfo({key: item.key}); setInfoLoading(true);
-        try {
-            const data = await invoke({action: "info", key: item.key});
-            if (!alive.current || !visible.current || current !== infoRequest.current) return;
-            if (!data || data.key !== item.key) throw new Error("获取文件信息失败");
-            setInfo(data);
-        } catch (reason: any) {
-            if (alive.current && visible.current && current === infoRequest.current) {
-                closeInfo(); message.error(reason?.message || "获取文件信息失败");
-            }
-        } finally {
-            if (alive.current && current === infoRequest.current) setInfoLoading(false);
-        }
-    }, [closeInfo, invoke, message]);
+    const details = useCallback((item: any) => {
+        if (!pending.current && !uploading.current) setInfo(item);
+    }, []);
     // 下载和复制链接共用附件签名，复制时不打开浏览器窗口。
     const download = useCallback(async (item: any, action: "download" | "copy" = "download") => {
         if (pending.current || uploading.current) return;
@@ -446,7 +425,7 @@ const Files = ({id, active, revision, onCancel, onEdit, onBusyChange}: FilesProp
                         }}]}><Input maxLength={255} aria-label={namePlaceholder} placeholder={namePlaceholder}/></Form.Item>
             </Form>
         </ProModal>
-        <FileInfo info={info} loading={infoLoading} active={active} onCancel={closeInfo}/>
+        <FileInfo id={id} item={info} active={active} onCancel={closeInfo}/>
     </>;
 };
 
