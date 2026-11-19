@@ -20,14 +20,14 @@ import (
 type Service interface {
 	Start(monitor ...bool)
 	Close()
-	Restart(action string, containers bool) error                            // 重启面板或服务器，可选同时重启容器
-	GetInfo() map[string]interface{}                                         // 主机、系统和运行时信息
-	GetWebInfo() map[string]interface{}                                      // 网站名称和界面设置
-	GetTimezone() (map[string]interface{}, error)                            // 本机时区、时区列表和系统当地时间
-	SetTimezone(name string) error                                           // 设置系统时区
-	SyncTimezone(ctx context.Context) error                                  // 同步服务器时间
-	GetStatis() map[string]interface{}                                       // CPU、内存、磁盘等资源统计
-	GetIO(netInterface, diskName string, after int64) map[string]interface{} // 网络与磁盘 I/O 统计
+	Restart(action string, containers bool) error                                             // 重启面板或服务器，可选同时重启容器
+	GetInfo() map[string]interface{}                                                          // 主机、系统和运行时信息
+	GetWebInfo(sign func(string, bool, time.Duration) (string, error)) map[string]interface{} // 网站名称和界面设置
+	GetTimezone() (map[string]interface{}, error)                                             // 本机时区、时区列表和系统当地时间
+	SetTimezone(name string) error                                                            // 设置系统时区
+	SyncTimezone(ctx context.Context) error                                                   // 同步服务器时间
+	GetStatis() map[string]interface{}                                                        // CPU、内存、磁盘等资源统计
+	GetIO(netInterface, diskName string, after int64) map[string]interface{}                  // 网络与磁盘 I/O 统计
 	GetMonitorSettings() (datastore.SeriesSettings, error)
 	SetMonitorSettings(enabled bool, days int) error
 	GetMonitorHistory(ctx context.Context, start, end int64, maxPoints int) (MonitorHistory, error)
@@ -38,11 +38,6 @@ type Service interface {
 	TaskCancel(id string) bool
 	TaskDelete(id string) bool
 	TaskLog(id string, after int64, before int64, pageSize int) (map[string]interface{}, error)
-}
-
-// 仅依赖文件服务的预览签名能力，避免和使用系统任务的 file 包循环引用。
-type fileService interface {
-	CreatePreviewSign(path string, download bool, expires time.Duration) (string, error)
 }
 
 // service 注入结构
@@ -59,8 +54,7 @@ type service struct {
 	mu                     sync.RWMutex
 	configService          serviceConfig.Service
 	cache                  cache.Interface
-	logo                   atomic.Pointer[webLogo]
-	fileService            fileService
+	logoMu                 sync.RWMutex
 	daemon                 *daemon.Daemon
 	container              *container.Manager
 	restartPending         atomic.Bool
@@ -125,11 +119,6 @@ func NewService(configService serviceConfig.Service, daemon *daemon.Daemon, cont
 	}
 	s.queueCond = sync.NewCond(&s.queueMu)
 	return s
-}
-
-// SetFileService 在初始化阶段注入依赖系统任务的文件服务。
-func (s *service) SetFileService(files fileService) {
-	s.fileService = files
 }
 
 // Start 启动任务 worker；命令行传入 false 时保留日志且不启动系统监控。
