@@ -4,7 +4,7 @@ import (
 	"context"
 	"server/app/model"
 	repositorySoftware "server/app/repository/software"
-	serviceSystem "server/app/service/system"
+	serviceJob "server/app/service/job"
 	webContext "server/app/util/context"
 	"server/app/util/page"
 	"server/app/util/plugin"
@@ -33,7 +33,7 @@ type service struct {
 	cancel     context.CancelFunc
 	closeOnce  sync.Once
 	repository repositorySoftware.Interface
-	system     serviceSystem.Service
+	jobService serviceJob.Service
 	plugins    *plugin.Manager
 	mu         sync.Mutex
 	entries    map[int64]*entry
@@ -46,13 +46,13 @@ type service struct {
 }
 
 // NewService 注入仓储、系统任务与已配置业务能力的插件管理器。
-func NewService(repository repositorySoftware.Interface, system serviceSystem.Service, plugins *plugin.Manager) *service {
+func NewService(repository repositorySoftware.Interface, jobService serviceJob.Service, plugins *plugin.Manager) *service {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &service{
 		ctx:        ctx,
 		cancel:     cancel,
 		repository: repository,
-		system:     system,
+		jobService: jobService,
 		plugins:    plugins,
 		entries:    make(map[int64]*entry),
 		icons:      make(map[string]string),

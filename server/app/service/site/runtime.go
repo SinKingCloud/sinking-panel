@@ -69,9 +69,6 @@ func (s *service) Close() {
 				caddyRuntime.Log().Error("注销网站自动备份任务失败", zap.Error(err))
 			}
 		}
-		if s.backupTasks != nil {
-			s.backupTasks.Close()
-		}
 		s.wait.Wait()
 		s.operationMu.Lock()
 		err := errors.Join(s.http.Stop(), s.process.StopAll())

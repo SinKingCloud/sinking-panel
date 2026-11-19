@@ -202,12 +202,12 @@ if (state?.id) {
     console.log(state.progress, state.message);
 }
 await request("task", {action: "cancel"});`}</Code>
-            <p>任务状态：0 等待、1 运行、2 完成、3 失败、4 取消。后台回调使用 System.TaskCreate 提供的 ctx，并主动回报状态。轮询要串行，完成后停止，页面卸载时清理定时器。</p>
+            <p>任务状态：0 等待、1 运行、2 完成、3 失败、4 取消。后台回调使用 Job.Create 提供的 ctx，并主动回报状态。轮询要串行，完成后停止，页面卸载时清理定时器。</p>
             <p>关闭页面仅停止前端轮询，不取消已经提交的后台任务。取消请求是协作式的，后台代码仍需监听 ctx.Done。安装、卸载或面板停止期间，demo 会取消并等待自己的工作退出。</p>
-            <p>周期任务使用 <code>app.Service.Task.Add</code>；一次性进度任务使用 <code>app.Service.System.TaskCreate</code>。完整调用与日志示例见生成工程 README 的「后台任务与计划任务」。</p>
+            <p>周期任务使用 <code>app.Service.Task.Add</code>；一次性进度任务使用 <code>app.Service.Job.Create</code>。完整调用与日志示例见生成工程 README 的「后台任务与计划任务」。</p>
         </>},
         {key: "sdk", title: "面板能力与 SDK", summary: "直接调用注入的业务服务，复用面板数据库与缓存，不需要再请求一次 HTTP。", keywords: "App Service sdk entities methods File Container Software Log Secret Site 系统", files: ["sdk/entities.go", "sdk/methods.go", "server/plugin.go"], content: <>
-            {table(["对象", "用途"], [ ["app.InstanceID", "软件标识，等于清单 id，适合命名表、缓存和任务。"], ["app.Log", "程序日志，例如 app.Log.Printf。解释器标准输出默认被丢弃。"], ["app.Config", "面板运行配置，区别于用户持久配置表。"], ["app.Service", "Config、Auth、Server、Script、Secret、Type、Log、Task、File、Recycle、System、Site、Container、Software、Database。"], ["sdk/entities.go", "公开结构体、接口、字段和可获取的注释。"], ["sdk/methods.go", "当前面板实际暴露的方法和准确参数。"]])}
+            {table(["对象", "用途"], [ ["app.InstanceID", "软件标识，等于清单 id，适合命名表、缓存和任务。"], ["app.Log", "程序日志，例如 app.Log.Printf。解释器标准输出默认被丢弃。"], ["app.Config", "面板运行配置，区别于用户持久配置表。"], ["app.Service", "Config、Auth、Server、Script、Secret、Type、Log、Task、Job、File、Recycle、System、Site、Container、Software、Database。"], ["sdk/entities.go", "公开结构体、接口、字段和可获取的注释。"], ["sdk/methods.go", "当前面板实际暴露的方法和准确参数。"]])}
             <Code title="复用文件服务">{`paths, err := m.app.Service.File.GetDiskPaths()
 if err != nil {
     c.Error(err.Error())

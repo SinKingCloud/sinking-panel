@@ -18,7 +18,7 @@ import (
 
 // Uninstall 按标识或 ID 卸载软件并清理插件数据，提交后台任务后立即返回任务 ID。
 func (s *service) Uninstall(target string) (int64, error) {
-	if s.system == nil {
+	if s.jobService == nil {
 		return 0, errors.New("系统任务服务未初始化")
 	}
 	if s.plugins == nil {
@@ -103,7 +103,7 @@ func (s *service) Uninstall(target string) (int64, error) {
 		e.busy.Store(true)
 		e.pending = record
 		e.taskID = key
-		s.system.TaskCreate(key, "卸载 "+record.Name, map[string]interface{}{"software_id": id}, func(ctx context.Context, _ interface{}, progress func(int, float64, string)) {
+		s.jobService.Create(key, "卸载 "+record.Name, map[string]interface{}{"software_id": id}, func(ctx context.Context, _ interface{}, progress func(int, float64, string)) {
 			ctx, cancel := context.WithCancel(ctx)
 			stop := context.AfterFunc(s.ctx, cancel)
 			defer func() { stop(); cancel() }()
@@ -116,7 +116,7 @@ func (s *service) Uninstall(target string) (int64, error) {
 				return
 			}
 			if ctx.Err() != nil {
-				s.system.TaskCancel(key)
+				s.jobService.Cancel(key)
 				if err := s.restoreTask(e); err != nil {
 					progress(system_task_status.Failed, 100, err.Error())
 				}
@@ -151,7 +151,7 @@ func (s *service) Uninstall(target string) (int64, error) {
 			s.mu.Unlock()
 			progress(system_task_status.Completed, 100, "卸载完成")
 		})
-		if s.system.GetTask(key) == nil {
+		if s.jobService.Info(key) == nil {
 			return 0, errors.Join(errors.New("创建后台任务失败，面板正在停止"), s.restoreTask(e))
 		}
 		return taskID, nil

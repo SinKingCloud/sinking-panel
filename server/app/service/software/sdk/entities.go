@@ -8,6 +8,7 @@ import (
 	serviceContainer "server/app/service/container"
 	serviceDatabase "server/app/service/database"
 	serviceFile "server/app/service/file"
+	serviceJob "server/app/service/job"
 	serviceLog "server/app/service/log"
 	serviceRecycle "server/app/service/recycle"
 	serviceScript "server/app/service/script"
@@ -45,6 +46,7 @@ type Service struct {
 	Type      serviceTypes.Service
 	Log       serviceLog.Service
 	Task      serviceTask.Service
+	Job       serviceJob.Service
 	File      serviceFile.Service
 	Recycle   serviceRecycle.Service
 	System    serviceSystem.Service

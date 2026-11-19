@@ -21,6 +21,7 @@ import (
 	serviceContainer "server/app/service/container"
 	serviceDatabase "server/app/service/database"
 	serviceFile "server/app/service/file"
+	serviceJob "server/app/service/job"
 	serviceLog "server/app/service/log"
 	serviceOss "server/app/service/oss"
 	serviceRecycle "server/app/service/recycle"
@@ -46,6 +47,7 @@ var (
 	Type      serviceTypes.Service
 	Log       serviceLog.Service
 	Task      serviceTask.Service
+	Job       serviceJob.Service
 	Oss       serviceOss.Service
 	File      serviceFile.Service
 	Recycle   serviceRecycle.Service
@@ -79,15 +81,16 @@ func Init() {
 	Type = serviceTypes.NewService(typesRepository, scriptRepository, siteRepository, taskRepository, databaseRepository, global.App.Database, global.App.Cache)
 	Script = serviceScript.NewService(scriptRepository, typesRepository)
 	Log = serviceLog.NewService(logRepository)
-	System = serviceSystem.NewService(Config, global.App.Daemon, global.App.Container, global.App.Cache)
-	Oss = serviceOss.NewService(ossRepository, secretRepository, System, global.App.Database)
-	Task = serviceTask.NewService(taskRepository, siteRepository, siteBackupRepository, Type, Oss)
+	Job = serviceJob.NewService(5)
 	Recycle = serviceRecycle.NewService()
-	File = serviceFile.NewService(Recycle, System, global.App.Cache)
-	Database = serviceDatabase.NewService(databaseRepository, scriptRepository, typesRepository, Type, System, global.App.Database, global.App.Cache)
+	File = serviceFile.NewService(Recycle, Job, global.App.Cache)
+	System = serviceSystem.NewService(Config, File, global.App.Daemon, global.App.Container, global.App.Cache)
+	Oss = serviceOss.NewService(ossRepository, secretRepository, Job, global.App.Database)
+	Task = serviceTask.NewService(taskRepository, siteRepository, siteBackupRepository, Type, Oss)
+	Database = serviceDatabase.NewService(databaseRepository, scriptRepository, typesRepository, Type, Job, global.App.Database, global.App.Cache)
 	Container = serviceContainer.NewManager(global.App.Container)
 	Site = nil
-	if site, err := serviceSite.NewService(siteRepository, siteDomainRepository, certRepository, secretRepository, siteBackupRepository, Type, Config, Task, Recycle, Oss, File, System, global.App.Database, global.App.Cache); err == nil {
+	if site, err := serviceSite.NewService(siteRepository, siteDomainRepository, certRepository, secretRepository, siteBackupRepository, Type, Config, Task, Recycle, Oss, File, Job, global.App.Database, global.App.Cache); err == nil {
 		Site = site
 	}
 	services := &sdk.Service{
@@ -99,6 +102,7 @@ func Init() {
 		Type:      Type,
 		Log:       Log,
 		Task:      Task,
+		Job:       Job,
 		File:      File,
 		Recycle:   Recycle,
 		System:    System,
@@ -106,7 +110,7 @@ func Init() {
 		Container: Container,
 		Database:  Database,
 	}
-	Software = serviceSoftware.NewService(repositorySoftware.NewRepository(global.App.Database), System, sdk.NewManager(constant.SoftwarePath, sdk.App{
+	Software = serviceSoftware.NewService(repositorySoftware.NewRepository(global.App.Database), Job, sdk.NewManager(constant.SoftwarePath, sdk.App{
 		Service:  services,
 		Database: global.App.Database,
 		Cache:    global.App.Cache,
@@ -118,6 +122,9 @@ func Init() {
 
 // Boot 启动服务运行时，并返回统一的清理函数。
 func Boot() func() {
+	if Job != nil {
+		Job.Start(true)
+	}
 	if System != nil {
 		System.Start()
 	}
@@ -135,20 +142,14 @@ func Boot() func() {
 		if Software != nil {
 			Software.Close()
 		}
-		if Site != nil {
-			Site.Close()
-		}
 		if Task != nil {
 			Task.Close()
 		}
-		if File != nil {
-			File.Close()
+		if Job != nil {
+			Job.Close()
 		}
-		if Database != nil {
-			Database.Close()
-		}
-		if Oss != nil {
-			Oss.Close()
+		if Site != nil {
+			Site.Close()
 		}
 		if System != nil {
 			System.Close()

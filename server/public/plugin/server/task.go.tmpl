@@ -19,7 +19,7 @@ func (m *demo) task(c *sdk.Context) {
 		c.Error(message)
 		return
 	}
-	system := m.app.Service.System
+	jobs := m.app.Service.Job
 	m.mu.Lock()
 	job := m.job
 	if form.Action == "start" {
@@ -29,7 +29,7 @@ func (m *demo) task(c *sdk.Context) {
 			return
 		}
 		if job != nil {
-			current := system.GetTask(job.ID)
+			current := jobs.Info(job.ID)
 			if job.Running || (current != nil && (current.Status == 0 || current.Status == 1)) {
 				m.mu.Unlock()
 				c.Error("已有任务正在执行")
@@ -43,7 +43,7 @@ func (m *demo) task(c *sdk.Context) {
 		m.job = job
 		runContext := m.runContext
 		steps := form.Steps
-		system.TaskCreate(job.ID, [[quote .Name]]+" · 示例任务", nil, func(ctx context.Context, data interface{}, update func(int, float64, string)) {
+		jobs.Create(job.ID, [[quote .Name]]+" · 示例任务", nil, func(ctx context.Context, data interface{}, update func(int, float64, string)) {
 			m.mu.Lock()
 			if ctx.Err() != nil || runContext.Err() != nil || !m.started {
 				m.mu.Unlock()
@@ -80,9 +80,9 @@ func (m *demo) task(c *sdk.Context) {
 		return
 	}
 	if form.Action == "cancel" {
-		system.TaskCancel(job.ID)
+		jobs.Cancel(job.ID)
 	}
-	current := system.GetTask(job.ID)
+	current := jobs.Info(job.ID)
 	if current == nil {
 		if form.Action == "start" {
 			c.Error("任务服务未启动，请稍后重试")

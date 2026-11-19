@@ -8,7 +8,7 @@ import (
 )
 
 // GetWebInfo 返回面板公开的网站与界面设置，Logo 只返回文件预览签名。
-func (s *service) GetWebInfo(sign func(string, bool, time.Duration) (string, error)) map[string]interface{} {
+func (s *service) GetWebInfo() map[string]interface{} {
 	web := s.configService.Group(constant.WebGroup)
 	ui := s.configService.Group(constant.UiGroup)
 	type webLogo struct {
@@ -33,9 +33,9 @@ func (s *service) GetWebInfo(sign func(string, bool, time.Duration) (string, err
 				s.cache.Delete(CacheNameWithWebLogo)
 			}
 			logo = webLogo{}
-			if path != "" && sign != nil {
+			if path != "" && s.fileService != nil {
 				expires := time.Now().Add(constant.CacheTimeWithFilePreview)
-				if key, err := sign(path, false, constant.CacheTimeWithFilePreview); err == nil && key != "" {
+				if key, err := s.fileService.CreatePreviewSign(path, false, constant.CacheTimeWithFilePreview); err == nil && key != "" {
 					logo = webLogo{path: path, key: key, expires: expires}
 					s.cache.SetWithExpire(CacheNameWithWebLogo, logo, -1)
 				}

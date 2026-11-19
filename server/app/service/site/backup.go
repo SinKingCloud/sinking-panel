@@ -318,6 +318,9 @@ func (s *service) CreateBackup(siteIds []int64) (string, error) {
 			return "", errors.New("网站ID不合法")
 		}
 	}
+	if s.jobService == nil {
+		return "", errors.New("后台任务服务不可用")
+	}
 	settings, err := s.GetBackupSettings()
 	if err != nil {
 		return "", err
@@ -325,7 +328,7 @@ func (s *service) CreateBackup(siteIds []int64) (string, error) {
 	// 后台执行使用独立快照，避免调用方修改切片影响排队中的任务。
 	siteIds = append([]int64(nil), siteIds...)
 	id := "site_backup_" + strconv.FormatInt(str.GetSnowWorkIns().GetId(), 10)
-	err = s.backupTasks.Create(id, fmt.Sprintf("备份网站：共 %d 个", len(siteIds)), map[string][]int64{"site_ids": siteIds}, func(ctx context.Context, _ interface{}, update func(int, float64, string)) {
+	err = s.jobService.Create(id, fmt.Sprintf("备份网站：共 %d 个", len(siteIds)), map[string][]int64{"site_ids": siteIds}, func(ctx context.Context, _ interface{}, update func(int, float64, string)) {
 		var failures []error
 		for index, siteId := range siteIds {
 			if ctx.Err() != nil {
@@ -542,6 +545,9 @@ func (s *service) DeleteBackup(ids []int64) error {
 
 // RestoreBackup 在后台流式校验和解压，再替换网站目录；旧目录保留到回收站。
 func (s *service) RestoreBackup(id int64, siteId int64) (string, error) {
+	if s.jobService == nil {
+		return "", errors.New("后台任务服务不可用")
+	}
 	record, _, err := s.findBackup(id)
 	if err != nil {
 		return "", err
@@ -557,7 +563,7 @@ func (s *service) RestoreBackup(id int64, siteId int64) (string, error) {
 		return "", errors.New("恢复目标网站不存在或未配置网站目录")
 	}
 	taskId := "site_restore_" + strconv.FormatInt(str.GetSnowWorkIns().GetId(), 10)
-	err = s.backupTasks.Create(taskId, "恢复网站："+site.Name, map[string]int64{"site_id": siteId, "backup_id": id}, func(ctx context.Context, _ interface{}, update func(int, float64, string)) {
+	err = s.jobService.Create(taskId, "恢复网站："+site.Name, map[string]int64{"site_id": siteId, "backup_id": id}, func(ctx context.Context, _ interface{}, update func(int, float64, string)) {
 		run := func() error {
 			ctx, release, err := s.operationContext(ctx)
 			if err != nil {

@@ -3,8 +3,8 @@ package file
 import (
 	"context"
 	"mime/multipart"
+	serviceJob "server/app/service/job"
 	serviceRecycle "server/app/service/recycle"
-	serviceSystem "server/app/service/system"
 	"server/app/util/cache"
 	"server/app/util/file"
 	"server/app/util/page"
@@ -13,7 +13,6 @@ import (
 
 // Service service接口
 type Service interface {
-	Close()
 	List(path, keyword string, query *page.Query) (*page.Result[*File], error)
 	Info(path string, read bool, cursor int64, pageSize int, version string) (map[string]interface{}, error)
 	Count(path string) (map[string]interface{}, error)
@@ -52,24 +51,17 @@ type service struct {
 	disk           *file.Disk
 	cache          cache.Interface
 	recycleService serviceRecycle.Service
-	systemService  serviceSystem.Service
 	upload         uploadState
-	tasks          *serviceSystem.TaskGroup
+	jobService     serviceJob.Service
 }
 
 // NewService 实例化service
-func NewService(recycleService serviceRecycle.Service, systemService serviceSystem.Service, cache cache.Interface) *service {
+func NewService(recycleService serviceRecycle.Service, jobService serviceJob.Service, cache cache.Interface) *service {
 	return &service{
 		disk:           file.NewDisk(""),
 		cache:          cache,
 		recycleService: recycleService,
-		systemService:  systemService,
 		upload:         uploadState{locks: make(map[string]*uploadSessionLock)},
-		tasks:          serviceSystem.NewTaskGroup(systemService),
+		jobService:     jobService,
 	}
-}
-
-// Close 取消并等待本服务创建的后台文件任务，不关闭共享系统服务。
-func (s *service) Close() {
-	s.tasks.Close()
 }

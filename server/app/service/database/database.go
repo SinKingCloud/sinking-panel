@@ -13,7 +13,7 @@ import (
 	clientRedis "server/app/service/database/redis"
 	clientSqlite "server/app/service/database/sqlite"
 	clientSqlServer "server/app/service/database/sqlserver"
-	serviceSystem "server/app/service/system"
+	serviceJob "server/app/service/job"
 	serviceTypes "server/app/service/types"
 	"server/app/util/cache"
 	utilDatabase "server/app/util/database"
@@ -22,7 +22,6 @@ import (
 
 // Service 管理实例连接，直接读取和操作实例中的数据库。
 type Service interface {
-	Close()
 	Config(databaseType int, content string, id int64, stored string, action string) (interface{}, error)
 	Create(data *model.Database) error
 	Update(id int64, data *repositoryDatabase.UpdateDatabase) error
@@ -51,27 +50,20 @@ type service struct {
 	repositoryScript repositoryScript.Interface
 	repositoryTypes  repositoryTypes.Interface
 	typeService      serviceTypes.Service
-	systemService    serviceSystem.Service
+	jobService       serviceJob.Service
 	database         *utilDatabase.Database
 	cache            cache.Interface
-	tasks            *serviceSystem.TaskGroup
 }
 
 // NewService 创建数据库客户端服务。
-func NewService(repository repositoryDatabase.Interface, repositoryScript repositoryScript.Interface, repositoryTypes repositoryTypes.Interface, typeService serviceTypes.Service, systemService serviceSystem.Service, database *utilDatabase.Database, cache cache.Interface) *service {
+func NewService(repository repositoryDatabase.Interface, repositoryScript repositoryScript.Interface, repositoryTypes repositoryTypes.Interface, typeService serviceTypes.Service, jobService serviceJob.Service, database *utilDatabase.Database, cache cache.Interface) *service {
 	return &service{
 		repository:       repository,
 		repositoryScript: repositoryScript,
 		repositoryTypes:  repositoryTypes,
 		typeService:      typeService,
-		systemService:    systemService,
+		jobService:       jobService,
 		database:         database,
 		cache:            cache,
-		tasks:            serviceSystem.NewTaskGroup(systemService),
 	}
-}
-
-// Close 取消并等待本服务的导入、导出和文档回填任务，不关闭借用的服务和数据库。
-func (s *service) Close() {
-	s.tasks.Close()
 }

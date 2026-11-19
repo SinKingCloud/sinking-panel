@@ -25,7 +25,7 @@ func (s *service) Transfer(id int64, databaseType int, action, path, databaseNam
 	if databaseName == "" || len(databaseName) > 1024 || strings.ContainsRune(databaseName, 0) {
 		return "", errors.New("请选择数据库")
 	}
-	if run == nil || s.systemService == nil {
+	if run == nil || s.jobService == nil {
 		return "", errors.New("后台任务服务不可用")
 	}
 	if !filepath.IsAbs(path) {
@@ -53,7 +53,7 @@ func (s *service) Transfer(id int64, databaseType int, action, path, databaseNam
 		"path":          path,
 		"database_name": databaseName,
 	}
-	err = s.tasks.Create(taskID, name, params, func(ctx context.Context, _ interface{}, update func(int, float64, string)) {
+	err = s.jobService.Create(taskID, name, params, func(ctx context.Context, _ interface{}, update func(int, float64, string)) {
 		percent := float64(0)
 		lastUpdate := time.Time{}
 		update(system_task_status.Running, 0, "正在准备"+label)
@@ -80,7 +80,7 @@ func (s *service) Transfer(id int64, databaseType int, action, path, databaseNam
 		if result != nil && result["success"] != nil {
 			message += fmt.Sprintf("；已处理 %v %v", result["success"], result["unit"])
 		}
-		s.systemService.TaskUpdate(taskID, status, percent, message, result)
+		s.jobService.Update(taskID, status, percent, message, result)
 	})
 	if err != nil {
 		return "", err

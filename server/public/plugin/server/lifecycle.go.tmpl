@@ -106,7 +106,7 @@ func (m *demo) stop(ctx context.Context, params string) (interface{}, error) {
 		cancel()
 	}
 	if job != nil {
-		m.app.Service.System.TaskCancel(job.ID)
+		m.app.Service.Job.Cancel(job.ID)
 	}
 	wait := func(finished chan struct{}) error {
 		if finished == nil {

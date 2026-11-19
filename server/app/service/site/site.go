@@ -20,9 +20,9 @@ import (
 	repositorySiteDomain "server/app/repository/site_domain"
 	serviceConfig "server/app/service/config"
 	serviceFile "server/app/service/file"
+	serviceJob "server/app/service/job"
 	serviceOss "server/app/service/oss"
 	serviceRecycle "server/app/service/recycle"
-	serviceSystem "server/app/service/system"
 	serviceTask "server/app/service/task"
 	taskBackup "server/app/service/task/backup"
 	serviceTypes "server/app/service/types"
@@ -123,7 +123,7 @@ type service struct {
 	recycleService       serviceRecycle.Service
 	ossService           serviceOss.Service
 	fileService          serviceFile.Service
-	backupTasks          *serviceSystem.TaskGroup
+	jobService           serviceJob.Service
 	backup               *taskBackup.Manager
 	backupPath           string
 	backupGate           chan struct{}
@@ -149,7 +149,7 @@ type service struct {
 }
 
 // NewService 创建网站管理服务。
-func NewService(repositorySite repositorySite.Interface, repositorySiteDomain repositorySiteDomain.Interface, repositoryCert repositoryCert.Interface, repositorySecret repositorySecret.Interface, repositorySiteBackup repositorySiteBackup.Interface, typeService serviceTypes.Service, configService serviceConfig.Service, taskService serviceTask.Service, recycleService serviceRecycle.Service, ossService serviceOss.Service, fileService serviceFile.Service, systemService serviceSystem.Service, database *database.Database, cache cache.Interface, options ...Options) (*service, error) {
+func NewService(repositorySite repositorySite.Interface, repositorySiteDomain repositorySiteDomain.Interface, repositoryCert repositoryCert.Interface, repositorySecret repositorySecret.Interface, repositorySiteBackup repositorySiteBackup.Interface, typeService serviceTypes.Service, configService serviceConfig.Service, taskService serviceTask.Service, recycleService serviceRecycle.Service, ossService serviceOss.Service, fileService serviceFile.Service, jobService serviceJob.Service, database *database.Database, cache cache.Interface, options ...Options) (*service, error) {
 	if repositorySite == nil || repositorySiteDomain == nil || repositoryCert == nil || repositorySecret == nil || repositorySiteBackup == nil || typeService == nil || configService == nil || taskService == nil || recycleService == nil || database == nil || database.Db == nil || cache == nil {
 		return nil, errors.New("网站服务依赖不能为空")
 	}
@@ -204,7 +204,7 @@ func NewService(repositorySite repositorySite.Interface, repositorySiteDomain re
 		recycleService:       recycleService,
 		ossService:           ossService,
 		fileService:          fileService,
-		backupTasks:          serviceSystem.NewTaskGroup(systemService),
+		jobService:           jobService,
 		backup:               taskBackup.NewManager(repositorySite, repositorySiteBackup, ossService, constant.BackupPath, constant.SiteBackupPath),
 		backupPath:           constant.SiteBackupPath,
 		backupGate:           make(chan struct{}, 1),

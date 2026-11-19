@@ -767,9 +767,10 @@ export default function RecordList({request}: Pick<PluginPageProps, "request">) 
 | `Type` | 分类管理。 |
 | `Log` | 操作日志业务；与 `app.Log` 的程序日志不同。 |
 | `Task` | Cron 计划任务、内部计划任务及任务日志。 |
+| `Job` | 一次性后台任务、进度、取消和运行日志。 |
 | `File` | 磁盘、复制移动、压缩解压、下载等文件能力。 |
 | `Recycle` | 回收站移入、恢复、清理等业务。 |
-| `System` | 系统信息、统计、时区、系统后台任务。 |
+| `System` | 系统信息、统计、监控与时区。 |
 | `Site` | 网站与证书等业务。 |
 | `Container` | 镜像、容器、命令、终端、日志和资源状态。 |
 | `Software` | 软件安装、升级、卸载、信息、内部配置读写与插件接口调用。 |
@@ -930,7 +931,7 @@ err := app.Database.Transaction(func(tx *gorm.DB) error {
 
 | 能力 | 适用场景 | 生命周期 |
 | --- | --- | --- |
-| `System.TaskCreate` | 导入、下载、安装等一次性工作，展示百分比、消息、日志并可取消。 | 系统任务队列。 |
+| `Job.Create` | 导入、下载、安装等一次性工作，展示百分比、消息、日志并可取消。 | 系统任务队列。 |
 | `Task.Add` | 按 Cron 周期运行、可暂停恢复的计划任务。 | 面板计划任务调度器。 |
 | `Start` 内协程 | 心跳、监听、持续轮询等插件内部工作。 | 插件启动到停止。 |
 
@@ -947,7 +948,7 @@ const (
 )
 
 id := app.InstanceID + "-example-" + strconv.FormatInt(time.Now().UnixNano(), 10)
-app.Service.System.TaskCreate(id, "插件演示任务", nil,
+app.Service.Job.Create(id, "插件演示任务", nil,
     func(ctx context.Context, data interface{}, progress func(int, float64, string)) {
         ticker := time.NewTicker(500 * time.Millisecond)
         defer ticker.Stop()
@@ -968,9 +969,9 @@ app.Service.System.TaskCreate(id, "插件演示任务", nil,
 必须明确回报成功或失败状态，单纯从回调返回不会自动标记成功。每次任务使用唯一 ID，避免覆盖已有任务。
 
 ```go
-task := app.Service.System.GetTask(id)
-canceled := app.Service.System.TaskCancel(id)
-logs, err := app.Service.System.TaskLog(id, 0, 0, 100)
+task := app.Service.Job.Info(id)
+canceled := app.Service.Job.Cancel(id)
+logs, err := app.Service.Job.Log(id, 0, 0, 100)
 ```
 
 取消是协作式的，工作代码需要监听 `ctx.Done()`。任务状态显示已取消不等于工作协程已经返回；插件停止前还应等待自己的工作结束。任务不应捕获 HTTP `Context` 或在响应后继续写入 HTTP 响应。

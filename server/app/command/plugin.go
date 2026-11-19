@@ -233,11 +233,12 @@ func (s *Server) executePlugin(args []string) error {
 		global.App.Container = manager
 	}
 	service.Init()
-	service.System.Start(false)
+	service.Job.Start(false)
 	defer func() {
 		service.Software.Close()
-		service.System.Close()
 		service.Task.Close()
+		service.Job.Close()
+		service.System.Close()
 	}()
 	taskID, err := s.runPluginCommand(service.Software, action, target)
 	if err != nil {
@@ -249,7 +250,7 @@ func (s *Server) executePlugin(args []string) error {
 	ticker := time.NewTicker(200 * time.Millisecond)
 	defer ticker.Stop()
 	for {
-		task := service.System.GetTask(key)
+		task := service.Job.Info(key)
 		if task == nil {
 			return errors.New("软件任务不存在")
 		}
@@ -266,7 +267,7 @@ func (s *Server) executePlugin(args []string) error {
 		select {
 		case <-ticker.C:
 		case <-ctx.Done():
-			service.System.TaskCancel(key)
+			service.Job.Cancel(key)
 			return ctx.Err()
 		}
 	}

@@ -5,7 +5,7 @@ import (
 	"server/app/model"
 	repositoryOss "server/app/repository/oss"
 	repositorySecret "server/app/repository/secret"
-	serviceSystem "server/app/service/system"
+	serviceJob "server/app/service/job"
 	"server/app/util/database"
 	utilOss "server/app/util/oss"
 	"server/app/util/page"
@@ -15,7 +15,6 @@ import (
 
 // Service 管理 OSS 连接，文件操作复用统一对象存储客户端。
 type Service interface {
-	Close()
 	Create(data *model.Oss) error
 	Update(id int64, data *repositoryOss.UpdateOss) error
 	DeleteByIds(ids []int64) error
@@ -41,24 +40,17 @@ type Service interface {
 type service struct {
 	repository       repositoryOss.Interface
 	repositorySecret repositorySecret.Interface
-	systemService    serviceSystem.Service
+	jobService       serviceJob.Service
 	database         *database.Database
 	operationMu      sync.Mutex
-	tasks            *serviceSystem.TaskGroup
 }
 
 // NewService 创建对象存储管理服务。
-func NewService(repository repositoryOss.Interface, repositorySecret repositorySecret.Interface, systemService serviceSystem.Service, database *database.Database) *service {
+func NewService(repository repositoryOss.Interface, repositorySecret repositorySecret.Interface, jobService serviceJob.Service, database *database.Database) *service {
 	return &service{
 		repository:       repository,
 		repositorySecret: repositorySecret,
-		systemService:    systemService,
+		jobService:       jobService,
 		database:         database,
-		tasks:            serviceSystem.NewTaskGroup(systemService),
 	}
-}
-
-// Close 取消并等待本服务的传输任务，保留存储配置和共享系统服务。
-func (s *service) Close() {
-	s.tasks.Close()
 }

@@ -11,7 +11,7 @@ import (
 
 // transferTask 仅负责传输任务的入队、进度和结果，文件读写由各操作独立实现。
 func (s *service) transferTask(id int64, action, label, key, path string, run func(context.Context, utilOss.ProgressFunc) (int64, error)) (string, error) {
-	if s.systemService == nil {
+	if s.jobService == nil {
 		return "", errors.New("后台任务服务不可用")
 	}
 	data, err := s.FindById(id)
@@ -26,7 +26,7 @@ func (s *service) transferTask(id int64, action, label, key, path string, run fu
 		"key":    key,
 		"path":   path,
 	}
-	err = s.tasks.Create(taskID, label+" OSS: "+data.Name+"/"+key, params, func(ctx context.Context, _ interface{}, update func(int, float64, string)) {
+	err = s.jobService.Create(taskID, label+" OSS: "+data.Name+"/"+key, params, func(ctx context.Context, _ interface{}, update func(int, float64, string)) {
 		percent := float64(0)
 		lastUpdate := time.Time{}
 		message := "正在" + label + " OSS 文件"
@@ -63,7 +63,7 @@ func (s *service) transferTask(id int64, action, label, key, path string, run fu
 		} else {
 			status, message = system_task_status.Failed, label+"失败: "+err.Error()
 		}
-		s.systemService.TaskUpdate(taskID, status, percent, message, result)
+		s.jobService.Update(taskID, status, percent, message, result)
 	})
 	if err != nil {
 		return "", err

@@ -41,7 +41,7 @@ func (s *service) restoreTask(e *entry) error {
 	if e.pending == nil {
 		return nil
 	}
-	if task := s.system.GetTask(e.taskID); task != nil && (task.Status == system_task_status.Pending || task.Status == system_task_status.Running) {
+	if task := s.jobService.Info(e.taskID); task != nil && (task.Status == system_task_status.Pending || task.Status == system_task_status.Running) {
 		return nil
 	}
 	record := e.pending
@@ -247,7 +247,7 @@ func (s *service) Close() {
 		s.mu.Unlock()
 		s.importing.Unlock()
 		for _, taskID := range taskIDs {
-			s.system.TaskCancel(taskID)
+			s.jobService.Cancel(taskID)
 		}
 		for _, e := range entries {
 			e.mu.Lock()

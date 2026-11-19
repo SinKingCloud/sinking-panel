@@ -26,7 +26,7 @@ import (
 
 // Install 只读取清单并提交任务；大文件打包、解压和插件生命周期均在后台执行。
 func (s *service) Install(path string) (int64, error) {
-	if s.system == nil {
+	if s.jobService == nil {
 		return 0, errors.New("系统任务服务未初始化")
 	}
 	if s.plugins == nil {
@@ -158,7 +158,7 @@ func (s *service) Install(path string) (int64, error) {
 	s.manifests[record.Code] = &reserved
 	s.mu.Unlock()
 	e.busy.Store(true)
-	s.system.TaskCreate(key, "安装 "+record.Name, map[string]interface{}{"software_id": record.Id}, func(ctx context.Context, _ interface{}, progress func(int, float64, string)) {
+	s.jobService.Create(key, "安装 "+record.Name, map[string]interface{}{"software_id": record.Id}, func(ctx context.Context, _ interface{}, progress func(int, float64, string)) {
 		ctx, cancel := context.WithCancel(ctx)
 		stop := context.AfterFunc(s.ctx, cancel)
 		defer func() { stop(); cancel() }()
@@ -171,7 +171,7 @@ func (s *service) Install(path string) (int64, error) {
 			return
 		}
 		if ctx.Err() != nil {
-			s.system.TaskCancel(key)
+			s.jobService.Cancel(key)
 			if err := s.restoreTask(e); err != nil {
 				progress(system_task_status.Failed, 100, err.Error())
 			}
@@ -199,7 +199,7 @@ func (s *service) Install(path string) (int64, error) {
 		}
 		progress(system_task_status.Completed, 100, "安装完成")
 	})
-	if s.system.GetTask(key) == nil {
+	if s.jobService.Info(key) == nil {
 		return 0, errors.Join(errors.New("创建后台任务失败，面板正在停止"), s.restoreTask(e))
 	}
 	return taskID, nil

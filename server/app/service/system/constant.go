@@ -2,8 +2,6 @@ package system
 
 import "time"
 
-const maxTaskWorkers = 5 // 系统任务并发 worker 数量
-
 const (
 	monitorHistoryDefaultPoints = 480
 	monitorHistoryMinPoints     = 120
