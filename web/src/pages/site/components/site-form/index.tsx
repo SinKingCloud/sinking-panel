@@ -1,5 +1,6 @@
-import {forwardRef, memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState} from "react";
+import {forwardRef, memo, useCallback, useImperativeHandle, useMemo, useRef, useState} from "react";
 import {App, Button, Col, Collapse, Descriptions, Form, Grid, Input, InputNumber, Radio, Row, Select, Steps, Switch} from "antd";
+import type {ModalProps} from "antd";
 import {createStyles} from "antd-style";
 import {ProModal, ProModalRef, Title, useTheme} from "sinking-antd";
 import FileSelect from "@/pages/components/file-select";
@@ -8,10 +9,10 @@ import {clearEnumCache} from "@/utils/enum";
 import {parseProxyTarget} from "../../proxy";
 
 const siteTypes = [
-    {label: "静态网站", value: 0, description: "已有 HTML 网页或前端打包后的文件", hint: "填写访问域名，再选择网页文件所在的目录。"},
-    {label: "反向代理", value: 1, description: "已有服务正在运行，希望通过域名访问", hint: "填写访问域名，以及需要转发到的服务地址。"},
-    {label: "通用网站", value: 2, description: "运行本机程序，由面板负责启动和保活", hint: "选择要运行的程序；不绑定域名也可以创建。"},
-    {label: "PHP 网站", value: 3, description: "部署 PHP 项目，需已有 PHP-FPM 环境", hint: "填写访问域名，选择 PHP 文件目录并连接 PHP-FPM。"},
+    {label: "静态网站", value: 0, description: "已有 HTML 网页或前端打包后的文件"},
+    {label: "反向代理", value: 1, description: "已有服务正在运行，希望通过域名访问"},
+    {label: "通用网站", value: 2, description: "运行本机程序，由面板负责启动和保活"},
+    {label: "PHP 网站", value: 3, description: "部署 PHP 项目，需已有 PHP-FPM 环境"},
 ];
 
 const useStyles = createStyles(({css, token}, {compact}: {compact: boolean}) => ({
@@ -22,35 +23,10 @@ const useStyles = createStyles(({css, token}, {compact}: {compact: boolean}) => 
     steps: css`
         margin-bottom: ${compact ? 20 : 24}px;
     `,
-    content: css`
-        height: ${compact ? 330 : 370}px;
-        max-height: calc(100dvh - 290px);
-        overflow-x: hidden;
-        overflow-y: auto;
-        overscroll-behavior: contain;
-        scrollbar-gutter: stable;
-        padding: 0 2px;
-        @supports not (height: 100dvh) {
-            max-height: calc(100vh - 290px);
-        }
-        @media (max-width: 767px) {
-            max-height: calc(100dvh - 240px);
-            @supports not (height: 100dvh) {
-                max-height: calc(100vh - 240px);
-            }
-        }
-    `,
     form: css`
         .ant-form-item { margin-bottom: ${compact ? 16 : 20}px; }
-        .ant-form-item-extra { margin-top: 4px; min-height: 0; font-size: 12px; line-height: 1.6; color: ${token.colorTextTertiary}; }
         .ant-input-number { width: 100%; }
         textarea.ant-input { resize: vertical; }
-    `,
-    intro: css`
-        margin: 0 0 ${compact ? 14 : 18}px;
-        color: ${token.colorTextSecondary};
-        font-size: 12px;
-        line-height: 1.6;
     `,
     typeSelect: css`
         display: flex;
@@ -72,7 +48,18 @@ const useStyles = createStyles(({css, token}, {compact}: {compact: boolean}) => 
         .site-type-description { display: block; margin-top: 3px; color: ${token.colorTextTertiary}; font-size: 12px; line-height: 1.5; }
     `,
     more: css`
-        margin-bottom: ${compact ? 12 : 16}px;
+        border-radius: ${token.borderRadius}px;
+        background: ${token.colorFillQuaternary};
+        .ant-collapse-item { border: 0; }
+        .ant-collapse-header {
+            align-items: center !important;
+            padding: ${token.paddingSM}px !important;
+            font-size: ${token.fontSize}px;
+        }
+        && .ant-collapse-body {
+            padding: ${token.paddingXS}px ${token.paddingSM}px ${token.paddingSM}px;
+        }
+        && .ant-form-item { margin-bottom: 0; }
     `,
     review: css`
         margin-bottom: ${compact ? 16 : 20}px;
@@ -89,14 +76,6 @@ const useStyles = createStyles(({css, token}, {compact}: {compact: boolean}) => 
         justify-content: space-between;
         gap: 16px;
         padding: 4px 0;
-        .site-enabled-description { margin-top: 3px; color: ${token.colorTextTertiary}; font-size: 12px; line-height: 1.5; }
-    `,
-    footer: css`
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 8px;
-        > div { display: flex; gap: 8px; }
     `,
 }));
 
@@ -114,7 +93,6 @@ const SiteForm = forwardRef(({onSuccess, typeItems}: any, ref): any => {
     const styleProps = useMemo(() => ({compact}), [compact]);
     const {styles} = useStyles(styleProps);
     const modalRef = useRef<ProModalRef>({} as ProModalRef);
-    const contentRef = useRef<HTMLDivElement>(null);
     const requestRef = useRef(0);
     const submittingRef = useRef(false);
     const [form] = Form.useForm();
@@ -169,10 +147,6 @@ const SiteForm = forwardRef(({onSuccess, typeItems}: any, ref): any => {
     }, []);
 
     useImperativeHandle(ref, () => ({open}), [open]);
-
-    useEffect(() => {
-        contentRef.current?.scrollTo({top: 0});
-    }, [step]);
 
     const submit = useCallback(async (values: any) => {
         if (step !== 2 || submittingRef.current) {
@@ -301,12 +275,19 @@ const SiteForm = forwardRef(({onSuccess, typeItems}: any, ref): any => {
         }
     }, [form, siteType, step, submit]);
 
+    const footer: ModalProps["footer"] = step > 0 ? (_, {OkBtn}) => <>
+        <Button disabled={submitting} onClick={() => {
+            requestRef.current += 1;
+            setStep(step - 1);
+        }}>上一步</Button>
+        <OkBtn/>
+    </> : undefined;
+
     const domainField = (
         <Form.Item
             name="domains"
             label={siteType === 2 ? "绑定域名（可选）" : "绑定域名"}
             required={siteType !== 2}
-            extra={siteType === 2 ? "不绑定域名也可运行程序；多个域名用换行、空格或逗号分隔。" : "支持域名、泛域名或 IP；多个用换行、空格、逗号或分号分隔。"}
             rules={[
                 {validator: async (_, value) => {
                     const domains = splitValues(value);
@@ -317,7 +298,7 @@ const SiteForm = forwardRef(({onSuccess, typeItems}: any, ref): any => {
                     }
                 }},
             ]}>
-            <Input.TextArea rows={2} placeholder={"example.com\nwww.example.com"}/>
+            <Input.TextArea rows={2} placeholder={"例如 example.com\n多个域名用换行或逗号分隔"}/>
         </Form.Item>
     );
 
@@ -325,26 +306,19 @@ const SiteForm = forwardRef(({onSuccess, typeItems}: any, ref): any => {
         <ProModal
             ref={modalRef}
             title={<Title>添加网站</Title>}
-            width={620}
+            width={520}
+            okText={step === 2 ? "创建网站" : "下一步"}
             onOk={next}
             onCancel={close}
             modalProps={{
                 rootClassName: styles.modal,
                 closable: true,
                 keyboard: true,
-                style: {top: screens.md ? 64 : 24, paddingBottom: screens.md ? 64 : 24},
+                style: {top: screens.md ? 100 : 24, paddingBottom: screens.md ? 100 : 24},
                 mask: {closable: true},
                 afterClose: reset,
-                footer: <div className={styles.footer}>
-                    <Button color="default" variant="filled" onClick={close}>取消</Button>
-                    <div>
-                        {step > 0 && <Button color="default" variant="filled" disabled={submitting} onClick={() => {
-                            requestRef.current += 1;
-                            setStep(step - 1);
-                        }}>上一步</Button>}
-                        <Button type="primary" loading={submitting} onClick={next}>{step === 2 ? "创建网站" : "下一步"}</Button>
-                    </div>
-                </div>,
+                okButtonProps: {loading: submitting},
+                footer,
             } as any}>
             <Steps className={styles.steps} size="small" current={step} responsive={false}
                 titlePlacement={screens.sm ? "horizontal" : "vertical"}
@@ -356,9 +330,8 @@ const SiteForm = forwardRef(({onSuccess, typeItems}: any, ref): any => {
                     event.stopPropagation();
                     void next();
                 }}>
-                <div className={styles.content} ref={contentRef}>
+                <div>
                     <div hidden={step !== 0}>
-                        <p className={styles.intro}>根据你已有的项目选择，下一步再填写网站信息。</p>
                         <Form.Item name="type">
                             <Radio.Group className={styles.typeSelect} aria-label="网站类型" onChange={(event) => setSiteType(Number(event.target.value))}>
                                 {siteTypes.map((item) => <Radio key={item.value} value={item.value}>
@@ -369,12 +342,10 @@ const SiteForm = forwardRef(({onSuccess, typeItems}: any, ref): any => {
                         </Form.Item>
                     </div>
                     <div hidden={step !== 1}>
-                        <p className={styles.intro}>{siteTypes[siteType].hint}</p>
                         {siteType !== 2 && domainField}
                         {siteType === 1 && <Form.Item
                             name="target"
                             label="目标服务地址"
-                            extra="域名收到的请求将转发到这里，支持 HTTP、HTTPS 或 UNIX 套接字。"
                             rules={[
                                 {required: true, whitespace: true, message: "请输入目标服务地址"},
                                 {validator: async (_, value) => {
@@ -384,7 +355,7 @@ const SiteForm = forwardRef(({onSuccess, typeItems}: any, ref): any => {
                             <Input placeholder="例如 http://127.0.0.1:8080"/>
                         </Form.Item>}
                         {siteType === 2 && <>
-                            <Form.Item name="project_file" label="执行文件" extra="选择服务器上可以直接运行的程序。"
+                            <Form.Item name="project_file" label="执行文件"
                                 getValueProps={(value) => ({value: value ? [value] : []})}
                                 getValueFromEvent={(paths: string[]) => paths[0] || ""}
                                 rules={[{required: true, whitespace: true, message: "请选择执行文件"}]}>
@@ -398,7 +369,7 @@ const SiteForm = forwardRef(({onSuccess, typeItems}: any, ref): any => {
                                     </Form.Item>
                                 </Col>
                                 <Col xs={24} sm={10}>
-                                    <Form.Item name="project_port" label="程序监听端口" extra="与程序自身的端口配置一致。"
+                                    <Form.Item name="project_port" label="程序监听端口"
                                         rules={[{required: true, message: "请输入程序监听端口"}]}>
                                         <InputNumber min={1} max={65535} precision={0} placeholder="例如 8080"/>
                                     </Form.Item>
@@ -407,33 +378,31 @@ const SiteForm = forwardRef(({onSuccess, typeItems}: any, ref): any => {
                             {domainField}
                         </>}
                         {(siteType === 0 || siteType === 3) && <>
-                            <Form.Item name="root" label="网站目录" extra="选择已有网页文件所在的目录；留空会自动创建一个目录。"
+                            <Form.Item name="root" label="网站目录"
                                 getValueProps={(value) => ({value: value ? [value] : []})}
                                 getValueFromEvent={(paths: string[]) => paths[0] || ""}>
-                                <FileSelect type="directory" placeholder="自动创建，或选择已有目录"
+                                <FileSelect type="directory" placeholder="选择已有目录，留空自动创建"
                                     buttonProps={{color: "default", variant: "filled"}}/>
                             </Form.Item>
-                            {siteType === 3 && <Form.Item name="fastcgi_address" label="PHP-FPM 地址" extra="填写已运行的 PHP-FPM 服务地址，也可以使用套接字路径。"
+                            {siteType === 3 && <Form.Item name="fastcgi_address" label="PHP-FPM 地址"
                                 rules={[{required: true, whitespace: true, message: "请输入 PHP-FPM 地址"}]}>
                                 <Input placeholder="127.0.0.1:9000 或 /run/php/php-fpm.sock"/>
                             </Form.Item>}
                         </>}
-                        {(siteType === 1 || siteType === 2) && <Collapse ghost className={styles.more}
+                        {(siteType === 1 || siteType === 2) && <Collapse size="small" bordered={false} className={styles.more}
                             activeKey={advanced} onChange={(keys) => setAdvanced(Array.isArray(keys) ? keys : [keys])}
-                            styles={{header: {padding: "4px 0", alignItems: "center"}, body: {padding: `${compact ? 12 : 16}px 0 0`}}}
-                            expandIconPlacement="end" items={[{
+                            items={[{
                                 key: "advanced",
-                                label: siteType === 1 ? "自定义请求域名（可选）" : "启动参数（可选）",
+                                label: "更多选项",
                                 forceRender: true,
                                 children: siteType === 2 ? <Form.Item name="arguments" label="启动参数">
                                     <Input placeholder="例如 --config ./config.yaml"/>
-                                </Form.Item> : <Form.Item name="host" label="请求域名（Host）" extra="一般无需填写，只有目标服务要求时才需要设置。">
+                                </Form.Item> : <Form.Item name="host" label="请求域名（Host）">
                                     <Input placeholder="默认自动处理"/>
                                 </Form.Item>,
                             }]}/>}
                     </div>
                     <div hidden={step !== 2}>
-                        <p className={styles.intro}>确认以下信息无误，即可创建网站。</p>
                         <div className={styles.review}>
                             <Descriptions column={1} size="small" colon={false} items={[
                                 {key: "type", label: "网站类型", children: siteTypes[siteType].label},
@@ -447,7 +416,7 @@ const SiteForm = forwardRef(({onSuccess, typeItems}: any, ref): any => {
                         </div>
                         <Row gutter={[16, 0]}>
                             {siteType !== 2 && <Col xs={24} sm={14}>
-                                <Form.Item name="remark" label="网站名称" extra="仅用于在面板中识别网站。">
+                                <Form.Item name="remark" label="网站名称">
                                     <Input maxLength={100} placeholder={splitValues(review.domains)[0] || "留空使用首个域名"}/>
                                 </Form.Item>
                             </Col>}
@@ -458,10 +427,7 @@ const SiteForm = forwardRef(({onSuccess, typeItems}: any, ref): any => {
                             </Col>
                         </Row>
                         <div className={styles.enabled}>
-                            <div>
-                                <label htmlFor="create-site-enabled">创建后启用</label>
-                                <div className="site-enabled-description">{siteType === 2 ? "网站服务运行时，自动启动并保持程序运行。" : "关闭后仅保存配置，稍后可在网站列表中启用。"}</div>
-                            </div>
+                            <label htmlFor="create-site-enabled">创建后启用</label>
                             <Form.Item name="enabled" valuePropName="checked" noStyle><Switch id="create-site-enabled" aria-label="创建后启用"/></Form.Item>
                         </div>
                     </div>
