@@ -3,7 +3,6 @@ package file
 import (
 	"context"
 	"runtime"
-	"server/app/util/file"
 	"server/app/util/psutil"
 )
 
@@ -48,8 +47,7 @@ func (s *service) GetDiskPaths() ([]string, error) {
 // destDir: 目标目录
 // callback: 进度回调函数
 func (s *service) CopyWithContext(ctx context.Context, src, destDir string, callback func(current, total int64, currentFile string, totalFiles, currentIndex int64) bool) error {
-	f := file.NewDisk("")
-	return f.CopyWithProcess(ctx, src, destDir, callback)
+	return s.disk.CopyWithProcess(ctx, src, destDir, callback)
 }
 
 // MoveWithContext 带上下文控制的文件移动
@@ -58,6 +56,5 @@ func (s *service) CopyWithContext(ctx context.Context, src, destDir string, call
 // destDir: 目标目录
 // callback: 进度回调函数
 func (s *service) MoveWithContext(ctx context.Context, src, destDir string, callback func(current, total int64, currentFile string, totalFiles, currentIndex int64) bool) error {
-	f := file.NewDisk("")
-	return f.MoveWithProcess(ctx, src, destDir, callback)
+	return s.disk.MoveWithProcess(ctx, src, destDir, callback)
 }

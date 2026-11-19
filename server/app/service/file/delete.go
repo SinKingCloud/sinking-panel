@@ -1,9 +1,6 @@
 package file
 
-import (
-	"errors"
-	"server/app/util/file"
-)
+import "errors"
 
 // Delete 批量删除文件或目录，可选择移入回收站。
 func (s *service) Delete(paths []string, recycle bool) error {
@@ -16,14 +13,13 @@ func (s *service) Delete(paths []string, recycle bool) error {
 		}
 		return s.recycleService.Create(paths...)
 	}
-	f := file.NewDisk("")
 	for _, path := range paths {
-		if path == "" || !f.Exists(path) {
+		if path == "" || !s.disk.Exists(path) {
 			return errors.New("该目录或文件不存在: " + path)
 		}
 	}
 	for _, path := range paths {
-		if err := f.Delete(path); err != nil {
+		if err := s.disk.Delete(path); err != nil {
 			return errors.New("删除失败")
 		}
 	}

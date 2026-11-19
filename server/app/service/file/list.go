@@ -16,7 +16,7 @@ func (s *service) List(path, keyword string, query *page.Query) (*page.Result[*F
 		return nil, errors.New("无效的分页参数")
 	}
 	if runtime.GOOS != "windows" || filepath.Clean(path) != string(filepath.Separator) {
-		items, total, err := file.NewDisk("").FileListWithPage(path, query.Page, query.PageSize, query.OrderByField, query.OrderByType, keyword)
+		items, total, err := s.disk.FileListWithPage(path, query.Page, query.PageSize, query.OrderByField, query.OrderByType, keyword)
 		if err != nil {
 			return nil, err
 		}

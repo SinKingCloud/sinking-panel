@@ -8,21 +8,19 @@ import (
 	"os"
 	"path/filepath"
 	"server/app/constant"
-	"server/app/util/file"
 	"strings"
 	"time"
 )
 
 // CreatePreviewSign 生成文件签名；有效期至少一分钟，非正数表示不过期。
 func (s *service) CreatePreviewSign(path string, download bool, expires time.Duration) (string, error) {
-	f := file.NewDisk("")
-	if !f.Exists(path) {
+	if !s.disk.Exists(path) {
 		return "", errors.New("文件不存在")
 	}
-	if f.IsDir(path) {
+	if s.disk.IsDir(path) {
 		return "", errors.New("不能预览目录")
 	}
-	path = f.Path(path, true, true)
+	path = s.disk.Path(path, true, true)
 	fileName := filepath.Base(path)
 	path, err := filepath.EvalSymlinks(path)
 	if err != nil {

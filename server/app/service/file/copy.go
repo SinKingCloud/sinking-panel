@@ -3,7 +3,6 @@ package file
 import (
 	"context"
 	"errors"
-	"server/app/util/file"
 )
 
 // CopyTask 创建批量文件复制任务。
@@ -16,9 +15,8 @@ func (s *service) transferTask(paths []string, target string, move bool) (string
 	if len(paths) == 0 || target == "" {
 		return "", errors.New("源文件路径和目标路径不能为空")
 	}
-	f := file.NewDisk("")
 	for _, path := range paths {
-		if path == "" || !f.Exists(path) {
+		if path == "" || !s.disk.Exists(path) {
 			return "", errors.New("源文件或目录不存在: " + path)
 		}
 	}

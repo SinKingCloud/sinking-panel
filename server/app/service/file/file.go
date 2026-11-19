@@ -6,6 +6,7 @@ import (
 	serviceRecycle "server/app/service/recycle"
 	serviceSystem "server/app/service/system"
 	"server/app/util/cache"
+	"server/app/util/file"
 	"server/app/util/page"
 	"time"
 )
@@ -48,6 +49,7 @@ type Service interface {
 
 // service 注入结构
 type service struct {
+	disk           *file.Disk
 	cache          cache.Interface
 	recycleService serviceRecycle.Service
 	systemService  serviceSystem.Service
@@ -58,6 +60,7 @@ type service struct {
 // NewService 实例化service
 func NewService(recycleService serviceRecycle.Service, systemService serviceSystem.Service, cache cache.Interface) *service {
 	return &service{
+		disk:           file.NewDisk(""),
 		cache:          cache,
 		recycleService: recycleService,
 		systemService:  systemService,

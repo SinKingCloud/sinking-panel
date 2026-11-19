@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"server/app/util/file"
 	"strconv"
 	"strings"
 	"time"
@@ -19,12 +18,11 @@ func (s *service) DownloadTask(url, path, name string) (string, string, error) {
 	if url == "" || path == "" {
 		return "", "", errors.New("下载地址和目标路径不能为空")
 	}
-	f := file.NewDisk("")
-	if !f.IsDir(path) {
-		if f.Exists(path) {
+	if !s.disk.IsDir(path) {
+		if s.disk.Exists(path) {
 			return "", "", errors.New("目标路径不是一个目录")
 		}
-		if err := f.CreateDir(path); err != nil {
+		if err := s.disk.CreateDir(path); err != nil {
 			return "", "", fmt.Errorf("目标目录不存在且无法创建: %w", err)
 		}
 	}
